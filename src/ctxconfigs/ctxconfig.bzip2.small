@@ -1,0 +1,6 @@
+[ Context 0 ]
+exe = bzip2_base.i386
+args = input.source 50
+cwd = /home/crigore/trabajo-AAV/multi2sim/src/benchmarks/spec2006/401.bzip2
+StdOut = bzip2.out
+IPCs = bzip2.ipcs
