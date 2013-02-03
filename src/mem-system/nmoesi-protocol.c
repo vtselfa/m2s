@@ -1967,6 +1967,8 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 			assert(stack->eviction);
 			ret->err = 1;
 			dir_entry_unlock(mod->dir, stack->set, stack->way);
+			if(stack->prefetch_hit)
+				dir_pref_entry_unlock(mod->dir, stack->pref_stream, stack->pref_slot); //SLOT
 			mod_stack_return(stack);
 			return;
 		}
