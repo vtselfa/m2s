@@ -1448,28 +1448,28 @@ int main(int argc, char **argv)
 
 	/* Debug */
 	debug_init();
-	x86_isa_inst_debug_category = debug_new_category(x86_isa_debug_file_name);
-	x86_isa_call_debug_category = debug_new_category(x86_call_debug_file_name);
-	elf_debug_category = debug_new_category(elf_debug_file_name);
-	net_debug_category = debug_new_category(net_debug_file_name);
-	x86_loader_debug_category = debug_new_category(x86_loader_debug_file_name);
-	x86_sys_debug_category = debug_new_category(x86_sys_debug_file_name);
-	x86_ctx_debug_category = debug_new_category(ctx_debug_file_name);
-	mem_debug_category = debug_new_category(mem_debug_file_name);
-	evg_opencl_debug_category = debug_new_category(evg_opencl_debug_file_name);
-	evg_isa_debug_category = debug_new_category(evg_isa_debug_file_name);
-	evg_stack_debug_category = debug_new_category(evg_stack_debug_file_name);  /* GPU-REL */
-	evg_faults_debug_category = debug_new_category(evg_faults_debug_file_name);  /* GPU-REL */
-	si_opencl_debug_category = debug_new_category(evg_opencl_debug_file_name);
-	si_isa_debug_category = debug_new_category(si_isa_debug_file_name);
-	frm_cuda_debug_category = debug_new_category(frm_cuda_debug_file_name);
-	x86_glut_debug_category = debug_new_category(x86_glut_debug_file_name);
-	x86_clrt_debug_category = debug_new_category(x86_clrt_debug_file_name);
-	x86_opengl_debug_category = debug_new_category(x86_opengl_debug_file_name);
-	arm_loader_debug_category = debug_new_category(arm_loader_debug_file_name);
-	arm_isa_inst_debug_category = debug_new_category(arm_isa_debug_file_name);
-	arm_sys_debug_category = debug_new_category(arm_sys_debug_file_name);
-	arm_isa_call_debug_category = debug_new_category(arm_call_debug_file_name);
+	x86_isa_inst_debug_category = debug_new_category(x86_isa_debug_file_name, 0);
+	x86_isa_call_debug_category = debug_new_category(x86_call_debug_file_name, 0);
+	elf_debug_category = debug_new_category(elf_debug_file_name, 0);
+	net_debug_category = debug_new_category(net_debug_file_name, 0);
+	x86_loader_debug_category = debug_new_category(x86_loader_debug_file_name, 0);
+	x86_sys_debug_category = debug_new_category(x86_sys_debug_file_name, 0);
+	x86_ctx_debug_category = debug_new_category(ctx_debug_file_name, 0);
+	mem_debug_category = debug_new_category(mem_debug_file_name, 1000000000); /* MAX SIZE = 1GB */
+	evg_opencl_debug_category = debug_new_category(evg_opencl_debug_file_name, 0);
+	evg_isa_debug_category = debug_new_category(evg_isa_debug_file_name, 0);
+	evg_stack_debug_category = debug_new_category(evg_stack_debug_file_name, 0);  /* GPU-REL */
+	evg_faults_debug_category = debug_new_category(evg_faults_debug_file_name, 0);  /* GPU-REL */
+	si_opencl_debug_category = debug_new_category(evg_opencl_debug_file_name, 0);
+	si_isa_debug_category = debug_new_category(si_isa_debug_file_name, 0);
+	frm_cuda_debug_category = debug_new_category(frm_cuda_debug_file_name, 0);
+	x86_glut_debug_category = debug_new_category(x86_glut_debug_file_name, 0);
+	x86_clrt_debug_category = debug_new_category(x86_clrt_debug_file_name, 0);
+	x86_opengl_debug_category = debug_new_category(x86_opengl_debug_file_name, 0);
+	arm_loader_debug_category = debug_new_category(arm_loader_debug_file_name, 0);
+	arm_isa_inst_debug_category = debug_new_category(arm_isa_debug_file_name, 0);
+	arm_sys_debug_category = debug_new_category(arm_sys_debug_file_name, 0);
+	arm_isa_call_debug_category = debug_new_category(arm_call_debug_file_name, 0);
 
 	/* Trace */
 	trace_init(trace_file_name);

@@ -44,6 +44,8 @@ struct debug_category_t
 	/* File name and descriptor */
 	char *file_name;
 	FILE *f;
+	
+	unsigned int max_size; /* File max size */
 };
 
 static struct list_t *debug_category_list;
@@ -85,7 +87,7 @@ void debug_done(void)
 }
 
 
-int debug_new_category(char *file_name)
+int debug_new_category(char *file_name, unsigned int max_size)
 {
 	struct debug_category_t *c;
 
@@ -99,6 +101,7 @@ int debug_new_category(char *file_name)
 		fatal("%s: out of memory", __FUNCTION__);
 
 	/* Initialize */
+	c->max_size = max_size;
 	c->status = debug_status_on;
 	c->file_name = strdup(file_name);
 	if (!c->file_name)
@@ -232,6 +235,14 @@ void __debug(int category, char *fmt, ...)
 	assert(c);
 	if (c->status == debug_status_off)
 		return;
+	
+	/* If there is a max size limit and file is bigger, truncate it */
+	if(c->max_size)
+	{
+		unsigned int size = ftell(c->f);
+		if(size > c->max_size)
+			fseek(c->f, 0, SEEK_SET);
+	}
 	
 	/* Print spaces */
 	if (c->space_count >= sizeof(spc))

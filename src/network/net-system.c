@@ -359,7 +359,7 @@ void net_sim(char *debug_file_name)
 	debug_init();
 	esim_init();
 	net_init();
-	net_debug_category = debug_new_category(debug_file_name);
+	net_debug_category = debug_new_category(debug_file_name, 0);
 
 	/* Network to work with */
 	if (!*net_sim_network_name)

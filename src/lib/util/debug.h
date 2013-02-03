@@ -30,8 +30,9 @@ void debug_done(void);
 
 /* Create new category for debugging, which will be passed as first parameter
  * to the 'debug' function. If a file name is given, an implicit call to
- * 'debug_assign_file' is performed. */
-int debug_new_category(char *filename);
+ * 'debug_assign_file' is performed. If max_size is not 0, the file will be
+ * truncated if the limit is rebased. */
+int debug_new_category(char *filename, unsigned int max_size);
 
 /* Switch the status of a debugging category. By default, the
  * debugging messages are on, while there is an opened file to be dumped into. */
