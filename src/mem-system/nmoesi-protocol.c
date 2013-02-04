@@ -1834,21 +1834,22 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 		/* If prefetch hit lock prefetch entry */
 		if(stack->prefetch_hit)
 		{
+			struct stream_block_t * block = cache_get_pref_block(cache, stack->pref_stream, stack->pref_slot); //SLOT*
 			dir_lock = dir_pref_lock_get(mod->dir, stack->pref_stream, stack->pref_slot); //SLOT*
 			if (dir_lock->lock && !stack->blocking)
 			{
-				struct stream_block_t * block = cache_get_pref_block(cache,stack->pref_stream, stack->pref_slot); //SLOT*
 				mem_debug("    %lld 0x%x %s pref_stream %d pref_slot %d containing 0x%x (0x%x) already locked by stack %lld, retrying...",stack->id, stack->tag, mod->name, stack->pref_stream, stack->pref_slot, block->tag, block->transient_tag, dir_lock->stack_id);
-
 				ret->err = 1;
 				mod_unlock_port(mod, port, stack);
 				mod_stack_return(stack);
 				return;
 			}
-			if (!dir_pref_entry_lock(mod->dir, stack->pref_stream, stack->pref_slot, //SLOT*
-				EV_MOD_NMOESI_FIND_AND_LOCK, stack))
+			/* Don't block if is already blocked by the same stack. 
+			 * This means that this access was suspended and is now resumed. */
+			if((!dir_lock->lock || dir_lock->stack_id != stack->id) &&
+				!dir_pref_entry_lock(mod->dir, stack->pref_stream, stack->pref_slot, EV_MOD_NMOESI_FIND_AND_LOCK, stack))
 			{
-				mem_debug("    %lld 0x%x %s pref_stream %d pref_slot %d already locked by stack %lld, waiting...\n", stack->id, stack->tag, mod->name, stack->pref_stream, stack->pref_slot, dir_lock->stack_id);
+				mem_debug("    %lld 0x%x %s pref_stream %d pref_slot %d containing 0x%x (0x%x) already locked by stack %lld, waiting...",stack->id, stack->tag, mod->name, stack->pref_stream, stack->pref_slot, block->tag, block->transient_tag, dir_lock->stack_id);
 				mod_unlock_port(mod, port, stack);
 				return;
 			}
@@ -1862,10 +1863,11 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 			dir_lock = dir_lock_get(mod->dir, stack->set, stack->way);
 			if (dir_lock->lock && !stack->blocking)
 			{
-				mem_debug("    %lld 0x%x %s block already locked: set=%d, way=%d\n",
-					stack->id, stack->tag, mod->name, stack->set, stack->way);
+				mem_debug("    %lld 0x%x %s block already locked: set=%d, way=%d already locked by stack %lld, retrying...",stack->id, stack->tag, mod->name, stack->pref_stream, stack->pref_slot, dir_lock->stack_id);
 				ret->err = 1;
 				mod_unlock_port(mod, port, stack);
+				if(stack->prefetch_hit) /* Unblock prefetch block */
+					dir_pref_entry_unlock(mod->dir, stack->pref_stream, stack->pref_slot); //SLOT
 				ret->port_locked = 0;
 				mod_stack_return(stack);
 				return;
@@ -1877,8 +1879,7 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 			if (!dir_entry_lock(mod->dir, stack->set, stack->way, EV_MOD_NMOESI_FIND_AND_LOCK, 
 				stack))
 			{
-				mem_debug("    %lld 0x%x %s block locked at set=%d, way=%d\n",
-					stack->id, stack->tag, mod->name, stack->set, stack->way);
+				mem_debug("    %lld 0x%x %s block locked at set=%d, way=%d already locked by stack %lld, waiting...",stack->id, stack->tag, mod->name, stack->pref_stream, stack->pref_slot, dir_lock->stack_id);
 				mod_unlock_port(mod, port, stack);
 				ret->port_locked = 0;
 				return;

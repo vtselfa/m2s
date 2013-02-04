@@ -292,6 +292,8 @@ int dir_pref_entry_lock(struct dir_t *dir, int pref_stream, int pref_slot, int e
 	/* If the entry is already locked, enqueue a new waiter and
 	 * return failure to lock. */
 	if (dir_lock->lock){
+		assert(dir_lock->stack_id != stack->id);
+
 		/* Enqueue the stack to the end of the lock queue */
 		stack->dir_lock_next = NULL;
 		stack->dir_lock_event = event;
@@ -344,6 +346,8 @@ int dir_entry_lock(struct dir_t *dir, int x, int y, int event, struct mod_stack_
 	 * return failure to lock. */
 	if (dir_lock->lock)
 	{
+		assert(dir_lock->stack_id != stack->id);
+
 		/* Enqueue the stack to the end of the lock queue */
 		stack->dir_lock_next = NULL;
 		stack->dir_lock_event = event;
