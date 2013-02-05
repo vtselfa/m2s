@@ -1340,8 +1340,6 @@ void mod_handler_nmoesi_pref_find_and_lock(int event, void *data)
 		assert(stack->pref_slot>=0 && stack->pref_slot<sb->num_slots);
 		assert(stack->pref_stream>=0 && stack->pref_stream<cache->prefetch.num_streams);
 
-		mem_debug("    %lld 0x%x %s stream=%d, slot=%d, state=%s\n", stack->id, stack->tag, mod->name, stack->pref_stream, stack->pref_slot,str_map_value(&cache_block_state_map, stack->state));
-		
 		/* Lock prefetch entry */
 		dir_lock = dir_pref_lock_get(mod->dir, stack->pref_stream, stack->pref_slot); //SLOT*
 		if (dir_lock->lock && !stack->blocking){
@@ -1362,6 +1360,8 @@ void mod_handler_nmoesi_pref_find_and_lock(int event, void *data)
 		 * detects that the block is being brought. */
 		struct stream_block_t *block = cache_get_pref_block(cache, stack->pref_stream, stack->pref_slot); //SLOT*
 		block->transient_tag = stack->tag;
+		
+		mem_debug("    %lld 0x%x %s stream=%d, slot=%d, state=%s\n", stack->id, stack->tag, mod->name, stack->pref_stream, stack->pref_slot,str_map_value(&cache_block_state_map, block->state));
 		
 		/* Update count */
 		if(stack->access_kind != mod_access_invalidate){
