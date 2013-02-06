@@ -382,8 +382,8 @@ int mod_find_pref_block(struct mod_t *mod, unsigned int addr, int *pref_stream_p
 				}
 			}
 
-			/* Tag hit and block not being evicted */
-			if (blk->tag == tag && blk->state && blk->tag == blk->transient_tag)
+			/* Tag hit */
+			if (blk->tag == tag && blk->state)
 				goto hit;
 
 			/* Locked block and transient tag hit */
