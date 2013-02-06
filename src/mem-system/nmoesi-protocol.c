@@ -288,6 +288,9 @@ void enqueue_prefetch_on_hit(struct mod_stack_t *stack, int level)
 
 	/* Statistics */
 	mod->single_prefetches++;
+
+	/* Add a pending prefetch */
+	sb->pending_prefetches++;
 }
 
 
@@ -508,18 +511,17 @@ void mod_handler_pref(int event, void *data)
 		/* Statitistics */
 		mod->completed_prefetches++;
 
-		/* The last prefetch (or invalidation) of a prefetch group sets the stream tag */
-		if(stack->pref.kind == GROUP){
-			sb = &cache->prefetch.streams[stack->pref_stream];
-			assert(stack->pref_stream >= 0 && stack->pref_stream < cache->prefetch.num_streams);
-			assert(stack->pref_slot >= 0 && stack->pref_slot < cache->prefetch.aggressivity);
-			assert(sb->pending_prefetches > 0);
-			if(sb->pending_prefetches == 1){
-				sb->stream_tag = stack->addr & ~cache->prefetch.stream_mask;
-				assert(sb->stream_tag == sb->stream_transcient_tag);
-			}
-			sb->pending_prefetches--;
+		/* When only remains one pending prefetch the stream tag is set */
+		sb = &cache->prefetch.streams[stack->pref_stream];
+		assert(stack->pref_stream >= 0 && stack->pref_stream < cache->prefetch.num_streams);
+		assert(stack->pref_slot >= 0 && stack->pref_slot < cache->prefetch.aggressivity);
+		assert(sb->pending_prefetches > 0);
+		if(sb->pending_prefetches == 1)
+		{
+			sb->stream_tag = stack->addr & ~cache->prefetch.stream_mask;
+			assert(sb->stream_tag == sb->stream_transcient_tag);
 		}
+		sb->pending_prefetches--;
 
 		/* Continue */
 		esim_schedule_event(EV_MOD_PREF_FINISH, stack, 0);
