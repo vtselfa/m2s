@@ -88,9 +88,9 @@ struct mod_t *mod_create(char *name, enum mod_kind_t kind, int num_ports,
 	mod->block_size = block_size;
 	assert(!(block_size & (block_size - 1)) && block_size >= 4);
 	mod->log_block_size = log_base2(block_size);
-	
+
 	mod->prefetch_enabled=pref;
-	
+
 	printf("Mod %s pref %d\n", mod->name, mod->prefetch_enabled);
 
 	return mod;
@@ -107,7 +107,7 @@ void mod_free(struct mod_t *mod)
 	linked_list_head(pq);
 	while (linked_list_count(pq))
 	{
-		/* Free all the uops and pref_groups associated (if any) 
+		/* Free all the uops and pref_groups associated (if any)
 		 * remaining in the queue */
 		struct x86_uop_t * uop = linked_list_get(pq);
 		linked_list_remove(pq);
@@ -134,7 +134,7 @@ void mod_dump(struct mod_t *mod, FILE *f)
  * Variable 'witness', if specified, will be increased when the access completes.
  * The function returns a unique access ID.
  */
-long long mod_access(struct mod_t *mod, enum mod_access_kind_t access_kind, 
+long long mod_access(struct mod_t *mod, enum mod_access_kind_t access_kind,
 	unsigned int addr, int *witness_ptr, struct linked_list_t *event_queue,
 	void *event_queue_item, int core, int thread, int prefetch)
 {
@@ -146,7 +146,7 @@ long long mod_access(struct mod_t *mod, enum mod_access_kind_t access_kind,
 	mod_stack_id++;
 	stack = mod_stack_create(mod_stack_id,
 		mod, addr, ESIM_EV_NONE, NULL, core, thread, prefetch);
-	
+
 	/* Pass prefetch parameters */
 	if(uop && uop->pref.kind)
 		stack->pref = uop->pref;
@@ -203,7 +203,7 @@ long long mod_access(struct mod_t *mod, enum mod_access_kind_t access_kind,
 			panic("%s: invalid access kind", __FUNCTION__);
 		}
 	}
-	
+
 
 	/* Schedule */
 	  esim_execute_event(event, stack);
@@ -250,7 +250,7 @@ void mod_get_tag_set(struct mod_t *mod, unsigned int addr, int *tag_ptr, int *se
 	{
 		set = (tag >> cache->log_block_size) % cache->num_sets;
 	}
-	else 
+	else
 	{
 		panic("%s: invalid range kind (%d)", __FUNCTION__, mod->range_kind);
 	}
@@ -264,11 +264,11 @@ void mod_get_tag_set(struct mod_t *mod, unsigned int addr, int *tag_ptr, int *se
 int mod_find_block_in_stream(struct mod_t *mod, unsigned int addr, int stream)
 {
 	struct cache_t *cache = mod->cache;
-	struct stream_buffer_t *sb = &cache->prefetch.streams[stream];				
+	struct stream_buffer_t *sb = &cache->prefetch.streams[stream];
 	struct stream_block_t *block;
 	int tag = addr & ~cache->block_mask;
 	int i, slot, count;
-	
+
 	count = sb->head + sb->num_slots;
 	for(i = sb->head; i < count; i++){
 		slot = i % sb->num_slots;
@@ -305,7 +305,7 @@ int mod_find_block(struct mod_t *mod, unsigned int addr, int *set_ptr,
 	{
 		set = (tag >> cache->log_block_size) % cache->num_sets;
 	}
-	else 
+	else
 	{
 		panic("%s: invalid range kind (%d)", __FUNCTION__, mod->range_kind);
 	}
@@ -342,7 +342,7 @@ int mod_find_block(struct mod_t *mod, unsigned int addr, int *set_ptr,
 
 /* Look for a block in prefetch buffer.
  * The function returns 0 on miss, 1 if hit on head and 2 if hit in the middle of the stream. */
-int mod_find_pref_block(struct mod_t *mod, unsigned int addr, int *pref_stream_ptr, int* pref_slot_ptr) 
+int mod_find_pref_block(struct mod_t *mod, unsigned int addr, int *pref_stream_ptr, int *pref_slot_ptr)
 {
 	struct cache_t *cache = mod->cache;
 	struct stream_block_t *blk;
@@ -352,55 +352,62 @@ int mod_find_pref_block(struct mod_t *mod, unsigned int addr, int *pref_stream_p
 	/* A transient tag is considered a hit if the block is
 	 * locked in the corresponding directory */
 	int tag = addr & ~cache->block_mask;
-	
+
 	unsigned int stream_tag = addr & ~cache->prefetch.stream_mask;
 	int stream, slot;
 	int num_streams = cache->prefetch.num_streams;
-	for(stream=0; stream<num_streams; stream++){
+	for(stream=0; stream<num_streams; stream++)
+	{
 		int i, count;
 		sb = &cache->prefetch.streams[stream];
-		
+
 		/* Block can't be in this stream */
 		/*if(!sb->stream_tag == stream_tag)
 			continue;*/
 
 		count = sb->head + sb->num_slots;
-		for(i = sb->head; i < count; i++){
+		for(i = sb->head; i < count; i++)
+		{
 			slot = i % sb->num_slots;
 			blk = cache_get_pref_block(cache, stream, slot);
-			
+
 			/* Increment any invalid unlocked head */
-			if(slot == sb->head && !blk->state){
+			if(slot == sb->head && !blk->state)
+			{
 				dir_lock = dir_pref_lock_get(mod->dir, stream, slot);
-				if(!dir_lock->lock){
+				if(!dir_lock->lock)
+				{
 					sb->head = (sb->head + 1) % sb->num_slots;
 					continue;
 				}
 			}
-				
+
 			/* Tag hit and block not being evicted */
 			if (blk->tag == tag && blk->state && blk->tag == blk->transient_tag)
-				goto hit; /* LOL */
+				goto hit;
 
 			/* Locked block and transient tag hit */
-			if (blk->transient_tag == tag){
+			if (blk->transient_tag == tag)
+			{
 				dir_lock = dir_pref_lock_get(mod->dir, stream, slot);
 				if (dir_lock->lock)
-					goto hit; /* LOL */
+					goto hit;
 			}
 		}
 	}
 
 	/* Miss */
-	if (stream == num_streams){
+	if (stream == num_streams)
+	{
 		PTR_ASSIGN(pref_stream_ptr, -1);
 		PTR_ASSIGN(pref_slot_ptr, -1);
 		return 0;
 	}
 	/* Si hi ha una store davant esperant, quan agafe el bloc va a modificar-lo,
 	 * així que no te sentit fer hit */
-	dir_lock = dir_pref_lock_get(mod->dir, stream, slot); //SLOT
-	if (dir_lock->lock_queue && dir_lock->lock_queue->access_kind == mod_access_store){
+	dir_lock = dir_pref_lock_get(mod->dir, stream, slot);
+	if (dir_lock->lock_queue && dir_lock->lock_queue->access_kind == mod_access_store)
+	{
 		PTR_ASSIGN(pref_stream_ptr, -1);
 		PTR_ASSIGN(pref_slot_ptr, -1);
 		return 0;
@@ -409,12 +416,12 @@ int mod_find_pref_block(struct mod_t *mod, unsigned int addr, int *pref_stream_p
 	/* Hit */
 hit:
 	assert(sb->stream_tag == stream_tag || sb->stream_transcient_tag == stream_tag); /* Assegurem-nos de que el bloc estava on tocava */
-	PTR_ASSIGN(pref_stream_ptr, stream);	
+	PTR_ASSIGN(pref_stream_ptr, stream);
 	PTR_ASSIGN(pref_slot_ptr, slot);
 	if(sb->head == slot)
 		return 1; //Hit in head
 	else
-		return 2; //Hit in the middle of the stream 
+		return 2; //Hit in the middle of the stream
 }
 
 
@@ -432,13 +439,13 @@ void mod_lock_port(struct mod_t *mod, struct mod_stack_t *stack, int event)
 	{
 		assert(!DOUBLE_LINKED_LIST_MEMBER(mod, port_waiting, stack));
 
-		/* If the request to lock the port is down-up, give it priority since 
+		/* If the request to lock the port is down-up, give it priority since
 		 * it is possibly holding up a large portion of the memory hierarchy */
 		if (stack->request_dir == mod_request_down_up)
 		{
 			DOUBLE_LINKED_LIST_INSERT_HEAD(mod, port_waiting, stack);
 		}
-		else 
+		else
 		{
 			DOUBLE_LINKED_LIST_INSERT_TAIL(mod, port_waiting, stack);
 		}
