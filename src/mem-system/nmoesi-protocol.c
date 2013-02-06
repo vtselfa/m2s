@@ -277,7 +277,7 @@ void enqueue_prefetch_on_hit(struct mod_stack_t *stack, int level)
 	uop->pref.dest_slot = sb->tail; //TAIL
 
 	/* Update tail */
-	sb->tail = (stack->pref_slot + 1) % sb->num_slots; //TAIL
+	sb->tail = (sb->tail + 1) % sb->num_slots; //TAIL
 
 	if(level == 1){
 		x86_pq_insert(uop);
