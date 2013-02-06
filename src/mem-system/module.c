@@ -350,7 +350,7 @@ int mod_find_pref_block(struct mod_t *mod, unsigned int addr, int *pref_stream_p
 	struct stream_buffer_t *sb;
 
 	/* A transient tag is considered a hit if the block is
-	 * locked in the corresponding directory??? */
+	 * locked in the corresponding directory */
 	int tag = addr & ~cache->block_mask;
 	
 	unsigned int stream_tag = addr & ~cache->prefetch.stream_mask;
@@ -378,8 +378,8 @@ int mod_find_pref_block(struct mod_t *mod, unsigned int addr, int *pref_stream_p
 				}
 			}
 				
-			/* Tag hit */
-			if (blk->tag == tag && blk->state)
+			/* Tag hit and block not being evicted */
+			if (blk->tag == tag && blk->state && blk->tag == blk->transient_tag)
 				goto hit; /* LOL */
 
 			/* Locked block and transient tag hit */
