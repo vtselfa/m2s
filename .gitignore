@@ -27,4 +27,11 @@ configure
 aclocal.m4
 *.ipc
 benchmarks
-.git.bak
+*~
+*.bak
+*.swp
+*.c.*
+*.h.*
+*.ghc
+.clang_complete
+
