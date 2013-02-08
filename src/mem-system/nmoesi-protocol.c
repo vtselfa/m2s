@@ -325,6 +325,9 @@ void mod_handler_pref(int event, void *data)
 
 		/* Record access */
 		mod_access_start(mod, stack, mod_access_prefetch);
+		
+		/* Statistics */
+		mod->programmed_prefetches++;
 
 		/* Invalidate slot if required */
 		if (stack->pref.invalidating)
@@ -1520,7 +1523,7 @@ void mod_handler_nmoesi_prefetch(int event, void *data)
 		if (master_stack)
 		{
 			/* doesn't make sense to prefetch as the block is already being fetched */
-			mod->useless_prefetches++;
+			mod->canceled_prefetches++;
 			esim_schedule_event(EV_MOD_PREF_FINISH, stack, 0);
 			/* Increment witness variable */
 			if (stack->witness_ptr)
@@ -1585,7 +1588,7 @@ void mod_handler_nmoesi_prefetch(int event, void *data)
 			This can be improved to not retry only when the current lock
 			holder is writing to the block. */
 
-			mod->prefetch_aborts++;
+			mod->canceled_prefetches++;
 			mem_debug("    lock error, aborting prefetch\n");
 			esim_schedule_event(EV_MOD_PREF_FINISH, stack, 0);
 			return;
@@ -1594,8 +1597,8 @@ void mod_handler_nmoesi_prefetch(int event, void *data)
 		/* Hit */
 		if (stack->state)
 		{
-			/* block already in the cache */
-			mod->useless_prefetches++;
+			/* Block already in the cache */
+			mod->canceled_prefetches++;
 			esim_schedule_event(EV_MOD_PREF_UNLOCK, stack, 0);
 			return;
 		}
@@ -1625,7 +1628,7 @@ void mod_handler_nmoesi_prefetch(int event, void *data)
 			 * Effectively this means that prefetches are of low priority.
 			 * This can be improved depending on the reason for read request fail */
 
-			mod->prefetch_aborts++;
+			mod->canceled_prefetches++;
 			dir_entry_unlock(mod->dir, stack->set, stack->way);
 			mem_debug("    lock error, aborting prefetch\n");
 			esim_schedule_event(EV_MOD_PREF_FINISH, stack, 0);
@@ -1752,10 +1755,6 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 			if (stack->hit)
 				mod->read_hits++;
 		}
-		else if (stack->prefetch)
-		{
-		    mod->prefetches++;
-		}
 		else if (stack->nc_write)  /* Must go after read */
 		{
 			mod->nc_writes++;
@@ -1781,6 +1780,10 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 				mod->write_hits++;
 		}
 		else if (stack->message)
+		{
+			/* FIXME */
+		}
+		else if (stack->prefetch)
 		{
 			/* FIXME */
 		}

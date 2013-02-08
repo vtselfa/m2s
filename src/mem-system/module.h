@@ -106,7 +106,7 @@ struct mod_t
 			unsigned int eq;
 		} interleaved;
 	} range;
-	
+
 	/* Prefetch queue */
 	struct linked_list_t *pq;
 
@@ -193,9 +193,6 @@ struct mod_t
 	long long nc_writes;
 	long long effective_nc_writes;
 	long long effective_nc_write_hits;
-	long long prefetches;
-	long long prefetch_aborts;
-	long long useless_prefetches;
 	long long evictions;
 
 	long long blocking_reads;
@@ -220,23 +217,24 @@ struct mod_t
 	long long no_retry_write_hits;
 	long long no_retry_nc_writes;
 	long long no_retry_nc_write_hits;
+
 	/* Prefetch */
-	long long completed_prefetches;
 	long long programmed_prefetches;
+	long long completed_prefetches;
+	long long canceled_prefetches;
 	long long useful_prefetches;
+	double prefetch_precision;
+	long long delayed_hits; /* Hit on a block being brougth by a prefetch */
 
 	long long single_prefetches; /* Prefetches on hit */
-	long long group_prefetches; /* Prefetches on miss */
-	long long canceled_prefetches; /* Canceled because block is coming or already in cache */
+	long long group_prefetches; /* Number of GROUPS */
+
 	long long slot_invalidations; /* Canceled prefetches + end of stream reached */
+
 	long long up_down_hits;
 	long long up_down_head_hits;
 	long long down_up_read_hits;
 	long long down_up_write_hits;
-	long long delayed_hits;
-	double prefetch_precision; /* Up-down hits / completed_prefetches */
-	double prefetch_coverage;
-
 };
 
 struct mod_t *mod_create(char *name, enum mod_kind_t kind, int num_ports,
@@ -246,12 +244,12 @@ void mod_dump(struct mod_t *mod, FILE *f);
 void mod_stack_set_reply(struct mod_stack_t *stack, int reply);
 struct mod_t *mod_stack_set_peer(struct mod_t *peer, int state);
 
-long long mod_access(struct mod_t *mod, enum mod_access_kind_t access_kind, 
+long long mod_access(struct mod_t *mod, enum mod_access_kind_t access_kind,
 	unsigned int addr, int *witness_ptr, struct linked_list_t *event_queue,
 	void *event_queue_item, int core, int thread, int prefetch);
 int mod_can_access(struct mod_t *mod, unsigned int addr);
 
-int mod_find_block(struct mod_t *mod, unsigned int addr, int *set_ptr, int *way_ptr, 
+int mod_find_block(struct mod_t *mod, unsigned int addr, int *set_ptr, int *way_ptr,
 	int *tag_ptr, int *state_ptr, int *prefetched_prt);
 
 void mod_lock_port(struct mod_t *mod, struct mod_stack_t *stack, int event);
@@ -280,7 +278,7 @@ void mod_coalesce(struct mod_t *mod, struct mod_stack_t *master_stack,
 	struct mod_stack_t *stack);
 
 /* Prefetch */
-int mod_find_pref_block(struct mod_t *mod, unsigned int addr, int *pref_stream_ptr, int* pref_slot_ptr); 
+int mod_find_pref_block(struct mod_t *mod, unsigned int addr, int *pref_stream_ptr, int* pref_slot_ptr);
 int mod_find_block_in_stream(struct mod_t *mod, unsigned int addr, int stream);
 
 #endif

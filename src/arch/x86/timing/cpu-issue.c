@@ -36,7 +36,7 @@ static int x86_cpu_issue_pq(int core, int thread, int quant)
 {
 	struct linked_list_t *pq = X86_THREAD.pq;
 	struct x86_uop_t *uop;
-    
+
     /* Process pq */
 	linked_list_head(pq);
 	while (!linked_list_is_end(pq) && quant)
@@ -45,20 +45,17 @@ static int x86_cpu_issue_pq(int core, int thread, int quant)
 		uop = linked_list_get(pq);
 		assert(uop->uinst->opcode == x86_uinst_prefetch);
 		uop->ready = 1;
-		
+
 		/* Check that memory system is accessible */
 		if (!mod_can_access(uop->pref.mod, uop->phy_addr))
 		{
 			linked_list_next(pq);
 			continue;
 		}
-		
+
 		/* Access memory system */
 		mod_access(uop->pref.mod, mod_access_prefetch, uop->phy_addr, NULL, X86_CORE.event_queue, uop, core, thread, 1);
 
-		/* Statistics */
-		uop->pref.mod->programmed_prefetches++;
-		
 		/* Remove from pref queue */
 		x86_pq_remove(core, thread);
 
@@ -68,7 +65,7 @@ static int x86_cpu_issue_pq(int core, int thread, int quant)
 		uop->in_event_queue = 1;
 		uop->issued = 1;
 		uop->issue_when = x86_cpu->cycle;
-		
+
 		/* Instruction issued */
 		X86_CORE.num_issued_uinst_array[uop->uinst->opcode]++;
 		X86_CORE.lsq_reads++;
@@ -80,16 +77,16 @@ static int x86_cpu_issue_pq(int core, int thread, int quant)
 		X86_THREAD.reg_file_fp_reads += uop->ph_fp_idep_count;
 		x86_cpu->num_issued_uinst_array[uop->uinst->opcode]++;
 		quant--;
-		
+
 		/* MMU statistics */
 		if (*mmu_report_file_name)
 			mmu_access_page(uop->phy_addr, mmu_access_read);
-		
+
 		/* Trace */
 		x86_trace("x86.inst id=%lld core=%d stg=\"i\"\n",
 			uop->id_in_core, uop->core);
 	}
-	
+
 	return quant;
 }
 
@@ -98,7 +95,7 @@ static int x86_cpu_issue_l2pq(int core, int thread, int quant)
 {
 	struct linked_list_t *l2mods = X86_THREAD.data_mod->low_mod_list;
 	struct x86_uop_t *uop;
-    
+
 	/* Process all L2 modules below L1 */
 	linked_list_head(l2mods);
 	while (!linked_list_is_end(l2mods))
@@ -114,7 +111,7 @@ static int x86_cpu_issue_l2pq(int core, int thread, int quant)
 			uop = linked_list_get(pq);
 
 			uop->ready = 1;
-		
+
 			assert(uop->pref.kind);
 
 			/* Check that memory system is accessible */
@@ -123,13 +120,10 @@ static int x86_cpu_issue_l2pq(int core, int thread, int quant)
 				linked_list_next(pq);
 				continue;
 			}
-			
+
 			/* Access memory system */
 			mod_access(l2mod, mod_access_prefetch, uop->phy_addr,
-				NULL, X86_CORE.event_queue, uop, core, thread, 1); 
-			
-			/* Statistics */
-			l2mod->programmed_prefetches++;
+				NULL, X86_CORE.event_queue, uop, core, thread, 1);
 
 			/* Remove from prefetch queue */
 			linked_list_remove(pq);
@@ -140,18 +134,18 @@ static int x86_cpu_issue_l2pq(int core, int thread, int quant)
 			uop->in_event_queue = 1;
 			uop->issued = 1;
 			uop->issue_when = x86_cpu->cycle;
-		
+
 			//quant--;
-		
+
 			/* MMU statistics */
 			if (*mmu_report_file_name)
 				mmu_access_page(uop->phy_addr, mmu_access_read);
 		}
 		linked_list_next(l2mods);
 	}
-	
+
 	return quant;
-    
+
 }
 
 
@@ -189,7 +183,7 @@ static int x86_cpu_issue_sq(int core, int thread, int quant)
 		store->in_event_queue = 1;
 		store->issued = 1;
 		store->issue_when = x86_cpu->cycle;
-	
+
 		/* Instruction issued */
 		X86_CORE.num_issued_uinst_array[store->uinst->opcode]++;
 		X86_CORE.lsq_reads++;
@@ -201,7 +195,7 @@ static int x86_cpu_issue_sq(int core, int thread, int quant)
 		X86_THREAD.reg_file_fp_reads += store->ph_fp_idep_count;
 		x86_cpu->num_issued_uinst_array[store->uinst->opcode]++;
 		quant--;
-		
+
 		/* MMU statistics */
 		if (*mmu_report_file_name)
 			mmu_access_page(store->phy_addr, mmu_access_write);
@@ -249,7 +243,7 @@ static int x86_cpu_issue_lq(int core, int thread, int quant)
 		load->in_event_queue = 1;
 		load->issued = 1;
 		load->issue_when = x86_cpu->cycle;
-		
+
 		/* Instruction issued */
 		X86_CORE.num_issued_uinst_array[load->uinst->opcode]++;
 		X86_CORE.lsq_reads++;
@@ -261,7 +255,7 @@ static int x86_cpu_issue_lq(int core, int thread, int quant)
 		X86_THREAD.reg_file_fp_reads += load->ph_fp_idep_count;
 		x86_cpu->num_issued_uinst_array[load->uinst->opcode]++;
 		quant--;
-		
+
 		/* MMU statistics */
 		if (*mmu_report_file_name)
 			mmu_access_page(load->phy_addr, mmu_access_read);
@@ -270,7 +264,7 @@ static int x86_cpu_issue_lq(int core, int thread, int quant)
 		x86_trace("x86.inst id=%lld core=%d stg=\"i\"\n",
 			load->id_in_core, load->core);
 	}
-	
+
 	return quant;
 }
 
@@ -295,7 +289,7 @@ static int x86_cpu_issue_iq(int core, int thread, int quant)
 			continue;
 		}
 		uop->ready = 1;  /* avoid next call to 'x86_reg_file_ready' */
-		
+
 		/* Run the instruction in its corresponding functional unit.
 		 * If the instruction does not require a functional unit, 'x86_fu_reserve'
 		 * returns 1 cycle latency. If there is no functional unit available,
@@ -306,11 +300,11 @@ static int x86_cpu_issue_iq(int core, int thread, int quant)
 			linked_list_next(iq);
 			continue;
 		}
-		
+
 		/* Instruction was issued to the corresponding fu.
 		 * Remove it from IQ */
 		x86_iq_remove(core, thread);
-		
+
 		/* Schedule inst in Event Queue */
 		assert(!uop->in_event_queue);
 		assert(lat > 0);
@@ -318,7 +312,7 @@ static int x86_cpu_issue_iq(int core, int thread, int quant)
 		uop->issue_when = x86_cpu->cycle;
 		uop->when = x86_cpu->cycle + lat;
 		x86_event_queue_insert(X86_CORE.event_queue, uop);
-		
+
 		/* Instruction issued */
 		X86_CORE.num_issued_uinst_array[uop->uinst->opcode]++;
 		X86_CORE.iq_reads++;
@@ -335,7 +329,7 @@ static int x86_cpu_issue_iq(int core, int thread, int quant)
 		x86_trace("x86.inst id=%lld core=%d stg=\"i\"\n",
 			uop->id_in_core, uop->core);
 	}
-	
+
 	return quant;
 }
 
@@ -364,7 +358,7 @@ static void x86_cpu_issue_core(int core)
 
 	switch (x86_cpu_issue_kind)
 	{
-	
+
 	case x86_cpu_issue_kind_shared:
 	{
 		/* Issue LSQs */
@@ -384,10 +378,10 @@ static void x86_cpu_issue_core(int core)
 			quant = x86_cpu_issue_thread_iq(core, X86_CORE.issue_current, quant);
 			skip--;
 		} while (skip && quant);
-		
+
 		break;
 	}
-	
+
 	case x86_cpu_issue_kind_timeslice:
 	{
 		/* Issue LSQs */

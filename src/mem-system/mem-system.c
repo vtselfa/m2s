@@ -85,7 +85,7 @@ void mem_system_init(void)
 	EV_MOD_NMOESI_STORE_ACTION = esim_register_event_with_name(mod_handler_nmoesi_store, "mod_nmoesi_store_action");
 	EV_MOD_NMOESI_STORE_UNLOCK = esim_register_event_with_name(mod_handler_nmoesi_store, "mod_nmoesi_store_unlock");
 	EV_MOD_NMOESI_STORE_FINISH = esim_register_event_with_name(mod_handler_nmoesi_store, "mod_nmoesi_store_finish");
-	
+
 	EV_MOD_NMOESI_NC_STORE = esim_register_event_with_name(mod_handler_nmoesi_nc_store, "mod_nmoesi_nc_store");
 	EV_MOD_NMOESI_NC_STORE_LOCK = esim_register_event_with_name(mod_handler_nmoesi_nc_store, "mod_nmoesi_nc_store_lock");
 	EV_MOD_NMOESI_NC_STORE_WRITEBACK = esim_register_event_with_name(mod_handler_nmoesi_nc_store, "mod_nmoesi_nc_store_writeback");
@@ -250,7 +250,7 @@ void mem_system_dump_report()
 	f = file_open_for_write(mem_report_file_name);
 	if (!f)
 		return;
-	
+
 	/* Intro */
 	fprintf(f, "; Report for caches, TLBs, and main memory\n");
 	fprintf(f, ";    Accesses - Total number of accesses\n");
@@ -266,14 +266,15 @@ void mem_system_dump_report()
 	fprintf(f, ";    Reads, Writes, NCWrites - Total read/write accesses\n");
 	fprintf(f, ";    BlockingReads, BlockingWrites, BlockingNCWrites - Reads/writes coming from lower-level cache\n");
 	fprintf(f, ";    NonBlockingReads, NonBlockingWrites, NonBlockingNCWrites - Coming from upper-level cache\n");
-	fprintf(f, ";    Completed Prefetches - Number of completed prefetch accesses\n");
 	fprintf(f, ";    Programmed Prefetches - Number of programmed prefetch accesses\n");
+	fprintf(f, ";    Completed Prefetches - Number of completed prefetch accesses\n");
+	fprintf(f, ";    Canceled Prefetches - Number of canceled prefetch accesses\n");
 	fprintf(f, ";    Useful Prefetches - Number of useful prefetches\n");
-	fprintf(f, ";    Delayed hits - Number of loads that access a block with a in fly prefetch\n");
+	fprintf(f, ";    Delayed hits - Number of loads that access a block with is being fetched by a prefetch\n");
 	fprintf(f, ";    Prefetch precision - Useful prefetches / total completed prefetches\n");
 	fprintf(f, ";    MPKI - Misses / commited instructions\n");
 	fprintf(f, "\n\n");
-	
+
 	/* Report for each cache */
 	for (i = 0; i < list_count(mem_system->mod_list); i++)
 	{
@@ -300,7 +301,7 @@ void mem_system_dump_report()
 		fprintf(f, "HitRatio = %.4g\n", mod->accesses ?
 			(double) mod->hits / mod->accesses : 0.0);
 		fprintf(f, "Evictions = %lld\n", mod->evictions);
-		fprintf(f, "Retries = %lld\n", mod->read_retries + mod->write_retries + 
+		fprintf(f, "Retries = %lld\n", mod->read_retries + mod->write_retries +
 			mod->nc_write_retries);
 		fprintf(f, "\n");
 		fprintf(f, "Reads = %lld\n", mod->reads);
@@ -323,9 +324,6 @@ void mem_system_dump_report()
 		fprintf(f, "NCNonBlockingWrites = %lld\n", mod->non_blocking_nc_writes);
 		fprintf(f, "NCWriteHits = %lld\n", mod->nc_write_hits);
 		fprintf(f, "NCWriteMisses = %lld\n", mod->nc_writes - mod->nc_write_hits);
-		fprintf(f, "Prefetches = %lld\n", mod->prefetches);
-		fprintf(f, "PrefetchAborts = %lld\n", mod->prefetch_aborts);
-		fprintf(f, "UselessPrefetches = %lld\n", mod->useless_prefetches);
 		fprintf(f, "\n");
 		fprintf(f, "NoRetryAccesses = %lld\n", mod->no_retry_accesses);
 		fprintf(f, "NoRetryHits = %lld\n", mod->no_retry_hits);
@@ -346,21 +344,21 @@ void mem_system_dump_report()
 			- mod->no_retry_write_hits);
 
 		fprintf(f, "\n");
-		fprintf(f, "Prefetches = %lld\n", mod->prefetches);
-		fprintf(f, "PrefetchAborts = %lld\n", mod->prefetch_aborts);
-		fprintf(f, "UselessPrefetches = %lld\n", mod->useless_prefetches);		
-		fprintf(f, "CompletedPrefetches = %lld\n", mod->completed_prefetches);
 		fprintf(f, "ProgrammedPrefetches = %lld\n", mod->programmed_prefetches);
+		fprintf(f, "CompletedPrefetches = %lld\n", mod->completed_prefetches);
+		fprintf(f, "CanceledPrefetches = %lld\n", mod->canceled_prefetches);
 		fprintf(f, "UsefulPrefetches = %lld\n", mod->useful_prefetches);
+		fprintf(f, "PrefetchPrecision = %.4g\n", mod->completed_prefetches ?
+			(double) mod->useful_prefetches / mod->completed_prefetches : 0.0);
+		fprintf(f, "DelayedHits = %lld\n", mod->delayed_hits);
+		fprintf(f, "\n");
 		fprintf(f, "SinglePrefetches = %lld\n", mod->single_prefetches);
 		fprintf(f, "GroupPrefetches = %lld\n", mod->group_prefetches);
-		fprintf(f, "CanceledPrefetches = %lld\n", mod->canceled_prefetches);
+		fprintf(f, "\n");
 		fprintf(f, "PrefetchHits (rw)(up_down) = %lld\n", mod->up_down_hits);
 		fprintf(f, "PrefetchHeadHits (rw)(up_down) = %lld\n", mod->up_down_head_hits);
 		fprintf(f, "PrefetchHits(r)(down_up) = %lld\n", mod->down_up_read_hits);
 		fprintf(f, "PrefetchHits(w)(down_up) = %lld\n", mod->down_up_write_hits);
-		fprintf(f, "PrefetchPrecision = %.4g\n",mod->completed_prefetches ?
-			(double) mod->up_down_hits / mod->completed_prefetches : 0.0);
 		//fprintf(f, "MPKI = %.4g\n",x86_cpu->inst ?
 		//	(double) (mod->accesses - mod->hits) / x86_cpu->inst : 0.0);
 		fprintf(f, "\n\n");
@@ -372,7 +370,7 @@ void mem_system_dump_report()
 		net = list_get(mem_system->net_list, i);
 		net_dump_report(net, f);
 	}
-	
+
 	/* Done */
 	fclose(f);
 }
