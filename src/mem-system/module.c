@@ -847,7 +847,12 @@ void mod_coalesce(struct mod_t *mod, struct mod_stack_t *master_stack,
 
 	/* Set slave stack as a coalesced access */
 	stack->coalesced = 1;
-	stack->master_stack = master_stack;
+
+	/* If master stack is a prefetch only this access will coalesce with it.
+	 * Next accesses will coalesce with this access. */
+	if(master_stack->access_kind != mod_access_prefetch) //VVV
+		stack->master_stack = master_stack;
+
 	assert(mod->access_list_coalesced_count <= mod->access_list_count);
 
 	/* Record in-flight coalesced access in module */

@@ -621,7 +621,10 @@ void mod_handler_nmoesi_load(int event, void *data)
 		{
 			mod->reads++;
 			mod_coalesce(mod, master_stack, stack);
-			mod_stack_wait_in_stack(stack, master_stack, EV_MOD_NMOESI_LOAD_FINISH);
+			if(stack->access_kind == mod_access_prefetch)
+				mod_stack_wait_in_stack(stack, master_stack, EV_MOD_NMOESI_LOAD_LOCK);
+			else
+				mod_stack_wait_in_stack(stack, master_stack, EV_MOD_NMOESI_LOAD_FINISH);
 			return;
 		}
 
