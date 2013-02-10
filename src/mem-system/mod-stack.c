@@ -51,6 +51,8 @@ struct mod_stack_t *mod_stack_create(long long id, struct mod_t *mod,
 	stack->way = -1;
 	stack->set = -1;
 	stack->tag = -1;
+	stack->pref_stream = -1;
+	stack->pref_slot = -1;
 	stack->prefetch = prefetch;
 	stack->core = core;
 	stack->thread = thread;
@@ -186,7 +188,7 @@ struct mod_t *mod_stack_set_peer(struct mod_t *peer, int state)
 	struct mod_t *ret = NULL;
 
 	if (state == cache_block_owned || mem_system_peer_transfers)
-		ret = peer;	
+		ret = peer;
 
 	return ret;
 }
