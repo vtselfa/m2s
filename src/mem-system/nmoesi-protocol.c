@@ -15,7 +15,7 @@
  *  along with this program; if not, write to the Free Software
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
-
+#include <string.h>
 #include <assert.h>
 #include <arch/x86/timing/uop.h>
 #include <arch/x86/timing/load-store-queue.h>
@@ -149,17 +149,15 @@ int must_enqueue_prefetch(struct mod_stack_t *stack, int level)
 
 	/* L1 prefetch */
 	if (level == 1)
-		return stack->mod->prefetch_enabled;
+		return stack->mod->prefetch_enabled && !stack->background;
 
 	/* Deeper than L1 prefetch */
 	target_mod = stack->target_mod;
-	if (target_mod->prefetch_enabled && //El prefetch està habilitat
+	return target_mod->prefetch_enabled && //El prefetch està habilitat
 		!stack->prefetch && //No estem en una cadena de prefetch
+		!stack->background && //La stack fast resumed ja haurà encuat el prefetch, si calia
 		target_mod->kind == mod_kind_cache && //És una cache
-		stack->request_dir == mod_request_up_down) //Petició up down
-		return 1;
-	else
-		return 0;
+		stack->request_dir == mod_request_up_down; //Petició up down
 }
 
 void enqueue_prefetch_on_miss(struct mod_stack_t *stack, int stride, int level)
@@ -325,7 +323,7 @@ void mod_handler_pref(int event, void *data)
 
 		/* Record access */
 		mod_access_start(mod, stack, mod_access_prefetch);
-		
+
 		/* Statistics */
 		mod->programmed_prefetches++;
 
@@ -647,7 +645,7 @@ void mod_handler_nmoesi_load(int event, void *data)
 
 		/* Call find and lock */
 		new_stack = mod_stack_create(stack->id, mod, stack->addr,
-			EV_MOD_NMOESI_LOAD_ACTION, stack,stack->core, stack->thread, stack->prefetch);
+			EV_MOD_NMOESI_LOAD_ACTION, stack, stack->core, stack->thread, stack->prefetch);
 		new_stack->blocking = 1;
 		new_stack->read = 1;
 		new_stack->retry = stack->retry;
@@ -744,6 +742,13 @@ void mod_handler_nmoesi_load(int event, void *data)
 			return;
 		}
 
+		/* If fast resumed because prefetch hit, there are some pending memory operations, so moving the block from prefetch buffer to cache and unlocking directories must wait for them to complete. The background stack created when fast resumed this access will take care of moving the blocks. */
+		if (stack->fast_resume)
+		{
+			esim_schedule_event(EV_MOD_NMOESI_LOAD_FINISH, stack, 0);
+			return;
+		}
+
 		if (stack->prefetch_hit)
 		{
 			int tag;
@@ -797,16 +802,20 @@ void mod_handler_nmoesi_load(int event, void *data)
 		mem_trace("mem.end_access name=\"A-%lld\"\n",
 			stack->id);
 
-		/* Increment witness variable */
-		if (stack->witness_ptr)
-			(*stack->witness_ptr)++;
+		/* Background stacks don't have to do this */
+		if(!stack->background)
+		{
+			/* Increment witness variable */
+			if (stack->witness_ptr)
+				(*stack->witness_ptr)++;
 
-		/* Return event queue element into event queue */
-		if (stack->event_queue && stack->event_queue_item)
-			linked_list_add(stack->event_queue, stack->event_queue_item);
+			/* Return event queue element into event queue */
+			if (stack->event_queue && stack->event_queue_item)
+				linked_list_add(stack->event_queue, stack->event_queue_item);
 
-		/* Finish access */
-		mod_access_finish(mod, stack);
+			/* Finish access */
+			mod_access_finish(mod, stack);
+		}
 
 		/* Return */
 		mod_stack_return(stack);
@@ -889,7 +898,7 @@ void mod_handler_nmoesi_store(int event, void *data)
 		new_stack->write = 1;
 		new_stack->retry = stack->retry;
 		new_stack->witness_ptr = stack->witness_ptr;
-		new_stack->request_dir = mod_request_up_down;//VERIFICAR
+		new_stack->request_dir = mod_request_up_down;
 		esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK, new_stack, 0);
 
 		/* Set witness variable to NULL so that retries from the same
@@ -2002,14 +2011,64 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 		/* On miss, evict if victim is a valid block. */
 		if (!stack->hit && stack->state && stack->request_dir == mod_request_up_down)
 		{
-			stack->eviction = 1;
-			new_stack = mod_stack_create(stack->id, mod, 0,
-				EV_MOD_NMOESI_FIND_AND_LOCK_FINISH, stack,stack->core,
-				stack->thread, stack->prefetch);
-			new_stack->set = stack->set;
-			new_stack->way = stack->way;
-			esim_schedule_event(EV_MOD_NMOESI_EVICT, new_stack, 0);
-			return;
+			/* If prefetch hit, leave a background stack do the tough job and continue bringing the block to cpu */
+			if(stack->prefetch_hit && stack->read) //TODO Writes
+			{
+				struct mod_stack_t *background_stack;
+				struct mod_stack_t *find_and_lock_stack;
+				struct mod_stack_t *eviction_stack;
+
+				mem_debug("  %lld %lld 0x%x %s fast resume access\n", esim_cycle, stack->id, stack->tag, mod->name);
+
+				/* Stack that will write block from prefetch buffer to cache */
+				background_stack = mod_stack_create(stack->id, mod, stack->addr,
+					ESIM_EV_NONE, NULL, stack->core, stack->thread,
+					stack->prefetch);
+
+				/* Stack that will wait for eviction to complete */
+				find_and_lock_stack = mod_stack_create(stack->id, mod, stack->addr,
+					stack->ret_event, background_stack, stack->core,
+					stack->thread, stack->prefetch);
+				find_and_lock_stack->blocking = stack->blocking; /* Not used */
+				find_and_lock_stack->read = stack->read; /* Not used */
+				find_and_lock_stack->write = stack->write; /* Not used */
+				find_and_lock_stack->retry = stack->retry; /* Not used */
+				find_and_lock_stack->set = stack->set;
+				find_and_lock_stack->way = stack->way;
+				find_and_lock_stack->state = stack->state;
+				find_and_lock_stack->tag = stack->tag;
+				find_and_lock_stack->pref_stream = stack->pref_stream;
+				find_and_lock_stack->pref_slot = stack->pref_slot;
+				find_and_lock_stack->prefetch_hit = stack->prefetch_hit;
+				find_and_lock_stack->sequential_hit = stack->sequential_hit;
+				find_and_lock_stack->request_dir = stack->request_dir;
+				find_and_lock_stack->eviction = 1;
+				find_and_lock_stack->background = 1;
+
+				/* Eviction stack */
+				eviction_stack = mod_stack_create(stack->id, mod, 0,
+					EV_MOD_NMOESI_FIND_AND_LOCK_FINISH, find_and_lock_stack, stack->core,
+					stack->thread, stack->prefetch);
+					eviction_stack->set = stack->set;
+					eviction_stack->way = stack->way;
+
+				/* This stack will be fast resumed */
+				stack->fast_resume = 1;
+				stack->state = cache_block_invalid;
+
+				esim_schedule_event(EV_MOD_NMOESI_EVICT, eviction_stack, 0);
+			}
+			else
+			{
+				stack->eviction = 1;
+				new_stack = mod_stack_create(stack->id, mod, 0,
+					EV_MOD_NMOESI_FIND_AND_LOCK_FINISH, stack, stack->core,
+					stack->thread, stack->prefetch);
+				new_stack->set = stack->set;
+				new_stack->way = stack->way;
+				esim_schedule_event(EV_MOD_NMOESI_EVICT, new_stack, 0);
+				return;
+			}
 		}
 
 		/* Continue */
@@ -2065,6 +2124,8 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 		ret->sequential_hit = stack->sequential_hit;
 		ret->pref_stream = stack->pref_stream;
 		ret->pref_slot = stack->pref_slot;
+		ret->fast_resume = stack->fast_resume;
+		ret->background = stack->background;
 		mod_stack_return(stack);
 		return;
 	}

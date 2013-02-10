@@ -87,7 +87,7 @@ struct mod_stack_t
 	int set;
 	int way;
 	int state;
-	
+
 
 	int src_set;
 	int src_way;
@@ -132,12 +132,12 @@ struct mod_stack_t
 	int prefetch_hit : 1;
 	int sequential_hit : 1;
 	int pref_eviction : 1;
+	int fast_resume : 1; /* La stack ha fet hit al buffer i retorna inmediatament, deixant un altra stack encarregada de la coherència */
+	int background : 1;
 
 	/* Prefetch */
 	int pref_stream;
 	int pref_slot;
-	int pref_slot_origin; /*  DEPRECATED Only used when a prefetch finds the block in his destination stream */
-	int pref_stream_origin; /* DEPRECATED Only used when a prefetch finds the block in his destination stream */
 	int stride;
 	struct pref_data_t pref;
 
@@ -173,7 +173,7 @@ struct mod_stack_t
 	/* Return stack */
 	struct mod_stack_t *ret_stack;
 	int ret_event;
-	
+
 	int core;
 	int thread;
 };
