@@ -451,6 +451,7 @@ void mod_handler_pref(int event, void *data)
 		if (stack->hit)
 		{
 			mem_debug("    will finish due to block already in cache\n");
+			mod->canceled_prefetches++; /* Statistics */
 			if (stack->pref.kind == GROUP)
 			{
 				new_stack = mod_stack_create(stack->id, mod, stack->addr, EV_MOD_PREF_FINISH, stack, stack->core, stack->thread, stack->prefetch);
@@ -471,6 +472,7 @@ void mod_handler_pref(int event, void *data)
 			if (stack->pref_slot == stack->src_pref_slot)
 			{
 				mem_debug("and in the correct slot\n");
+				mod->canceled_prefetches++; /* Statistics */
 				esim_schedule_event(EV_MOD_PREF_FINISH, stack, 0);
 			}
 			else
@@ -622,7 +624,7 @@ void mod_handler_nmoesi_load(int event, void *data)
 			mod->reads++;
 			mod_coalesce(mod, master_stack, stack);
 			if(stack->access_kind == mod_access_prefetch)
-				mod_stack_wait_in_stack(stack, master_stack, EV_MOD_NMOESI_LOAD_LOCK);
+				mod_stack_wait_in_stack(stack, master_stack, EV_MOD_NMOESI_LOAD_LOCK); /* Prefetch leaves block in prefetch buffer, not in cache */
 			else
 				mod_stack_wait_in_stack(stack, master_stack, EV_MOD_NMOESI_LOAD_FINISH);
 			return;
@@ -653,7 +655,7 @@ void mod_handler_nmoesi_load(int event, void *data)
 		/* If there is any older access to the same address that this access could not
 		 * be coalesced with, wait for it. */
 		older_stack = mod_in_flight_address(mod, stack->addr, stack);
-		if (older_stack && !older_stack->prefetch) //VERIFICAR
+		if (older_stack)
 		{
 			mem_debug("    %lld wait for access %lld\n",
 				stack->id, older_stack->id);
@@ -774,13 +776,16 @@ void mod_handler_nmoesi_load(int event, void *data)
 			assert(stack->tag == tag);
 			assert(stack->state);
 
-			/* Portem el bloc del buffer a la cache */
+			/* Write block in cache */
 			cache_set_block(cache, stack->set, stack->way, tag, stack->state, 0);
 
 			/* Free buffer entry */
 			cache_set_pref_block(cache, stack->pref_stream, stack->pref_slot, -1, cache_block_invalid);
 			sb = &cache->prefetch.streams[stack->pref_stream];
-			sb->count--; //COUNT*
+			sb->count--; //COUNT
+
+			/* Statistics */
+			mod->useful_prefetches++;
 		}
 		else
 		{
@@ -1004,6 +1009,9 @@ void mod_handler_nmoesi_store(int event, void *data)
 			sb->count--; //COUNT*
 			if (stack->sequential_hit) /* Hit in head */
 				sb->head = (sb->head + 1) % sb->num_slots; //HEAD
+
+			/* Statistics */
+			mod->useful_prefetches++;
 		}
 
 		/* Continue */
@@ -1718,7 +1726,6 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 	struct mod_stack_t *new_stack;
 	struct mod_t *mod = stack->mod;
 	struct cache_t *cache = mod->cache;
-	int prefetch_blocking = 0; /* Per a indicar si un acces ha de suspendres si no pot bloquejar la entrada al buffer */
 
 	assert(stack->request_dir);
 
@@ -1732,7 +1739,7 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 		/* Default return values */
 		ret->err = 0;
 
-		if (!stack->prefetch_hit || !prefetch_blocking)
+		if (!stack->prefetch_hit || stack->request_dir == mod_request_up_down)
 		{
 			stack->way = ret->way; /* If this stack has already been assigned a way, keep using it */
 			mod_lock_port(mod, stack, EV_MOD_NMOESI_FIND_AND_LOCK_PORT);
@@ -1965,7 +1972,7 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 		{
 			block = cache_get_pref_block(cache, stack->pref_stream, stack->pref_slot);
 			dir_lock = dir_pref_lock_get(mod->dir, stack->pref_stream, stack->pref_slot);
-			if (dir_lock->lock && !prefetch_blocking)
+			if (dir_lock->lock && stack->request_dir == mod_request_up_down)
 			{
 				mem_debug("    %lld 0x%x %s pref_stream %d pref_slot %d containing 0x%x (0x%x) already locked by stack %lld, retrying...\n",stack->id, stack->tag, mod->name, stack->pref_stream, stack->pref_slot, block->tag, block->transient_tag, dir_lock->stack_id);
 				ret->err = 1;
@@ -1980,7 +1987,7 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 				mem_debug("    %lld 0x%x %s pref_stream %d pref_slot %d containing 0x%x (0x%x) already locked by stack %lld, waiting...\n",stack->id, stack->tag, mod->name, stack->pref_stream, stack->pref_slot, block->tag, block->transient_tag, dir_lock->stack_id);
 				mod_unlock_port(mod, port, stack);
 				ret->port_locked = 0;
-				/* Cache entry is keept blocked, so this access should not try to block it when resumed.
+				/* Cache entry is keept blocked if it was, so this access should not try to block it when resumed.
 				 * This means skipping EV_MOD_NMOESI_FIND_AND_LOCK_PORT after EV_MOD_NMOESI_FIND_AND_LOCK */
 				return;
 			}
