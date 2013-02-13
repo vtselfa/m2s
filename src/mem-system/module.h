@@ -222,6 +222,7 @@ struct mod_t
 	long long programmed_prefetches;
 	long long completed_prefetches;
 	long long canceled_prefetches;
+	long long canceled_prefetch_groups;
 	long long useful_prefetches;
 	double prefetch_precision;
 	long long delayed_hits; /* Hit on a block being brougth by a prefetch */
@@ -229,7 +230,9 @@ struct mod_t
 	long long single_prefetches; /* Prefetches on hit */
 	long long group_prefetches; /* Number of GROUPS */
 
-	long long slot_invalidations; /* Canceled prefetches + end of stream reached */
+	long long canceled_prefetches_end_stream;
+	long long canceled_prefetches_coalesce;
+	long long canceled_prefetches_flight_address;
 
 	long long up_down_hits;
 	long long up_down_head_hits;

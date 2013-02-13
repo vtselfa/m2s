@@ -347,6 +347,10 @@ void mem_system_dump_report()
 		fprintf(f, "ProgrammedPrefetches = %lld\n", mod->programmed_prefetches);
 		fprintf(f, "CompletedPrefetches = %lld\n", mod->completed_prefetches);
 		fprintf(f, "CanceledPrefetches = %lld\n", mod->canceled_prefetches);
+		fprintf(f, "CanceledPrefetchGroups = %lld\n", mod->canceled_prefetch_groups);
+		fprintf(f, "CanceledPrefetchEndStream = %lld\n", mod->canceled_prefetches_end_stream);
+		fprintf(f, "CanceledPrefetchCoalesce = %lld\n", mod->canceled_prefetches_coalesce);
+		fprintf(f, "CanceledPrefetchFlightAddress = %lld\n", mod->canceled_prefetches_flight_address);
 		fprintf(f, "UsefulPrefetches = %lld\n", mod->useful_prefetches);
 		fprintf(f, "PrefetchPrecision = %.4g\n", mod->completed_prefetches ?
 			(double) mod->useful_prefetches / mod->completed_prefetches : 0.0);
