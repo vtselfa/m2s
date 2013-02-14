@@ -75,7 +75,7 @@ static void cache_update_waylist(struct cache_set_t *set,
 	{
 		assert(set->way_head == blk && set->way_tail == blk);
 		return;
-		
+
 	}
 	else if (!blk->way_prev)
 	{
@@ -84,7 +84,7 @@ static void cache_update_waylist(struct cache_set_t *set,
 			return;
 		set->way_head = blk->way_next;
 		blk->way_next->way_prev = NULL;
-		
+
 	}
 	else if (!blk->way_next)
 	{
@@ -93,7 +93,7 @@ static void cache_update_waylist(struct cache_set_t *set,
 			return;
 		set->way_tail = blk->way_prev;
 		blk->way_prev->way_next = NULL;
-		
+
 	}
 	else
 	{
@@ -170,7 +170,7 @@ struct cache_t *cache_create(char *name, unsigned int num_sets, unsigned int blo
 		if (!cache->prefetch.streams[stream].blocks)
 			fatal("%s: out of memory", __FUNCTION__);
 	}
-	
+
 	/* Initialize streams */
 	cache->prefetch.stream_mask = 0x1FFF; /* 13 bits */
 	cache->prefetch.stream_head = &cache->prefetch.streams[0];
@@ -186,9 +186,12 @@ struct cache_t *cache_create(char *name, unsigned int num_sets, unsigned int blo
 		for(slot = 0; slot < pref_aggr; slot++)
 			sb->blocks[slot].slot = slot;
 	}
-	
+
+	/* Write buffer between streams and cache */
+	cache->wb.blocks = linked_list_create();
+
 	/* Stride detector */
-	cache->prefetch.stride_detector = linked_list_create(); 
+	cache->prefetch.stride_detector = linked_list_create();
 
 	/* Create array of sets */
 	cache->sets = calloc(num_sets, sizeof(struct cache_set_t));
@@ -215,7 +218,7 @@ struct cache_t *cache_create(char *name, unsigned int num_sets, unsigned int blo
 			block->prefetched = 0;
 		}
 	}
-	
+
 	/* Return it */
 	return cache;
 }
@@ -262,7 +265,7 @@ int cache_detect_stride(struct cache_t *cache, int addr)
 			}
 		}
 	}
-	
+
 	/* Strem tag not present*/
 	if(linked_list_count(sd) >= table_max_size){
 		/* Table is full, free oldest entry */
@@ -277,7 +280,7 @@ int cache_detect_stride(struct cache_t *cache, int addr)
 	camp->last_addr = addr;
 	camp->tag = tag;
 	linked_list_add(sd, camp);
-	
+
 	return 0;
 }
 
@@ -291,12 +294,16 @@ void cache_free(struct cache_t *cache)
 	for (set = 0; set < cache->num_sets; set++)
 		free(cache->sets[set].blocks);
 	free(cache->sets);
-	
+
 	/* Destroy streams */
 	for(stream=0; stream<cache->prefetch.num_streams; stream++)
 		free(cache->prefetch.streams[stream].blocks);
 	free(cache->prefetch.streams);
-	
+
+	/* Destroy write buffer */
+	assert(!linked_list_count(cache->wb.blocks));
+	linked_list_free(cache->wb.blocks);
+
 	/* Destroy stream detector */
 	while(linked_list_count(sd)){
 		linked_list_head(sd);
@@ -305,14 +312,14 @@ void cache_free(struct cache_t *cache)
 		linked_list_remove(sd);
 	}
 	linked_list_free(sd);
-	
+
 	free(cache->name);
 	free(cache);
 }
 
 
 /* Return {set, tag, offset} for a given address */
-void cache_decode_address(struct cache_t *cache, unsigned int addr, int *set_ptr, int *tag_ptr, 
+void cache_decode_address(struct cache_t *cache, unsigned int addr, int *set_ptr, int *tag_ptr,
 	unsigned int *offset_ptr)
 {
 	PTR_ASSIGN(set_ptr, (addr >> cache->log_block_size) % cache->num_sets);
@@ -324,7 +331,7 @@ void cache_decode_address(struct cache_t *cache, unsigned int addr, int *set_ptr
 /* Look for a block in the cache. If it is found and its state is other than 0,
  * the function returns 1 and the state and way of the block are also returned.
  * The set where the address would belong is returned anyways. */
-int cache_find_block(struct cache_t *cache, unsigned int addr, int *set_ptr, int *way_ptr, 
+int cache_find_block(struct cache_t *cache, unsigned int addr, int *set_ptr, int *way_ptr,
 	int *state_ptr)
 {
 	int set, tag, way;
@@ -337,11 +344,11 @@ int cache_find_block(struct cache_t *cache, unsigned int addr, int *set_ptr, int
 	for (way = 0; way < cache->assoc; way++)
 		if (cache->sets[set].blocks[way].tag == tag && cache->sets[set].blocks[way].state)
 			break;
-	
+
 	/* Block not found */
 	if (way == cache->assoc)
 		return 0;
-	
+
 	/* Block found */
 	PTR_ASSIGN(way_ptr, way);
 	PTR_ASSIGN(state_ptr, cache->sets[set].blocks[way].state);
@@ -422,7 +429,7 @@ void cache_get_pref_block_data(struct cache_t *cache, int pref_stream,
 void cache_access_block(struct cache_t *cache, int set, int way)
 {
 	int move_to_head;
-	
+
 	assert(set >= 0 && set < cache->num_sets);
 	assert(way >= 0 && way < cache->assoc);
 
@@ -512,12 +519,12 @@ int cache_replace_block(struct cache_t *cache, int set)
 		cache->policy == cache_policy_fifo)
 	{
 		int way = cache->sets[set].way_tail->way;
-		cache_update_waylist(&cache->sets[set], cache->sets[set].way_tail, 
+		cache_update_waylist(&cache->sets[set], cache->sets[set].way_tail,
 			cache_waylist_head);
 
 		return way;
 	}
-	
+
 	/* Random replacement */
 	assert(cache->policy == cache_policy_random);
 	return random() % cache->assoc;

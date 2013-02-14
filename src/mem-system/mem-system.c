@@ -363,6 +363,9 @@ void mem_system_dump_report()
 		fprintf(f, "PrefetchHeadHits (rw)(up_down) = %lld\n", mod->up_down_head_hits);
 		fprintf(f, "PrefetchHits(r)(down_up) = %lld\n", mod->down_up_read_hits);
 		fprintf(f, "PrefetchHits(w)(down_up) = %lld\n", mod->down_up_write_hits);
+		fprintf(f, "\n");
+		fprintf(f, "WriteBufferReadHits = %lld\n", mod->write_buffer_read_hits);
+		fprintf(f, "WriteBufferWriteHits = %lld\n", mod->write_buffer_read_hits);
 		//fprintf(f, "MPKI = %.4g\n",x86_cpu->inst ?
 		//	(double) (mod->accesses - mod->hits) / x86_cpu->inst : 0.0);
 		fprintf(f, "\n\n");

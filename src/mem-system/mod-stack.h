@@ -134,6 +134,7 @@ struct mod_stack_t
 	int pref_eviction : 1;
 	int fast_resume : 1; /* La stack ha fet hit al buffer i retorna inmediatament, deixant un altra stack encarregada de la coherència */
 	int background : 1;
+	int wb_hit : 1;
 
 	/* Prefetch */
 	int pref_stream;

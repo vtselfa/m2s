@@ -42,6 +42,18 @@ enum cache_block_state_t
 	cache_block_shared
 };
 
+struct write_buffer_block_t
+{
+	int tag;
+	enum cache_block_state_t state;
+	struct mod_stack_t *stack;
+};
+
+struct cache_write_buffer
+{
+	struct linked_list_t *blocks;
+};
+
 struct cache_block_t
 {
 	struct cache_block_t *way_next;
@@ -86,7 +98,7 @@ struct stream_buffer_t
 	struct stream_buffer_t *stream_next;
 	struct stream_buffer_t *stream_prev;
 	struct stream_block_t *blocks;
-	
+
 	int pending_prefetches; /* Remaining prefetches of a prefetch group */
 	int num_slots;
 	int count;
@@ -119,8 +131,10 @@ struct cache_t
 		struct stream_buffer_t *stream_head;
 		struct stream_buffer_t *stream_tail;
 
-		struct linked_list_t *stride_detector;	
+		struct linked_list_t *stride_detector;
 	} prefetch;
+
+	struct cache_write_buffer wb;
 };
 
 struct cache_t *cache_create(char *name, unsigned int num_sets, unsigned int block_size,
@@ -129,7 +143,7 @@ void cache_free(struct cache_t *cache);
 
 void cache_decode_address(struct cache_t *cache, unsigned int addr,
 	int *set_ptr, int *tag_ptr, unsigned int *offset_ptr);
-int cache_find_block(struct cache_t *cache, unsigned int addr, int *set_ptr, int *pway, 
+int cache_find_block(struct cache_t *cache, unsigned int addr, int *set_ptr, int *pway,
 	int *state_ptr);
 void cache_set_block(struct cache_t *cache, int set, int way, int tag, int state, unsigned int prefetched);
 void cache_get_block(struct cache_t *cache, int set, int way, int *tag_ptr, int *state_ptr);

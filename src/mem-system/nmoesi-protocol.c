@@ -693,15 +693,22 @@ void mod_handler_nmoesi_load(int event, void *data)
 			return;
 		}
 
-		/* Hit */
-		if (stack->state)
+		/* Hit in write buffer */
+		if(stack->wb_hit)
+		{
+			esim_schedule_event(EV_MOD_NMOESI_LOAD_FINISH, stack, 0);
+			return;
+		}
+
+		/* Hit in cache */
+		else if (stack->state)
 		{
 			esim_schedule_event(EV_MOD_NMOESI_LOAD_UNLOCK, stack, 0);
 			return;
 		}
 
 		/* Enqueue prefetch(es) */
-		if (!stack->state && must_enqueue_prefetch(stack, mod->level))
+		else if (must_enqueue_prefetch(stack, mod->level))
 		{
 			if (stack->prefetch_hit)
 			{
@@ -723,7 +730,7 @@ void mod_handler_nmoesi_load(int event, void *data)
 		}
 
 		/* Prefetch hit */
-		if (stack->prefetch_hit)
+		if (stack->prefetch_hit || stack->background)
 		{
 			esim_schedule_event(EV_MOD_NMOESI_LOAD_MISS, stack, 0);
 			return;
@@ -767,8 +774,28 @@ void mod_handler_nmoesi_load(int event, void *data)
 			esim_schedule_event(EV_MOD_NMOESI_LOAD_FINISH, stack, 0);
 			return;
 		}
+		else if(stack->background)
+		{
+			struct write_buffer_block_t *block;
+			assert(linked_list_count(cache->wb.blocks));
+			LINKED_LIST_FOR_EACH(cache->wb.blocks)
+			{
+				block = linked_list_get(cache->wb.blocks);
+				if(block->tag == stack->tag)
+				{
+					cache_set_block(cache, stack->set, stack->way, stack->tag, block->state, 0);
+					linked_list_remove(cache->wb.blocks);
+					free(block);
+					block = NULL;
+					break;
+				}
+			}
+			assert(!block);
 
-		if (stack->prefetch_hit)
+			/* Statistics */
+			mod->useful_prefetches++;
+		}
+		else if (stack->prefetch_hit)
 		{
 			int tag;
 			cache_get_pref_block_data(cache, stack->pref_stream, stack->pref_slot, &tag, &stack->state);
@@ -807,7 +834,7 @@ void mod_handler_nmoesi_load(int event, void *data)
 
 		/* Unlock directory entry */
 		dir_entry_unlock(mod->dir, stack->set, stack->way);
-		if (stack->prefetch_hit)
+		if (stack->prefetch_hit && !stack->background)
 			dir_pref_entry_unlock(mod->dir, stack->pref_stream, stack->pref_slot);
 
 		/* Continue */
@@ -843,7 +870,6 @@ void mod_handler_nmoesi_load(int event, void *data)
 		mod_stack_return(stack);
 		return;
 	}
-
 	abort();
 }
 
@@ -1753,6 +1779,7 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 	{
 		struct mod_port_t *port = stack->port;
 		struct dir_lock_t *dir_lock;
+		struct write_buffer_block_t *block;
 		int prefetch;
 
 		assert(stack->port);
@@ -1765,6 +1792,40 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 		 * This flag is checked by new writes to find out if it is already too
 		 * late to coalesce. */
 		ret->port_locked = 1;
+
+		/* Look for block in write buffer */
+		if(!stack->background)
+		{
+			stack->tag = stack->addr & ~cache->block_mask;
+			LINKED_LIST_FOR_EACH(cache->wb.blocks)
+			{
+				block = linked_list_get(cache->wb.blocks);
+				if(block->tag == stack->tag)
+				{
+					stack->state = block->state;
+					if(stack->read)
+					{
+						assert(stack->request_dir == mod_request_up_down); //TODO: down-up
+						mem_debug("    %lld 0x%x %s write buffer hit: pos=%d, state=%s\n",
+							stack->id, stack->tag, mod->name, linked_list_current(cache->wb.blocks),
+							str_map_value(&cache_block_state_map, stack->state));
+						stack->hit = 1;
+						stack->wb_hit = 1;
+						mod->write_buffer_read_hits++; /* Statistics */
+						esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK_FINISH, stack, mod->dir_latency); /* Access latency */
+						return;
+					}
+					else if(stack->write)
+					{
+						mod->write_buffer_write_hits++; /* Statistics */
+						mod_stack_wait_in_stack(stack, block->stack, EV_MOD_NMOESI_FIND_AND_LOCK_PORT);
+						return;
+					}
+					else
+						fatal("Unknown memory operation type");
+				}
+			}
+		}
 
 		/* Look for block */
 		stack->hit = mod_find_block(mod, stack->addr, &stack->set, &stack->way, &stack->tag, &stack->state, &prefetch);
@@ -1906,7 +1967,7 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 			cache_access_block(mod->cache, stack->set, stack->way);
 		}
 
-		if (!stack->hit && mod->prefetch_enabled)
+		if (!stack->hit && !stack->background && mod->prefetch_enabled)
 			esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK_PREF_STREAM, stack, 0);
 		else
 			esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK_ACTION, stack, mod->dir_latency); /* Access latency */
@@ -2037,6 +2098,8 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 				struct mod_stack_t *background_stack;
 				struct mod_stack_t *find_and_lock_stack;
 				struct mod_stack_t *eviction_stack;
+				struct write_buffer_block_t *block;
+				struct stream_buffer_t *sb;
 
 				mem_debug("  %lld %lld 0x%x %s fast resume access\n", esim_cycle, stack->id, stack->tag, mod->name);
 
@@ -2072,9 +2135,24 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 					eviction_stack->set = stack->set;
 					eviction_stack->way = stack->way;
 
+				/* Copy block from stream to cache write buffer */
+				block = malloc(sizeof(struct write_buffer_block_t));
+				block->tag = stack->tag;
+				block->state = stack->state;
+				block->stack = stack;
+				linked_list_add(cache->wb.blocks, block);
+
 				/* This stack will be fast resumed */
 				stack->fast_resume = 1;
 				stack->state = cache_block_invalid;
+
+				/* Free stream entry */
+				cache_set_pref_block(cache, stack->pref_stream, stack->pref_slot, -1, cache_block_invalid);
+				sb = &cache->prefetch.streams[stack->pref_stream];
+				sb->count--; //COUNT
+
+				/* Unlock stream entry */
+				dir_pref_entry_unlock(mod->dir, stack->pref_stream, stack->pref_slot);
 
 				esim_schedule_event(EV_MOD_NMOESI_EVICT, eviction_stack, 0);
 			}
@@ -2110,6 +2188,7 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 			assert(stack->state);
 			assert(stack->eviction);
 			ret->err = 1;
+			ret->background = stack->background;
 			dir_entry_unlock(mod->dir, stack->set, stack->way);
 			if (stack->prefetch_hit)
 				dir_pref_entry_unlock(mod->dir, stack->pref_stream, stack->pref_slot);
@@ -2146,6 +2225,7 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 		ret->pref_slot = stack->pref_slot;
 		ret->fast_resume = stack->fast_resume;
 		ret->background = stack->background;
+		ret->wb_hit = stack->wb_hit;
 		mod_stack_return(stack);
 		return;
 	}

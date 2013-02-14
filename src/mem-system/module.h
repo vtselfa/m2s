@@ -222,13 +222,13 @@ struct mod_t
 	long long programmed_prefetches;
 	long long completed_prefetches;
 	long long canceled_prefetches;
-	long long canceled_prefetch_groups;
 	long long useful_prefetches;
 	double prefetch_precision;
 	long long delayed_hits; /* Hit on a block being brougth by a prefetch */
 
 	long long single_prefetches; /* Prefetches on hit */
 	long long group_prefetches; /* Number of GROUPS */
+	long long canceled_prefetch_groups;
 
 	long long canceled_prefetches_end_stream;
 	long long canceled_prefetches_coalesce;
@@ -238,6 +238,9 @@ struct mod_t
 	long long up_down_head_hits;
 	long long down_up_read_hits;
 	long long down_up_write_hits;
+
+	long long write_buffer_read_hits;
+	long long write_buffer_write_hits;
 };
 
 struct mod_t *mod_create(char *name, enum mod_kind_t kind, int num_ports,
