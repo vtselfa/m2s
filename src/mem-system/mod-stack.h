@@ -65,6 +65,18 @@ struct pref_data_t
 	int invalidating : 1;
 };
 
+////////////////////////////
+/* Request types */
+enum mod_request_type_t
+{
+        none_request = 0,
+        read_request,
+        write_request,
+        eviction_request
+};
+///////////////////////////////
+
+
 /* Stack */
 struct mod_stack_t
 {
@@ -88,6 +100,15 @@ struct mod_stack_t
 	int way;
 	int state;
 
+	 ////////////////////////////////
+        int state_main_memory; // when the request is thrown by MC, the state of this request in main memory
+        unsigned int channel;
+        unsigned int bank;
+        unsigned int rank;
+        unsigned int row;
+        enum mod_request_type_t request_type; // (eviction,read request, write request )
+        long long threshold; //cycles that a request can be waiting in the MC queue befaore to be throw to the bank
+        ////////////////////////////////
 
 	int src_set;
 	int src_way;

@@ -69,6 +69,11 @@ enum mod_range_kind_t
 	mod_range_interleaved
 };
 
+///////////////////////////////////////
+/*Control if it has to read or write no prefetched misses on a file*/
+int misses_no_prefetch;
+/////////////////////////////////////
+
 #define MOD_ACCESS_HASH_TABLE_SIZE  17
 
 /* Memory module */
@@ -83,6 +88,12 @@ struct mod_t
 	int dir_latency;
 	int mshr_size;
 	int prefetch_enabled;
+
+	/*If module is main memory*/
+        /////////////////////////////////////////////
+        struct reg_channel_t * regs_channel;    ////
+        int num_regs_channel;                   ////
+        ////////////////////////////////////////////
 
 	/* Module level starting from entry points */
 	int level;
@@ -241,8 +252,95 @@ struct mod_t
 
 	long long write_buffer_read_hits;
 	long long write_buffer_write_hits;
+	////////////////////////////////////////
+	long long faults_mem_without_pref;
+        //////////////////////////////////////////
+
+	
 };
 
+////////////////////////////////////////////////////////////
+
+/*--------- MAIN MEMORY STRUCTURES------*/
+/* Reg bank*/
+struct reg_bank_t{
+
+        int row_is_been_accesed; // row which is been accessed
+        int row_buffer; // row which is inside row buffer
+        int is_been_accesed;// show if a bank is been accedid for some instruction
+
+        /*Stadistics*/
+        int row_buffer_hits; // number of acceses to row buffer which are hits
+        int t_row_buffer_hit; // cycles needed to acces the bank if the row is in row buffer
+        int t_row_buffer_miss; // cycles needed to acces the bank if the row isn't in row buffer
+        int conflicts;
+        int acceses;
+        int t_wait; // time waited by the requestes to acces to bank
+        int parallelism;////////////
+};
+
+
+/* Reg rank*/
+struct reg_rank_t{
+
+        struct reg_bank_t * regs_bank;
+        int num_regs_bank;
+        int is_been_accesed; //true or false
+
+        /*Stadistics*/
+        int parallelism;// number of acceses which acces when that rank is been accesed by others
+        int acceses;
+        int row_buffer_hits; // number of acceses to row buffer which are hits
+
+};
+
+/*Reg channels*/
+enum channel_state_t
+{
+        channel_state_free = 0,
+        channel_state_busy
+};
+
+
+struct reg_channel_t{
+
+        enum channel_state_t state; // busy, free
+        int bandwith;
+        struct reg_rank_t * regs_rank; // ranks which this channels connects with 
+        int num_regs_rank;
+
+        /*Stadistics*/
+        int acceses;
+        //int parallelism_rank; // number of acceses which acces to rank accesed by others
+        int t_wait_send_request; // time waiting to send a request because the channel is busy or the bank is busy
+        int t_wait_channel_busy;  // time waiting to send a request because the channel is busy
+        int t_wait_transfer_request; // time waiting to transfer the block
+        int t_transfer;
+        int num_requests_transfered;
+        int row_buffer_hits; // number of acceses to row buffer which are hits
+
+
+};
+
+/*States of request which  try to acces to main memory*/
+enum acces_main_memory_state_t
+{
+        row_buffer_hit = 0,
+        channel_busy,
+        bank_accesed,
+        row_buffer_miss
+
+};
+
+////////////////////////// MAIN MEMORY  //////////////////////////
+struct reg_bank_t* regs_bank_create( int num_banks, int t_row_hit, int t_row_miss);
+struct reg_rank_t* regs_rank_create( int num_ranks, int num_banks, int t_row_buffer_miss, int t_row_buffer_hit);
+struct reg_channel_t* regs_channel_create( int num_channels, int num_ranks, int num_banks, int bandwith,
+                                        int t_row_buffer_miss, int t_row_buffer_hit);
+void reg_channel_free(struct reg_channel_t * channels, int num_channels);
+void reg_rank_free(struct reg_rank_t * ranks, int num_ranks);
+void main_memory_dump_report(char * main_mem_report_file_name);////
+///////////////////////////////////////////////////////////////////
 struct mod_t *mod_create(char *name, enum mod_kind_t kind, int num_ports,
 	int block_size, int latency, int pref);
 void mod_free(struct mod_t *mod);

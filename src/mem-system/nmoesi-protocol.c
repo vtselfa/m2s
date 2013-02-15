@@ -140,6 +140,14 @@ int EV_MOD_NMOESI_MESSAGE_ACTION;
 int EV_MOD_NMOESI_MESSAGE_REPLY;
 int EV_MOD_NMOESI_MESSAGE_FINISH;
 
+//////////////////////////////////////////////////
+int EV_MOD_NMOESI_EXAMINE_QUEUE_REQUEST;        //
+int EV_MOD_NMOESI_ACCES_BANK;                   //
+int EV_MOD_NMOESI_TRANSFER_FROM_BANK;           //
+int EV_MOD_NMOESI_REMOVE_MEMORY_CONTROLLER;     //
+int EV_MOD_NMOESI_INSERT_MEMORY_CONTROLLER;
+//////////////////////////////////////////////////
+
 
 /* AUXILIARY FUNCTIONS*/
 
@@ -2580,7 +2588,10 @@ void mod_handler_nmoesi_evict(int event, void *data)
 	abort();
 }
 
-
+///////////////////////////////////////////////////////
+void mod_handler_nmoesi_request_main_memory(int event, void *data ){
+}
+///////////////////////////////////////////////////////
 
 void mod_handler_nmoesi_invalidate_slot(int event, void *data)
 {

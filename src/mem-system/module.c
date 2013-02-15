@@ -53,6 +53,88 @@ struct str_map_t mod_access_kind_map =
  * Public Functions
  */
 
+///////////////////   MAIN MEMORY   ////////////////////////
+
+struct reg_bank_t* regs_bank_create( int num_banks, int t_row_hit, int t_row_miss){
+
+        struct reg_bank_t * banks;
+        banks = calloc( num_banks, sizeof(struct reg_bank_t));
+        if (!banks)
+                fatal("%s: out of memory", __FUNCTION__);
+
+        for(int i=0; i<num_banks;i++){
+                banks[i].row_buffer=-1;
+                banks[i].row_is_been_accesed=-1;
+                banks[i].t_row_buffer_miss=t_row_miss;
+                banks[i].t_row_buffer_hit=t_row_hit;
+        }
+
+        return banks;
+
+
+}
+
+
+
+struct reg_rank_t* regs_rank_create( int num_ranks, int num_banks, int t_row_hit, int t_row_miss){
+
+        struct reg_rank_t * ranks;
+        ranks = calloc(num_ranks, sizeof(struct reg_rank_t));
+        if (!ranks)
+                fatal("%s: out of memory", __FUNCTION__);
+
+
+        for(int i=0; i<num_ranks;i++){
+                ranks[i].num_regs_bank=num_banks;
+                ranks[i].regs_bank=regs_bank_create(num_banks, t_row_hit, t_row_miss);
+
+        }
+
+        return ranks;
+
+}
+
+
+struct reg_channel_t* regs_channel_create( int num_channels, int num_ranks, int num_banks, int bandwith, int t_row_miss, int t_row_hit ){
+
+        struct reg_channel_t * channels;
+        channels = calloc(num_channels, sizeof(struct reg_channel_t));
+        if (!channels)
+                fatal("%s: out of memory", __FUNCTION__);
+
+
+        for(int i=0; i<num_channels;i++){
+                channels[i].state=channel_state_free;
+                channels[i].num_regs_rank=num_ranks;
+                channels[i].bandwith=bandwith;
+                channels[i].regs_rank= regs_rank_create(num_ranks, num_banks, t_row_miss, t_row_hit);
+        }
+
+        return channels;
+
+}
+
+void reg_channel_free(struct reg_channel_t * channels, int num_channels){
+
+        for(int c=0; c<num_channels;c++)
+                reg_rank_free(channels[c].regs_rank, channels[c].num_regs_rank);
+
+        free(channels);
+
+}
+
+void reg_rank_free(struct reg_rank_t * rank, int num_ranks){
+
+        for(int r=0; r<num_ranks;r++ )
+                free(rank[r].regs_bank);
+
+        free(rank);
+
+}
+
+
+/////////////////////////////////////////////////////////////////////////
+
 struct mod_t *mod_create(char *name, enum mod_kind_t kind, int num_ports,
 	int block_size, int latency, int pref)
 {
@@ -119,6 +201,12 @@ void mod_free(struct mod_t *mod)
 		cache_free(mod->cache);
 	if (mod->dir)
 		dir_free(mod->dir);
+
+	///////////////////////////////////////////
+        if(mod->regs_channel) // this module is main memory
+                reg_channel_free(mod->regs_channel, mod->num_regs_channel);
+        //////////////////////////////////////////
+
 	free(mod->ports);
 	free(mod->name);
 	free(mod);

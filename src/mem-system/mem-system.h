@@ -21,6 +21,7 @@
 #define MEM_SYSTEM_H
 
 #include "module.h"
+#include "mem-controller.h"
 
 extern char *mem_config_file_name;
 extern char *mem_config_help;
@@ -38,12 +39,29 @@ extern int mem_trace_category;
 
 extern int mem_system_peer_transfers;
 
+//////////////////////////////////
+#define MEM_SYSTEM_MAX_LEVELS  10
+//////////////////////////////////
 struct mem_system_t
 {
 	/* List of modules and networks */
 	struct list_t *mod_list;
 	struct list_t *net_list;
+
+	 ///////////////////////////////////////
+        /*Memory controller */
+        struct mem_controller_t *mem_controller;
+
+        /* For statdistics (to show  MPKI) */
+        int min_level_cache;
+        int max_level_cache;
+        int faults[MEM_SYSTEM_MAX_LEVELS];
+        //////////////////////////////////////
+
 };
+
+
+
 
 extern struct mem_system_t *mem_system;
 
@@ -55,6 +73,7 @@ void mem_system_dump_report(void);
 
 struct mod_t *mem_system_get_mod(char *mod_name);
 struct net_t *mem_system_get_net(char *net_name);
+
 
 
 #endif
