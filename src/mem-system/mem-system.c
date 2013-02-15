@@ -395,7 +395,7 @@ void main_memory_dump_report(char * main_mem_report_file_name)
 
                                 fprintf(f, "[Bank %d  (Rank %d Channel %d)]\n", b,r,c);
                                 fprintf(f, "PercentRowBufferHits = %f\n",row_buffer_hit_b);
-                                fprintf(f, "ParallelismPercent = %f\n\n",paralelism_bank);
+                                fprintf(f, "ParallelismPercent = %f\n",paralelism_bank);
                                 fprintf(f, "Conflicts = %d\n", mod->regs_channel[c].regs_rank[r].regs_bank[b].conflicts);
                                 fprintf(f, "AvgTimeWaitBankBusy = %f\n\n", t_wait_bank);
 
@@ -407,24 +407,31 @@ void main_memory_dump_report(char * main_mem_report_file_name)
 
         }
 
- if(mem_controller->n_times_queue_examined>0)
-                avg_num_queue=(double)mem_controller->total_queue_busy_normal/mem_controller->n_times_queue_examined;
-        if(esim_cycle>0)
-                t_full=(double)mem_controller->t_normal_queue_full/esim_cycle;
+ 
 
-        fprintf(f, "[NORMAL QUEUE MEMORY CONTROLLER]\n");
-        fprintf(f, "AvgNumRequest = %f\n",avg_num_queue );
-        fprintf(f, "PercentTimeFull = %f\n\n",t_full );
+	fprintf(f, "\n[QUEUES MEMORY CONTROLLER]\n\n");
 
-        if(mem_controller->n_times_queue_examined>0)
-                avg_num_pref_queue=(double)mem_controller->total_queue_busy_pref/mem_controller->n_times_queue_examined;
-        if(esim_cycle>0)
-                t_full_pref=(double)mem_controller->t_pref_queue_full/esim_cycle;
+	for(int i=0; i<mem_controller->num_queues;i++)
+	{
+		if(mem_controller->n_times_queue_examined>0)
+		        avg_num_queue=(double)mem_controller->normal_queue[i]->total_requests/mem_controller->n_times_queue_examined;
+		if(esim_cycle>0)
+		        t_full=(double)mem_controller->normal_queue[i]->t_full/esim_cycle;
+        	fprintf(f, "[Normal Queue %d]\n",i);
+       		fprintf(f, "AvgNumRequest = %f\n",avg_num_queue );
+        	fprintf(f, "PercentTimeFull = %f\n\n",t_full );
+		
+		if(mem_controller->n_times_queue_examined>0)
+		        avg_num_pref_queue=(double)mem_controller->pref_queue[i]->total_requests/mem_controller->n_times_queue_examined;
+		if(esim_cycle>0)
+		        t_full_pref=(double)mem_controller->pref_queue[i]->t_full/esim_cycle;
 
-        fprintf(f, "[PREFETCH QUEUE MEMORY CONTROLLER]\n");
-        fprintf(f, "AvgNumRequest = %f\n",avg_num_pref_queue);
-        fprintf(f, "PercentTimeFull = %f\n\n",t_full_pref );
+		fprintf(f, "[Prefetch Queue %i]\n",i);
+		fprintf(f, "AvgNumRequest = %f\n",avg_num_pref_queue);
+		fprintf(f, "PercentTimeFull = %f\n\n",t_full_pref );
 
+	}
+        
         /* Done */
         fclose(f);
 }

@@ -12,7 +12,7 @@ Sets = 1024
 Assoc = 32
 BlockSize = 64
 Latency = 10
-Prefetch = OBL
+Prefetch = disabled
 ;PrefetchStreams = 0
 ;PrefetchAggressivity = 1
 

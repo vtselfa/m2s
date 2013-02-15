@@ -10,6 +10,7 @@
 #include "mem-controller.h"
 #include "mem-system.h"
 #include <lib/util/linked-list.h>
+#include <lib/esim/esim.h>
 #include "mod-stack.h"///
 ////////////////////////
 
@@ -225,6 +226,10 @@ void mem_controller_normal_queue_add(struct mod_stack_t * stack){
 	linked_list_tail(mem_controller->normal_queue[bank]->queue);
 	linked_list_add(mem_controller->normal_queue[bank]->queue, stack);
 	linked_list_head(mem_controller->normal_queue[bank]->queue);
+
+	/*Now queue is full?*/
+	 if(linked_list_count(mem_controller->normal_queue[bank]->queue)==mem_controller->size_queue)
+         	mem_controller->normal_queue[bank]->instant_begin_full=esim_cycle;
 	////////////////////////////////////////////////////////////////
 
 }
@@ -250,6 +255,11 @@ void mem_controller_prefetch_queue_add(struct mod_stack_t * stack){
 	linked_list_tail(mem_controller->pref_queue[bank]->queue);
 	linked_list_add(mem_controller->pref_queue[bank]->queue, stack);
 	linked_list_head(mem_controller->pref_queue[bank]->queue);
+
+	/*Now queue is full?*/
+	 if(linked_list_count(mem_controller->pref_queue[bank]->queue)==mem_controller->size_queue)
+         	mem_controller->pref_queue[bank]->instant_begin_full=esim_cycle;
+	
 
 }
 

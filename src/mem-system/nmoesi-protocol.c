@@ -2762,20 +2762,20 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data ){
                                 normal_queue->total_requests+=size_queue*time;
 
 
-                        if(linked_list_count(normal_queue->queue)== size_queue)
+                        /*if(linked_list_count(normal_queue->queue)== size_queue)
                                 normal_queue->instant_begin_full=esim_cycle;
 
                         if(linked_list_count(pref_queue->queue)== size_queue)
                                 pref_queue->instant_begin_full=esim_cycle;
 
-                        /*if(linked_list_count(normal_queue)>= size_queue)
+                        if(linked_list_count(normal_queue)>= size_queue)
                                 mem_controller->t_normal_queue_full+=cycles_proc_by_bus;
 
                         if(linked_list_count(pref_queue)>= size_queue)
                                 mem_controller->t_pref_queue_full+=cycles_proc_by_bus;*/
 
                 }
-                mem_controller->n_times_queue_examined++;
+                mem_controller->n_times_queue_examined+=time; //se podria cambiar dividinto x esim al final
                 /*Update last cycle queue will be examined*/
                 mem_controller->last_cycle=esim_cycle;
 

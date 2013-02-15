@@ -98,15 +98,8 @@ struct mem_controller_t
 	/*Stadistics*/
 	int t_acces_main_memory; 
 	int t_transfer; // time for tranfer a bloc from main memory
-	int total_queue_busy_normal; // sum of number of stack in every cycle
 	int n_times_queue_examined; // times which queue is examined
 
-	int t_normal_queue_full; // cycles when queue is full
-	//int t_normal_queue_used;
-
-	int total_queue_busy_pref;
-	int t_pref_queue_full;
-	//int t_pref_queue_used;
 	
 };
 

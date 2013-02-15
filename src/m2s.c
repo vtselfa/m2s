@@ -95,7 +95,10 @@ static char *arm_call_debug_file_name = "";
 static char *mem_debug_file_name = "";
 
 static char *net_debug_file_name = "";
-
+///////////////////////////////////////////////
+static char *main_mem_report_file_name="";
+static char *misses_no_prefetch_file_name="";
+///////////////////////////////////////////////
 static long long m2s_max_time = 0;  /* Max. simulation time in seconds (0 = no limit) */
 static long long m2s_loop_iter = 0;  /* Number of iterations in main simulation loop */
 
@@ -390,6 +393,14 @@ static char *m2s_help =
 	"      File to dump a report of memory access. The file contains a list of\n"
 	"      allocated memory pages, ordered as per number of accesses. It lists read,\n"
 	"      write, and execution accesses to each physical memory page.\n"
+	"  --report--mem-main-memory\n"
+	"	File to dump the stadisitics of banks, ranks and channels\n"
+	"\n"
+	"  --misses_no_prefetch-write <file>\n"
+	"	Write in file, the statistics about non-prefetched faults of every memory for calculate coverage\n"
+	"\n"
+	" --misses_no_prefetch-read <file>\n"
+	"	Read file which contains stadistics about non-prefetched faluts, so it can compare with prefetched stadistics\n"
 	"\n"
 	"\n"
 	"================================================================================\n"
@@ -1009,7 +1020,35 @@ static void m2s_read_command_line(int *argc_ptr, char **argv)
 			mmu_report_file_name = argv[++argi];
 			continue;
 		}
+		//////////////////////////////////////////////////
+		/*Option dump main memory and row buffer stadistics*/
+		if (!strcmp(argv[argi], "--report-mem-main-memory"))
+		{
+			m2s_need_argument(argc, argv, argi);
+			main_mem_report_file_name = argv[++argi];
+			continue;
+		}
 
+		/* Option dump no prefetched statistics */
+		if (!strcmp(argv[argi], "--misses_no_prefetch-write"))
+		{
+			m2s_need_argument(argc, argv, argi);
+			misses_no_prefetch_file_name = argv[++argi];
+			misses_no_prefetch=1;
+			
+			continue;
+		}
+
+		/* Option read no prefetched statistics */
+		if (!strcmp(argv[argi], "--misses_no_prefetch-read"))
+		{
+			m2s_need_argument(argc, argv, argi);
+			misses_no_prefetch_file_name = argv[++argi];
+			misses_no_prefetch=2;
+
+			continue;
+		}
+		///////////////////////////////////////////////////////
 
 		/*
 		 * Network Options
@@ -1164,6 +1203,10 @@ static void m2s_read_command_line(int *argc_ptr, char **argv)
 			fatal(msg, "--mem-config");
 		if (*mem_report_file_name)
 			fatal(msg, "--report-mem");
+		////////////////////////////////////////////////////////
+		if(*main_mem_report_file_name)
+			fatal(msg, "--report-mem-main-memory");
+		///////////////////////////////////////////////////////
 	}
 
 	/* Other checks */
@@ -1273,6 +1316,13 @@ void m2s_load_programs(int argc, char **argv)
 void m2s_dump_summary(FILE *f)
 {
 	double time_in_sec;
+	long long useful_prefetch_total=0;
+	long long prefetch_total=0;
+	long long faults_mem_without_pref_total=0;
+	long long delayed_hit_total=0;
+	float precision=0, cobertura=0;
+	long long row_acceses_hit=0;
+	struct mod_t * mod;
 
 	/* No summary dumped if no simulation was run */
 	if (m2s_loop_iter < 2)
@@ -1287,11 +1337,46 @@ void m2s_dump_summary(FILE *f)
 
 	/* Calculate statistics */
 	time_in_sec = (double) esim_real_time() / 1.0e6;
+	///////////////////////////////////////////////////////////////////////////////////////////////
+	for (int i = 0; i < list_count(mem_system->mod_list); i++)
+	{
+		mod = list_get(mem_system->mod_list, i);
+		useful_prefetch_total+=mod->useful_prefetches;
+		prefetch_total+=mod->completed_prefetches;
+		faults_mem_without_pref_total+=mod->faults_mem_without_pref;
+		delayed_hit_total+=mod->delayed_hits;
+
+		/*Row buffer*/
+		if(mod->kind==mod_kind_main_memory)
+		{
+			for(int c=0; c<mod->num_regs_channel;c++)
+				for(int r=0; r<mod->regs_channel[c].num_regs_rank; r++)
+					for(int b=0; b<mod->regs_channel[c].regs_rank[r].num_regs_bank;b++)
+						row_acceses_hit+=mod->regs_channel[c].regs_rank[r].regs_bank[b].row_buffer_hits;	
+		}	
+	}
+
+	if(prefetch_total>0)
+		precision=(double)useful_prefetch_total/prefetch_total;
+	if(faults_mem_without_pref_total>0)
+		cobertura=(double)useful_prefetch_total/faults_mem_without_pref_total;
+	/////////////////////////////////////////////////////////////////////////////////////////////////
+
 
 	/* General statistics */
 	fprintf(f, "[ General ]\n");
 	fprintf(f, "Time = %.2f\n", time_in_sec);
 	fprintf(f, "SimEnd = %s\n", str_map_value(&esim_finish_map, esim_finish));
+	////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	fprintf(stderr, "Hit row buffer acceses = %lld\n", row_acceses_hit);					////
+	fprintf(stderr, "Global delayed hit = %lld\n", delayed_hit_total);					////
+	fprintf(stderr, "Global useful prefetches = %lld\n",useful_prefetch_total);				////
+	fprintf(stderr, "Global Presicion = %f\n",precision);							////
+	fprintf(stderr, "Global Cobertura = %f\n",cobertura);							////
+	for(int i=mem_system->min_level_cache; i<=mem_system->max_level_cache;i++)				////
+		fprintf(stderr, "MPKI to level %d = %f\n", i,(double)mem_system->faults[i]/x86_cpu->num_committed_inst);	////
+	////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 
 	/* General detailed simulation statistics */
 	if (esim_cycle > 1)
@@ -1314,6 +1399,65 @@ void m2s_dump_summary(FILE *f)
 	/* Southern Islands */
 	si_emu_dump_summary(f);
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+void no_prefetched_summary_misses_write(char * file_name){
+
+	struct mod_t *mod;
+	FILE *f;
+
+	if (*misses_no_prefetch_file_name && !file_can_open_for_write(misses_no_prefetch_file_name))
+		fatal("%s: cannot open no prefetch misses file",
+			misses_no_prefetch_file_name);
+	f = file_open_for_write(misses_no_prefetch_file_name);
+	if (!f)
+		return;
+	
+	for (int i = 0; i < list_count(mem_system->mod_list); i++)
+	{
+		mod = list_get(mem_system->mod_list, i);
+		fprintf(f, "%s %llu\n",mod->name, mod->accesses-mod->hits);
+	}
+	fclose(f);
+
+
+}
+
+void no_prefetched_summary_misses_read(char * file_name){
+
+	struct mod_t *mod;
+	FILE *f;
+	//char *cache;
+	long long faults;
+	char line[MAX_STRING_SIZE];//,  *line_ptr;
+
+
+
+	if (*misses_no_prefetch_file_name && !file_can_open_for_read(misses_no_prefetch_file_name))
+		fatal("%s: cannot open no prefetch misses file",
+			misses_no_prefetch_file_name);
+	f = file_open_for_read(misses_no_prefetch_file_name);
+	
+	if (!f)
+		return;
+	
+	while(!feof(f)){
+
+		fscanf(f,"%s %lld",line, &faults);
+		for (int i = 0; i < list_count(mem_system->mod_list); i++)
+		{
+			mod = list_get(mem_system->mod_list, i);
+			if(strcmp(mod->name, line)==0)
+				mod->faults_mem_without_pref=faults;
+		}
+	}
+	fclose(f);
+
+
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////
+
 
 
 /* Signal handler while functional simulation loop is running */
@@ -1531,9 +1675,26 @@ int main(int argc, char **argv)
 	 * event-driven simulation could cause another stall! */
 	if (esim_finish != esim_finish_stall)
 		esim_process_all_events();
+	
+	/*Read original stadistics*/
+	///////////////////////////////////////////////////////////////////////
+	if(misses_no_prefetch==2)					
+		no_prefetched_summary_misses_read(misses_no_prefetch_file_name);	
+	//////////////////////////////////////////////////////////////////////
 
 	/* Dump statistics summary */
 	m2s_dump_summary(stderr);
+
+	/* Dump statistics summary of no prefetched misses */
+	////////////////////////////////////////////////////////////////////////////////////
+	if(misses_no_prefetch==1)							
+		no_prefetched_summary_misses_write(misses_no_prefetch_file_name);	
+	
+	/*Dump main memory stadistics*/
+	if(*main_mem_report_file_name)	  
+		main_memory_dump_report(main_mem_report_file_name);
+	//////////////////////////////////////////////////////////////////////////////////
+
 
 	/* Finalization of memory system */
 	mem_system_done();
