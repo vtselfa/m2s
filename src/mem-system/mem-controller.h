@@ -52,6 +52,9 @@ struct mem_controller_t
 	/*Max cycles waiting in the queue*/
 	long long threshold;
 
+	/*Mem controller is enabled?*/
+	int enabled;
+
 	/*Policy queues*/
 	enum policy_mc_queue_t policy_queues;
 
@@ -71,10 +74,8 @@ struct mem_controller_t
 
 	/*There is a queue per bank or only one for all banks*/
 	int queue_per_bank;
-	//////////////////////////////////
-
+	
 	/*List of bank registres to save information about memory acceses*/
-	//int *** row_in_buffer_banks; // row saved on the row buffer in a bank INNECESARY??????????????????????????
 	int num_regs_bank;
 	int num_regs_rank;
 	int num_regs_channel;

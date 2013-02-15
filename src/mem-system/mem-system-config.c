@@ -749,7 +749,7 @@ static struct mod_t *mem_config_read_cache(struct config_t *config, char *sectio
 	mod->dir_latency = dir_latency;
 	//////////////////////////////////////////////////////////////////////////////////////////////////////////      
         /*  Checks if option  is correct   */                                                                   //
-        if(mod->prefetch_enabled&&misses_no_prefetch==1)                                                        //
+        if(prefetch && misses_no_prefetch==1)                                                        //
                 fatal("option '--misses_no_prefetch-write' musnt'n be used with some prefetched enabled");      //
         //////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -798,6 +798,7 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config, char *
         int bandwith;
         int cycles_proc_bus;
         int queue_per_bank;
+	int enabled_mc;
 
         long long threshold;
         long long size_queue;
@@ -827,6 +828,7 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config, char *
 	dir_size = config_read_int(config, section, "DirectorySize", 1024);
 	dir_assoc = config_read_int(config, section, "DirectoryAssoc", 8);
 	/////////////////////////////////////////////////////////////////////
+	enabled_mc= config_read_int(config, section, "MemoryControllerEnabled", 0);
         row_size = config_read_int(config, section, "RowSize", 4096);
         ranks = config_read_int(config, section, "Ranks", 1);
         banks = config_read_int(config, section, "Banks", 8);
@@ -914,6 +916,9 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config, char *
         if(queue_per_bank<0||queue_per_bank>1)
                 fatal("%s: %s: invalid value for variable 'QueuePerBank'.\n%s",
                         mem_config_file_name, mod_name, err_mem_config_note);
+	  if(enabled_mc<0||enabled_mc>1)
+                fatal("%s: %s: invalid value for variable 'MemoryControllerEnabled'.\n%s",
+                        mem_config_file_name, mod_name, err_mem_config_note);
         //////////////////////////////////////////////////////////////////////
 
 
@@ -944,6 +949,7 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config, char *
         mod->regs_channel=regs_channel_create(channels, ranks, banks, bandwith, t_acces_bank_miss, t_acces_bank_hit );
         mod->num_regs_channel=channels;
         mem_controller_init_main_memory(mem_system->mem_controller, channels, ranks, banks, t_send_request, row_size, cycles_proc_bus, policy_type, prio_type, size_queue,threshold, queue_per_bank);
+	mem_system->mem_controller->enabled=enabled_mc;
         ///////////////////////////////////////////////////
 
 	

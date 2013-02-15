@@ -3,16 +3,21 @@ Sets = 128
 Assoc = 4
 BlockSize = 64
 Latency = 1
-Prefetch = OBL         #{OBL OBL_stride streams disabled}
+<<<<<<< HEAD
+PrefetchStreams = 0
+PrefetchAggressivity = 0
+=======
+Prefetch = OBL
 ;PrefetchStreams = 8
 ;PrefetchAggressivity = 4
+>>>>>>> origin/vicent
 
 [ CacheGeometry l2 ]
 Sets = 1024
 Assoc = 32
 BlockSize = 64
 Latency = 10
-Prefetch = OBL
+Prefetch = disabled
 ;PrefetchStreams = 0
 ;PrefetchAggressivity = 1
 
@@ -204,7 +209,6 @@ PolicyMCQueues = PrefetchNormalQueue
 PriorityMCQueues = Threshold-Normal-Prefetch
 QueuePerBank = 1
 SizeQueue = 128
-MemoryControllerEnabled = 1
 
 #
 # Nodes

@@ -2439,7 +2439,8 @@ void mod_handler_nmoesi_evict(int event, void *data)
 
 		/*If it's an access to main memory*/
 		///////////////////////////////////////////////////////////////////////////////////////////
-                if(target_mod->kind==mod_kind_main_memory){
+                if(target_mod->kind==mod_kind_main_memory && mem_system->mem_controller->enabled)
+		{
                         new_stack = mod_stack_create(stack->id, target_mod, stack->src_tag,
                         EV_MOD_NMOESI_EVICT_REPLY, stack,stack->core, stack->thread, stack->prefetch);
                         new_stack->request_type=eviction_request;
@@ -3428,7 +3429,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			net_receive(target_mod->low_net, target_mod->low_net_node, stack->msg);
 
 		 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-                if(target_mod->kind==mod_kind_main_memory){
+                if(target_mod->kind == mod_kind_main_memory && mem_system->mem_controller->enabled){
                         new_stack = mod_stack_create(stack->id, target_mod, stack->addr,
                         EV_MOD_NMOESI_READ_REQUEST_REPLY, stack,stack->core, stack->thread, stack->prefetch);
                         new_stack->blocking = stack->request_dir == mod_request_down_up;
@@ -3445,7 +3446,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 		else if (stack->request_dir == mod_request_up_down)
 		{
 			/* Record access -- We can threat all read_requests as loads */
-			mod_access_start(target_mod, stack, mod_access_load);
+			if(target_mod->kind != mod_kind_main_memory) mod_access_start(target_mod, stack, mod_access_load);
 
 			/* Coalesce (loads with L2 prefetches) */
 			master_stack = mod_can_coalesce(target_mod, mod_access_load, stack->addr, stack);
@@ -4204,7 +4205,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			net_receive(target_mod->low_net, target_mod->low_net_node, stack->msg);
 
 		/////////////////////////////////////////////////////////////////////////////////
-                if(target_mod->kind==mod_kind_main_memory){
+                if(target_mod->kind==mod_kind_main_memory && mem_system->mem_controller->enabled){
                         new_stack = mod_stack_create(stack->id, target_mod, stack->addr,
                         EV_MOD_NMOESI_WRITE_REQUEST_REPLY, stack,stack->core, stack->thread, stack->prefetch);
                         new_stack->blocking = stack->request_dir == mod_request_down_up;
@@ -4220,7 +4221,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
                 ////////////////////////////////////////////////////////////////////////////////
 
 		/* Record access */
-		if (target_mod->cache->prefetch_enabled)
+		if (target_mod->cache->prefetch_enabled && target_mod->kind != mod_kind_main_memory)
 		{
 			mod_access_start(target_mod, stack, mod_access_store);
 		}
@@ -4547,7 +4548,8 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			net_receive(mod->high_net, mod->high_net_node, stack->msg);
 
 		/* Delete access */
-		if (target_mod->prefetch_enabled&&target_mod->kind!=mod_kind_main_memory) mod_access_finish(target_mod, stack);
+		if (target_mod->cache->prefetch_enabled && target_mod->kind!=mod_kind_main_memory)
+			mod_access_finish(target_mod, stack);
 
 		/* Return */
 		mod_stack_return(stack);
