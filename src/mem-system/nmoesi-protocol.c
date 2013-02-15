@@ -321,7 +321,10 @@ void enqueue_prefetch_obl(struct mod_stack_t *stack, int level)
 	uop = x86_uop_create();
 	uop->uinst = x86_uinst_create();
 	uop->uinst->opcode = x86_uinst_prefetch;
-	uop->phy_addr = stack->addr + mod->block_size;
+	if(mod->cache->prefetch_enabled == prefetch_obl_stride)
+		uop->phy_addr = stack->addr + stack->stride;
+	else
+		uop->phy_addr = stack->addr + mod->block_size;
 	uop->core = stack->core;
 	uop->thread = stack->thread;
 	uop->flags = X86_UINST_MEM;
@@ -748,6 +751,13 @@ void mod_handler_nmoesi_load(int event, void *data)
 		else if(cache->prefetch_enabled == prefetch_obl)
 		{
 			enqueue_prefetch_obl(stack, mod->level);
+		}
+
+		/* Enqueue OBL prefetch with strides */
+		else if(cache->prefetch_enabled == prefetch_obl_stride)
+		{
+			if(stack->stride)
+				enqueue_prefetch_obl(stack, mod->level);
 		}
 
 		/* Enqueue prefetch(es) */

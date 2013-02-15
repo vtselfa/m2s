@@ -175,7 +175,7 @@ long long mod_access(struct mod_t *mod, enum mod_access_kind_t access_kind,
 			else if(mod->cache->prefetch_enabled == prefetch_obl)
 				event = EV_MOD_NMOESI_PREF_OBL;
 			else if(mod->cache->prefetch_enabled == prefetch_obl_stride)
-				{} /* TODO */
+				event = EV_MOD_NMOESI_PREF_OBL;
 			else
 				panic("%s: invalid prefetch policy", __FUNCTION__);
 		}
