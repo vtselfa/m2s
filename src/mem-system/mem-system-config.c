@@ -403,7 +403,7 @@ static void mem_config_gpu_default(struct config_t *config)
 			config_write_string(config, section, "Module", str);
 		}
 		break;
-	
+
 	case x86_emu_gpu_evergreen:
 
 		EVG_GPU_FOREACH_COMPUTE_UNIT(compute_unit_id)
@@ -422,13 +422,13 @@ static void mem_config_gpu_default(struct config_t *config)
 			config_write_string(config, section, "Module", str);
 		}
 		break;
-	
+
 	default:
 		panic("%s: invalid GPU emulator", __FUNCTION__);
 	}
 
 	/* L2 caches */
-	for (l2_id = 0; l2_id < num_L2s; l2_id++) 
+	for (l2_id = 0; l2_id < num_L2s; l2_id++)
 	{
 		snprintf(section, sizeof section, "Module gpu-l2-%d", l2_id);
 		config_write_string(config, section, "Type", "Cache");
@@ -443,7 +443,7 @@ static void mem_config_gpu_default(struct config_t *config)
 	}
 
 	/* Global memory */
-	for (mm_id = 0; mm_id < num_MMs; mm_id++) 
+	for (mm_id = 0; mm_id < num_MMs; mm_id++)
 	{
 		snprintf(section, sizeof section, "Module gpu-gm-%d", mm_id);
 		config_write_string(config, section, "Type", "MainMemory");
@@ -650,7 +650,9 @@ static struct mod_t *mem_config_read_cache(struct config_t *config, char *sectio
 	int block_size;
 	int latency;
 	int dir_latency;
-	int prefetch = 0;
+
+	char *prefetch_str;
+	enum prefetch_policy_t prefetch;
 	int pref_streams;
 	int pref_aggr;
 
@@ -687,9 +689,23 @@ static struct mod_t *mem_config_read_cache(struct config_t *config, char *sectio
 	policy_str = config_read_string(config, buf, "Policy", "LRU");
 	mshr_size = config_read_int(config, buf, "MSHR", 16);
 	num_ports = config_read_int(config, buf, "Ports", 2);
-	pref_streams = config_read_int(config, buf, "PrefetchStreams", 0);
-	pref_aggr = config_read_int(config, buf, "PrefetchAggressivity", 0);
-	prefetch = (pref_aggr > 0) && (pref_streams > 0);
+
+	prefetch_str = config_read_string(config, buf, "Prefetch", "disabled");
+	prefetch = str_map_string_case(&prefetch_policy_map, prefetch_str);
+
+	if(prefetch == prefetch_streams)
+	{
+		config_var_enforce(config, buf, "PrefetchStreams");
+		config_var_enforce(config, buf, "PrefetchAggressivity");
+		pref_streams = config_read_int(config, buf, "PrefetchStreams", 0);
+		pref_aggr = config_read_int(config, buf, "PrefetchAggressivity", 0);
+		if (pref_aggr < 0)
+			fatal("%s: cache %s: invalid value for variable 'PrefetchAggressivity'.\n%s",
+				mem_config_file_name, mod_name, err_mem_config_note);
+		if (pref_streams < 0)
+			fatal("%s: cache %s: invalid value for variable 'PrefetchStreams'.\n%s",
+				mem_config_file_name, mod_name, err_mem_config_note);
+	}
 
 	/* Checks */
 	policy = str_map_string_case(&cache_policy_map, policy_str);
@@ -718,17 +734,11 @@ static struct mod_t *mem_config_read_cache(struct config_t *config, char *sectio
 	if (num_ports < 1)
 		fatal("%s: cache %s: invalid value for variable 'Ports'.\n%s",
 			mem_config_file_name, mod_name, err_mem_config_note);
-	if (pref_aggr < 0)
-		fatal("%s: cache %s: invalid value for variable 'PrefetchAggressivity'.\n%s",
-			mem_config_file_name, mod_name, err_mem_config_note);
-	if (pref_streams < 0)
-		fatal("%s: cache %s: invalid value for variable 'PrefetchStreams'.\n%s",
-			mem_config_file_name, mod_name, err_mem_config_note);
 
 	/* Create module */
 	mod = mod_create(mod_name, mod_kind_cache, num_ports,
-		block_size, latency, prefetch);
-	
+		block_size, latency);
+
 	/* Initialize */
 	mod->mshr_size = mshr_size;
 	mod->dir_assoc = assoc;
@@ -754,6 +764,7 @@ static struct mod_t *mem_config_read_cache(struct config_t *config, char *sectio
 
 	/* Create cache */
 	mod->cache = cache_create(mod->name, num_sets, block_size, assoc, pref_streams, pref_aggr, policy);
+	mod->cache->prefetch_enabled = prefetch;
 
 	/* Return */
 	return mod;
@@ -809,7 +820,7 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config, char *
 
 	/* Create module */
 	mod = mod_create(mod_name, mod_kind_main_memory, num_ports,
-			block_size, latency, 0);
+			block_size, latency);
 
 	/* Store directory size */
 	mod->dir_size = dir_size;
@@ -1282,14 +1293,14 @@ static void mem_config_read_gpu_entries(struct config_t *config)
 		if (!entry_list)
 			fatal("%s: out of memory", __FUNCTION__);
 		break;
-	
+
 	case x86_emu_gpu_evergreen:
 
 		entry_list = calloc(evg_gpu_num_compute_units, sizeof(struct entry_t));
 		if (!entry_list)
 			fatal("%s: out of memory", __FUNCTION__);
 		break;
-	
+
 	default:
 		panic("%s: invalid GPU emulator", __FUNCTION__);
 	}
@@ -1324,7 +1335,7 @@ static void mem_config_read_gpu_entries(struct config_t *config)
 
 			num_compute_units = si_gpu_num_compute_units;
 			break;
-		
+
 		case x86_emu_gpu_evergreen:
 
 			num_compute_units = evg_gpu_num_compute_units;
@@ -1361,17 +1372,17 @@ static void mem_config_read_gpu_entries(struct config_t *config)
 	switch (x86_emu->gpu_kind)
 	{
 	case x86_emu_gpu_southern_islands:
-		
+
 		if (si_emu_kind == si_emu_kind_functional)
 			goto out;
 		break;
-	
+
 	case x86_emu_gpu_evergreen:
 
 		if (evg_emu_kind == evg_emu_kind_functional)
 			goto out;
 		break;
-	
+
 	default:
 		panic("%s: invalid GPU emulation", __FUNCTION__);
 	}
@@ -1403,7 +1414,7 @@ static void mem_config_read_gpu_entries(struct config_t *config)
 			mem_debug("\tGPU compute unit %d -> %s\n", compute_unit_id, mod->name);
 		}
 		break;
-	
+
 	case x86_emu_gpu_evergreen:
 
 		EVG_GPU_FOREACH_COMPUTE_UNIT(compute_unit_id)
@@ -1427,7 +1438,7 @@ static void mem_config_read_gpu_entries(struct config_t *config)
 			mem_debug("\tGPU compute unit %d -> %s\n", compute_unit_id, mod->name);
 		}
 		break;
-	
+
 	default:
 		panic("%s: invalid GPU emulation", __FUNCTION__);
 	}
@@ -1634,24 +1645,24 @@ static void mem_config_check_disjoint(void)
 	int thread;
 
 	/* No need if no CPU simulation */
-	if (x86_emu_kind == x86_emu_kind_functional) 
+	if (x86_emu_kind == x86_emu_kind_functional)
 		return;
-	
+
 	/* No need if no GPU simulation */
 	switch (x86_emu->gpu_kind)
 	{
 	case x86_emu_gpu_southern_islands:
 
-		if (si_emu_kind == si_emu_kind_functional) 
+		if (si_emu_kind == si_emu_kind_functional)
 			return;
 		break;
-	
+
 	case x86_emu_gpu_evergreen:
-	
+
 		if (evg_emu_kind == evg_emu_kind_functional)
 			return;
 		break;
-	
+
 	default:
 		panic("%s: invalid GPU emulator", __FUNCTION__);
 	}
@@ -1677,7 +1688,7 @@ static void mem_config_check_disjoint(void)
 					mem_config_file_name);
 		}
 		break;
-	
+
 	case x86_emu_gpu_evergreen:
 
 		EVG_GPU_FOREACH_COMPUTE_UNIT(compute_unit_id)
@@ -1688,7 +1699,7 @@ static void mem_config_check_disjoint(void)
 					mem_config_file_name);
 		}
 		break;
-	
+
 	default:
 		panic("%s: invalid GPU emulation", __FUNCTION__);
 	}
@@ -1780,7 +1791,7 @@ static void mem_config_calculate_mod_levels(void)
 	/* Check color of GPU modules */
 	switch (x86_emu->gpu_kind)
 	{
-	
+
 	case x86_emu_gpu_southern_islands:
 
 		if (si_emu_kind == si_emu_kind_detailed)
@@ -1790,7 +1801,7 @@ static void mem_config_calculate_mod_levels(void)
 					si_gpu->compute_units[compute_unit_id]->global_memory, 1);
 		}
 		break;
-	
+
 	case x86_emu_gpu_evergreen:
 
 		if (evg_emu_kind == evg_emu_kind_detailed)
@@ -1800,7 +1811,7 @@ static void mem_config_calculate_mod_levels(void)
 					evg_gpu->compute_units[compute_unit_id]->global_memory, 1);
 		}
 		break;
-	
+
 	default:
 		panic("%s: invalid GPU emulation", __FUNCTION__);
 	}

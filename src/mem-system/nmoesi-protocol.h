@@ -98,6 +98,8 @@ extern int EV_MOD_NMOESI_MESSAGE_ACTION;
 extern int EV_MOD_NMOESI_MESSAGE_REPLY;
 extern int EV_MOD_NMOESI_MESSAGE_FINISH;
 
+
+/* Stream prefetch */
 extern int EV_MOD_PREF;
 extern int EV_MOD_PREF_LOCK;
 extern int EV_MOD_PREF_ACTION;
@@ -105,13 +107,13 @@ extern int EV_MOD_PREF_MISS;
 extern int EV_MOD_PREF_UNLOCK;
 extern int EV_MOD_PREF_FINISH;
 
-/* Prefetch */
-extern int EV_MOD_NMOESI_PREFETCH;
-extern int EV_MOD_NMOESI_PREFETCH_LOCK;
-extern int EV_MOD_NMOESI_PREFETCH_ACTION;
-extern int EV_MOD_NMOESI_PREFETCH_MISS;
-extern int EV_MOD_NMOESI_PREFETCH_UNLOCK;
-extern int EV_MOD_NMOESI_PREFETCH_FINISH;
+/* OBL prefetch */
+extern int EV_MOD_NMOESI_PREF_OBL;
+extern int EV_MOD_NMOESI_PREF_OBL_LOCK;
+extern int EV_MOD_NMOESI_PREF_OBL_ACTION;
+extern int EV_MOD_NMOESI_PREF_OBL_MISS;
+extern int EV_MOD_NMOESI_PREF_OBL_UNLOCK;
+extern int EV_MOD_NMOESI_PREF_OBL_FINISH;
 
 extern int EV_MOD_NMOESI_PREF_EVICT;
 extern int EV_MOD_NMOESI_PREF_EVICT_INVALID;
@@ -148,6 +150,7 @@ void mod_handler_nmoesi_message(int event, void *data);
 
 /* Prefetch */
 void mod_handler_pref(int event, void *data);
+void mod_handler_nmoesi_pref_obl(int event, void *data);
 void mod_handler_nmoesi_pref_evict(int event, void *data);
 void mod_handler_nmoesi_invalidate_slot(int event, void *data);
 void mod_handler_nmoesi_pref_find_and_lock(int event, void *data);

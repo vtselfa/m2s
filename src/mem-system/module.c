@@ -54,7 +54,7 @@ struct str_map_t mod_access_kind_map =
  */
 
 struct mod_t *mod_create(char *name, enum mod_kind_t kind, int num_ports,
-	int block_size, int latency, int pref)
+	int block_size, int latency)
 {
 	struct mod_t *mod;
 
@@ -78,7 +78,6 @@ struct mod_t *mod_create(char *name, enum mod_kind_t kind, int num_ports,
 	if (!mod->ports)
 		fatal("%s: out of memory", __FUNCTION__);
 
-
 	/* Lists */
 	mod->low_mod_list = linked_list_create();
 	mod->high_mod_list = linked_list_create();
@@ -89,9 +88,7 @@ struct mod_t *mod_create(char *name, enum mod_kind_t kind, int num_ports,
 	assert(!(block_size & (block_size - 1)) && block_size >= 4);
 	mod->log_block_size = log_base2(block_size);
 
-	mod->prefetch_enabled=pref;
-
-	printf("Mod %s pref %d\n", mod->name, mod->prefetch_enabled);
+	printf("Mod %s\n", mod->name);
 
 	return mod;
 }
@@ -173,7 +170,14 @@ long long mod_access(struct mod_t *mod, enum mod_access_kind_t access_kind,
 		}
 		else if (access_kind == mod_access_prefetch)
 		{
-			event = EV_MOD_PREF;
+			if(mod->cache->prefetch_enabled == prefetch_streams)
+				event = EV_MOD_PREF;
+			else if(mod->cache->prefetch_enabled == prefetch_obl)
+				event = EV_MOD_NMOESI_PREF_OBL;
+			else if(mod->cache->prefetch_enabled == prefetch_obl_stride)
+				{} /* TODO */
+			else
+				panic("%s: invalid prefetch policy", __FUNCTION__);
 		}
 		else if (access_kind == mod_access_invalidate)
 		{

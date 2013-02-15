@@ -134,6 +134,13 @@ int EV_MOD_PREF_MISS;
 int EV_MOD_PREF_UNLOCK;
 int EV_MOD_PREF_FINISH;
 
+int EV_MOD_NMOESI_PREF_OBL;
+int EV_MOD_NMOESI_PREF_OBL_LOCK;
+int EV_MOD_NMOESI_PREF_OBL_ACTION;
+int EV_MOD_NMOESI_PREF_OBL_MISS;
+int EV_MOD_NMOESI_PREF_OBL_UNLOCK;
+int EV_MOD_NMOESI_PREF_OBL_FINISH;
+
 int EV_MOD_NMOESI_MESSAGE;
 int EV_MOD_NMOESI_MESSAGE_RECEIVE;
 int EV_MOD_NMOESI_MESSAGE_ACTION;
@@ -149,11 +156,11 @@ int must_enqueue_prefetch(struct mod_stack_t *stack, int level)
 
 	/* L1 prefetch */
 	if (level == 1)
-		return stack->mod->prefetch_enabled && !stack->background;
+		return stack->mod->cache->prefetch_enabled && !stack->background;
 
 	/* Deeper than L1 prefetch */
 	target_mod = stack->target_mod;
-	return target_mod->prefetch_enabled && //El prefetch està habilitat
+	return target_mod->cache->prefetch_enabled && //El prefetch està habilitat
 		!stack->prefetch && //No estem en una cadena de prefetch
 		!stack->background && //La stack fast resumed ja haurà encuat el prefetch, si calia
 		target_mod->kind == mod_kind_cache && //És una cache
@@ -298,6 +305,35 @@ void enqueue_prefetch_on_hit(struct mod_stack_t *stack, int level)
 
 	/* Add a pending prefetch */
 	sb->pending_prefetches++;
+}
+
+void enqueue_prefetch_obl(struct mod_stack_t *stack, int level)
+{
+	struct mod_t *mod;
+	struct x86_uop_t *uop;
+
+	/* Aliases */
+	if (level == 1)
+		mod = stack->mod;
+	else
+		mod = stack->target_mod;
+
+	uop = x86_uop_create();
+	uop->uinst = x86_uinst_create();
+	uop->uinst->opcode = x86_uinst_prefetch;
+	uop->phy_addr = stack->addr + mod->block_size;
+	uop->core = stack->core;
+	uop->thread = stack->thread;
+	uop->flags = X86_UINST_MEM;
+	uop->pref.mod = mod;
+
+	if (level == 1)
+		x86_pq_insert(uop);
+	else
+	{
+		linked_list_out(mod->pq);
+		linked_list_insert(mod->pq, uop);
+	}
 }
 
 
@@ -545,7 +581,6 @@ void mod_handler_pref(int event, void *data)
 		/* Statitistics */
 		mod->completed_prefetches++;
 
-
 		/* Continue */
 		esim_schedule_event(EV_MOD_PREF_FINISH, stack, 0);
 		return;
@@ -612,7 +647,7 @@ void mod_handler_nmoesi_load(int event, void *data)
 		mod_access_start(mod, stack, mod_access_load);
 
 		/* Add access to stride detector and record if there is a stride */
-		if (mod->prefetch_enabled)
+		if (cache->prefetch_enabled)
 			stack->stride = cache_detect_stride(mod->cache, stack->addr);
 
 		/* Coalesce access */
@@ -621,8 +656,10 @@ void mod_handler_nmoesi_load(int event, void *data)
 		{
 			mod->reads++;
 			mod_coalesce(mod, master_stack, stack);
-			if(stack->access_kind == mod_access_prefetch)
-				mod_stack_wait_in_stack(stack, master_stack, EV_MOD_NMOESI_LOAD_LOCK); /* Prefetch leaves block in prefetch buffer, not in cache */
+
+			/* Prefetch streams stacks leave block in prefetch buffer, not in cache */
+			if(master_stack->access_kind == mod_access_prefetch && cache->prefetch_enabled == prefetch_streams)
+				mod_stack_wait_in_stack(stack, master_stack, EV_MOD_NMOESI_LOAD_LOCK);
 			else
 				mod_stack_wait_in_stack(stack, master_stack, EV_MOD_NMOESI_LOAD_FINISH);
 			return;
@@ -705,6 +742,12 @@ void mod_handler_nmoesi_load(int event, void *data)
 		{
 			esim_schedule_event(EV_MOD_NMOESI_LOAD_UNLOCK, stack, 0);
 			return;
+		}
+
+		/* Enqueue OBL prefetch */
+		else if(cache->prefetch_enabled == prefetch_obl)
+		{
+			enqueue_prefetch_obl(stack, mod->level);
 		}
 
 		/* Enqueue prefetch(es) */
@@ -832,6 +875,13 @@ void mod_handler_nmoesi_load(int event, void *data)
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:load_unlock\"\n",
 			stack->id, mod->name);
 
+		/* Statitistics */
+		if(cache->sets[stack->set].blocks->prefetched)
+		{
+			mod->useful_prefetches++;
+			cache->sets[stack->set].blocks->prefetched = 0;
+		}
+
 		/* Unlock directory entry */
 		dir_entry_unlock(mod->dir, stack->set, stack->way);
 		if (stack->prefetch_hit && !stack->background)
@@ -896,7 +946,7 @@ void mod_handler_nmoesi_store(int event, void *data)
 		mod_access_start(mod, stack, mod_access_store);
 
 		/* Add access to stride detector and record if there is a stride */
-		if (mod->prefetch_enabled)
+		if (mod->cache->prefetch_enabled)
 			stack->stride = cache_detect_stride(mod->cache, stack->addr);
 
 		/* Coalesce access */
@@ -1019,6 +1069,10 @@ void mod_handler_nmoesi_store(int event, void *data)
 			esim_schedule_event(EV_MOD_NMOESI_STORE_LOCK, stack, retry_lat);
 			return;
 		}
+
+		/* Statitistics */
+		if(mod->cache->sets[stack->set].blocks->prefetched)
+			mod->useful_prefetches++;
 
 		/* Update tag/state and unlock */
 		cache_set_block(mod->cache, stack->set, stack->way,
@@ -1553,7 +1607,7 @@ void mod_handler_nmoesi_pref_find_and_lock(int event, void *data)
 
 
 
-void mod_handler_nmoesi_prefetch(int event, void *data)
+void mod_handler_nmoesi_pref_obl(int event, void *data)
 {
 	struct mod_stack_t *stack = data;
 	struct mod_stack_t *new_stack;
@@ -1561,7 +1615,7 @@ void mod_handler_nmoesi_prefetch(int event, void *data)
 	struct mod_t *mod = stack->mod;
 
 
-	if (event == EV_MOD_PREF)
+	if (event == EV_MOD_NMOESI_PREF_OBL)
 	{
 		struct mod_stack_t *master_stack;
 
@@ -1574,13 +1628,16 @@ void mod_handler_nmoesi_prefetch(int event, void *data)
 		/* Record access */
 		mod_access_start(mod, stack, mod_access_prefetch);
 
+		/* Statistics */
+		mod->programmed_prefetches++;
+
 		/* Coalesce access */
 		master_stack = mod_can_coalesce(mod, mod_access_prefetch, stack->addr, stack);
 		if (master_stack)
 		{
 			/* doesn't make sense to prefetch as the block is already being fetched */
 			mod->canceled_prefetches++;
-			esim_schedule_event(EV_MOD_PREF_FINISH, stack, 0);
+			esim_schedule_event(EV_MOD_NMOESI_PREF_OBL_FINISH, stack, 0);
 			/* Increment witness variable */
 			if (stack->witness_ptr)
 				(*stack->witness_ptr)++;
@@ -1589,12 +1646,12 @@ void mod_handler_nmoesi_prefetch(int event, void *data)
 		}
 
 		/* Continue */
-		esim_schedule_event(EV_MOD_PREF_LOCK, stack, 0);
+		esim_schedule_event(EV_MOD_NMOESI_PREF_OBL_LOCK, stack, 0);
 		return;
 	}
 
 
-	if (event == EV_MOD_PREF_LOCK)
+	if (event == EV_MOD_NMOESI_PREF_OBL_LOCK)
 	{
 		struct mod_stack_t *older_stack;
 
@@ -1609,17 +1666,18 @@ void mod_handler_nmoesi_prefetch(int event, void *data)
 		{
 			mem_debug("    %lld wait for write %lld\n",
 				stack->id, older_stack->id);
-			mod_stack_wait_in_stack(stack, older_stack, EV_MOD_PREF_LOCK);
+			mod_stack_wait_in_stack(stack, older_stack, EV_MOD_NMOESI_PREF_OBL_LOCK);
 			return;
 		}
 
 		/* Call find and lock */
 		new_stack = mod_stack_create(stack->id, mod, stack->addr,
-			EV_MOD_PREF_ACTION, stack,stack->core, stack->thread, stack->prefetch);
+			EV_MOD_NMOESI_PREF_OBL_ACTION, stack,stack->core, stack->thread, stack->prefetch);
 		new_stack->blocking = 0;
 		new_stack->prefetch = 1;
 		new_stack->retry = 0;
 		new_stack->witness_ptr = stack->witness_ptr;
+		new_stack->request_dir = mod_request_up_down;
 		esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK, new_stack, 0);
 
 		/* Set witness variable to NULL so that retries from the same
@@ -1629,7 +1687,7 @@ void mod_handler_nmoesi_prefetch(int event, void *data)
 		return;
 	}
 
-	if (event == EV_MOD_PREF_ACTION)
+	if (event == EV_MOD_NMOESI_PREF_OBL_ACTION)
 	{
 		mem_debug("  %lld %lld 0x%x %s prefetch action\n", esim_cycle, stack->id,
 			stack->addr, mod->name);
@@ -1646,22 +1704,21 @@ void mod_handler_nmoesi_prefetch(int event, void *data)
 
 			mod->canceled_prefetches++;
 			mem_debug("    lock error, aborting prefetch\n");
-			esim_schedule_event(EV_MOD_PREF_FINISH, stack, 0);
+			esim_schedule_event(EV_MOD_NMOESI_PREF_OBL_FINISH, stack, 0);
 			return;
 		}
 
 		/* Hit */
 		if (stack->state)
 		{
-			/* Block already in the cache */
-			mod->canceled_prefetches++;
-			esim_schedule_event(EV_MOD_PREF_UNLOCK, stack, 0);
+			/* Block already in cache */
+			esim_schedule_event(EV_MOD_NMOESI_PREF_OBL_UNLOCK, stack, 0);
 			return;
 		}
 
 		/* Miss */
 		new_stack = mod_stack_create(stack->id, mod, stack->tag,
-			EV_MOD_PREF_MISS, stack,stack->core, stack->thread, stack->prefetch);
+			EV_MOD_NMOESI_PREF_OBL_MISS, stack,stack->core, stack->thread, stack->prefetch);
 		new_stack->peer = mod_stack_set_peer(mod, stack->state);
 		new_stack->target_mod = mod_get_low_mod(mod, stack->tag);
 		new_stack->request_dir = mod_request_up_down;
@@ -1670,7 +1727,7 @@ void mod_handler_nmoesi_prefetch(int event, void *data)
 		return;
 	}
 
-	if (event == EV_MOD_PREF_MISS)
+	if (event == EV_MOD_NMOESI_PREF_OBL_MISS)
 	{
 		mem_debug("  %lld %lld 0x%x %s prefetch miss\n", esim_cycle, stack->id,
 			stack->addr, mod->name);
@@ -1687,7 +1744,7 @@ void mod_handler_nmoesi_prefetch(int event, void *data)
 			mod->canceled_prefetches++;
 			dir_entry_unlock(mod->dir, stack->set, stack->way);
 			mem_debug("    lock error, aborting prefetch\n");
-			esim_schedule_event(EV_MOD_PREF_FINISH, stack, 0);
+			esim_schedule_event(EV_MOD_NMOESI_PREF_OBL_FINISH, stack, 0);
 			return;
 		}
 
@@ -1697,11 +1754,11 @@ void mod_handler_nmoesi_prefetch(int event, void *data)
 			stack->shared ? cache_block_shared : cache_block_exclusive, stack->prefetch);
 
 		/* Continue */
-		esim_schedule_event(EV_MOD_PREF_UNLOCK, stack, 0);
+		esim_schedule_event(EV_MOD_NMOESI_PREF_OBL_UNLOCK, stack, 0);
 		return;
 	}
 
-	if (event == EV_MOD_PREF_UNLOCK)
+	if (event == EV_MOD_NMOESI_PREF_OBL_UNLOCK)
 	{
 		mem_debug("  %lld %lld 0x%x %s prefetch unlock\n", esim_cycle, stack->id,
 			stack->addr, mod->name);
@@ -1711,12 +1768,15 @@ void mod_handler_nmoesi_prefetch(int event, void *data)
 		/* Unlock directory entry */
 		dir_entry_unlock(mod->dir, stack->set, stack->way);
 
+		/* Statitistics */
+		mod->completed_prefetches++;
+
 		/* Continue */
-		esim_schedule_event(EV_MOD_PREF_FINISH, stack, 0);
+		esim_schedule_event(EV_MOD_NMOESI_PREF_OBL_FINISH, stack, 0);
 		return;
 	}
 
-	if (event == EV_MOD_PREF_FINISH)
+	if (event == EV_MOD_NMOESI_PREF_OBL_FINISH)
 	{
 		mem_debug("%lld %lld 0x%x %s prefetch\n", esim_cycle, stack->id,
 			stack->addr, mod->name);
@@ -1967,7 +2027,7 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 			cache_access_block(mod->cache, stack->set, stack->way);
 		}
 
-		if (!stack->hit && !stack->background && mod->prefetch_enabled)
+		if (!stack->hit && !stack->background && cache->prefetch_enabled == prefetch_streams)
 			esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK_PREF_STREAM, stack, 0);
 		else
 			esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK_ACTION, stack, mod->dir_latency); /* Access latency */
@@ -3727,7 +3787,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			net_receive(target_mod->low_net, target_mod->low_net_node, stack->msg);
 
 		/* Record access */
-		if (target_mod->prefetch_enabled)
+		if (target_mod->cache->prefetch_enabled)
 		{
 			mod_access_start(target_mod, stack, mod_access_store);
 		}
@@ -4054,7 +4114,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			net_receive(mod->high_net, mod->high_net_node, stack->msg);
 
 		/* Delete access */
-		if (target_mod->prefetch_enabled) mod_access_finish(target_mod, stack);
+		if (target_mod->cache->prefetch_enabled) mod_access_finish(target_mod, stack);
 
 		/* Return */
 		mod_stack_return(stack);

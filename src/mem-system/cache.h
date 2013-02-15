@@ -22,6 +22,7 @@
 
 
 extern struct str_map_t cache_policy_map;
+extern struct str_map_t prefetch_policy_map;
 extern struct str_map_t cache_block_state_map;
 
 enum cache_policy_t
@@ -30,6 +31,14 @@ enum cache_policy_t
 	cache_policy_lru,
 	cache_policy_fifo,
 	cache_policy_random
+};
+
+enum prefetch_policy_t
+{
+	prefetch_disabled = 0,
+	prefetch_obl,
+	prefetch_obl_stride,
+	prefetch_streams
 };
 
 enum cache_block_state_t
@@ -122,6 +131,7 @@ struct cache_t
 	int log_block_size;
 
 	/* Prefetching */
+	enum prefetch_policy_t prefetch_enabled;
 	struct {
 		unsigned int num_streams; 	/* Number of streams for prefetch */
 		unsigned int aggressivity; 	/* Number of blocks per stream */

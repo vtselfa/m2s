@@ -82,7 +82,6 @@ struct mod_t
 	int latency;
 	int dir_latency;
 	int mshr_size;
-	int prefetch_enabled;
 
 	/* Module level starting from entry points */
 	int level;
@@ -244,7 +243,7 @@ struct mod_t
 };
 
 struct mod_t *mod_create(char *name, enum mod_kind_t kind, int num_ports,
-	int block_size, int latency, int pref);
+	int block_size, int latency);
 void mod_free(struct mod_t *mod);
 void mod_dump(struct mod_t *mod, FILE *f);
 void mod_stack_set_reply(struct mod_stack_t *stack, int reply);
