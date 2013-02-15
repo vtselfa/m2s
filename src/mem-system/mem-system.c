@@ -170,13 +170,21 @@ void mem_system_init(void)
 	EV_MOD_LOCAL_MEM_FIND_AND_LOCK_ACTION = esim_register_event_with_name(mod_handler_local_mem_find_and_lock, "mod_local_mem_find_and_lock_action");
 	EV_MOD_LOCAL_MEM_FIND_AND_LOCK_FINISH = esim_register_event_with_name(mod_handler_local_mem_find_and_lock, "mod_local_mem_find_and_lock_finish");
 
-	/* Prefetch */
+	/* Streams prefetch */
 	EV_MOD_PREF = esim_register_event(mod_handler_pref);
 	EV_MOD_PREF_LOCK = esim_register_event(mod_handler_pref);
 	EV_MOD_PREF_ACTION = esim_register_event(mod_handler_pref);
 	EV_MOD_PREF_MISS = esim_register_event(mod_handler_pref);
 	EV_MOD_PREF_UNLOCK = esim_register_event(mod_handler_pref);
 	EV_MOD_PREF_FINISH = esim_register_event(mod_handler_pref);
+
+	/* OBL prefetch */
+	EV_MOD_NMOESI_PREF_OBL = esim_register_event(mod_handler_nmoesi_pref_obl);
+	EV_MOD_NMOESI_PREF_OBL_LOCK = esim_register_event(mod_handler_nmoesi_pref_obl);
+	EV_MOD_NMOESI_PREF_OBL_ACTION = esim_register_event(mod_handler_nmoesi_pref_obl);
+	EV_MOD_NMOESI_PREF_OBL_MISS = esim_register_event(mod_handler_nmoesi_pref_obl);
+	EV_MOD_NMOESI_PREF_OBL_UNLOCK = esim_register_event(mod_handler_nmoesi_pref_obl);
+	EV_MOD_NMOESI_PREF_OBL_FINISH = esim_register_event(mod_handler_nmoesi_pref_obl);
 
 	EV_MOD_NMOESI_PREF_EVICT = esim_register_event_with_name(
 		mod_handler_nmoesi_pref_evict, "mod_nmoesi_pref_evict");

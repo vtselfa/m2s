@@ -50,11 +50,11 @@ struct si_compute_unit_t *si_compute_unit_create()
 	/* Local memory */
 	snprintf(buf, sizeof buf, "LocalMemory[%d]", compute_unit->id);
 	compute_unit->local_memory = mod_create(buf, mod_kind_local_memory,
-		si_gpu_local_mem_num_ports, si_gpu_local_mem_block_size, si_gpu_local_mem_latency,0);
+		si_gpu_local_mem_num_ports, si_gpu_local_mem_block_size, si_gpu_local_mem_latency);
 
 	/* Hardware structures */
 	compute_unit->num_inst_buffers = si_gpu_num_inst_buffers;
-	compute_unit->inst_buffers = calloc(compute_unit->num_inst_buffers, 
+	compute_unit->inst_buffers = calloc(compute_unit->num_inst_buffers,
 		sizeof(struct si_inst_buffer_t*));
 	compute_unit->simds = calloc(compute_unit->num_inst_buffers, sizeof(struct si_simd_t*));
 
@@ -81,7 +81,7 @@ struct si_compute_unit_t *si_compute_unit_create()
 	compute_unit->lds.inflight_buffer = list_create();
 	compute_unit->lds.compute_unit = compute_unit;
 
-	for (i = 0; i < compute_unit->num_inst_buffers; i++) 
+	for (i = 0; i < compute_unit->num_inst_buffers; i++)
 	{
 		/* Allocate and initialize instruction buffers */
 		compute_unit->inst_buffers[i] = si_inst_buffer_create();
@@ -100,7 +100,7 @@ struct si_compute_unit_t *si_compute_unit_create()
 		compute_unit->simds[i]->compute_unit = compute_unit;
 	}
 
-	compute_unit->work_groups = calloc(si_gpu_max_work_groups_per_inst_buffer * 
+	compute_unit->work_groups = calloc(si_gpu_max_work_groups_per_inst_buffer *
 		si_gpu_num_inst_buffers, sizeof(void *));
 	if (!compute_unit->work_groups)
 		fatal("%s: out of memory", __FUNCTION__);
@@ -174,7 +174,7 @@ void si_compute_unit_free(struct si_compute_unit_t *compute_unit)
 }
 
 
-void si_compute_unit_map_work_group(struct si_compute_unit_t *compute_unit, 
+void si_compute_unit_map_work_group(struct si_compute_unit_t *compute_unit,
 	struct si_work_group_t *work_group)
 {
 	struct si_ndrange_t *ndrange = work_group->ndrange;
@@ -201,7 +201,7 @@ void si_compute_unit_map_work_group(struct si_compute_unit_t *compute_unit,
 	{
 		DOUBLE_LINKED_LIST_INSERT_TAIL(si_gpu, compute_unit_ready, compute_unit);
 	}
-	
+
 	/* If this is the first scheduled work-group, insert to 'compute_unit_busy' list. */
 	if (!DOUBLE_LINKED_LIST_MEMBER(si_gpu, compute_unit_busy, compute_unit))
 	{
@@ -254,8 +254,8 @@ void si_compute_unit_unmap_work_group(struct si_compute_unit_t *compute_unit, st
 	{
 		DOUBLE_LINKED_LIST_INSERT_TAIL(si_gpu, compute_unit_ready, compute_unit);
 	}
-	
-	/* If compute unit is not compute_unit_busy anymore, remove it from 
+
+	/* If compute unit is not compute_unit_busy anymore, remove it from
 	 * 'compute_unit_busy' list */
 	if (!compute_unit->work_group_count && DOUBLE_LINKED_LIST_MEMBER(si_gpu, compute_unit_busy,
 		compute_unit))
@@ -306,7 +306,7 @@ int *si_inst_buffer_get_oldest(struct si_inst_buffer_t *inst_buffer)
 			int tmp_id = id_list[cur_idx-1];
 			id_list[cur_idx-1] = id_list[cur_idx];
 			id_list[cur_idx] = tmp_id;
-			
+
 			cur_idx--;
 		}
 	}
@@ -337,7 +337,7 @@ void si_compute_unit_fetch(struct si_compute_unit_t *compute_unit, int active_ib
 		wavefront = compute_unit->inst_buffers[active_ib]->entries[i]->wavefront;
 
 		/* No wavefront */
-		if (!wavefront) 
+		if (!wavefront)
 			continue;
 
 		/* Sanity check wavefront */
@@ -345,7 +345,7 @@ void si_compute_unit_fetch(struct si_compute_unit_t *compute_unit, int active_ib
 		assert(wavefront->inst_buffer_entry ==
 			compute_unit->inst_buffers[active_ib]->entries[i]);
 
-		/* If the wavefront finishes, there still may be outstanding memory 
+		/* If the wavefront finishes, there still may be outstanding memory
 		 * operations, so if the entry is marked finished the wavefront must
 		 * also be finished, but not vice-versa */
 		if (wavefront->inst_buffer_entry->wavefront_finished)
@@ -370,7 +370,7 @@ void si_compute_unit_fetch(struct si_compute_unit_t *compute_unit, int active_ib
 			if (!wavefront->inst_buffer_entry->lgkm_cnt &&
 				!wavefront->inst_buffer_entry->vm_cnt)
 			{
-				wavefront->inst_buffer_entry->wait_for_mem = 0;	
+				wavefront->inst_buffer_entry->wait_for_mem = 0;
 			}
 			else
 			{
@@ -389,7 +389,7 @@ void si_compute_unit_fetch(struct si_compute_unit_t *compute_unit, int active_ib
 		/* If wavefront is ready, there should be no uop in the instruction buffer */
 		assert(!compute_unit->inst_buffers[active_ib]->entries[i]->uop);
 
-		/* XXX Check for if the wavefront is at a barrier. 
+		/* XXX Check for if the wavefront is at a barrier.
 		 *        - If so, check to see if all wavefronts have reached the barrier
 		 *           - If so, clear them all and proceed
 		 *        - If not, continue to wait */
@@ -424,15 +424,15 @@ void si_compute_unit_fetch(struct si_compute_unit_t *compute_unit, int active_ib
 		if (si_tracing())
 		{
 			rel_addr = wavefront->inst_buf - wavefront->inst_buf_start;
-			si_inst_dump(&wavefront->inst, wavefront->inst_size, wavefront->inst_buf, 
+			si_inst_dump(&wavefront->inst, wavefront->inst_size, wavefront->inst_buf,
 				rel_addr, inst_str, sizeof inst_str);
 			str_single_spaces(inst_str_trimmed, inst_str, sizeof inst_str_trimmed);
 			si_trace("si.new_inst id=%lld cu=%d ib=%d wg=%d wf=%d "
 				"stg=\"f\" asm=\"%s\"\n", uop->id_in_compute_unit, compute_unit->id,
-				uop->inst_buffer_id, uop->work_group->id, wavefront->id, 
+				uop->inst_buffer_id, uop->work_group->id, wavefront->id,
 				inst_str_trimmed);
 		}
-		
+
 		/* Update last memory accesses */
 		SI_FOREACH_WORK_ITEM_IN_WAVEFRONT(uop->wavefront, work_item_id)
 		{
@@ -447,16 +447,16 @@ void si_compute_unit_fetch(struct si_compute_unit_t *compute_unit, int active_ib
 			work_item_uop->local_mem_access_count = work_item->local_mem_access_count;
 			for (j = 0; j < work_item->local_mem_access_count; j++)
 			{
-				work_item_uop->local_mem_access_kind[j] = 
+				work_item_uop->local_mem_access_kind[j] =
 					work_item->local_mem_access_type[j];
-				work_item_uop->local_mem_access_addr[j] = 
+				work_item_uop->local_mem_access_addr[j] =
 					work_item->local_mem_access_addr[j];
-				work_item_uop->local_mem_access_size[j] = 
+				work_item_uop->local_mem_access_size[j] =
 					work_item->local_mem_access_size[j];
 			}
 		}
 
-		/* Access instruction cache. Record the time when the instruction will have 
+		/* Access instruction cache. Record the time when the instruction will have
 		 * been fetched, as per the latency of the instruction memory. */
 		uop->fetch_ready = si_gpu->cycle + si_gpu_fetch_latency;
 
@@ -505,7 +505,7 @@ void si_compute_unit_decode(struct si_compute_unit_t *compute_unit, int active_i
 		/* Only decode a fixed number of instructions per cycle */
 		if (instructions_processed == si_gpu_decode_width)
 		{
-			si_trace("si.inst id=%lld cu=%d wf=%d stg=\"s\"\n", 
+			si_trace("si.inst id=%lld cu=%d wf=%d stg=\"s\"\n",
 				uop->id_in_compute_unit, compute_unit->id, uop->wavefront->id);
 			continue;
 		}
@@ -528,8 +528,8 @@ void si_compute_unit_decode(struct si_compute_unit_t *compute_unit, int active_i
 				if (list_count(compute_unit->branch_unit.decode_buffer) ==
 					si_gpu_branch_unit_width)
 				{
-					si_trace("si.inst id=%lld cu=%d wf=%d stg=\"s\"\n", 
-						uop->id_in_compute_unit, compute_unit->id, 
+					si_trace("si.inst id=%lld cu=%d wf=%d stg=\"s\"\n",
+						uop->id_in_compute_unit, compute_unit->id,
 						uop->wavefront->id);
 					continue;
 				}
@@ -545,11 +545,11 @@ void si_compute_unit_decode(struct si_compute_unit_t *compute_unit, int active_i
 			else
 			{
 				/* Continue if scalar unit decode buffer is full */
-				if (list_count(scalar_unit->decode_buffer) == 
+				if (list_count(scalar_unit->decode_buffer) ==
 					si_gpu_scalar_unit_width)
 				{
-					si_trace("si.inst id=%lld cu=%d wf=%d stg=\"s\"\n", 
-						uop->id_in_compute_unit, compute_unit->id, 
+					si_trace("si.inst id=%lld cu=%d wf=%d stg=\"s\"\n",
+						uop->id_in_compute_unit, compute_unit->id,
 						uop->wavefront->id);
 					continue;
 				}
@@ -572,8 +572,8 @@ void si_compute_unit_decode(struct si_compute_unit_t *compute_unit, int active_i
 			/* Continue if scalar unit decode buffer is full */
 			if (list_count(scalar_unit->decode_buffer) == si_gpu_scalar_unit_width)
 			{
-				si_trace("si.inst id=%lld cu=%d wf=%d stg=\"s\"\n", 
-					uop->id_in_compute_unit, compute_unit->id, 
+				si_trace("si.inst id=%lld cu=%d wf=%d stg=\"s\"\n",
+					uop->id_in_compute_unit, compute_unit->id,
 					uop->wavefront->id);
 				continue;
 			}
@@ -594,8 +594,8 @@ void si_compute_unit_decode(struct si_compute_unit_t *compute_unit, int active_i
 			/* Continue if scalar unit decode buffer is full */
 			if (list_count(scalar_unit->decode_buffer) == si_gpu_scalar_unit_width)
 			{
-				si_trace("si.inst id=%lld cu=%d wf=%d stg=\"s\"\n", 
-					uop->id_in_compute_unit, compute_unit->id, 
+				si_trace("si.inst id=%lld cu=%d wf=%d stg=\"s\"\n",
+					uop->id_in_compute_unit, compute_unit->id,
 					uop->wavefront->id);
 				continue;
 			}
@@ -621,8 +621,8 @@ void si_compute_unit_decode(struct si_compute_unit_t *compute_unit, int active_i
 			if (list_count(compute_unit->simds[active_ib]->decode_buffer) ==
 				si_gpu_simd_width)
 			{
-				si_trace("si.inst id=%lld cu=%d wf=%d stg=\"s\"\n", 
-					uop->id_in_compute_unit, compute_unit->id, 
+				si_trace("si.inst id=%lld cu=%d wf=%d stg=\"s\"\n",
+					uop->id_in_compute_unit, compute_unit->id,
 					uop->wavefront->id);
 				continue;
 			}
@@ -644,8 +644,8 @@ void si_compute_unit_decode(struct si_compute_unit_t *compute_unit, int active_i
 			if (list_count(compute_unit->vector_mem_unit.decode_buffer) ==
 				si_gpu_vector_mem_width)
 			{
-				si_trace("si.inst id=%lld cu=%d wf=%d stg=\"s\"\n", 
-					uop->id_in_compute_unit, compute_unit->id, 
+				si_trace("si.inst id=%lld cu=%d wf=%d stg=\"s\"\n",
+					uop->id_in_compute_unit, compute_unit->id,
 					uop->wavefront->id);
 				continue;
 			}
@@ -666,8 +666,8 @@ void si_compute_unit_decode(struct si_compute_unit_t *compute_unit, int active_i
 			/* Continue if LDS decode buffer is full */
 			if (list_count(compute_unit->lds.decode_buffer) == si_gpu_lds_width)
 			{
-				si_trace("si.inst id=%lld cu=%d wf=%d stg=\"s\"\n", 
-					uop->id_in_compute_unit, compute_unit->id, 
+				si_trace("si.inst id=%lld cu=%d wf=%d stg=\"s\"\n",
+					uop->id_in_compute_unit, compute_unit->id,
 					uop->wavefront->id);
 				continue;
 			}
@@ -694,7 +694,7 @@ void si_compute_unit_decode(struct si_compute_unit_t *compute_unit, int active_i
 		compute_unit->inst_count++;
 
 		/* Trace */
-		si_trace("si.inst id=%lld cu=%d wf=%d stg=\"d\"\n", uop->id_in_compute_unit, 
+		si_trace("si.inst id=%lld cu=%d wf=%d stg=\"d\"\n", uop->id_in_compute_unit,
 			compute_unit->id, uop->wavefront->id);
 	}
 
@@ -711,9 +711,9 @@ void si_compute_unit_run(struct si_compute_unit_t *compute_unit)
 	int active_decode_ib;  /* Wavefront pool chosen to decode this cycle */
 
 	active_fetch_ib = si_gpu->cycle % compute_unit->num_inst_buffers;
-	active_decode_ib = active_fetch_ib - (si_gpu_fetch_latency % 
+	active_decode_ib = active_fetch_ib - (si_gpu_fetch_latency %
 			compute_unit->num_inst_buffers);
-	active_decode_ib = (active_decode_ib < 0) ? 
+	active_decode_ib = (active_decode_ib < 0) ?
 		compute_unit->num_inst_buffers + active_decode_ib : active_decode_ib;
 
 	assert(active_fetch_ib >= 0 && active_fetch_ib < compute_unit->num_inst_buffers);

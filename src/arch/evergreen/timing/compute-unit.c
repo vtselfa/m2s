@@ -60,7 +60,7 @@ struct evg_compute_unit_t *evg_compute_unit_create()
 	/* Local memory */
 	snprintf(buf, sizeof buf, "LocalMemory[%d]", compute_unit->id);
 	compute_unit->local_memory = mod_create(buf, mod_kind_local_memory,
-		evg_gpu_local_mem_num_ports, evg_gpu_local_mem_block_size, evg_gpu_local_mem_latency,0);
+		evg_gpu_local_mem_num_ports, evg_gpu_local_mem_block_size, evg_gpu_local_mem_latency);
 
 	/* Initialize CF Engine */
 	compute_unit->cf_engine.complete_queue = linked_list_create();
@@ -179,7 +179,7 @@ void evg_compute_unit_map_work_group(struct evg_compute_unit_t *compute_unit, st
 	DOUBLE_LINKED_LIST_REMOVE(evg_gpu, ready, compute_unit);
 	if (compute_unit->work_group_count < evg_gpu->work_groups_per_compute_unit)
 		DOUBLE_LINKED_LIST_INSERT_TAIL(evg_gpu, ready, compute_unit);
-	
+
 	/* If this is the first scheduled work-group, insert to 'busy' list. */
 	if (!DOUBLE_LINKED_LIST_MEMBER(evg_gpu, busy, compute_unit))
 		DOUBLE_LINKED_LIST_INSERT_TAIL(evg_gpu, busy, compute_unit);
@@ -241,7 +241,7 @@ void evg_compute_unit_unmap_work_group(struct evg_compute_unit_t *compute_unit, 
 	/* If compute unit accepts work-groups again, insert into 'ready' list */
 	if (!DOUBLE_LINKED_LIST_MEMBER(evg_gpu, ready, compute_unit))
 		DOUBLE_LINKED_LIST_INSERT_TAIL(evg_gpu, ready, compute_unit);
-	
+
 	/* If compute unit is not busy anymore, remove it from 'busy' list */
 	if (!compute_unit->work_group_count && DOUBLE_LINKED_LIST_MEMBER(evg_gpu, busy, compute_unit))
 		DOUBLE_LINKED_LIST_REMOVE(evg_gpu, busy, compute_unit);

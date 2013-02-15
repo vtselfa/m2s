@@ -52,7 +52,7 @@ enum mod_message_type_t
 };
 
 /* Prefetching */
-enum pref_kind_t {INVALID=0, SINGLE, GROUP};
+enum pref_kind_t {INVALID=0, SINGLE, GROUP, PREF_OBL, PREF_OBL_STRIDE};
 
 struct pref_data_t
 {
