@@ -3721,12 +3721,28 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 		/* Enqueue prefetch(es) on cache miss */
 		if (!stack->state && must_enqueue_prefetch(stack, target_mod->level))
 		{
-			/* We only have to prefetch one block and put it on the tail of the buffer */
-			if (stack->prefetch_hit)
-				enqueue_prefetch_on_hit(stack, target_mod->level);
-			/* We have to fill all the stream buffer */
-			else
-				enqueue_prefetch_on_miss(stack, 0/* TODO: stride*/, target_mod->level);
+			/* Enqueue OBL prefetch */
+			if (target_mod->cache->prefetch_enabled == prefetch_obl ||
+				target_mod->cache->prefetch_enabled == prefetch_obl_stride)
+			{
+				enqueue_prefetch_obl(stack, target_mod->level);
+			}
+
+			/* Enqueue OBL prefetch with strides */
+			else if (target_mod->cache->prefetch_enabled == prefetch_obl_stride)
+			{
+				if (stack->stride)
+					enqueue_prefetch_obl(stack, mod->level);
+			}
+
+			/* Enqueue prefetch stream */
+			else if (target_mod->cache->prefetch_enabled == prefetch_streams)
+			{
+				if (stack->prefetch_hit)
+					enqueue_prefetch_on_hit(stack, target_mod->level);
+				else
+					enqueue_prefetch_on_miss(stack, stack->stride, target_mod->level);
+			}
 		}
 
 		esim_schedule_event(stack->request_dir == mod_request_up_down ?
@@ -3829,6 +3845,14 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 				new_stack->request_dir = mod_request_down_up;
 				esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST, new_stack, 0);
 			}
+
+			/* Test if this block was an useful prefetch */
+			if (target_mod->cache->sets[stack->set].blocks->prefetched)
+			{
+				target_mod->useful_prefetches++;
+				target_mod->cache->sets[stack->set].blocks->prefetched = 0;
+			}
+
 			esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST_UPDOWN_FINISH, stack, 0);
 		}
 		else

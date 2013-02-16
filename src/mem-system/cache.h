@@ -73,7 +73,7 @@ struct cache_block_t
 	int way;
 
 	enum cache_block_state_t state;
-	unsigned int prefetched;
+	int prefetched : 1;
 };
 
 struct cache_set_t
