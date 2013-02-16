@@ -1884,8 +1884,13 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 					else if (stack->write)
 					{
 						assert(stack->request_dir == mod_request_up_down); //TODO: down-up
+						mem_debug("    %lld 0x%x %s write buffer hit: pos=%d, state=%s\n",
+							stack->id, stack->tag, mod->name, linked_list_current(cache->wb.blocks),
+							str_map_value(&cache_block_state_map, stack->state));
+						mem_debug("    %lld wait for load %lld\n",
+							stack->id, block->stack->id);
 						mod->write_buffer_write_hits++; /* Statistics */
-						mod_stack_wait_in_stack(stack, block->stack, EV_MOD_NMOESI_FIND_AND_LOCK_PORT);
+						mod_stack_wait_in_stack(stack, block->stack, EV_MOD_NMOESI_FIND_AND_LOCK);
 						return;
 					}
 					else
