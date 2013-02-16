@@ -1858,38 +1858,10 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 		/* Default return values */
 		ret->err = 0;
 
-		if (!stack->prefetch_hit || stack->request_dir == mod_request_up_down)
-		{
-			stack->way = ret->way; /* If this stack has already been assigned a way, keep using it */
-			mod_lock_port(mod, stack, EV_MOD_NMOESI_FIND_AND_LOCK_PORT);
-		}
-		else
-			/* Access is being resumed after suspending trying to block an entry in prefetch buffer */
-			mod_lock_port(mod, stack, EV_MOD_NMOESI_FIND_AND_LOCK_PREF_STREAM);
-		return;
-	}
-
-	if (event == EV_MOD_NMOESI_FIND_AND_LOCK_PORT)
-	{
-		struct mod_port_t *port = stack->port;
-		struct dir_lock_t *dir_lock;
-		struct write_buffer_block_t *block;
-		int prefetch;
-
-		assert(stack->port);
-		mem_debug("  %lld %lld 0x%x %s find and lock port\n", esim_cycle, stack->id,
-			stack->addr, mod->name);
-		mem_trace("mem.access name=\"A-%lld\" state=\"%s:find_and_lock_port\"\n",
-			stack->id, mod->name);
-
-		/* Set parent stack flag expressing that port has already been locked.
-		 * This flag is checked by new writes to find out if it is already too
-		 * late to coalesce. */
-		ret->port_locked = 1;
-
 		/* Look for block in write buffer */
 		if (!stack->background)
 		{
+			struct write_buffer_block_t *block;
 			stack->tag = stack->addr & ~cache->block_mask;
 			LINKED_LIST_FOR_EACH(cache->wb.blocks)
 			{
@@ -1911,6 +1883,7 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 					}
 					else if (stack->write)
 					{
+						assert(stack->request_dir == mod_request_up_down); //TODO: down-up
 						mod->write_buffer_write_hits++; /* Statistics */
 						mod_stack_wait_in_stack(stack, block->stack, EV_MOD_NMOESI_FIND_AND_LOCK_PORT);
 						return;
@@ -1920,6 +1893,34 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 				}
 			}
 		}
+
+		if (!stack->prefetch_hit || stack->request_dir == mod_request_up_down)
+		{
+			stack->way = ret->way; /* If this stack has already been assigned a way, keep using it */
+			mod_lock_port(mod, stack, EV_MOD_NMOESI_FIND_AND_LOCK_PORT);
+		}
+		else
+			/* Access is being resumed after suspending trying to block an entry in prefetch buffer */
+			mod_lock_port(mod, stack, EV_MOD_NMOESI_FIND_AND_LOCK_PREF_STREAM);
+		return;
+	}
+
+	if (event == EV_MOD_NMOESI_FIND_AND_LOCK_PORT)
+	{
+		struct mod_port_t *port = stack->port;
+		struct dir_lock_t *dir_lock;
+		int prefetch;
+
+		assert(stack->port);
+		mem_debug("  %lld %lld 0x%x %s find and lock port\n", esim_cycle, stack->id,
+			stack->addr, mod->name);
+		mem_trace("mem.access name=\"A-%lld\" state=\"%s:find_and_lock_port\"\n",
+			stack->id, mod->name);
+
+		/* Set parent stack flag expressing that port has already been locked.
+		 * This flag is checked by new writes to find out if it is already too
+		 * late to coalesce. */
+		ret->port_locked = 1;
 
 		/* Look for block */
 		stack->hit = mod_find_block(mod, stack->addr, &stack->set, &stack->way, &stack->tag, &stack->state, &prefetch);
