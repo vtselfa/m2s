@@ -806,6 +806,9 @@ void mod_handler_nmoesi_load(int event, void *data)
 		new_stack->target_mod = mod_get_low_mod(mod, stack->tag);
 		new_stack->request_dir = mod_request_up_down;
 		esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST, new_stack, 0);
+		////////////////////////////////////
+		mem_system->faults[mod->level]++;///
+		////////////////////////////////////
 		return;
 	}
 
@@ -1066,6 +1069,10 @@ void mod_handler_nmoesi_store(int event, void *data)
 		new_stack->target_mod = mod_get_low_mod(mod, stack->tag);
 		new_stack->request_dir = mod_request_up_down;
 		esim_schedule_event(EV_MOD_NMOESI_WRITE_REQUEST, new_stack, 0);
+		////////////////////////////////////////////////
+		new_stack->access_kind=mod_access_store;
+		mem_system->faults[mod->level]++;		
+		////////////////////////////////////////////////
 		return;
 	}
 
@@ -1286,6 +1293,9 @@ void mod_handler_nmoesi_nc_store(int event, void *data)
 				EV_MOD_NMOESI_NC_STORE_MISS, stack, stack->core, stack->thread, stack->prefetch);
 			new_stack->message = message_clear_owner;
 			new_stack->target_mod = mod_get_low_mod(mod, stack->tag);
+			/////////////////////////////////////////////////////
+			mem_system->faults[mod->level]++;		////
+			/////////////////////////////////////////////////////
 			esim_schedule_event(EV_MOD_NMOESI_MESSAGE, new_stack, 0);
 		}
 		/* Modified and Owned states need to call read request because we've already
@@ -1299,6 +1309,9 @@ void mod_handler_nmoesi_nc_store(int event, void *data)
 			new_stack->nc_write = 1;
 			new_stack->target_mod = mod_get_low_mod(mod, stack->tag);
 			new_stack->request_dir = mod_request_up_down;
+			/////////////////////////////////////////////////////
+			mem_system->faults[mod->level]++;		/////
+			/////////////////////////////////////////////////////
 			esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST, new_stack, 0);
 		}
 		return;
@@ -2002,6 +2015,9 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 
 		if (!stack->hit)
 		{
+			/////////////////////////////////////////////////////
+			mem_system->faults[mod->level]++;		/////
+			/////////////////////////////////////////////////////
 			if (stack->way < 0)
 				stack->way = cache_replace_block(mod->cache, stack->set);
 			cache_get_block(mod->cache, stack->set, stack->way, NULL, &stack->state);
