@@ -137,6 +137,7 @@ extern int EV_MOD_NMOESI_PREF_FIND_AND_LOCK_FINISH;
 
 /*Main memory*/
 //////////////////////////////////////////////////////////
+extern int EV_MOD_NMOESI_EXAMINE_ONLY_ONE_QUEUE_REQUEST;//
 extern int EV_MOD_NMOESI_EXAMINE_QUEUE_REQUEST;         //
 extern int EV_MOD_NMOESI_ACCES_BANK;                    //
 extern int EV_MOD_NMOESI_TRANSFER_FROM_BANK;            //
