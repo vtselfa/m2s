@@ -692,6 +692,11 @@ static struct mod_t *mem_config_read_cache(struct config_t *config, char *sectio
 
 	prefetch_str = config_read_string(config, buf, "Prefetch", "disabled");
 	prefetch = str_map_string_case(&prefetch_policy_map, prefetch_str);
+	if(!prefetch && strcasecmp(prefetch_str, "disabled"))
+		fatal("%s: cache %s: %s: invalid prefetch. "
+			"Valid values are {disabled OBL OBL_stride streams}.\n%s",
+			mem_config_file_name, mod_name,
+			prefetch_str, err_mem_config_note);
 
 	if(prefetch == prefetch_streams)
 	{
@@ -747,7 +752,7 @@ static struct mod_t *mem_config_read_cache(struct config_t *config, char *sectio
 	mod->dir_num_sets = num_sets;
 	mod->dir_size = num_sets * assoc;
 	mod->dir_latency = dir_latency;
-	//////////////////////////////////////////////////////////////////////////////////////////////////////////      
+	//////////////////////////////////////////////////////////////////////////////////////////////////////////
         /*  Checks if option  is correct   */                                                                   //
         if(prefetch && misses_no_prefetch==1)                                                        //
                 fatal("option '--misses_no_prefetch-write' musnt'n be used with some prefetched enabled");      //
@@ -787,7 +792,7 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config, char *
 	int latency;
 	int num_ports;
 	int dir_size;
-	int dir_assoc;	
+	int dir_assoc;
 	int channels;
         int ranks;
         int banks;
@@ -952,7 +957,7 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config, char *
 	mem_system->mem_controller->enabled=enabled_mc;
         ///////////////////////////////////////////////////
 
-	
+
 	/* Return */
 	return mod;
 }
@@ -1943,7 +1948,7 @@ static void mem_config_calculate_mod_levels(void)
 
 		/* For stadistics *///////////////////////////////////////////////
                 if(mod->kind==mod_kind_cache){                                  //
-                        mem_system->faults[mod->level]=0;                       //              
+                        mem_system->faults[mod->level]=0;                       //
                         if(!mem_system->min_level_cache )                       //
                                 mem_system->min_level_cache=mod->level;         //
                         else if(mem_system->min_level_cache>mod->level)         //
