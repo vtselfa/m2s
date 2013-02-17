@@ -692,8 +692,13 @@ static struct mod_t *mem_config_read_cache(struct config_t *config, char *sectio
 
 	prefetch_str = config_read_string(config, buf, "Prefetch", "disabled");
 	prefetch = str_map_string_case(&prefetch_policy_map, prefetch_str);
+	if (!prefetch && strcasecmp(prefetch_str, "disabled"))
+		fatal("%s: cache %s: %s: invalid prefetch. "
+			"Valid values are {disabled OBL OBL_stride streams}.\n%s",
+			mem_config_file_name, mod_name,
+			prefetch_str, err_mem_config_note);
 
-	if(prefetch == prefetch_streams)
+	if (prefetch == prefetch_streams)
 	{
 		config_var_enforce(config, buf, "PrefetchStreams");
 		config_var_enforce(config, buf, "PrefetchAggressivity");
@@ -747,11 +752,11 @@ static struct mod_t *mem_config_read_cache(struct config_t *config, char *sectio
 	mod->dir_num_sets = num_sets;
 	mod->dir_size = num_sets * assoc;
 	mod->dir_latency = dir_latency;
-	//////////////////////////////////////////////////////////////////////////////////////////////////////////      
-        /*  Checks if option  is correct   */                                                                   //
-        if(prefetch && misses_no_prefetch==1)                                                        //
-                fatal("option '--misses_no_prefetch-write' musnt'n be used with some prefetched enabled");      //
-        //////////////////////////////////////////////////////////////////////////////////////////////////////////
+	//////////////////////////////////////////////////////////////////////////////////////////////////////////
+	/*  Checks if option  is correct   */                                                                   //
+	if (prefetch && misses_no_prefetch == 1)                                                     //
+		fatal("option '--misses_no_prefetch-write' musnt'n be used with some prefetched enabled");      //
+	//////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
 	/* High network */
@@ -787,31 +792,31 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config, char *
 	int latency;
 	int num_ports;
 	int dir_size;
-	int dir_assoc;	
+	int dir_assoc;
 	int channels;
-        int ranks;
-        int banks;
-        int row_size;
-        int t_send_request;
-        int t_acces_bank_hit;
-        int t_acces_bank_miss;
-        int bandwith;
-        int cycles_proc_bus;
-        int queue_per_bank;
+	int ranks;
+	int banks;
+	int row_size;
+	int t_send_request;
+	int t_acces_bank_hit;
+	int t_acces_bank_miss;
+	int bandwith;
+	int cycles_proc_bus;
+	int queue_per_bank;
 	int enabled_mc;
 
-        long long threshold;
-        long long size_queue;
+	long long threshold;
+	long long size_queue;
 
 
 
 	char *net_name;
 	char *net_node_name;
 	char * policy;
-        char * priority;
+	char * priority;
 
-        enum policy_mc_queue_t policy_type;
-        enum priority_t prio_type;
+	enum policy_mc_queue_t policy_type;
+	enum priority_t prio_type;
 
 
 	struct mod_t *mod;
@@ -828,22 +833,22 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config, char *
 	dir_size = config_read_int(config, section, "DirectorySize", 1024);
 	dir_assoc = config_read_int(config, section, "DirectoryAssoc", 8);
 	/////////////////////////////////////////////////////////////////////
-	enabled_mc= config_read_int(config, section, "MemoryControllerEnabled", 0);
-        row_size = config_read_int(config, section, "RowSize", 4096);
-        ranks = config_read_int(config, section, "Ranks", 1);
-        banks = config_read_int(config, section, "Banks", 8);
-        channels = config_read_int(config, section, "Channels", 1);
-        t_send_request = config_read_int(config, section, "CyclesSendRequest", 1);
-        t_acces_bank_hit = config_read_int(config, section, "CyclesRowBufferHit", 4);
-        t_acces_bank_miss = config_read_int(config, section, "CyclesRowBufferMiss", 20);
-        bandwith = config_read_int(config, section, "Bandwith", 64);
-        cycles_proc_bus = config_read_int(config, section, "CyclesProcByCyclesBus", 4);
-        policy=config_read_string(config, section, "PolicyMCQueues", "FCFSOneQueue");
-        priority=config_read_string(config, section, "PriorityMCQueues", "Threshold-Normal-Prefetch");
-        threshold=config_read_llint(config, section, "Threshold", 100000000000);
-        size_queue=config_read_llint(config, section, "SizeQueue", 100000000000);
-        queue_per_bank=config_read_llint(config, section, "QueuePerBank", 0);
-        /////////////////////////////////////////////////////////////////////
+	enabled_mc = config_read_int(config, section, "MemoryControllerEnabled", 0);
+	row_size = config_read_int(config, section, "RowSize", 4096);
+	ranks = config_read_int(config, section, "Ranks", 1);
+	banks = config_read_int(config, section, "Banks", 8);
+	channels = config_read_int(config, section, "Channels", 1);
+	t_send_request = config_read_int(config, section, "CyclesSendRequest", 1);
+	t_acces_bank_hit = config_read_int(config, section, "CyclesRowBufferHit", 4);
+	t_acces_bank_miss = config_read_int(config, section, "CyclesRowBufferMiss", 20);
+	bandwith = config_read_int(config, section, "Bandwith", 64);
+	cycles_proc_bus = config_read_int(config, section, "CyclesProcByCyclesBus", 4);
+	policy = config_read_string(config, section, "PolicyMCQueues", "FCFSOneQueue");
+	priority = config_read_string(config, section, "PriorityMCQueues", "Threshold-Normal-Prefetch");
+	threshold = config_read_llint(config, section, "Threshold", 100000000000);
+	size_queue = config_read_llint(config, section, "SizeQueue", 100000000000);
+	queue_per_bank = config_read_llint(config, section, "QueuePerBank", 0);
+	/////////////////////////////////////////////////////////////////////
 
 	/* Check parameters */
 	if (block_size < 1 || (block_size & (block_size - 1)))
@@ -864,68 +869,68 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config, char *
 	if (dir_assoc > dir_size)
 		fatal("%s: %s: invalid directory associativity.\n%s",
 			mem_config_file_name, mod_name, err_mem_config_note);
-	   //////////////////////////////////////////////////////////////////////
-        if (ranks < 1 || (ranks & (ranks - 1)))
-                fatal("%s: %s: ranks must be power of two.\n%s",
-                        mem_config_file_name, mod_name, err_mem_config_note);
-        if (banks < 1 || (banks & (banks - 1)))
-                fatal("%s: %s: banks must be power of two.\n%s",
-                        mem_config_file_name, mod_name, err_mem_config_note);
-        if (row_size < 1 || (row_size & (row_size - 1)))
-                fatal("%s: %s: row size must be power of two.\n%s",
-                        mem_config_file_name, mod_name, err_mem_config_note);
-        if (channels < 1 || (channels & (channels - 1)))
-                fatal("%s: %s: channels size must be power of two.\n%s",
-                        mem_config_file_name, mod_name, err_mem_config_note);
-        if (t_send_request < 1 )
-                fatal("%s: %s: invalid value for variable 'CyclesSendRequest'.\n%s",
-                        mem_config_file_name, mod_name, err_mem_config_note);
-        if (t_acces_bank_hit < 1 )
-                fatal("%s: %s: invalid value for variable 'CyclesRowBufferHit'.\n%s",
-                        mem_config_file_name, mod_name, err_mem_config_note);
-        if (t_acces_bank_miss < 1 )
-                fatal("%s: %s: invalid value for variable 'CyclesRowBufferMiss'.\n%s",
-                        mem_config_file_name, mod_name, err_mem_config_note);
-        if (bandwith < 1 || (bandwith & (bandwith - 1)))
-                fatal("%s: %s: bandwith must be power of two.\n%s",
-                        mem_config_file_name, mod_name, err_mem_config_note);
-        if (cycles_proc_bus < 0)
-                fatal("%s: %s:invalid value for variable 'CyclesProcByCyclesBus'.\n%s",
-                        mem_config_file_name, mod_name, err_mem_config_note);
-        if (threshold < 0)
-                fatal("%s: %s:invalid value for variable 'Threshold'.\n%s",
-                        mem_config_file_name, mod_name, err_mem_config_note);
-        if(strcmp(policy,"FCFSOneQueue")==0)
-                policy_type=policy_one_queue_FCFS;
-        else if(strcmp(policy,"PrefetchNormalQueue")==0)
-                policy_type=policy_prefetch_normal_queues;
-        else
-                fatal("%s: %s: invalid value for variable 'PolicyMCQueues'.\n%s",
-                        mem_config_file_name, mod_name, err_mem_config_note);
-        if(size_queue<=0)
-                fatal("%s: %s:invalid value for variable 'SizeQueue'.\n%s",
-                        mem_config_file_name, mod_name, err_mem_config_note);
-        if(strcmp(priority,"Threshold-Normal-Prefetch")==0)
-                prio_type=prio_threshold_normal_pref;
-        else if(strcmp(priority,"Threshold-RowBufferHit-FCFS")==0)
-                prio_type=prio_threshold_RowBufHit_FCFS;
-        else
-                fatal("%s: %s: invalid value for variable 'PriorityMCQueues'.\n%s",
-                        mem_config_file_name, mod_name, err_mem_config_note);
+	//////////////////////////////////////////////////////////////////////
+	if (ranks < 1 || (ranks & (ranks - 1)))
+		fatal("%s: %s: ranks must be power of two.\n%s",
+			mem_config_file_name, mod_name, err_mem_config_note);
+	if (banks < 1 || (banks & (banks - 1)))
+		fatal("%s: %s: banks must be power of two.\n%s",
+			mem_config_file_name, mod_name, err_mem_config_note);
+	if (row_size < 1 || (row_size & (row_size - 1)))
+		fatal("%s: %s: row size must be power of two.\n%s",
+			mem_config_file_name, mod_name, err_mem_config_note);
+	if (channels < 1 || (channels & (channels - 1)))
+		fatal("%s: %s: channels size must be power of two.\n%s",
+			mem_config_file_name, mod_name, err_mem_config_note);
+	if (t_send_request < 1 )
+		fatal("%s: %s: invalid value for variable 'CyclesSendRequest'.\n%s",
+			mem_config_file_name, mod_name, err_mem_config_note);
+	if (t_acces_bank_hit < 1 )
+		fatal("%s: %s: invalid value for variable 'CyclesRowBufferHit'.\n%s",
+			mem_config_file_name, mod_name, err_mem_config_note);
+	if (t_acces_bank_miss < 1 )
+		fatal("%s: %s: invalid value for variable 'CyclesRowBufferMiss'.\n%s",
+			mem_config_file_name, mod_name, err_mem_config_note);
+	if (bandwith < 1 || (bandwith & (bandwith - 1)))
+		fatal("%s: %s: bandwith must be power of two.\n%s",
+			mem_config_file_name, mod_name, err_mem_config_note);
+	if (cycles_proc_bus < 0)
+		fatal("%s: %s:invalid value for variable 'CyclesProcByCyclesBus'.\n%s",
+			mem_config_file_name, mod_name, err_mem_config_note);
+	if (threshold < 0)
+		fatal("%s: %s:invalid value for variable 'Threshold'.\n%s",
+			mem_config_file_name, mod_name, err_mem_config_note);
+	if (strcmp(policy, "FCFSOneQueue") == 0)
+		policy_type = policy_one_queue_FCFS;
+	else if (strcmp(policy, "PrefetchNormalQueue") == 0)
+		policy_type = policy_prefetch_normal_queues;
+	else
+		fatal("%s: %s: invalid value for variable 'PolicyMCQueues'.\n%s",
+			mem_config_file_name, mod_name, err_mem_config_note);
+	if (size_queue <= 0)
+		fatal("%s: %s:invalid value for variable 'SizeQueue'.\n%s",
+			mem_config_file_name, mod_name, err_mem_config_note);
+	if (strcmp(priority, "Threshold-Normal-Prefetch") == 0)
+		prio_type = prio_threshold_normal_pref;
+	else if (strcmp(priority, "Threshold-RowBufferHit-FCFS") == 0)
+		prio_type = prio_threshold_RowBufHit_FCFS;
+	else
+		fatal("%s: %s: invalid value for variable 'PriorityMCQueues'.\n%s",
+			mem_config_file_name, mod_name, err_mem_config_note);
 
-        if(queue_per_bank<0||queue_per_bank>1)
-                fatal("%s: %s: invalid value for variable 'QueuePerBank'.\n%s",
-                        mem_config_file_name, mod_name, err_mem_config_note);
-	  if(enabled_mc<0||enabled_mc>1)
-                fatal("%s: %s: invalid value for variable 'MemoryControllerEnabled'.\n%s",
-                        mem_config_file_name, mod_name, err_mem_config_note);
-        //////////////////////////////////////////////////////////////////////
+	if (queue_per_bank < 0 || queue_per_bank > 1)
+		fatal("%s: %s: invalid value for variable 'QueuePerBank'.\n%s",
+			mem_config_file_name, mod_name, err_mem_config_note);
+	if (enabled_mc < 0 || enabled_mc > 1)
+		fatal("%s: %s: invalid value for variable 'MemoryControllerEnabled'.\n%s",
+			mem_config_file_name, mod_name, err_mem_config_note);
+	//////////////////////////////////////////////////////////////////////
 
 
 
 	/* Create module */
 	mod = mod_create(mod_name, mod_kind_main_memory, num_ports,
-			block_size, latency);
+		block_size, latency);
 
 	/* Store directory size */
 	mod->dir_size = dir_size;
@@ -936,23 +941,23 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config, char *
 	net_name = config_read_string(config, section, "HighNetwork", "");
 	net_node_name = config_read_string(config, section, "HighNetworkNode", "");
 	mem_config_insert_module_in_network(config, mod, net_name, net_node_name,
-			&net, &net_node);
+		&net, &net_node);
 	mod->high_net = net;
 	mod->high_net_node = net_node;
 
 	/* Create cache and directory */
 	mod->cache = cache_create(mod->name, dir_size / dir_assoc, block_size,
-			dir_assoc, 0, 0, cache_policy_lru);
+		dir_assoc, 0, 0, cache_policy_lru);
 
-	 /*Create main memory*/
-        ///////////////////////////////////////////////////
-        mod->regs_channel=regs_channel_create(channels, ranks, banks, bandwith, t_acces_bank_miss, t_acces_bank_hit );
-        mod->num_regs_channel=channels;
-        mem_controller_init_main_memory(mem_system->mem_controller, channels, ranks, banks, t_send_request, row_size, cycles_proc_bus, policy_type, prio_type, size_queue,threshold, queue_per_bank);
-	mem_system->mem_controller->enabled=enabled_mc;
-        ///////////////////////////////////////////////////
+	/*Create main memory*/
+	///////////////////////////////////////////////////
+	mod->regs_channel = regs_channel_create(channels, ranks, banks, bandwith, t_acces_bank_miss, t_acces_bank_hit );
+	mod->num_regs_channel = channels;
+	mem_controller_init_main_memory(mem_system->mem_controller, channels, ranks, banks, t_send_request, row_size, cycles_proc_bus, policy_type, prio_type, size_queue, threshold, queue_per_bank);
+	mem_system->mem_controller->enabled = enabled_mc;
+	///////////////////////////////////////////////////
 
-	
+
 	/* Return */
 	return mod;
 }
@@ -1085,7 +1090,7 @@ static void mem_config_read_modules(struct config_t *config)
 	int i;
 
 	/* Create modules */
-	mem_debug("Creating modules: file %s size %d %d\n", config->file_name,config->items->size,config->items->count);
+	mem_debug("Creating modules: file %s size %d %d\n", config->file_name, config->items->size, config->items->count);
 	for (section = config_section_first(config); section; section = config_section_next(config))
 	{
 		mem_debug("Creating modules: section %s\n", section);
@@ -1096,7 +1101,7 @@ static void mem_config_read_modules(struct config_t *config)
 		/* Create module, depending on the type. */
 		str_token(mod_name, sizeof mod_name, section, 1, " ");
 		mod_type = config_read_string(config, section, "Type", "");
-		mem_debug("new module found, type %s\n",mod_type);
+		mem_debug("new module found, type %s\n", mod_type);
 		if (!strcasecmp(mod_type, "Cache"))
 			mod = mem_config_read_cache(config, section);
 		else if (!strcasecmp(mod_type, "MainMemory"))
@@ -1115,7 +1120,7 @@ static void mem_config_read_modules(struct config_t *config)
 	}
 
 	/* Debug */
-	mem_debug("number of modules read %d\n",list_count(mem_system->mod_list));
+	mem_debug("number of modules read %d\n", list_count(mem_system->mod_list));
 
 	/* Add module pointers to configuration file. This needs to be done separately,
 	 * because configuration file writes alter enumeration of sections.
@@ -1125,7 +1130,7 @@ static void mem_config_read_modules(struct config_t *config)
 		/* Get module and section */
 		mod = list_get(mem_system->mod_list, i);
 		snprintf(buf, sizeof buf, "Module %s", mod->name);
-		mem_debug("new module found, name %s\n",mod->name);
+		mem_debug("new module found, name %s\n", mod->name);
 		assert(config_section_exists(config, buf));
 		config_write_ptr(config, buf, "ptr", mod);
 	}
@@ -1942,19 +1947,20 @@ static void mem_config_calculate_mod_levels(void)
 			mem_debug("not accessible\n");
 
 		/* For stadistics *///////////////////////////////////////////////
-                if(mod->kind==mod_kind_cache){                                  //
-                        mem_system->faults[mod->level]=0;                       //              
-                        if(!mem_system->min_level_cache )                       //
-                                mem_system->min_level_cache=mod->level;         //
-                        else if(mem_system->min_level_cache>mod->level)         //
-                                mem_system->min_level_cache=mod->level;         //
-                                                                                //
-                        if(!mem_system->max_level_cache )                       //
-                                mem_system->max_level_cache=mod->level;         //
-                        else if(mem_system->max_level_cache<mod->level)         //
-                                mem_system->max_level_cache=mod->level;         //
-                }                                                               //
-                //////////////////////////////////////////////////////////////////
+		if (mod->kind == mod_kind_cache)                                //
+		{
+			mem_system->faults[mod->level] = 0;                     //
+			if (!mem_system->min_level_cache )                      //
+				mem_system->min_level_cache = mod->level;       //
+			else if (mem_system->min_level_cache > mod->level)      //
+				mem_system->min_level_cache = mod->level;       //
+			//
+			if (!mem_system->max_level_cache )                      //
+				mem_system->max_level_cache = mod->level;       //
+			else if (mem_system->max_level_cache < mod->level)      //
+				mem_system->max_level_cache = mod->level;       //
+		}                                                               //
+		//////////////////////////////////////////////////////////////////
 
 	}
 	mem_debug("\n");
@@ -2081,7 +2087,7 @@ void mem_system_config_read(void)
 
 	/* Load memory system configuration file */
 	config = config_create(mem_config_file_name);
-	mem_debug("mem_config_file_name %s\n",mem_config_file_name);
+	mem_debug("mem_config_file_name %s\n", mem_config_file_name);
 	if (!*mem_config_file_name)
 	{
 		mem_config_cpu_default(config);
@@ -2089,7 +2095,7 @@ void mem_system_config_read(void)
 	}
 	else
 	{
-		mem_debug("Loading... %s\n",mem_config_file_name);
+		mem_debug("Loading... %s\n", mem_config_file_name);
 		if (!config_load(config))
 			fatal("%s: cannot read memory system configuration file",
 				mem_config_file_name);

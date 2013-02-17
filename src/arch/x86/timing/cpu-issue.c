@@ -109,10 +109,8 @@ static int x86_cpu_issue_l2pq(int core, int thread, int quant)
 		{
 			/* Get element from prefetch queue */
 			uop = linked_list_get(pq);
-
+			assert(uop->uinst->opcode == x86_uinst_prefetch);
 			uop->ready = 1;
-
-			assert(uop->pref.kind);
 
 			/* Check that memory system is accessible */
 			if (!mod_can_access(l2mod, uop->phy_addr))
