@@ -9,7 +9,7 @@ echo
 
 ruta_de_la_ula=.
 ruta_resultats=results/con_MC_MM_pref_OBL
-id="prefNormColaXBank_prefOBLL1"
+id="prefNormColaXBank_oblL1L2"
 #today=$(date +%d%b[%X])
 mkdir ${ruta_de_la_ula}/${ruta_resultats}/${id}
 mkdir ${ruta_de_la_ula}/${ruta_resultats}/${id}/result_output
@@ -55,7 +55,7 @@ for bench in tonto specrand gromacs namd perlbench bzip2 gcc bwaves mcf milc zeu
 
 		netconfig="${ruta_de_la_ula}/configuraciones-prefetch/netconfig-64B.mesh"
 
-		echo "Arguments = --x86-max-inst 500000000 --x86-sim detailed  --x86-config $config --net-config $netconfig  --mem-config $cacheconfig --report-mem-main-memory  ${ruta_de_la_ula}/${ruta_resultats}/${id}/main_memory/$bench.main_memory  --net-report ${ruta_de_la_ula}/${ruta_resultats}/${id}/net/$bench.net.stats  --mem-report ${ruta_de_la_ula}/${ruta_resultats}/${id}/mem/$bench.mem.stats  --x86-report ${ruta_de_la_ula}/${ruta_resultats}/${id}/cpu/$bench.cpu.stats --misses_no_prefetch-read results/$bench/misses_no_prefetch   --ctx-config $ctxconfig" >> ${ruta_de_la_ula}/lanzar/lanzar_${id} 
+		echo "Arguments = --x86-max-inst 500000000 --x86-sim detailed  --x86-config $config --net-config $netconfig  --mem-config $cacheconfig --report-mem-main-memory  ${ruta_de_la_ula}/${ruta_resultats}/${id}/main_memory/$bench.main_memory  --net-report ${ruta_de_la_ula}/${ruta_resultats}/${id}/net/$bench.net.stats  --mem-report ${ruta_de_la_ula}/${ruta_resultats}/${id}/mem/$bench.mem.stats  --x86-report ${ruta_de_la_ula}/${ruta_resultats}/${id}/cpu/$bench.cpu.stats   --ctx-config $ctxconfig" >> ${ruta_de_la_ula}/lanzar/lanzar_${id} 
 
 		echo >> ${ruta_de_la_ula}/lanzar/lanzar_${id}
 
