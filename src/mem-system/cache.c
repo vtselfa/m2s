@@ -307,7 +307,10 @@ void cache_free(struct cache_t *cache)
 
 	/* Destroy streams */
 	for(stream=0; stream<cache->prefetch.num_streams; stream++)
+	{
+		assert(!cache->prefetch.streams[stream].pending_prefetches);
 		free(cache->prefetch.streams[stream].blocks);
+	}
 	free(cache->prefetch.streams);
 
 	/* Destroy write buffer */
