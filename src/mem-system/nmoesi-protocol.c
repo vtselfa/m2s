@@ -2240,9 +2240,8 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 
 				/* Copy block from stream to cache write buffer */
 				block = malloc(sizeof(struct write_buffer_block_t));
-				block->tag = stack->tag;
-				block->state = stack->state;
-				block->stack = stack;
+				cache_get_pref_block_data(cache, stack->pref_stream, stack->pref_slot, &block->tag, (int *) &block->state);
+				block->stack = background_stack; /* Store a reference so other access know who is bringing the block */
 				linked_list_add(cache->wb.blocks, block);
 
 				/* This stack will be fast resumed */
