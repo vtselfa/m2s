@@ -12,7 +12,7 @@ Sets = 1024
 Assoc = 32
 BlockSize = 64
 Latency = 10
-Prefetch = disabled
+Prefetch = OBL
 ;PrefetchStreams = 0
 ;PrefetchAggressivity = 1
 
@@ -202,7 +202,7 @@ CyclesProcByCyclesBus = 3
 Threshold= 100000
 PolicyMCQueues = PrefetchNormalQueue
 PriorityMCQueues = Threshold-Normal-Prefetch
-QueuePerBank = 1
+QueuePerBank = 0
 SizeQueue = 128
 MemoryControllerEnabled = 1
 
