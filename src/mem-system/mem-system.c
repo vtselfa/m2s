@@ -377,19 +377,23 @@ void main_memory_dump_report(char * main_mem_report_file_name)
  
 
 	fprintf(f, "\n[QUEUES MEMORY CONTROLLER]\n\n");
-
 	for(int i=0; i<mem_controller->num_queues;i++)
 	{
+		struct mem_controller_queue_t *normal = mem_controller->normal_queue[i];
         	fprintf(f, "[Normal Queue %d]\n",i);
        		fprintf(f, "AvgNumRequests = %f\n",mem_controller->n_times_queue_examined? 
-				(double)mem_controller->normal_queue[i]->total_requests/mem_controller->n_times_queue_examined:0.0);
-        	fprintf(f, "TimeFullPercent = %f\n\n", esim_cycle ? (double)mem_controller->normal_queue[i]->t_full/esim_cycle:0.0);
-		
+				(double)normal->total_requests / esim_cycle:0.0);
+        	fprintf(f, "TimeFullPercent = %f\n", esim_cycle ? (double)normal->t_full/esim_cycle:0.0);
+		float avg_req=mem_controller->n_times_queue_examined ? (double)normal->total_requests/mem_controller->n_times_queue_examined:0.0;
+		fprintf(f, "TimeResponse = %f\n\n ", normal->total_insertions ? (double) (avg_req*esim_cycle)/normal->total_insertions :0.0);	
 		
 		fprintf(f, "[Prefetch Queue %i]\n",i);
 		fprintf(f, "AvgNumRequests = %f\n",mem_controller->n_times_queue_examined?  
                                 (double)mem_controller->pref_queue[i]->total_requests/mem_controller->n_times_queue_examined:0.0);
-                fprintf(f, "TimeFullPercent = %f\n\n", esim_cycle ? (double)mem_controller->pref_queue[i]->t_full/esim_cycle:0.0);
+                fprintf(f, "TimeFullPercent = %f\n", esim_cycle ? (double)mem_controller->pref_queue[i]->t_full/esim_cycle:0.0);
+		avg_req=mem_controller->n_times_queue_examined ? (double)mem_controller->pref_queue[i]->total_requests/mem_controller->n_times_queue_examined:0.0;
+                fprintf(f, "TimeResponse = %f\n\n ", normal->total_insertions ? (double) (avg_req*esim_cycle)/normal->total_insertions :0.0);          
+
 
 
 	}

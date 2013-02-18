@@ -44,6 +44,7 @@ struct mem_controller_queue_t
 	int total_requests; // total number of stacks inserted inside the queue during all execution
 	int t_full; // cycles when queue is full
 	int instant_begin_full; // cycle when this queue is completed
+	int total_insertions;
 
 };
 
