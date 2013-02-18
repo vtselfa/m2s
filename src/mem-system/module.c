@@ -790,8 +790,7 @@ int mod_get_retry_latency(struct mod_t *mod)
  * be coalesced with any in-flight access.
  * If it can, return the access that it would be coalesced with. Otherwise,
  * return NULL. */
-struct mod_stack_t *mod_can_coalesce(struct mod_t *mod,
-	enum mod_access_kind_t access_kind, unsigned int addr,
+struct mod_stack_t *mod_can_coalesce(struct mod_t *mod,enum mod_access_kind_t access_kind, unsigned int addr,
 	struct mod_stack_t *older_than_stack)
 {
 	struct mod_stack_t *stack;
@@ -824,7 +823,12 @@ struct mod_stack_t *mod_can_coalesce(struct mod_t *mod,
 				continue;
 
 			if (stack->addr >> mod->log_block_size == addr >> mod->log_block_size)
+			{	
+				/////////////////////////////////////////////
+                               	mod->delayed_hits++;
+	                      	///////////////////////////////////////////////
 				return stack->master_stack ? stack->master_stack : stack;
+			}
 		}
 		break;
 	}
@@ -841,9 +845,13 @@ struct mod_stack_t *mod_can_coalesce(struct mod_t *mod,
 			if(stack->mod != older_than_stack->mod)
 				continue;
 
-			if (stack->addr >> mod->log_block_size ==
-				addr >> mod->log_block_size)
+			if (stack->addr >> mod->log_block_size ==addr >> mod->log_block_size)
+			{
+				/////////////////////////////////////////////
+				mod->delayed_hits++;
+				////////////////////////////////////////////
 				return stack->master_stack ? stack->master_stack : stack;
+			}
 		}
 		break;
 	}

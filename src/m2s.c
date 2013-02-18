@@ -1320,8 +1320,9 @@ void m2s_dump_summary(FILE *f)
 	long long prefetch_total=0;
 	long long faults_mem_without_pref_total=0;
 	long long delayed_hit_total=0;
-	float precision=0, cobertura=0;
-	long long row_acceses_hit=0;
+	float accuracy=0, coverage=0;
+	long long row_access_hits=0;
+	double total_accesses=0;
 	struct mod_t * mod;
 
 	/* No summary dumped if no simulation was run */
@@ -1352,29 +1353,32 @@ void m2s_dump_summary(FILE *f)
 			for(int c=0; c<mod->num_regs_channel;c++)
 				for(int r=0; r<mod->regs_channel[c].num_regs_rank; r++)
 					for(int b=0; b<mod->regs_channel[c].regs_rank[r].num_regs_bank;b++)
-						row_acceses_hit+=mod->regs_channel[c].regs_rank[r].regs_bank[b].row_buffer_hits;	
-		}	
+					{	row_access_hits+=mod->regs_channel[c].regs_rank[r].regs_bank[b].row_buffer_hits;	
+						total_accesses+=mod->regs_channel[c].regs_rank[r].regs_bank[b].acceses;
+					}	
+		}
 	}
 
 	if(prefetch_total>0)
-		precision=(double)useful_prefetch_total/prefetch_total;
+		accuracy=(double)useful_prefetch_total/prefetch_total;
 	if(faults_mem_without_pref_total>0)
-		cobertura=(double)useful_prefetch_total/faults_mem_without_pref_total;
+		coverage=(double)useful_prefetch_total/faults_mem_without_pref_total;
 	/////////////////////////////////////////////////////////////////////////////////////////////////
-
+	if(total_accesses>0)
+		total_accesses=(double) row_access_hits/total_accesses;
 
 	/* General statistics */
 	fprintf(f, "[ General ]\n");
 	fprintf(f, "Time = %.2f\n", time_in_sec);
 	fprintf(f, "SimEnd = %s\n", str_map_value(&esim_finish_map, esim_finish));
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////
-	fprintf(stderr, "Hit row buffer acceses = %lld\n", row_acceses_hit);					////
-	fprintf(stderr, "Global delayed hit = %lld\n", delayed_hit_total);					////
-	fprintf(stderr, "Global useful prefetches = %lld\n",useful_prefetch_total);				////
-	fprintf(stderr, "Global Presicion = %f\n",precision);							////
-	fprintf(stderr, "Global Cobertura = %f\n",cobertura);							////
+	fprintf(stderr, "GlobalRowBufferHitAccuracy = %.3f\n", total_accesses);					////
+	fprintf(stderr, "GlobalDelayedHits = %lld\n", delayed_hit_total);					////
+	fprintf(stderr, "GlobalUsefulPrefetches = %lld\n",useful_prefetch_total);				////
+	fprintf(stderr, "GlobalAccuracy = %f\n",accuracy);							////
+	fprintf(stderr, "GlobalCoverage = %f\n",coverage);							////
 	for(int i=mem_system->min_level_cache; i<=mem_system->max_level_cache;i++)				////
-		fprintf(stderr, "MPKI to level %d = %f\n", i,(double)mem_system->faults[i]/x86_cpu->num_committed_inst);	////
+		fprintf(stderr, "MPKItoLevel%d = %f\n", i,(double)mem_system->faults[i]/x86_cpu->num_committed_inst);	////
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
