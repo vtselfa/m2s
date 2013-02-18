@@ -1,1 +1,0 @@
-./m2s --x86-max-inst 500000000 --x86-sim detailed  --x86-config configuraciones-prefetch/netconfig-64B.mesh --net-config configuraciones-prefetch/cpuconfig.prefetchwork  --mem-config configuraciones-prefetch/cacheconfig.8nodes.L2-512KB-64B-32ways   --ctx-config ctxconfigs/ctxconfig.lbm --misses_no_prefetch-write results/lbm/misses_no_prefetch

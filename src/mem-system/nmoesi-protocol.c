@@ -447,7 +447,6 @@ void mod_handler_pref(int event, void *data)
 			mem_debug("    %lld will finish due to access %lld\n", stack->id, older_stack->id);
 			mod->canceled_prefetches++; /* Statistics */
 			mod->canceled_prefetches_flight_address++; /* Statistics */
-			new_stack = mod_stack_create(stack->id, mod, 0, EV_MOD_PREF_FINISH, stack, stack->core, stack->thread, stack->prefetch);
 			if (stack->pref.kind == GROUP)
 			{
 				new_stack = mod_stack_create(stack->id, mod, stack->addr, EV_MOD_PREF_FINISH, stack, stack->core, stack->thread, stack->prefetch);
