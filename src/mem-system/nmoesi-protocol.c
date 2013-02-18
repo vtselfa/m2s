@@ -279,8 +279,7 @@ void enqueue_prefetch_on_hit(struct mod_stack_t *stack, int level)
 	sb = &mod->cache->prefetch.streams[stack->pref_stream];
 
 	/* Don't prefetch if next_address is not in the stream anymore */
-	if (sb->stream_transcient_tag != (sb->next_address & ~cache->prefetch.stream_mask) &&
-		sb->stream_tag != (sb->next_address & ~cache->prefetch.stream_mask))
+	if (sb->stream_transcient_tag != (sb->next_address & ~cache->prefetch.stream_mask))
 	{
 		mod->canceled_prefetches++;
 		mod->canceled_prefetches_end_stream++;
@@ -448,7 +447,6 @@ void mod_handler_pref(int event, void *data)
 			mem_debug("    %lld will finish due to access %lld\n", stack->id, older_stack->id);
 			mod->canceled_prefetches++; /* Statistics */
 			mod->canceled_prefetches_flight_address++; /* Statistics */
-			new_stack = mod_stack_create(stack->id, mod, 0, EV_MOD_PREF_FINISH, stack, stack->core, stack->thread, stack->prefetch);
 			if (stack->pref.kind == GROUP)
 			{
 				new_stack = mod_stack_create(stack->id, mod, stack->addr, EV_MOD_PREF_FINISH, stack, stack->core, stack->thread, stack->prefetch);
@@ -1866,12 +1864,12 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 			LINKED_LIST_FOR_EACH(cache->wb.blocks)
 			{
 				block = linked_list_get(cache->wb.blocks);
+				assert(block->state == cache_block_exclusive || block->state == cache_block_shared);
 				if (block->tag == stack->tag)
 				{
 					stack->state = block->state;
 					if (stack->read)
 					{
-						assert(stack->request_dir == mod_request_up_down); //TODO: down-up
 						mem_debug("    %lld 0x%x %s write buffer hit: pos=%d, state=%s\n",
 							stack->id, stack->tag, mod->name, linked_list_current(cache->wb.blocks),
 							str_map_value(&cache_block_state_map, stack->state));
@@ -1883,7 +1881,6 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 					}
 					else if (stack->write)
 					{
-						assert(stack->request_dir == mod_request_up_down); //TODO: down-up
 						mem_debug("    %lld 0x%x %s write buffer hit: pos=%d, state=%s\n",
 							stack->id, stack->tag, mod->name, linked_list_current(cache->wb.blocks),
 							str_map_value(&cache_block_state_map, stack->state));

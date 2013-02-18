@@ -50,7 +50,7 @@ struct dir_t *dir_create(char *name, int xsize, int ysize, int zsize, int num_pr
 	int z; //Subblock
 	int s; //Stream
 	int a; //Aggressivity -- slot
-	
+
 	/* Calculate sizes */
 	assert(num_nodes > 0);
 	dir_entry_size = sizeof(struct dir_entry_t) + (num_nodes + 7) / 8;
@@ -72,7 +72,7 @@ struct dir_t *dir_create(char *name, int xsize, int ysize, int zsize, int num_pr
 	dir->dir_lock = calloc(xsize * ysize, sizeof(struct dir_lock_t));
 	if (!dir->dir_lock)
 		fatal("%s: out of memory", __FUNCTION__);
-	
+
 	/* Create locks for prefetched blocks */
 	dir->pref_dir_lock = calloc(num_pref_streams * pref_aggressivity, sizeof(struct dir_lock_t));
 	if (!dir->pref_dir_lock)
@@ -85,7 +85,7 @@ struct dir_t *dir_create(char *name, int xsize, int ysize, int zsize, int num_pr
 	dir->zsize = zsize;
 	dir->ssize = num_pref_streams;
 	dir->asize = pref_aggressivity;
-	
+
 	/* Reset all owners */
 	for (x = 0; x < xsize; x++)
 	{
@@ -98,15 +98,15 @@ struct dir_t *dir_create(char *name, int xsize, int ysize, int zsize, int num_pr
 			}
 		}
 	}
-	
-	/* Reset owners for prefetched blocks */	
+
+	/* Reset owners for prefetched blocks */
 	for(s=0; s<dir->ssize; s++)
 	{
 		for(a=0; a<dir->asize; a++)
 		{
 			for(z=0; z<dir->zsize; z++)
 			{
-				dir_entry = dir_pref_entry_get(dir, s, a, z); 
+				dir_entry = dir_pref_entry_get(dir, s, a, z);
 				dir_entry->owner = DIR_ENTRY_OWNER_NONE;
 			}
 		}
@@ -119,6 +119,13 @@ struct dir_t *dir_create(char *name, int xsize, int ysize, int zsize, int num_pr
 
 void dir_free(struct dir_t *dir)
 {
+#ifndef NDEBUG
+	int i;
+	for (i = 0; i < dir->ssize * dir->asize; i++)
+		assert(!dir->pref_dir_lock[i].lock_queue);
+	for (i = 0; i < dir->xsize * dir->ysize; i++)
+		assert(!dir->dir_lock[i].lock_queue);
+#endif
 	free(dir->name);
 	free(dir->dir_lock);
 	free(dir->pref_dir_lock);
@@ -284,7 +291,7 @@ int dir_pref_entry_lock(struct dir_t *dir, int pref_stream, int pref_slot, int e
 {
 	struct dir_lock_t *dir_lock;
 	struct mod_stack_t *lock_queue_iter;
-	
+
 	assert(IN_RANGE(pref_stream, 0, dir->ssize - 1));
 	assert(IN_RANGE(pref_slot, 0, dir->asize - 1));
 	dir_lock = &dir->pref_dir_lock[pref_stream * dir->asize + pref_slot];
@@ -358,7 +365,7 @@ int dir_entry_lock(struct dir_t *dir, int x, int y, int event, struct mod_stack_
 			/* Special case: queue is empty */
 			dir_lock->lock_queue = stack;
 		}
-		else 
+		else
 		{
 			lock_queue_iter = dir_lock->lock_queue;
 
@@ -370,12 +377,12 @@ int dir_entry_lock(struct dir_t *dir, int x, int y, int event, struct mod_stack_
 				lock_queue_iter = lock_queue_iter->dir_lock_next;
 			}
 
-			if (!lock_queue_iter->dir_lock_next) 
+			if (!lock_queue_iter->dir_lock_next)
 			{
 				/* Stack goes at end of queue */
 				lock_queue_iter->dir_lock_next = stack;
 			}
-			else 
+			else
 			{
 				/* Stack goes in front or middle of queue */
 				stack->dir_lock_next = lock_queue_iter->dir_lock_next;
@@ -425,7 +432,7 @@ void dir_entry_unlock(struct dir_t *dir, int x, int y)
 void dir_pref_entry_unlock(struct dir_t *dir, int pref_stream, int pref_slot)
 {
 	struct dir_lock_t *dir_lock;
-	
+
 	assert(IN_RANGE(pref_stream, 0, dir->ssize - 1));
 	assert(IN_RANGE(pref_slot, 0, dir->asize - 1));
 	dir_lock = &dir->pref_dir_lock[pref_stream * dir->asize + pref_slot];
