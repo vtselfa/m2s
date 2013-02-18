@@ -312,18 +312,15 @@ void main_memory_dump_report(char * main_mem_report_file_name)
 
         /* Intro */
         fprintf(f, ";Report for channels, banks, ranks and row buffer\n");
-        fprintf(f, ";    AvgTimeAccesMM- Average time per access to acces to MM, depends of row buffer hit/miss and time to send a request \n");
-        fprintf(f, ";    AvgTimeWaitMCQueue- Average time waiting per access to acces to main memory in mem controller queue \n");
-        fprintf(f, ";    AvgTimeTransferFromMM- Average time per access to transfer a block from MM, including acces channel delay\n");
-        fprintf(f, ";    Conflicts - Total number of attempts to acces to bank when this bank is busy\n");
-        fprintf(f, ";    AvgTimeWaitRequestSend - Average Cycles per access waiting until channel and bank are free and request can be sent to MM\n");
-        fprintf(f, ";    AvgTimeWaitRequestTransfer - Average Cycles per access waiting until channel is free and block can be transfered from MM\n");
-	fprintf(f, ";    AvgTimeRequestTransfer - Average Cycles per access which is needed to transfer a block to MC from MM\n");
-        fprintf(f, ";    AvgTimeWaitBankBusy- Average time which the bank is being accessed and requests have to wait \n");
-        fprintf(f, ";    AvgTimeWaitequestSendChannelBusy- Average time per access waiting until channel is free \n");
-	fprintf(f, ";    RowBufferHitPercent- Percent of accesses which hit in row buffer bank \n");
-	fprintf(f, ";    AvgNumRequest - Average number of requests inside a queue every cycle \n");
-	fprintf(f, ";    TimeFullPercent - Percent of time which queue is full \n");
+        fprintf(f, ";    AvgTimeAccesMainMemory- Average time to acces to MM, depends of row buffer hit/miss and time to send a request \n");
+        fprintf(f, ";    AvgTimeWaitMemControllerQueue- Average time waiting to acces to main memory in mem controller queue \n");
+        fprintf(f, ";    AvgTimeTransferFromMainMemory- Average time to transfer a block from MM, including acces channel delay\n");
+        fprintf(f, ";    COnflicts - Total number of attempts to acces to bank when this bank is busy\n");
+        fprintf(f, ";    Percent of row buffer hits - Accesses resulting in hits to row buffer\n");
+        fprintf(f, ";    AvgTimeWaitRequestSend - Average Cycles waiting until channel is free and we can send the request to MM\n");
+        fprintf(f, ";    AvgTimeWaitRequestTransfer - Average Cycles waiting until channel is free and we can transfer the block from MM\n");
+        fprintf(f, ";    AvgTimeWaitBankBusy- Average time the bank is being accessed ans the requests have to wait \n");
+        fprintf(f, ";    AvgTimeWaitBankBusy- Average time the bank is being accessed ans the requests have to wait \n");
         fprintf(f, "\n\n");
 
         for(int c=0; c<mod->num_regs_channel;c++)
@@ -344,10 +341,10 @@ void main_memory_dump_report(char * main_mem_report_file_name)
                 avg_time_wait=(double)total_wait_in_mc/total_acces;
                 avg_time_transfer=(double)mem_system->mem_controller->t_transfer/total_acces;
         }
- 	fprintf(f, "[MAIN MEMORY]\n");
-        fprintf(f, "AvgTimeWaitMCQueue = %f\n",avg_time_wait );
-        fprintf(f, "AvgTimeAccesMM = %f\n",avg_time_acces);
-        fprintf(f, "AvgTimeTransferFromMM = %f\n",avg_time_transfer );
+ fprintf(f, "[MAIN MEMORY]\n");
+        fprintf(f, "AvgTimeWaitMemControllerQueue = %f\n",avg_time_wait );
+        fprintf(f, "AvgTimeAccesMainMemory = %f\n",avg_time_acces);
+        fprintf(f, "AvgTimeTransferFromMainMemory = %f\n",avg_time_transfer );
         fprintf(f,"\n\n");
 
         for(int c=0; c<mod->num_regs_channel;c++){
@@ -365,7 +362,7 @@ void main_memory_dump_report(char * main_mem_report_file_name)
                         t_transfer=(double)mod->regs_channel[c].t_transfer/mod->regs_channel[c].num_requests_transfered;             
                 }
 
-                fprintf(f, "RowBufferHitPercent = %F\n", row_buffer_hit_c);
+                fprintf(f, "PercentRowBufferHits = %F\n", row_buffer_hit_c);
                 fprintf(f, "AvgTimeWaitRequestSend = %f\n",t_wait_send);
                 fprintf(f, "AvgTimeWaitRequestSendChannelBusy = %f\n", t_wait_channel_busy);
                 fprintf(f, "AvgTimeWaitRequestTransfer = %f\n", t_wait_transfer);
@@ -380,7 +377,7 @@ void main_memory_dump_report(char * main_mem_report_file_name)
                         if(total_rank_parallelism>0)
                                 paralelism_rank=(double)mod->regs_channel[c].regs_rank[r].parallelism/total_rank_parallelism;
 
-                        fprintf(f, "RowBufferHitPercent = %f\n",row_buffer_hit_r);
+                        fprintf(f, "PercentRowBufferHits = %f\n",row_buffer_hit_r);
                         fprintf(f, "ParallelismPercent = %f\n\n",paralelism_rank);
 
                         for(int b=0; b<mod->regs_channel[c].regs_rank[r].num_regs_bank;b++){
@@ -398,7 +395,7 @@ void main_memory_dump_report(char * main_mem_report_file_name)
 
 
                                 fprintf(f, "[Bank %d  (Rank %d Channel %d)]\n", b,r,c);
-                                fprintf(f, "RowBufferHitPercent = %f\n",row_buffer_hit_b);
+                                fprintf(f, "PercentRowBufferHits = %f\n",row_buffer_hit_b);
                                 fprintf(f, "ParallelismPercent = %f\n",paralelism_bank);
                                 fprintf(f, "Conflicts = %d\n", mod->regs_channel[c].regs_rank[r].regs_bank[b].conflicts);
                                 fprintf(f, "AvgTimeWaitBankBusy = %f\n\n", t_wait_bank);
@@ -422,8 +419,8 @@ void main_memory_dump_report(char * main_mem_report_file_name)
 		if(esim_cycle>0)
 		        t_full=(double)mem_controller->normal_queue[i]->t_full/esim_cycle;
         	fprintf(f, "[Normal Queue %d]\n",i);
-       		fprintf(f, "AvgNumRequests = %f\n",avg_num_queue );
-        	fprintf(f, "TimeFullPercent = %f\n\n",t_full );
+       		fprintf(f, "AvgNumRequest = %f\n",avg_num_queue );
+        	fprintf(f, "PercentTimeFull = %f\n\n",t_full );
 		
 		if(mem_controller->n_times_queue_examined>0)
 		        avg_num_pref_queue=(double)mem_controller->pref_queue[i]->total_requests/mem_controller->n_times_queue_examined;
@@ -432,7 +429,7 @@ void main_memory_dump_report(char * main_mem_report_file_name)
 
 		fprintf(f, "[Prefetch Queue %i]\n",i);
 		fprintf(f, "AvgNumRequest = %f\n",avg_num_pref_queue);
-		fprintf(f, "TimeFullPercent = %f\n\n",t_full_pref );
+		fprintf(f, "PercentTimeFull = %f\n\n",t_full_pref );
 
 	}
         
