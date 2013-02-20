@@ -100,15 +100,13 @@ struct mod_stack_t
 	int way;
 	int state;
 
-	 ////////////////////////////////
-        int state_main_memory; // when the request is thrown by MC, the state of this request in main memory
-        unsigned int channel;
-        unsigned int bank;
-        unsigned int rank;
-        unsigned int row;
-        enum mod_request_type_t request_type; // (eviction,read request, write request )
-        long long threshold; //cycles that a request can be waiting in the MC queue befaore to be throw to the bank
-        ////////////////////////////////
+	int state_main_memory; // when the request is thrown by MC, the state of this request in main memory
+	unsigned int channel;
+	unsigned int bank;
+	unsigned int rank;
+	unsigned int row;
+	enum mod_request_type_t request_type; // (eviction,read request, write request )
+	long long threshold; //cycles that a request can be waiting in the MC queue befaore to be throw to the bank
 
 	int src_set;
 	int src_way;
@@ -150,8 +148,8 @@ struct mod_stack_t
 	int coalesced : 1;
 	int port_locked : 1;
 	/* Pref flags */
-	int prefetch_hit : 1;
-	int sequential_hit : 1;
+	int stream_hit : 1;
+	int stream_head_hit : 1;
 	int pref_eviction : 1;
 	int fast_resume : 1; /* La stack ha fet hit al buffer i retorna inmediatament, deixant un altra stack encarregada de la coherència */
 	int background : 1;
