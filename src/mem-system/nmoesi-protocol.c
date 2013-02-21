@@ -149,24 +149,22 @@ int EV_MOD_NMOESI_MESSAGE_ACTION;
 int EV_MOD_NMOESI_MESSAGE_REPLY;
 int EV_MOD_NMOESI_MESSAGE_FINISH;
 
-//////////////////////////////////////////////////
 int EV_MOD_NMOESI_EXAMINE_ONLY_ONE_QUEUE_REQUEST;
-int EV_MOD_NMOESI_EXAMINE_QUEUE_REQUEST;        //
-int EV_MOD_NMOESI_ACCES_BANK;                   //
-int EV_MOD_NMOESI_TRANSFER_FROM_BANK;           //
-int EV_MOD_NMOESI_REMOVE_MEMORY_CONTROLLER;     //
+int EV_MOD_NMOESI_EXAMINE_QUEUE_REQUEST;
+int EV_MOD_NMOESI_ACCES_BANK;
+int EV_MOD_NMOESI_TRANSFER_FROM_BANK;
+int EV_MOD_NMOESI_REMOVE_MEMORY_CONTROLLER;
 int EV_MOD_NMOESI_INSERT_MEMORY_CONTROLLER;
-//////////////////////////////////////////////////
 
 
 /* AUXILIARY FUNCTIONS*/
 
-int must_enqueue_prefetch(struct mod_stack_t *stack, int level)
+int must_enqueue_prefetch(struct mod_stack_t *stack)
 {
 	struct mod_t *target_mod;
 
 	/* L1 prefetch */
-	if (level == 1)
+	if (!stack->target_mod)
 		return stack->mod->cache->prefetch_enabled && !stack->background;
 
 	/* Deeper than L1 prefetch */
@@ -178,7 +176,7 @@ int must_enqueue_prefetch(struct mod_stack_t *stack, int level)
 		stack->request_dir == mod_request_up_down; //Petició up down
 }
 
-void enqueue_prefetch_on_miss(struct mod_stack_t *stack, int stride, int level)
+void enqueue_prefetch_on_miss(struct mod_stack_t *stack)
 {
 	int i, stream, num_prefetches;
 	struct mod_t *mod;
@@ -186,11 +184,16 @@ void enqueue_prefetch_on_miss(struct mod_stack_t *stack, int stride, int level)
 	struct x86_uop_t * uop;
 	struct stream_buffer_t *sb;
 
-	/* Useful aliases */
-	if (level == 1)
+	assert(stack->stride);
+
+	/* L1 prefetch */
+	if (!stack->target_mod)
 		mod = stack->mod;
+
+	/* Deeper than L1 prefetch */
 	else
 		mod = stack->target_mod;
+
 	cache = mod->cache;
 	num_prefetches = cache->prefetch.aggressivity;
 
@@ -206,7 +209,7 @@ void enqueue_prefetch_on_miss(struct mod_stack_t *stack, int stride, int level)
 	/* Not enqueue prefetch if there are pending prefetches */
 	if (sb->pending_prefetches)
 	{
-		mem_debug("    Canceled prefetch group at addr=0x%x to stream=%d with stride=0x%x(%d)\n", stack->addr + stride, stream, stride, stride);
+		mem_debug("    Canceled prefetch group at addr=0x%x to stream=%d with stride=0x%x(%d)\n", stack->addr + stack->stride, stream, stack->stride, stack->stride);
 		mod->canceled_prefetch_groups++;
 		return;
 	}
@@ -215,10 +218,10 @@ void enqueue_prefetch_on_miss(struct mod_stack_t *stack, int stride, int level)
 	sb->stream_transcient_tag = (stack->addr + mod->block_size) & ~cache->prefetch.stream_mask;
 
 	/* Set stream's new stride */
-	sb->stride = stride;
+	sb->stride = stack->stride;
 
 	/* Debug */
-	mem_debug("    Enqueued prefetch group at addr=0x%x to stream=%d with stride=0x%x(%d)\n", stack->addr + stride, stream, stride, stride);
+	mem_debug("    Enqueued prefetch group at addr=0x%x to stream=%d with stride=0x%x(%d)\n", stack->addr + stack->stride, stream, stack->stride, stack->stride);
 
 	/* Mark the number of pending prefetches for this stream */
 	sb->pending_prefetches += num_prefetches;
@@ -229,7 +232,7 @@ void enqueue_prefetch_on_miss(struct mod_stack_t *stack, int stride, int level)
 		uop = x86_uop_create();
 		uop->uinst = x86_uinst_create();
 		uop->uinst->opcode = x86_uinst_prefetch;
-		uop->phy_addr = stack->addr + (i + 1) * stride;
+		uop->phy_addr = stack->addr + (i + 1) * stack->stride;
 		/* If we reach the end of the stream, AKA the stream_tag changes, insert invalidations */
 		if (sb->stream_transcient_tag != (uop->phy_addr & ~cache->prefetch.stream_mask))
 		{
@@ -244,7 +247,7 @@ void enqueue_prefetch_on_miss(struct mod_stack_t *stack, int stride, int level)
 		uop->pref.dest_stream = stream;
 		uop->pref.dest_slot = (sb->head + i) % sb->num_slots; //HEAD
 
-		if (level == 1)
+		if (mod->level == 1)
 			x86_pq_insert(uop);
 		else
 		{
@@ -260,21 +263,24 @@ void enqueue_prefetch_on_miss(struct mod_stack_t *stack, int stride, int level)
 	mod->group_prefetches++;
 
 	/* Update next address to be fetched */
-	sb->next_address = stack->addr + (i + 1) * stride;
+	sb->next_address = stack->addr + (i + 1) * stack->stride;
 }
 
-void enqueue_prefetch_on_hit(struct mod_stack_t *stack, int level)
+void enqueue_prefetch_on_hit(struct mod_stack_t *stack)
 {
 	struct mod_t *mod;
 	struct cache_t *cache;
 	struct x86_uop_t *uop;
 	struct stream_buffer_t *sb;
 
-	/* Aliases */
-	if (level == 1)
+	/* L1 prefetch */
+	if (!stack->target_mod)
 		mod = stack->mod;
+
+	/* Deeper than L1 prefetch */
 	else
 		mod = stack->target_mod;
+
 	cache = mod->cache;
 	sb = &mod->cache->prefetch.streams[stack->pref_stream];
 
@@ -302,7 +308,7 @@ void enqueue_prefetch_on_hit(struct mod_stack_t *stack, int level)
 	/* Update tail */
 	sb->tail = (sb->tail + 1) % sb->num_slots; //TAIL
 
-	if (level == 1)
+	if (mod->level == 1)
 		x86_pq_insert(uop);
 	else
 	{
@@ -317,14 +323,16 @@ void enqueue_prefetch_on_hit(struct mod_stack_t *stack, int level)
 	sb->pending_prefetches++;
 }
 
-void enqueue_prefetch_obl(struct mod_stack_t *stack, int level)
+void enqueue_prefetch_obl(struct mod_stack_t *stack)
 {
 	struct mod_t *mod;
 	struct x86_uop_t *uop;
 
-	/* Aliases */
-	if (level == 1)
+	/* L1 prefetch */
+	if (!stack->target_mod)
 		mod = stack->mod;
+
+	/* Deeper than L1 prefetch */
 	else
 		mod = stack->target_mod;
 
@@ -340,7 +348,7 @@ void enqueue_prefetch_obl(struct mod_stack_t *stack, int level)
 	uop->flags = X86_UINST_MEM;
 	uop->pref.mod = mod;
 
-	if (level == 1)
+	if (mod->level == 1)
 		x86_pq_insert(uop);
 	else
 	{
@@ -735,20 +743,20 @@ void mod_handler_nmoesi_load(int event, void *data)
 		}
 
 		/* Enqueue prefetches */
-		if (must_enqueue_prefetch(stack, mod->level))
+		if (must_enqueue_prefetch(stack))
 		{
 			/* Enqueue OBL prefetch on miss */
 			if (cache->prefetch_enabled == prefetch_obl)
 			{
 				if (!stack->state)
-					enqueue_prefetch_obl(stack, mod->level);
+					enqueue_prefetch_obl(stack);
 			}
 
 			/* Enqueue OBL prefetch with stride on miss */
 			else if (cache->prefetch_enabled == prefetch_obl_stride)
 			{
 				if (stack->stride && !stack->state)
-					enqueue_prefetch_obl(stack, mod->level);
+					enqueue_prefetch_obl(stack);
 			}
 
 			/* Enqueue STREAM prefetch */
@@ -761,14 +769,14 @@ void mod_handler_nmoesi_load(int event, void *data)
 					{
 						assert(stack->pref_stream >= 0 && stack->pref_stream < cache->prefetch.num_streams);
 						assert(stack->pref_slot >= 0 && stack->pref_slot < cache->prefetch.aggressivity);
-						enqueue_prefetch_on_hit(stack, mod->level);
+						enqueue_prefetch_on_hit(stack);
 					}
 				}
 				/* Fill all the stream buffer if a stride is detected */
 				else
 				{
 					if (stack->stride)
-						enqueue_prefetch_on_miss(stack, stack->stride, mod->level);
+						enqueue_prefetch_on_miss(stack);
 				}
 			}
 		}
@@ -3802,30 +3810,43 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			return;
 		}
 
-		/* Enqueue prefetch(es) on cache miss */
-		if (!stack->state && must_enqueue_prefetch(stack, target_mod->level))
+		/* Enqueue prefetches */
+		if (must_enqueue_prefetch(stack))
 		{
-			/* Enqueue OBL prefetch */
-			if (target_mod->cache->prefetch_enabled == prefetch_obl ||
-				target_mod->cache->prefetch_enabled == prefetch_obl_stride)
+			struct cache_t *target_cache = stack->target_mod->cache;
+			/* Enqueue OBL prefetch on miss */
+			if (target_cache->prefetch_enabled == prefetch_obl)
 			{
-				enqueue_prefetch_obl(stack, target_mod->level);
+				if (!stack->state)
+					enqueue_prefetch_obl(stack);
 			}
 
-			/* Enqueue OBL prefetch with strides */
-			else if (target_mod->cache->prefetch_enabled == prefetch_obl_stride)
+			/* Enqueue OBL prefetch with stride on miss */
+			else if (target_cache->prefetch_enabled == prefetch_obl_stride)
 			{
-				if (stack->stride)
-					enqueue_prefetch_obl(stack, mod->level);
+				if (stack->stride && !stack->state)
+					enqueue_prefetch_obl(stack);
 			}
 
-			/* Enqueue stream prefetch */
-			else if (target_mod->cache->prefetch_enabled == prefetch_streams)
+			/* Enqueue STREAM prefetch */
+			else if (target_cache->prefetch_enabled == prefetch_streams)
 			{
 				if (stack->stream_hit)
-					enqueue_prefetch_on_hit(stack, target_mod->level);
+				{
+					/* Prefetch only one block */
+					if (stack->stream_head_hit)
+					{
+						assert(stack->pref_stream >= 0 && stack->pref_stream < target_cache->prefetch.num_streams);
+						assert(stack->pref_slot >= 0 && stack->pref_slot < target_cache->prefetch.aggressivity);
+						enqueue_prefetch_on_hit(stack);
+					}
+				}
+				/* Fill all the stream buffer if a stride is detected */
 				else
-					enqueue_prefetch_on_miss(stack, stack->stride, target_mod->level);
+				{
+					if (stack->stride)
+						enqueue_prefetch_on_miss(stack);
+				}
 			}
 		}
 
