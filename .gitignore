@@ -33,5 +33,6 @@ benchmarks
 *.c.*
 *.h.*
 *.ghc
+*.orig
 .clang_complete
 

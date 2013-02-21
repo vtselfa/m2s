@@ -236,9 +236,9 @@ struct cache_t *cache_create(char *name, unsigned int num_sets, unsigned int blo
 
 int cache_find_stream(struct cache_t *cache, unsigned int stream_tag){
 	int stream;
-	/* Only look the transcient tag */
+	/* Look both stream tag and transcient tag */
 	for(stream=0; stream<cache->prefetch.num_streams; stream++){
-		if(cache->prefetch.streams[stream].stream_transcient_tag == stream_tag)
+		if(cache->prefetch.streams[stream].stream_transcient_tag == stream_tag || cache->prefetch.streams[stream].stream_tag == stream_tag)
 			return stream;
 	}
 	return -1;

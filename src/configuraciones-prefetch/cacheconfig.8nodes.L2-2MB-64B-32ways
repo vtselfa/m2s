@@ -12,7 +12,7 @@ Sets = 1024
 Assoc = 32
 BlockSize = 64
 Latency = 10
-Prefetch = disabled
+;Prefetch = obl
 ;PrefetchStreams = 0
 ;PrefetchAggressivity = 1
 
@@ -204,7 +204,7 @@ Threshold= 100000
 PriorityMCQueues = Threshold-Normal-Prefetch
 QueuePerBank = 1
 SizeQueue = 128
-MemoryControllerEnabled = 1
+MemoryControllerEnabled = 0
 
 #
 # Nodes

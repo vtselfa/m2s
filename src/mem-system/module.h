@@ -251,6 +251,8 @@ struct mod_t
 	long long write_buffer_write_hits;
 	long long write_buffer_prefetch_hits;
 
+	long long stream_evictions;
+
 	long long faults_mem_without_pref;
 };
 
