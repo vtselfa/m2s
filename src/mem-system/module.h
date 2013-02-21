@@ -88,11 +88,9 @@ struct mod_t
 	int dir_latency;
 	int mshr_size;
 
-	/*If module is main memory*/
-        /////////////////////////////////////////////
-        struct reg_channel_t * regs_channel;    ////
-        int num_regs_channel;                   ////
-        ////////////////////////////////////////////
+	/* Main memory module */
+	struct reg_channel_t * regs_channel;
+	int num_regs_channel;
 
 	/* Module level starting from entry points */
 	int level;
@@ -251,11 +249,9 @@ struct mod_t
 
 	long long write_buffer_read_hits;
 	long long write_buffer_write_hits;
-	////////////////////////////////////////
-	long long faults_mem_without_pref;
-        //////////////////////////////////////////
+	long long write_buffer_prefetch_hits;
 
-	
+	long long faults_mem_without_pref;
 };
 
 ////////////////////////////////////////////////////////////
@@ -305,7 +301,7 @@ struct reg_channel_t{
 
         enum channel_state_t state; // busy, free
         int bandwith;
-        struct reg_rank_t * regs_rank; // ranks which this channels connects with 
+        struct reg_rank_t * regs_rank; // ranks which this channels connects with
         int num_regs_rank;
 
         /*Stadistics*/
