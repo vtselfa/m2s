@@ -669,11 +669,19 @@ void mod_handler_nmoesi_load(int event, void *data)
 			mod->reads++;
 			mod_coalesce(mod, master_stack, stack);
 
-			/* Prefetch streams stacks leave block in prefetch buffer, not in cache */
-			if (master_stack->access_kind == mod_access_prefetch && cache->prefetch_enabled == prefetch_streams)
-				mod_stack_wait_in_stack(stack, master_stack, EV_MOD_NMOESI_LOAD_LOCK);
-			else
-				mod_stack_wait_in_stack(stack, master_stack, EV_MOD_NMOESI_LOAD_FINISH);
+			if (master_stack->access_kind == mod_access_prefetch)
+			{
+				/* Statistics */
+				mod->delayed_hits++;
+				/* Prefetch stream stacks leave block in prefetch buffer, not in cache, so first load to coalesce must bring block from stream to cache.
+				 * Next stacks must coalesce with the load, not with the prefetch. This is done in mod_coalesce(...). */ //TODO: Açò fa que es conten delayed hits de menys...
+				if(cache->prefetch_enabled == prefetch_streams)
+				{
+					mod_stack_wait_in_stack(stack, master_stack, EV_MOD_NMOESI_LOAD_LOCK);
+					return;
+				}
+			}
+			mod_stack_wait_in_stack(stack, master_stack, EV_MOD_NMOESI_LOAD_FINISH);
 			return;
 		}
 
@@ -1830,7 +1838,7 @@ void mod_handler_nmoesi_pref_obl(int event, void *data)
 
 	if (event == EV_MOD_NMOESI_PREF_OBL_FINISH)
 	{
-		mem_debug("%lld %lld 0x%x %s prefetch\n", esim_cycle, stack->id,
+		mem_debug("%lld %lld 0x%x %s prefetch finish\n", esim_cycle, stack->id,
 			stack->addr, mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:prefetch_finish\"\n",
 			stack->id, mod->name);

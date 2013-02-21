@@ -823,12 +823,7 @@ struct mod_stack_t *mod_can_coalesce(struct mod_t *mod,enum mod_access_kind_t ac
 				continue;
 
 			if (stack->addr >> mod->log_block_size == addr >> mod->log_block_size)
-			{	
-				/////////////////////////////////////////////
-                               	mod->delayed_hits++;
-	                      	///////////////////////////////////////////////
 				return stack->master_stack ? stack->master_stack : stack;
-			}
 		}
 		break;
 	}
@@ -846,12 +841,7 @@ struct mod_stack_t *mod_can_coalesce(struct mod_t *mod,enum mod_access_kind_t ac
 				continue;
 
 			if (stack->addr >> mod->log_block_size ==addr >> mod->log_block_size)
-			{
-				/////////////////////////////////////////////
-				mod->delayed_hits++;
-				////////////////////////////////////////////
 				return stack->master_stack ? stack->master_stack : stack;
-			}
 		}
 		break;
 	}
