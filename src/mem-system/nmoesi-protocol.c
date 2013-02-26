@@ -674,13 +674,18 @@ void mod_handler_nmoesi_load(int event, void *data)
 				/* Statistics */
 				mod->delayed_hits++;
 				/* Prefetch stream stacks leave block in prefetch buffer, not in cache, so first load to coalesce must bring block from stream to cache.
-				 * Next stacks must coalesce with the load, not with the prefetch. This is done in mod_coalesce(...). */ //TODO: Açò fa que es conten delayed hits de menys...
+				 * Next stacks must coalesce with the load, not with the prefetch. This is done in mod_coalesce(...). */
 				if(cache->prefetch_enabled == prefetch_streams)
 				{
 					mod_stack_wait_in_stack(stack, master_stack, EV_MOD_NMOESI_LOAD_LOCK);
 					return;
 				}
 			}
+
+			/* Si la master stack te el bit de coalesced pero no master stack, vol dir que ha fet coalesce amb un stream prefetch, per tant açò és un delayed hit */
+			if(master_stack->coalesced)
+				mod->delayed_hits++;
+
 			mod_stack_wait_in_stack(stack, master_stack, EV_MOD_NMOESI_LOAD_FINISH);
 			return;
 		}
@@ -3248,9 +3253,10 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 		return;
 
 	}
+
+
 	if (event == EV_MOD_NMOESI_TRANSFER_FROM_BANK)
 	{
-
 		mem_debug("  %lld %lld 0x%x %s transfer from bank\n", esim_cycle, stack->id, stack->addr & ~mod->cache->block_mask, mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:transfer from bank\"\n", stack->id, mod->name);
 
@@ -3288,7 +3294,6 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 
 	if (event == EV_MOD_NMOESI_REMOVE_MEMORY_CONTROLLER)
 	{
-
 		mem_debug("  %lld %lld 0x%x %s remove request in MC\n ", esim_cycle, stack->id, stack->addr & ~mod->cache->block_mask, mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:remove request in MC\"\n", stack->id, mod->name);
 
@@ -3325,7 +3330,6 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 			stack->state = cache_block_modified;
 		else fatal("Invalid main memory acces\n");
 
-
 		stack->reply_size = 8;
 		ret->err = 0;
 		ret->state = stack->state;
@@ -3333,18 +3337,13 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 		ret->reply_size = 8;
 		ret->prefetch = stack->prefetch;
 
-
-
-
 		mod_stack_return(stack);
-
 		return;
 	}
 
 	abort();
-
 }
-///////////////////////////////////////////////////////
+
 
 void mod_handler_nmoesi_invalidate_slot(int event, void *data)
 {
@@ -4702,6 +4701,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			assert(dir_entry->num_sharers == 1);
 		}
 
+		/* Remove block from stream */
 		if (stack->stream_hit)
 		{
 			cache_set_pref_block(target_mod->cache, stack->pref_stream, stack->pref_slot, -1, cache_block_invalid);

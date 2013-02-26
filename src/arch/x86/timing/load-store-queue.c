@@ -221,18 +221,19 @@ void x86_sq_remove(int core, int thread)
 	X86_THREAD.lsq_count--;
 }
 
+
 /* Remove an uop in the current position of the prefeth queue */
 void x86_preq_remove(int core, int thread)
 {
 	struct linked_list_t *pq = X86_THREAD.pq;
 	struct x86_uop_t *uop;
- 
+
 	uop = linked_list_get(pq);
 	assert(x86_uop_exists(uop));
 	assert(uop->in_pq);
 	linked_list_remove(pq);
 	uop->in_pq = 0;
- 
+
 	assert(X86_CORE.lsq_count && X86_THREAD.lsq_count);
 	X86_CORE.lsq_count--;
 	X86_THREAD.lsq_count--;
@@ -244,7 +245,7 @@ void x86_pq_insert(struct x86_uop_t *uop)
 	int core = uop->core;
 	int thread = uop->thread;
 	struct linked_list_t *pq = X86_THREAD.pq;
-	
+
 	linked_list_out(pq);
 	linked_list_insert(pq, uop);
 	X86_CORE.lsq_count++;

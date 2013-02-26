@@ -220,12 +220,12 @@ void mem_system_init(void)
 
 	/*Main memory/controller*/
 	//////////////////////////////////////////////////////////////////////////////////////////////////////////
-	EV_MOD_NMOESI_EXAMINE_ONLY_ONE_QUEUE_REQUEST=esim_register_event(mod_handler_nmoesi_request_main_memory);       
-        EV_MOD_NMOESI_EXAMINE_QUEUE_REQUEST=esim_register_event(mod_handler_nmoesi_request_main_memory);        
-        EV_MOD_NMOESI_ACCES_BANK = esim_register_event(mod_handler_nmoesi_request_main_memory);                 
-        EV_MOD_NMOESI_TRANSFER_FROM_BANK=esim_register_event(mod_handler_nmoesi_request_main_memory);           
-        EV_MOD_NMOESI_REMOVE_MEMORY_CONTROLLER=esim_register_event(mod_handler_nmoesi_request_main_memory);     
-        EV_MOD_NMOESI_INSERT_MEMORY_CONTROLLER=esim_register_event(mod_handler_nmoesi_request_main_memory);     
+	EV_MOD_NMOESI_EXAMINE_ONLY_ONE_QUEUE_REQUEST=esim_register_event(mod_handler_nmoesi_request_main_memory);
+        EV_MOD_NMOESI_EXAMINE_QUEUE_REQUEST=esim_register_event(mod_handler_nmoesi_request_main_memory);
+        EV_MOD_NMOESI_ACCES_BANK = esim_register_event(mod_handler_nmoesi_request_main_memory);
+        EV_MOD_NMOESI_TRANSFER_FROM_BANK=esim_register_event(mod_handler_nmoesi_request_main_memory);
+        EV_MOD_NMOESI_REMOVE_MEMORY_CONTROLLER=esim_register_event(mod_handler_nmoesi_request_main_memory);
+        EV_MOD_NMOESI_INSERT_MEMORY_CONTROLLER=esim_register_event(mod_handler_nmoesi_request_main_memory);
         //////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 	/* Read cache configuration file */
@@ -278,7 +278,7 @@ void main_memory_dump_report(char * main_mem_report_file_name)
         double total_rank_parallelism=0;
 	long long total_acces=0;
 	long long total_wait_in_mc=0;
-	
+
 
         /* Open file */
         f = file_open_for_write(main_mem_report_file_name);
@@ -321,7 +321,7 @@ void main_memory_dump_report(char * main_mem_report_file_name)
                 }
          }
 
-     
+
  	fprintf(f, "[MAIN MEMORY]\n");
         fprintf(f, "AvgTimeWaitMCQueue = %f\n",total_acces ? (double) total_wait_in_mc/total_acces:0.0);
         fprintf(f, "AvgTimeAccesMM = %f\n",total_acces ? (double) mem_system->mem_controller->t_acces_main_memory/total_acces :0.0);
@@ -331,13 +331,13 @@ void main_memory_dump_report(char * main_mem_report_file_name)
         for(int c=0; c<mod->num_regs_channel;c++){
                 fprintf(f, "[Channel %d]\n", c);
 
-              
 
-                fprintf(f, "RowBufferHitPercent = %F\n", mod->regs_channel[c].acceses? 
+
+                fprintf(f, "RowBufferHitPercent = %F\n", mod->regs_channel[c].acceses?
 			 (double)mod->regs_channel[c].row_buffer_hits/mod->regs_channel[c].acceses : 0.0);
                 fprintf(f, "AvgTimeWaitRequestSend = %f\n",mod->regs_channel[c].acceses?
 			 (double)mod->regs_channel[c].t_wait_send_request/mod->regs_channel[c].acceses : 0.0);
-                fprintf(f, "AvgTimeWaitRequestSendChannelBusy = %f\n",mod->regs_channel[c].num_requests_transfered ? 
+                fprintf(f, "AvgTimeWaitRequestSendChannelBusy = %f\n",mod->regs_channel[c].num_requests_transfered ?
 			(double)mod->regs_channel[c].t_wait_channel_busy/mod->regs_channel[c].num_requests_transfered : 0.0);
                 fprintf(f, "AvgTimeWaitRequestTransfer = %f\n",mod->regs_channel[c].num_requests_transfered?
 			(double) mod->regs_channel[c].t_wait_transfer_request/mod->regs_channel[c].num_requests_transfered : 0.0);
@@ -348,7 +348,7 @@ void main_memory_dump_report(char * main_mem_report_file_name)
                 for(int r=0; r<mod->regs_channel[c].num_regs_rank; r++){
 
                         fprintf(f, "[Rank %d  (Channel %d)]\n", r, c);
-                        fprintf(f, "RowBufferHitPercent = %f\n",mod->regs_channel[c].regs_rank[r].acceses ? 
+                        fprintf(f, "RowBufferHitPercent = %f\n",mod->regs_channel[c].regs_rank[r].acceses ?
 				(double)mod->regs_channel[c].regs_rank[r].row_buffer_hits/mod->regs_channel[c].regs_rank[r].acceses:0.0);
                         fprintf(f, "ParallelismPercent = %f\n\n",total_rank_parallelism ?
 				(double)mod->regs_channel[c].regs_rank[r].parallelism/total_rank_parallelism : 0.0);
@@ -374,30 +374,30 @@ void main_memory_dump_report(char * main_mem_report_file_name)
 
         }
 
- 
+
 
 	fprintf(f, "\n[QUEUES MEMORY CONTROLLER]\n\n");
 	for(int i=0; i<mem_controller->num_queues;i++)
 	{
 		struct mem_controller_queue_t *normal = mem_controller->normal_queue[i];
         	fprintf(f, "[Normal Queue %d]\n",i);
-       		fprintf(f, "AvgNumRequests = %f\n",mem_controller->n_times_queue_examined? 
+       		fprintf(f, "AvgNumRequests = %f\n",mem_controller->n_times_queue_examined?
 				(double)normal->total_requests / esim_cycle:0.0);
         	fprintf(f, "TimeFullPercent = %f\n", esim_cycle ? (double)normal->t_full/esim_cycle:0.0);
 		float avg_req=mem_controller->n_times_queue_examined ? (double)normal->total_requests/mem_controller->n_times_queue_examined:0.0;
-		fprintf(f, "TimeResponse = %f\n\n ", normal->total_insertions ? (double) (avg_req*esim_cycle)/normal->total_insertions :0.0);	
-		
+		fprintf(f, "TimeResponse = %f\n\n ", normal->total_insertions ? (double) (avg_req*esim_cycle)/normal->total_insertions :0.0);
+
 		fprintf(f, "[Prefetch Queue %i]\n",i);
-		fprintf(f, "AvgNumRequests = %f\n",mem_controller->n_times_queue_examined?  
+		fprintf(f, "AvgNumRequests = %f\n",mem_controller->n_times_queue_examined?
                                 (double)mem_controller->pref_queue[i]->total_requests/mem_controller->n_times_queue_examined:0.0);
                 fprintf(f, "TimeFullPercent = %f\n", esim_cycle ? (double)mem_controller->pref_queue[i]->t_full/esim_cycle:0.0);
 		avg_req=mem_controller->n_times_queue_examined ? (double)mem_controller->pref_queue[i]->total_requests/mem_controller->n_times_queue_examined:0.0;
-                fprintf(f, "TimeResponse = %f\n\n ", normal->total_insertions ? (double) (avg_req*esim_cycle)/normal->total_insertions :0.0);          
+                fprintf(f, "TimeResponse = %f\n\n ", normal->total_insertions ? (double) (avg_req*esim_cycle)/normal->total_insertions :0.0);
 
 
 
 	}
-        
+
         /* Done */
         fclose(f);
 }
@@ -521,12 +521,10 @@ void mem_system_dump_report()
 		fprintf(f, "CanceledPrefetchCoalesce = %lld\n", mod->canceled_prefetches_coalesce);
 		fprintf(f, "CanceledPrefetchFlightAddress = %lld\n", mod->canceled_prefetches_flight_address);
 		fprintf(f, "UsefulPrefetches = %lld\n", mod->useful_prefetches);
-		fprintf(f, "PrefetchAccuracy = %.4g\n", mod->completed_prefetches ?
-			(double) mod->useful_prefetches / mod->completed_prefetches : 0.0);
-		fprintf(f, "PrefetchCoverage = %.4g\n", mod->faults_mem_without_pref ?
-                        (double) mod->useful_prefetches / mod->faults_mem_without_pref : 0.0);
-
+		fprintf(f, "PrefetchAccuracy = %.4g\n", mod->completed_prefetches ? (double) mod->useful_prefetches / mod->completed_prefetches : 0.0);
+		fprintf(f, "\n");
 		fprintf(f, "DelayedHits = %lld\n", mod->delayed_hits);
+		fprintf(f, "Timeliness = %.4g\n", mod->hits / (double) (mod->hits + mod->delayed_hits));
 		fprintf(f, "\n");
 		fprintf(f, "SinglePrefetches = %lld\n", mod->single_prefetches);
 		fprintf(f, "GroupPrefetches = %lld\n", mod->group_prefetches);
