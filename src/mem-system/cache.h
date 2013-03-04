@@ -109,6 +109,7 @@ struct stream_buffer_t
 	struct stream_block_t *blocks;
 
 	int pending_prefetches; /* Remaining prefetches of a prefetch group */
+	long long cycle; /* Cycle last prefetch was asigned to this stream. For debug. */
 	int num_slots;
 	int count;
 	int head;

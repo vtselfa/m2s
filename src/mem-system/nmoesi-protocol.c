@@ -225,6 +225,7 @@ void enqueue_prefetch_on_miss(struct mod_stack_t *stack)
 
 	/* Mark the number of pending prefetches for this stream */
 	sb->pending_prefetches += num_prefetches;
+	sb->cycle = esim_cycle;
 
 	/* Insert prefetches */
 	for (i = 0; i < num_prefetches; i++)
@@ -321,6 +322,7 @@ void enqueue_prefetch_on_hit(struct mod_stack_t *stack)
 
 	/* Add a pending prefetch */
 	sb->pending_prefetches++;
+	sb->cycle = esim_cycle;
 }
 
 void enqueue_prefetch_obl(struct mod_stack_t *stack)
