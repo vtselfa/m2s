@@ -653,8 +653,8 @@ static struct mod_t *mem_config_read_cache(struct config_t *config, char *sectio
 
 	char *prefetch_str;
 	enum prefetch_policy_t prefetch;
-	int pref_streams;
-	int pref_aggr;
+	int pref_streams = 0;
+	int pref_aggr = 0;
 
 	char *policy_str;
 	enum cache_policy_t policy;

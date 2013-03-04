@@ -299,6 +299,7 @@ void cache_free(struct cache_t *cache)
 	int set, stream;
 	struct linked_list_t *sd = cache->prefetch.stride_detector;
 	struct stride_detector_camp_t *camp;
+	struct stream_buffer_t *sb;
 
 	/* Destroy sets */
 	for (set = 0; set < cache->num_sets; set++)
@@ -308,7 +309,10 @@ void cache_free(struct cache_t *cache)
 	/* Destroy streams */
 	for(stream=0; stream<cache->prefetch.num_streams; stream++)
 	{
-		assert(!cache->prefetch.streams[stream].pending_prefetches);
+		sb = &cache->prefetch.streams[stream];
+		if(sb->pending_prefetches)
+			fprintf(stderr, "WARNING: %d pending prefetches in stream %d since cycle %lld\n", sb->pending_prefetches, sb->stream, sb->cycle);
+		//assert(!cache->prefetch.streams[stream].pending_prefetches);
 		free(cache->prefetch.streams[stream].blocks);
 	}
 	free(cache->prefetch.streams);
