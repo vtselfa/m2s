@@ -3886,8 +3886,8 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 		stack->reply_size = mod->block_size + 8;
 		mod_stack_set_reply(stack, reply_ack_data);
 
-		/* If stream_hit, block can't be in any upper cache */
-		if (stack->stream_hit)
+		/* If stream_hit or wb_hit, block can't be in any upper cache */
+		if (stack->stream_hit || stack->wb_hit)
 		{
 			assert(stack->addr % mod->block_size == 0);
 			dir = target_mod->dir;
@@ -3900,7 +3900,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 				dir_entry = dir_pref_entry_get(dir, stack->pref_stream, stack->pref_slot, z);
 				assert(dir_entry->owner == DIR_ENTRY_OWNER_NONE);
 			}
-			if(stack->fast_resume)
+			if(stack->fast_resume || stack->wb_hit)
 				esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST_UPDOWN_FINISH, stack, 0);
 			else
 				esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST_UPDOWN_MISS, stack, 0);
