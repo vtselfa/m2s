@@ -1527,7 +1527,7 @@ void mod_handler_nmoesi_pref_find_and_lock(int event, void *data)
 							{
 								dir_pref_entry_lock(mod->dir, sb->stream, slot, EV_MOD_NMOESI_PREF_FIND_AND_LOCK, stack);
 								sblock = cache_get_pref_block(cache, sb->stream, slot);
-								sblock->transient_tag = 0;
+								sblock->transient_tag = -1;
 								ret->stream_hit = 1;
 								ret->src_pref_slot = slot;
 								ret->src_pref_stream = stack->pref_stream;
@@ -1589,7 +1589,7 @@ void mod_handler_nmoesi_pref_find_and_lock(int event, void *data)
 		/* Entry is locked. Record the transient tag so that a subsequent lookup
 		 * detects that the block is being brought. */
 		struct stream_block_t *block = cache_get_pref_block(cache, stack->pref_stream, stack->pref_slot);
-		block->transient_tag = !stack->hit? stack->tag : cache_block_invalid; /* If cache hit, block will be removed */
+		block->transient_tag = !stack->hit? stack->tag : -1; /* If cache hit, block will be removed */
 
 		mem_debug("    %lld 0x%x %s stream=%d, slot=%d, state=%s\n", stack->id, stack->tag, mod->name, stack->pref_stream, stack->pref_slot, str_map_value(&cache_block_state_map, block->state));
 
@@ -2192,13 +2192,13 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 			}
 		}
 
-		/* Prefetch buffer entry is locked. Record 0x0 as transient tag so that a subsequent lookup
+		/* Prefetch buffer entry is locked. Record 0xFFFFFFFF as transient tag so that a subsequent lookup
 		 * detects that the block is being removed from buffer. TODO: Crec q no fa falta tocar la tag...
 		 * Also, update LRU counters here. */
 		if (stack->request_dir == mod_request_up_down && stack->stream_hit)
 		{
 			block = cache_get_pref_block(cache, stack->pref_stream, stack->pref_slot);
-			block->transient_tag = cache_block_invalid;
+			block->transient_tag = -1;
 			if (stack->stream_head_hit)
 				cache_access_stream(cache, stack->pref_stream);
 		}

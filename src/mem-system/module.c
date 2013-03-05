@@ -495,17 +495,7 @@ int mod_find_pref_block(struct mod_t *mod, unsigned int addr, int *pref_stream_p
 		PTR_ASSIGN(pref_slot_ptr, -1);
 		return 0;
 	}
-	/* Si hi ha una store davant esperant, quan agafe el bloc va a modificar-lo,
-	 * així que no te sentit fer hit */
-	dir_lock = dir_pref_lock_get(mod->dir, stream, slot);
-	if (dir_lock->lock_queue && dir_lock->lock_queue->access_kind == mod_access_store)
-	{
-		PTR_ASSIGN(pref_stream_ptr, -1);
-		PTR_ASSIGN(pref_slot_ptr, -1);
-		return 0;
-	}
 
-	/* Hit */
 hit:
 	assert(sb->stream_tag == stream_tag || sb->stream_transcient_tag == stream_tag); /* Assegurem-nos de que el bloc estava on tocava */
 	PTR_ASSIGN(pref_stream_ptr, stream);
