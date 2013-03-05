@@ -3768,7 +3768,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 
 	if (event == EV_MOD_NMOESI_READ_REQUEST_LOCK)
 	{
-		struct mod_stack_t * older_stack;
+		/*struct mod_stack_t * older_stack;*/
 
 		mem_debug("  %lld %lld 0x%x %s read request lock\n", esim_cycle, stack->id,
 			stack->addr, target_mod->name);
@@ -3776,24 +3776,24 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			stack->id, mod->name);
 
 		/* If there is any older write, wait for it */
-		older_stack = mod_in_flight_write(target_mod, stack);
+		/*older_stack = mod_in_flight_write(target_mod, stack);
 		if (older_stack)
 		{
 			mem_debug("    %lld wait for write %lld\n", stack->id, older_stack->id);
 			mod_stack_wait_in_stack(stack, older_stack, EV_MOD_NMOESI_READ_REQUEST_LOCK);
 			return;
-		}
+		}*/
 
 		/* If there is any older access to the same address that this access could not
 		 * be coalesced with, wait for it. */
-		older_stack = mod_in_flight_address(target_mod, stack->addr, stack);
+		/*older_stack = mod_in_flight_address(target_mod, stack->addr, stack);
 		if (older_stack)
 		{
 			mem_debug("    %lld wait for access %lld\n",
 				stack->id, older_stack->id);
 			mod_stack_wait_in_stack(stack, older_stack, EV_MOD_NMOESI_READ_REQUEST_LOCK);
 			return;
-		}
+		}*/
 
 		/* Call find and lock */
 		new_stack = mod_stack_create(stack->id, target_mod, stack->addr,
@@ -3886,8 +3886,11 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 		stack->reply_size = mod->block_size + 8;
 		mod_stack_set_reply(stack, reply_ack_data);
 
-		/* If stream_hit or wb_hit, block can't be in any upper cache */
-		if (stack->stream_hit || stack->wb_hit)
+		if (stack->wb_hit)
+			esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST_UPDOWN_FINISH, stack, 0);
+
+		/* If stream_hit, block can't be in any upper cache */
+		if (stack->stream_hit)
 		{
 			assert(stack->addr % mod->block_size == 0);
 			dir = target_mod->dir;
@@ -3900,7 +3903,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 				dir_entry = dir_pref_entry_get(dir, stack->pref_stream, stack->pref_slot, z);
 				assert(dir_entry->owner == DIR_ENTRY_OWNER_NONE);
 			}
-			if(stack->fast_resume || stack->wb_hit)
+			if (stack->fast_resume)
 				esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST_UPDOWN_FINISH, stack, 0);
 			else
 				esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST_UPDOWN_MISS, stack, 0);
