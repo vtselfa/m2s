@@ -3893,16 +3893,6 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 		if (stack->stream_hit)
 		{
 			assert(stack->addr % mod->block_size == 0);
-			dir = target_mod->dir;
-			for (z = 0; z < dir->zsize; z++)
-			{
-				dir_entry_tag = stack->tag + z * target_mod->sub_block_size;
-				assert(dir_entry_tag < stack->tag + target_mod->block_size);
-				if (dir_entry_tag < stack->addr || dir_entry_tag >= stack->addr + mod->block_size)
-					continue;
-				dir_entry = dir_pref_entry_get(dir, stack->pref_stream, stack->pref_slot, z);
-				assert(dir_entry->owner == DIR_ENTRY_OWNER_NONE);
-			}
 			if (stack->fast_resume)
 				esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST_UPDOWN_FINISH, stack, 0);
 			else

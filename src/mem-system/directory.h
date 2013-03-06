@@ -34,6 +34,7 @@ struct dir_lock_t
 struct dir_entry_t
 {
 	int owner;  /* Node owning the block (-1 = No owner)*/
+	int num_stream_sharers;
 	int num_sharers;  /* Number of 1s in next field */
 	unsigned char sharer[0];  /* Bitmap of sharers (must be last field) */
 };
@@ -52,18 +53,16 @@ struct dir_t
 	 * is the number of sub-blocks of size 'cache_min_block_size'
 	 * that fit within a block. */
 	int xsize, ysize, zsize;
-	
+
 	/* Number of streams and prefetch aggressivity */
 	int ssize, asize;
 
 	/* Array of xsize * ysize locks. Each lock corresponds to a
 	 * block, i.e. a set of zsize directory entries */
-	struct dir_lock_t *dir_lock;	
-	
+	struct dir_lock_t *dir_lock;
+
 	/* Array of locks for prefetched blocks */
 	struct dir_lock_t *pref_dir_lock;
-
-
 
 	/* Last field. This is an array of xsize*ysize*zsize elements of type
 	 * dir_entry_t, which have likewise variable size. */
@@ -90,7 +89,11 @@ void dir_entry_unlock(struct dir_t *dir, int x, int y);
 
 
 /* Prefetch */
-struct dir_entry_t *dir_pref_entry_get(struct dir_t *dir, int pref_stream, int pref_slot, int z);
+void dir_entry_dump_stream_sharers(struct dir_t *dir, int x, int y, int z);
+void dir_entry_set_stream_sharer(struct dir_t *dir, int x, int y, int z, int node);
+void dir_entry_clear_stream_sharer(struct dir_t *dir, int x, int y, int z, int node);
+int dir_entry_is_stream_sharer(struct dir_t *dir, int x, int y, int z, int node);
+
 struct dir_lock_t *dir_pref_lock_get(struct dir_t *dir, int pref_stream, int pref_slot);
 int dir_pref_entry_lock(struct dir_t *dir, int pref_stream, int pref_slot, int event, struct mod_stack_t *stack);
 void dir_pref_entry_unlock(struct dir_t *dir, int pref_stream, int pref_slot);

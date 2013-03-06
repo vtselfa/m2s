@@ -31,7 +31,8 @@
 #include "mod-stack.h"
 
 
-#define DIR_ENTRY_SHARERS_SIZE ((dir->num_nodes + 7) / 8)
+#define DIR_ENTRY_SHARERS_SIZE (((dir->num_nodes + 7) / 8) * 2) /* Ho mutipliquem per 2 per reservar lloc per als stream sharers */
+
 #define DIR_ENTRY_SIZE (sizeof(struct dir_entry_t) + DIR_ENTRY_SHARERS_SIZE)
 #define DIR_ENTRY(X, Y, Z) ((struct dir_entry_t *) (((void *) &dir->data) + DIR_ENTRY_SIZE * \
 	((X) * dir->ysize * dir->zsize + (Y) * dir->zsize + (Z))))
@@ -48,15 +49,12 @@ struct dir_t *dir_create(char *name, int xsize, int ysize, int zsize, int num_pr
 	int x; //Set
 	int y; //Way
 	int z; //Subblock
-	int s; //Stream
-	int a; //Aggressivity -- slot
 
 	/* Calculate sizes */
 	assert(num_nodes > 0);
-	dir_entry_size = sizeof(struct dir_entry_t) + (num_nodes + 7) / 8;
+	dir_entry_size = sizeof(struct dir_entry_t) + ((num_nodes + 7) / 8) * 2; /* Ho mutipliquem per 2 per reservar lloc per als stream sharers */
 	dir_size = sizeof(struct dir_t) +
-		dir_entry_size * xsize * ysize * zsize +
-		dir_entry_size * num_pref_streams * pref_aggressivity * zsize;
+		dir_entry_size * xsize * ysize * zsize;
 
 	/* Create directory */
 	dir = calloc(1, dir_size);
@@ -99,19 +97,6 @@ struct dir_t *dir_create(char *name, int xsize, int ysize, int zsize, int num_pr
 		}
 	}
 
-	/* Reset owners for prefetched blocks */
-	for(s=0; s<dir->ssize; s++)
-	{
-		for(a=0; a<dir->asize; a++)
-		{
-			for(z=0; z<dir->zsize; z++)
-			{
-				dir_entry = dir_pref_entry_get(dir, s, a, z);
-				dir_entry->owner = DIR_ENTRY_OWNER_NONE;
-			}
-		}
-	}
-
 	/* Return */
 	return dir;
 }
@@ -142,18 +127,6 @@ struct dir_entry_t *dir_entry_get(struct dir_t *dir, int x, int y, int z)
 }
 
 
-struct dir_entry_t *dir_pref_entry_get(struct dir_t *dir, int pref_stream, int pref_slot, int z)
-{
-		assert(IN_RANGE(pref_stream, 0, dir->ssize - 1));
-		assert(IN_RANGE(pref_slot, 0, dir->asize - 1));
-		return ((struct dir_entry_t *) (((void *) &dir->data) +
-			DIR_ENTRY_SIZE * dir->xsize * dir->ysize * dir->zsize +
-			DIR_ENTRY_SIZE * dir->ssize * dir->asize * z +
-			DIR_ENTRY_SIZE * dir->asize * pref_stream +
-			DIR_ENTRY_SIZE * pref_slot));
-}
-
-
 void dir_entry_dump_sharers(struct dir_t *dir, int x, int y, int z)
 {
 	struct dir_entry_t *dir_entry;
@@ -163,6 +136,20 @@ void dir_entry_dump_sharers(struct dir_t *dir, int x, int y, int z)
 	mem_debug("  %d sharers: { ", dir_entry->num_sharers);
 	for (i = 0; i < dir->num_nodes; i++)
 		if (dir_entry_is_sharer(dir, x, y, z, i))
+			mem_debug("%d ", i);
+	mem_debug("}\n");
+}
+
+
+void dir_entry_dump_stream_sharers(struct dir_t *dir, int x, int y, int z)
+{
+	struct dir_entry_t *dir_entry;
+	int i;
+
+	dir_entry = dir_entry_get(dir, x, y, z);
+	mem_debug("  %d sharers: { ", dir_entry->num_stream_sharers);
+	for (i = 0; i < dir->num_nodes; i++)
+		if (dir_entry_is_stream_sharer(dir, x, y, z, i))
 			mem_debug("%d ", i);
 	mem_debug("}\n");
 }
@@ -204,6 +191,29 @@ void dir_entry_set_sharer(struct dir_t *dir, int x, int y, int z, int node)
 }
 
 
+void dir_entry_set_stream_sharer(struct dir_t *dir, int x, int y, int z, int node)
+{
+	struct dir_entry_t *dir_entry;
+	unsigned char *stream_sharer;
+
+	/* Nothing if sharer was already set */
+	assert(IN_RANGE(node, 0, dir->num_nodes - 1));
+	dir_entry = dir_entry_get(dir, x, y, z);
+	stream_sharer = &dir_entry->sharer[(dir->num_nodes + 7) / 8];
+	if (stream_sharer[node / 8] & (1 << (node % 8)))
+		return;
+
+	/* Set sharer */
+	stream_sharer[node / 8] |= 1 << (node % 8);
+	dir_entry->num_stream_sharers++;
+	assert(dir_entry->num_stream_sharers <= dir->num_nodes);
+
+	/* Debug */
+	mem_trace("mem.set_stream_sharer dir=\"%s\" x=%d y=%d z=%d sharer=%d\n",
+		dir->name, x, y, z, node);
+}
+
+
 void dir_entry_clear_sharer(struct dir_t *dir, int x, int y, int z, int node)
 {
 	struct dir_entry_t *dir_entry;
@@ -218,6 +228,29 @@ void dir_entry_clear_sharer(struct dir_t *dir, int x, int y, int z, int node)
 	dir_entry->sharer[node / 8] &= ~(1 << (node % 8));
 	assert(dir_entry->num_sharers > 0);
 	dir_entry->num_sharers--;
+
+	/* Debug */
+	mem_trace("mem.clear_sharer dir=\"%s\" x=%d y=%d z=%d sharer=%d\n",
+		dir->name, x, y, z, node);
+}
+
+
+void dir_entry_clear_stream_sharer(struct dir_t *dir, int x, int y, int z, int node)
+{
+	struct dir_entry_t *dir_entry;
+	unsigned char *stream_sharer;
+
+	/* Nothing if sharer is not set */
+	dir_entry = dir_entry_get(dir, x, y, z);
+	stream_sharer = &dir_entry->sharer[(dir->num_nodes + 7) / 8];
+	assert(IN_RANGE(node, 0, dir->num_nodes - 1));
+	if (!(stream_sharer[node / 8] & (1 << (node % 8))))
+		return;
+
+	/* Clear sharer */
+	stream_sharer[node / 8] &= ~(1 << (node % 8));
+	assert(dir_entry->num_stream_sharers > 0);
+	dir_entry->num_stream_sharers--;
 
 	/* Debug */
 	mem_trace("mem.clear_sharer dir=\"%s\" x=%d y=%d z=%d sharer=%d\n",
@@ -249,6 +282,18 @@ int dir_entry_is_sharer(struct dir_t *dir, int x, int y, int z, int node)
 	assert(IN_RANGE(node, 0, dir->num_nodes - 1));
 	dir_entry = dir_entry_get(dir, x, y, z);
 	return (dir_entry->sharer[node / 8] & (1 << (node % 8))) > 0;
+}
+
+
+int dir_entry_is_stream_sharer(struct dir_t *dir, int x, int y, int z, int node)
+{
+	struct dir_entry_t *dir_entry;
+	unsigned char *stream_sharer;
+
+	assert(IN_RANGE(node, 0, dir->num_nodes - 1));
+	dir_entry = dir_entry_get(dir, x, y, z);
+	stream_sharer = &dir_entry->sharer[(dir->num_nodes + 7) / 8];
+	return (stream_sharer[node / 8] & (1 << (node % 8))) > 0;
 }
 
 
