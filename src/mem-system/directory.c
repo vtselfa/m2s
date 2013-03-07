@@ -482,17 +482,38 @@ void dir_pref_entry_unlock(struct dir_t *dir, int pref_stream, int pref_slot)
 	assert(IN_RANGE(pref_slot, 0, dir->asize - 1));
 	dir_lock = &dir->pref_dir_lock[pref_stream * dir->asize + pref_slot];
 
-	/* Wake up first waiter */
-	if (dir_lock->lock_queue)
+	while (dir_lock->lock_queue)
 	{
 		esim_schedule_event(dir_lock->lock_queue->dir_lock_event, dir_lock->lock_queue, 1);
 		mem_debug("    0x%x access resumed\n", dir_lock->lock_queue->tag);
 		dir_lock->lock_queue = dir_lock->lock_queue->dir_lock_next;
 	}
+	mem_debug("    All accesses waiting for in stream %d slot %d resumed\n", pref_stream, pref_slot);
 
 	/* Trace */
 	mem_trace("mem.end_access_block cache=\"%s\" access=\"A-%lld\" pref_stream=%d pref_slot=%d\n", dir->name, dir_lock->stack_id, pref_stream, pref_slot);
 
 	/* Unlock entry */
 	dir_lock->lock = 0;
+}
+
+
+void dir_pref_entry_wake_up_all(struct dir_t *dir, int pref_stream, int pref_slot)
+{
+	struct dir_lock_t *dir_lock = &dir->pref_dir_lock[pref_stream * dir->asize + pref_slot];
+
+	assert(IN_RANGE(pref_stream, 0, dir->ssize - 1));
+	assert(IN_RANGE(pref_slot, 0, dir->asize - 1));
+	assert(!dir_lock->lock);
+
+	mem_debug("    All accesses waiting for 0x%x in stream %d slot %d resumed\n", dir_lock->lock_queue->tag, pref_stream, pref_slot);
+	while (dir_lock->lock_queue)
+	{
+		esim_schedule_event(dir_lock->lock_queue->dir_lock_event, dir_lock->lock_queue, 1);
+		mem_debug("    0x%x access resumed\n", dir_lock->lock_queue->tag);
+		dir_lock->lock_queue = dir_lock->lock_queue->dir_lock_next;
+
+		/* Trace */
+		mem_trace("mem.end_access_block cache=\"%s\" access=\"A-%lld\" pref_stream=%d pref_slot=%d\n", dir->name, dir_lock->stack_id, pref_stream, pref_slot);
+	}
 }

@@ -253,6 +253,11 @@ struct mod_t
 
 	long long stream_evictions;
 
+	/* Silent replacement */
+	long long down_up_read_misses;
+	long long down_up_write_misses;
+	long long block_already_here;
+
 	long long faults_mem_without_pref;
 };
 

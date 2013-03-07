@@ -97,6 +97,7 @@ int dir_entry_is_stream_sharer(struct dir_t *dir, int x, int y, int z, int node)
 struct dir_lock_t *dir_pref_lock_get(struct dir_t *dir, int pref_stream, int pref_slot);
 int dir_pref_entry_lock(struct dir_t *dir, int pref_stream, int pref_slot, int event, struct mod_stack_t *stack);
 void dir_pref_entry_unlock(struct dir_t *dir, int pref_stream, int pref_slot);
+void dir_pref_entry_wake_up_all(struct dir_t *dir, int pref_stream, int pref_slot);
 
 
 
