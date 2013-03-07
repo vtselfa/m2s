@@ -3887,7 +3887,10 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 		mod_stack_set_reply(stack, reply_ack_data);
 
 		if (stack->wb_hit)
+		{
 			esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST_UPDOWN_FINISH, stack, 0);
+			return;
+		}
 
 		/* If stream_hit, block can't be in any upper cache */
 		if (stack->stream_hit)
