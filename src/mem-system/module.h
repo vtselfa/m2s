@@ -191,6 +191,7 @@ struct mod_t
 	/* Statistics */
 	long long accesses;
 	long long hits;
+	long long hits_pref; /* Hits de stacks de prefetch en els moduls inferiors */
 
 	long long reads;
 	long long effective_reads;

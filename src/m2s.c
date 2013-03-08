@@ -1035,7 +1035,7 @@ static void m2s_read_command_line(int *argc_ptr, char **argv)
 			m2s_need_argument(argc, argv, argi);
 			misses_no_prefetch_file_name = argv[++argi];
 			misses_no_prefetch=1;
-			
+
 			continue;
 		}
 
@@ -1215,7 +1215,7 @@ static void m2s_read_command_line(int *argc_ptr, char **argv)
 	if (*si_disasm_file_name && argc > 3)
 		fatal("option '--si-disasm' is incompatible with any other options.");
 	if (*evg_opengl_disasm_file_name && argc != 4)
-		fatal("option '--evg-disasm-opengl' is incompatible with any other options.");	
+		fatal("option '--evg-disasm-opengl' is incompatible with any other options.");
 	if (*frm_disasm_file_name && argc > 3)
 		fatal("option '--frm-disasm' is incompatible with any other options.");
 	if (*x86_disasm_file_name && argc > 3)
@@ -1353,9 +1353,9 @@ void m2s_dump_summary(FILE *f)
 			for(int c=0; c<mod->num_regs_channel;c++)
 				for(int r=0; r<mod->regs_channel[c].num_regs_rank; r++)
 					for(int b=0; b<mod->regs_channel[c].regs_rank[r].num_regs_bank;b++)
-					{	row_access_hits+=mod->regs_channel[c].regs_rank[r].regs_bank[b].row_buffer_hits;	
+					{	row_access_hits+=mod->regs_channel[c].regs_rank[r].regs_bank[b].row_buffer_hits;
 						total_accesses+=mod->regs_channel[c].regs_rank[r].regs_bank[b].acceses;
-					}	
+					}
 		}
 	}
 
@@ -1377,8 +1377,16 @@ void m2s_dump_summary(FILE *f)
 	fprintf(stderr, "GlobalUsefulPrefetches = %lld\n",useful_prefetch_total);				////
 	fprintf(stderr, "GlobalAccuracy = %f\n",accuracy);							////
 	fprintf(stderr, "GlobalCoverage = %f\n",coverage);							////
-	for(int i=mem_system->min_level_cache; i<=mem_system->max_level_cache;i++)				////
-		fprintf(stderr, "MPKItoLevel%d = %f\n", i,(double)mem_system->faults[i]/x86_cpu->num_committed_inst);	////
+	for(int i=mem_system->min_level_cache; i<=mem_system->max_level_cache;i++)
+	{   long long total_faults=0;
+		for(int j=0; j<list_count(mem_system->mod_list);j++)
+		{
+			struct mod_t * mod=list_get(mem_system->mod_list, j);
+			if(mod->level==i)
+					total_faults+=mod->accesses-mod->hits;
+		}
+		fprintf(stderr, "MPKI_level%d = %f\n", i, x86_cpu->num_committed_inst? total_faults / x86_cpu->num_committed_inst / 1000.0 : 0.0);
+	}
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
@@ -1416,7 +1424,7 @@ void no_prefetched_summary_misses_write(char * file_name){
 	f = file_open_for_write(misses_no_prefetch_file_name);
 	if (!f)
 		return;
-	
+
 	for (int i = 0; i < list_count(mem_system->mod_list); i++)
 	{
 		mod = list_get(mem_system->mod_list, i);
@@ -1441,10 +1449,10 @@ void no_prefetched_summary_misses_read(char * file_name){
 		fatal("%s: cannot open no prefetch misses file",
 			misses_no_prefetch_file_name);
 	f = file_open_for_read(misses_no_prefetch_file_name);
-	
+
 	if (!f)
 		return;
-	
+
 	while(!feof(f)){
 
 		fscanf(f,"%s %lld",line, &faults);
@@ -1679,11 +1687,11 @@ int main(int argc, char **argv)
 	 * event-driven simulation could cause another stall! */
 	if (esim_finish != esim_finish_stall)
 		esim_process_all_events();
-	
+
 	/*Read original stadistics*/
 	///////////////////////////////////////////////////////////////////////
-	if(misses_no_prefetch==2)					
-		no_prefetched_summary_misses_read(misses_no_prefetch_file_name);	
+	if(misses_no_prefetch==2)
+		no_prefetched_summary_misses_read(misses_no_prefetch_file_name);
 	//////////////////////////////////////////////////////////////////////
 
 	/* Dump statistics summary */
@@ -1691,11 +1699,11 @@ int main(int argc, char **argv)
 
 	/* Dump statistics summary of no prefetched misses */
 	////////////////////////////////////////////////////////////////////////////////////
-	if(misses_no_prefetch==1)							
-		no_prefetched_summary_misses_write(misses_no_prefetch_file_name);	
-	
+	if(misses_no_prefetch==1)
+		no_prefetched_summary_misses_write(misses_no_prefetch_file_name);
+
 	/*Dump main memory stadistics*/
-	if(*main_mem_report_file_name)	  
+	if(*main_mem_report_file_name)
 		main_memory_dump_report(main_mem_report_file_name);
 	//////////////////////////////////////////////////////////////////////////////////
 

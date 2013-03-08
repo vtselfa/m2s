@@ -1974,7 +1974,11 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 		/* Statistics */
 		mod->accesses++;
 		if (stack->hit)
+		{
 			mod->hits++;
+			if(stack->prefetch)
+				mod->hits_pref++;
+		}
 
 		if (stack->read)
 		{
@@ -3005,7 +3009,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 			assert(dir_rank >= 0 && dir_rank < num_ranks);
 			dir_bank = (num_bank >> log_base2(num_channels)) % mem_controller->num_regs_bank;
 			assert(dir_bank >= 0 && dir_bank < num_banks);
-			mem_debug("examining %d bank queue \n", num_bank);
+			//mem_debug("examining %d bank queue \n", num_bank); /* Verbose */
 			normal_queue = mem_controller->normal_queue[num_bank];
                         pref_queue = mem_controller->pref_queue[num_bank];
 

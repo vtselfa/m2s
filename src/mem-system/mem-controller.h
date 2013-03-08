@@ -11,18 +11,17 @@ enum priority_t
 {
 	prio_threshold_normal_pref=0,
 	prio_threshold_RowBufHit_FCFS
-
 };
 enum priority_type_request_t
 {
-	prio_none=0, // null priority
+	prio_none = 0, // null priority
 	prio_normal,
 	prio_prefetch
 };
 
 enum step_priority_t
 {
-	step_threshold=0,
+	step_threshold = 0,
 	step_row_buffer_hit,
 	step_row_buffer_miss
 };
@@ -30,22 +29,20 @@ enum step_priority_t
 /*Policies memory controller queues*/
 enum policy_mc_queue_t
 {
-	policy_one_queue_FCFS = 0, // one queue where prefetch and normal requests hace the same prioritiy, FCFS	
+	policy_one_queue_FCFS = 0, // one queue where prefetch and normal requests hace the same prioritiy, FCFS
 	policy_prefetch_normal_queues // prefetch queue and normal queue, normal is more priority
 };
 
 struct mem_controller_queue_t
 {
-
 	/*Request queue*/
 	struct linked_list_t *queue;
 
 	/*Stadistics*/
-	int total_requests; // total number of stacks inserted inside the queue during all execution
-	int t_full; // cycles when queue is full
-	int instant_begin_full; // cycle when this queue is completed
-	int total_insertions;
-
+	long long total_requests; // total number of stacks inserted inside the queue during all execution
+	long long t_full; // cycles when queue is full
+	long long instant_begin_full; // cycle when this queue is completed
+	long long total_insertions;
 };
 
 struct mem_controller_t
@@ -62,7 +59,7 @@ struct mem_controller_t
 	/*Priority queues*/
 	/////////////////////////////////////////////
 	enum priority_t priority_request_in_queue;
-	
+
 	/*Number of queues*/
 	int num_queues;
 
@@ -75,7 +72,7 @@ struct mem_controller_t
 
 	/*There is a queue per bank or only one for all banks*/
 	int queue_per_bank;
-	
+
 	/*List of bank registres to save information about memory acceses*/
 	int num_regs_bank;
 	int num_regs_rank;
@@ -89,19 +86,16 @@ struct mem_controller_t
 	/*Relation between cycles bus of main memory and cycles of processor*/
 	int cycles_proc_bus;  // 1 cycle of bus= cycles_proc_bus cycles of proc
 
-
 	/*Queue which has round robin expired*/
 	int queue_round_robin;
 
 	/*Last time that mc has been examined*/
-	int last_cycle;
+	long long last_cycle;
 
 	/*Stadistics*/
-	int t_acces_main_memory; 
-	int t_transfer; // time for tranfer a bloc from main memory
-	int n_times_queue_examined; // times which queue is examined
-
-	
+	long long t_acces_main_memory;
+	long long t_transfer; // time for tranfer a bloc from main memory
+	long long n_times_queue_examined; // times which queue is examined
 };
 
 struct mem_controller_t * mem_controller_create(void);
@@ -128,7 +122,7 @@ int mem_controller_get_bank_queue(int num_queue_examined);
 /////////////////////////////////////////////////////////////////////
 
 /*ROW BUFFER*/
-int row_buffer_find_row(struct mod_t *mod, unsigned int addr, unsigned int *channel_ptr,unsigned int *rank_ptr, 
-			unsigned int *bank_ptr, unsigned int *row_ptr, int * tag_ptr, int *state_ptr);
+int row_buffer_find_row(struct mod_t *mod, unsigned int addr, unsigned int *channel_ptr,unsigned int *rank_ptr,
+	unsigned int *bank_ptr, unsigned int *row_ptr, int * tag_ptr, int *state_ptr);
 
 #endif

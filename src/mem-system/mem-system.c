@@ -325,8 +325,11 @@ void main_memory_dump_report(char * main_mem_report_file_name)
  	fprintf(f, "[MAIN MEMORY]\n");
         fprintf(f, "AvgTimeWaitMCQueue = %f\n",total_acces ? (double) total_wait_in_mc/total_acces:0.0);
         fprintf(f, "AvgTimeAccesMM = %f\n",total_acces ? (double) mem_system->mem_controller->t_acces_main_memory/total_acces :0.0);
-        fprintf(f, "AvgTimeTransferFromMM = %f\n",total_acces ? (double)mem_system->mem_controller->t_transfer/total_acces:0.0 );
-        fprintf(f,"\n\n");
+
+		fprintf(f, "AvgTimeTransferFromMM = %f\n",total_acces ? (double)mem_system->mem_controller->t_transfer/total_acces:0.0 );
+		fprintf(f,"TotalAccessesMC = %lld\n", total_acces);
+		fprintf(f,"\n\n");
+
 
         for(int c=0; c<mod->num_regs_channel;c++){
                 fprintf(f, "[Channel %d]\n", c);
@@ -513,6 +516,7 @@ void mem_system_dump_report()
 			- mod->no_retry_write_hits);
 
 		fprintf(f, "\n");
+		fprintf(f, "HitsPref = %lld\n", mod->hits_pref);
 		fprintf(f, "ProgrammedPrefetches = %lld\n", mod->programmed_prefetches);
 		fprintf(f, "CompletedPrefetches = %lld\n", mod->completed_prefetches);
 		fprintf(f, "CanceledPrefetches = %lld\n", mod->canceled_prefetches);
@@ -541,8 +545,6 @@ void mem_system_dump_report()
 		fprintf(f, "DownUpReadMisses = %lld\n", mod->down_up_read_misses);
 		fprintf(f, "DownUpWriteMisses = %lld\n", mod->down_up_write_misses);
 		fprintf(f, "BlocksAlreadyHere = %lld\n", mod->block_already_here);
-		//fprintf(f, "MPKI = %.4g\n",x86_cpu->inst ?
-		//	(double) (mod->accesses - mod->hits) / x86_cpu->inst : 0.0);
 		fprintf(f, "\n\n");
 	}
 
