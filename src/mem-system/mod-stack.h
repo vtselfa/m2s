@@ -140,7 +140,6 @@ struct mod_stack_t
 	int read : 1;
 	int write : 1;
 	int nc_write : 1;
-	int prefetch : 1;
 	int blocking : 1;
 	int writeback : 1;
 	int eviction : 1;
@@ -156,6 +155,7 @@ struct mod_stack_t
 	int wb_hit : 1;
 
 	/* Prefetch */
+	int prefetch;
 	int pref_stream;
 	int pref_slot;
 	int stride;
