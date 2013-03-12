@@ -2890,6 +2890,21 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 						->bank].row_buffer_hits++;
 					channel[new_stack->channel].regs_rank[new_stack->rank].row_buffer_hits++;
 					channel[new_stack->channel].row_buffer_hits++;
+
+					if(new_stack->prefetch)
+					{
+						channel[new_stack->channel].regs_rank[new_stack->rank].regs_bank[new_stack
+						->bank].row_buffer_hits_pref++;
+					channel[new_stack->channel].regs_rank[new_stack->rank].row_buffer_hits_pref++;
+					channel[new_stack->channel].row_buffer_hits_pref++;
+					}	else{
+
+						channel[new_stack->channel].regs_rank[new_stack->rank].regs_bank[new_stack
+						->bank].row_buffer_hits_normal++;
+					channel[new_stack->channel].regs_rank[new_stack->rank].row_buffer_hits_normal++;
+					channel[new_stack->channel].row_buffer_hits_normal++;
+
+					}
 				}
 				else
 				{
@@ -2918,6 +2933,11 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 				mem_controller->last_cycle=esim_cycle;
 				mem_controller->n_times_queue_examined += time; //se podria cambiar dividinto x esim al final
 				mem_controller->t_acces_main_memory += mem_controller->t_send_request;
+				if(new_stack->prefetch)
+					mem_controller->t_pref_acces_main_memory += mem_controller->t_send_request;
+				else
+					mem_controller->t_normal_acces_main_memory += mem_controller->t_send_request;
+
 
 
 				/*Delete the request in the MC queue*/
@@ -2956,11 +2976,16 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 			{
 				channel[stack->channel].t_wait_channel_busy += cycles_proc_by_bus;
 				channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
+				channel[stack->channel].t_normal_wait_channel_busy+=cycles_proc_by_bus;
+				channel[stack->channel].t_normal_wait_send_request+=cycles_proc_by_bus;
 			}
 			else if(channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].is_been_accesed)                                                              {
 				channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
-                                channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].conflicts++;
-                                channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_wait += cycles_proc_by_bus;
+                channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].conflicts++;
+                channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_wait += cycles_proc_by_bus;
+				channel[stack->channel].t_normal_wait_send_request+=cycles_proc_by_bus;
+
+                channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_normal_wait+=cycles_proc_by_bus;
 			}
 			linked_list_next(normal);
 		}
@@ -2974,12 +2999,16 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
                         {
                                 channel[stack->channel].t_wait_channel_busy += cycles_proc_by_bus;
                                 channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
-                        }
+								channel[stack->channel].t_pref_wait_channel_busy+=cycles_proc_by_bus;
+								channel[stack->channel].t_pref_wait_send_request+=cycles_proc_by_bus;
+						}
                         else if(channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].is_been_accesed)                                                              {
                                 channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
                                 channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].conflicts++;
                                 channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_wait += cycles_proc_by_bus;
-                        }
+                        		channel[stack->channel].t_pref_wait_send_request+=cycles_proc_by_bus;
+								 channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_pref_wait += cycles_proc_by_bus;
+						}
 
 			linked_list_next(pref);
 		}
@@ -3029,12 +3058,17 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
         	                        {
                 	                        channel[stack->channel].t_wait_channel_busy += cycles_proc_by_bus;
                         	                channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
+                	                        channel[stack->channel].t_normal_wait_channel_busy += cycles_proc_by_bus;
+                        	                channel[stack->channel].t_normal_wait_send_request+=cycles_proc_by_bus;
                         	         }
                         	        else if(channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].is_been_accesed)                                                              {
                         	                channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
                         	                channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].conflicts++;
                         	                channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_wait += cycles_proc_by_bus;
-                        	        }
+
+                	                        channel[stack->channel].t_normal_wait_send_request += cycles_proc_by_bus;
+											channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_normal_wait+=cycles_proc_by_bus;
+									}
                         	        linked_list_next(normal_queue->queue);
                         	}
 
@@ -3047,11 +3081,17 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
                                 	{
                                 	        channel[stack->channel].t_wait_channel_busy += cycles_proc_by_bus;
                                 	        channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
+
+                                	        channel[stack->channel].t_pref_wait_channel_busy += cycles_proc_by_bus;
+                                	        channel[stack->channel].t_pref_wait_send_request+=cycles_proc_by_bus;
                                 	}
                                 	else if(channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].is_been_accesed)                                                              {
                                 	        channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
                                 	        channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].conflicts++;
                                 	        channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_wait += cycles_proc_by_bus;
+
+                                	        channel[stack->channel].t_pref_wait_send_request += cycles_proc_by_bus;
+                                	        channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_pref_wait+=cycles_proc_by_bus;
                                 	}
 
                                	 	linked_list_next(pref_queue->queue);
@@ -3095,6 +3135,21 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 						->bank].row_buffer_hits++;
 					channel[new_stack->channel].regs_rank[new_stack->rank].row_buffer_hits++;
 					channel[new_stack->channel].row_buffer_hits++;
+					if(new_stack->prefetch)
+					{	channel[new_stack->channel].regs_rank[new_stack->rank].regs_bank[new_stack
+						->bank].row_buffer_hits_pref++;
+						channel[new_stack->channel].regs_rank[new_stack->rank].row_buffer_hits_pref++;
+						channel[new_stack->channel].row_buffer_hits_pref++;
+
+					}else{
+
+						channel[new_stack->channel].regs_rank[new_stack->rank].regs_bank[new_stack
+						->bank].row_buffer_hits_normal++;
+
+						channel[new_stack->channel].regs_rank[new_stack->rank].row_buffer_hits_normal++;
+
+						channel[new_stack->channel].row_buffer_hits_normal++;
+					}
 				}
 				else
 				{

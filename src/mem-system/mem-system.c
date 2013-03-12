@@ -312,7 +312,7 @@ void main_memory_dump_report(char * main_mem_report_file_name)
         for(int c=0; c<mod->num_regs_channel;c++)
          {
                 total_acces+=mod->regs_channel[c].acceses;
-                total_wait_in_mc=mod->regs_channel[c].t_wait_send_request;
+                total_wait_in_mc+=mod->regs_channel[c].t_wait_send_request;
                 for(int r=0;r<mod->regs_channel[c].num_regs_rank;r++)
                 {
                         total_rank_parallelism+=mod->regs_channel[c].regs_rank[r].parallelism;
