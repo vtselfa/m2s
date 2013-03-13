@@ -4644,9 +4644,13 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			return;
 		}
 
-		/* Record access */
 		if (target_mod->cache->prefetch_enabled && target_mod->kind != mod_kind_main_memory)
 		{
+			/* Add access to stride detector and record if there is a stride */
+			if (target_mod->cache->prefetch_enabled && !stack->prefetch)
+				stack->stride = cache_detect_stride(target_mod->cache, stack->addr);
+
+			/* Record access */
 			mod_access_start(target_mod, stack, mod_access_store);
 		}
 
@@ -4677,6 +4681,46 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			stack->reply_size = 8;
 			esim_schedule_event(EV_MOD_NMOESI_WRITE_REQUEST_REPLY, stack, 0);
 			return;
+		}
+
+		/* Enqueue prefetches */
+		if (must_enqueue_prefetch(stack))
+		{
+			struct cache_t *target_cache = stack->target_mod->cache;
+			/* Enqueue OBL prefetch on miss */
+			if (target_cache->prefetch_enabled == prefetch_obl)
+			{
+				if (!stack->state)
+					enqueue_prefetch_obl(stack);
+			}
+
+			/* Enqueue OBL prefetch with stride on miss */
+			else if (target_cache->prefetch_enabled == prefetch_obl_stride)
+			{
+				if (stack->stride && !stack->state)
+					enqueue_prefetch_obl(stack);
+			}
+
+			/* Enqueue STREAM prefetch */
+			else if (target_cache->prefetch_enabled == prefetch_streams)
+			{
+				if (stack->stream_hit)
+				{
+					/* Prefetch only one block */
+					if (stack->stream_head_hit)
+					{
+						assert(stack->pref_stream >= 0 && stack->pref_stream < target_cache->prefetch.num_streams);
+						assert(stack->pref_slot >= 0 && stack->pref_slot < target_cache->prefetch.aggressivity);
+						enqueue_prefetch_on_hit(stack);
+					}
+				}
+				/* Fill all the stream buffer if a stride is detected */
+				else
+				{
+					if (stack->stride)
+						enqueue_prefetch_on_miss(stack);
+				}
+			}
 		}
 
 		/* If stream_hit, there aren't any upper level sharers of the block */
