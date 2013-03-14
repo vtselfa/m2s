@@ -3040,7 +3040,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 	                        while (!linked_list_is_end(normal_queue->queue) && linked_list_current(normal_queue->queue) < size_queue)
         	                {       stack = linked_list_get(normal_queue->queue);
         	                        row_buffer_find_row(stack->mod, stack->addr,&stack->channel,&stack->rank,&stack->bank,NULL,NULL,NULL);
-        	                        if ( stack->channel == channel_state_busy)
+        	                        if ( channel[stack->channel].state == channel_state_busy)
         	                        {
                 	                        channel[stack->channel].t_wait_channel_busy += cycles_proc_by_bus;
                         	                channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
@@ -3063,7 +3063,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
                         	{
                         	        stack = linked_list_get(pref_queue->queue);
                                 	row_buffer_find_row(stack->mod, stack->addr,&stack->channel,&stack->rank,&stack->bank,NULL,NULL,NULL);
-                                	if ( stack->channel == channel_state_busy)
+                                	if ( channel[stack->channel].state == channel_state_busy)
                                 	{
                                 	        channel[stack->channel].t_wait_channel_busy += cycles_proc_by_bus;
                                 	        channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
