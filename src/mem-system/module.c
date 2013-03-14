@@ -789,7 +789,10 @@ struct mod_stack_t *mod_can_coalesce(struct mod_t *mod,enum mod_access_kind_t ac
 	/* For efficiency, first check in the hash table of accesses
 	 * whether there is an access in flight to the same block. */
 	assert(access_kind);
-	if (!mod_in_flight_address(mod, addr, older_than_stack))
+	/* En el cas dels prefetch a L2+ no podem usar la id per saber
+	 * si ha arribat o no abans al mòdul, per tant no podem usar
+	 * la funció mod_in_flight_address. Es pot millorar. */
+	if ((!mod->cache->prefetch_enabled || mod->level == 1) && !mod_in_flight_address(mod, addr, older_than_stack))
 		return NULL;
 
 	/* Get youngest access older than 'older_than_stack' */
@@ -822,15 +825,49 @@ struct mod_stack_t *mod_can_coalesce(struct mod_t *mod,enum mod_access_kind_t ac
 	{
 		for (stack = tail; stack; stack = stack->access_list_prev)
 		{
-			/* Only coalesce with groups of reads at the tail */
-			if (stack->access_kind != mod_access_load && stack->access_kind != mod_access_prefetch)
+			struct mod_t *stack_mod;
+
+			if (stack->access_kind != mod_access_load &&
+				stack->access_kind != mod_access_prefetch &&
+				stack->access_kind != mod_access_read_request && /* Up down */
+				stack->access_kind != mod_access_write_request) /* Up down */
 				return NULL;
 
+			if (!stack->target_mod)
+				stack_mod = stack->mod;
+			else
+				stack_mod = stack->target_mod;
+
+			assert(mod && stack_mod);
+
 			/* Only coalesce if destination module is the same */
-			if(stack->mod != older_than_stack->mod)
+			if(mod != stack_mod)
 				continue;
 
-			if (stack->addr >> mod->log_block_size ==addr >> mod->log_block_size)
+			if (stack->addr >> mod->log_block_size == addr >> mod->log_block_size)
+				return stack->master_stack ? stack->master_stack : stack;
+		}
+		break;
+	}
+
+	case mod_access_read_request:
+	case mod_access_write_request:
+	{
+		for (stack = tail; stack; stack = stack->access_list_prev)
+		{
+			struct mod_t *stack_mod;
+			if (!stack->target_mod)
+				stack_mod = stack->mod;
+			else
+				stack_mod = stack->target_mod;
+
+			assert(mod && stack_mod);
+
+			/* Only coalesce if destination module is the same */
+			if(mod != stack_mod)
+				continue;
+
+			if (stack->addr >> mod->log_block_size == addr >> mod->log_block_size)
 				return stack->master_stack ? stack->master_stack : stack;
 		}
 		break;
@@ -881,24 +918,6 @@ struct mod_stack_t *mod_can_coalesce(struct mod_t *mod,enum mod_access_kind_t ac
 		/* Coalesce */
 		return stack->master_stack ? stack->master_stack : stack;
 	}
-	/*case mod_access_prefetch:
-		/ Only coalesce with last access /
-		stack = tail;
-		if (!stack)
-			return NULL;
-
-		/ Only if it is a write /
-		if (stack->access_kind != mod_access_store)
-			return NULL;
-
-		/ Only if it is an access to the same block /
-		if (stack->addr >> mod->log_block_size != addr >> mod->log_block_size)
-			return NULL;
-		/ If there is an access to the same block, that means this prefetching
-		   is only an overhead. Return "true" at this point so that the caller
-		   can know of the other access and abort the prefetch. /
-		return stack;
-	*/
 
 	default:
 		panic("%s: invalid access type", __FUNCTION__);

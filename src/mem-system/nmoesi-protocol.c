@@ -26,6 +26,7 @@
 #include <lib/util/debug.h>
 #include <lib/util/linked-list.h>
 #include <lib/util/list.h>
+#include <lib/util/misc.h>
 #include <lib/util/string.h>
 #include <network/network.h>
 #include <network/node.h>
@@ -34,7 +35,6 @@
 #include "directory.h"
 #include "mem-system.h"
 #include "mod-stack.h"
-#include <lib/util/misc.h>
 
 
 
@@ -99,6 +99,7 @@ int EV_MOD_NMOESI_PREF_EVICT_FINISH;
 
 int EV_MOD_NMOESI_WRITE_REQUEST;
 int EV_MOD_NMOESI_WRITE_REQUEST_RECEIVE;
+int EV_MOD_NMOESI_WRITE_REQUEST_LOCK;
 int EV_MOD_NMOESI_WRITE_REQUEST_ACTION;
 int EV_MOD_NMOESI_WRITE_REQUEST_EXCLUSIVE;
 int EV_MOD_NMOESI_WRITE_REQUEST_UPDOWN;
@@ -236,10 +237,7 @@ void enqueue_prefetch_on_miss(struct mod_stack_t *stack)
 		uop->phy_addr = stack->addr + (i + 1) * stack->stride;
 		/* If we reach the end of the stream, AKA the stream_tag changes, insert invalidations */
 		if (sb->stream_transcient_tag != (uop->phy_addr & ~cache->prefetch.stream_mask))
-		{
-			uop->phy_addr = sb->stream_transcient_tag;
 			uop->pref.invalidating = 1;
-		}
 		uop->core = stack->core;
 		uop->thread = stack->thread;
 		uop->flags = X86_UINST_MEM;
@@ -625,7 +623,7 @@ void mod_handler_pref(int event, void *data)
 		if (sb->pending_prefetches == 1)
 		{
 			sb->stream_tag = stack->addr & ~cache->prefetch.stream_mask;
-			assert(sb->stream_tag == sb->stream_transcient_tag);
+			assert(sb->stream_tag == sb->stream_transcient_tag || stack->pref.invalidating);
 		}
 		sb->pending_prefetches--;
 
@@ -1589,7 +1587,8 @@ void mod_handler_nmoesi_pref_find_and_lock(int event, void *data)
 		/* Entry is locked. Record the transient tag so that a subsequent lookup
 		 * detects that the block is being brought. */
 		struct stream_block_t *block = cache_get_pref_block(cache, stack->pref_stream, stack->pref_slot);
-		block->transient_tag = !stack->hit? stack->tag : -1; /* If cache hit, block will be removed */
+		block->transient_tag = !stack->hit && stack->access_kind != mod_access_invalidate ?
+			stack->tag : -1; /* If cache hit, block will be removed */
 
 		mem_debug("    %lld 0x%x %s stream=%d, slot=%d, state=%s\n", stack->id, stack->tag, mod->name, stack->pref_stream, stack->pref_slot, str_map_value(&cache_block_state_map, block->state));
 
@@ -3728,8 +3727,6 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 
 	if (event == EV_MOD_NMOESI_READ_REQUEST_RECEIVE)
 	{
-		//struct mod_stack_t * master_stack;
-
 		mem_debug("  %lld %lld 0x%x %s read request receive\n", esim_cycle, stack->id,
 			stack->addr, target_mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:read_request_receive\"\n",
@@ -3753,25 +3750,16 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			return;
 		}
 
-		if (stack->request_dir == mod_request_up_down)
+		if (stack->request_dir == mod_request_up_down &&
+			target_mod->kind != mod_kind_main_memory &&
+			target_mod->cache->prefetch_enabled)
 		{
 			/* Add access to stride detector and record if there is a stride */
-			if (target_mod->cache->prefetch_enabled && !stack->prefetch)
+			if (!stack->prefetch)
 				stack->stride = cache_detect_stride(target_mod->cache, stack->addr);
 
-			/* Record access -- We can threat all read_requests as loads */
-			if (target_mod->kind != mod_kind_main_memory)
-				mod_access_start(target_mod, stack, mod_access_load);
-
-			/* Coalesce (loads with L2 prefetches) */
-			/*master_stack = mod_can_coalesce(target_mod, mod_access_load, stack->addr, stack);
-			if (master_stack)
-			{
-				assert(master_stack->prefetch == 2);
-				mem_debug("    %lld waiting %lld\n", stack->id, master_stack->id);
-				mod_stack_wait_in_stack(stack, master_stack, EV_MOD_NMOESI_READ_REQUEST_LOCK);
-				return;
-			}*/
+			/* Record access */
+			mod_access_start(target_mod, stack, mod_access_read_request);
 		}
 
 		esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST_LOCK, stack, 0);
@@ -3780,32 +3768,27 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 
 	if (event == EV_MOD_NMOESI_READ_REQUEST_LOCK)
 	{
-		/*struct mod_stack_t * older_stack;*/
+		struct mod_stack_t * master_stack;
 
 		mem_debug("  %lld %lld 0x%x %s read request lock\n", esim_cycle, stack->id,
 			stack->addr, target_mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:read_request_lock\"\n",
 			stack->id, mod->name);
 
-		/* If there is any older write, wait for it */
-		/*older_stack = mod_in_flight_write(target_mod, stack);
-		if (older_stack)
+		/* Wait for other accesses */
+		master_stack = mod_can_coalesce(target_mod, mod_access_read_request, stack->addr, stack);
+		if (master_stack)
 		{
-			mem_debug("    %lld wait for write %lld\n", stack->id, older_stack->id);
-			mod_stack_wait_in_stack(stack, older_stack, EV_MOD_NMOESI_READ_REQUEST_LOCK);
-			return;
-		}*/
+			mem_debug("    %lld wait for access %lld\n", stack->id, master_stack->id);
+			mod_coalesce(target_mod, master_stack, stack);
 
-		/* If there is any older access to the same address that this access could not
-		 * be coalesced with, wait for it. */
-		/*older_stack = mod_in_flight_address(target_mod, stack->addr, stack);
-		if (older_stack)
-		{
-			mem_debug("    %lld wait for access %lld\n",
-				stack->id, older_stack->id);
-			mod_stack_wait_in_stack(stack, older_stack, EV_MOD_NMOESI_READ_REQUEST_LOCK);
+			/* Si la master stack te el bit de coalesced pero no master stack, vol dir que ha fet coalesce amb un stream prefetch, per tant açò és un delayed hit */
+			if (master_stack->access_kind == mod_access_prefetch || master_stack->coalesced)
+				mod->delayed_hits++;
+
+			mod_stack_wait_in_stack(stack, master_stack, EV_MOD_NMOESI_READ_REQUEST_LOCK);
 			return;
-		}*/
+		}
 
 		/* Call find and lock */
 		new_stack = mod_stack_create(stack->id, target_mod, stack->addr,
@@ -3833,6 +3816,11 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			ret->err = 1;
 			mod_stack_set_reply(ret, reply_ack_error);
 			stack->reply_size = 8;
+
+			/* Delete access */
+			if (target_mod->cache->prefetch_enabled && target_mod->kind != mod_kind_main_memory)
+				mod_access_finish(target_mod, stack);
+
 			esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST_REPLY, stack, 0);
 			return;
 		}
@@ -4011,12 +3999,19 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 		/* Check error */
 		if (stack->err)
 		{
-			dir_entry_unlock(target_mod->dir, stack->set, stack->way);
-			if (stack->stream_hit) //VERIFICAR
-				dir_pref_entry_unlock(target_mod->dir, stack->pref_stream, stack->pref_slot);
 			ret->err = 1;
 			mod_stack_set_reply(ret, reply_ack_error);
 			stack->reply_size = 8;
+
+			/* Unlock dir */
+			dir_entry_unlock(target_mod->dir, stack->set, stack->way);
+			if (stack->stream_hit)
+				dir_pref_entry_unlock(target_mod->dir, stack->pref_stream, stack->pref_slot);
+
+			/* Delete access */
+			if (target_mod->cache->prefetch_enabled && target_mod->kind != mod_kind_main_memory)
+				mod_access_finish(target_mod, stack);
+
 			esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST_REPLY, stack, 0);
 			return;
 		}
@@ -4173,6 +4168,13 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 				dir_entry = dir_entry_get(dir, stack->set, stack->way, z);
 				dir_entry_set_owner(dir, stack->set, stack->way, z, mod->low_net_node->index);
 			}
+		}
+
+		/* Delete access and wake up any waiting stack */
+		if (target_mod->cache->prefetch_enabled && target_mod->kind != mod_kind_main_memory)
+		{
+			mod_access_finish(target_mod, stack);
+			mod_stack_wakeup_stack(stack);
 		}
 
 		latency = stack->reply == reply_ack_data_sent_to_peer ? 0 : target_mod->latency;
@@ -4543,10 +4545,6 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 		else
 			net_receive(mod->high_net, mod->high_net_node, stack->msg);
 
-		/* Delete access */
-		if (stack->request_dir == mod_request_up_down && target_mod->kind != mod_kind_main_memory)
-			mod_access_finish(target_mod, stack);
-
 		/* Return */
 		mod_stack_return(stack);
 		return;
@@ -4644,17 +4642,46 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			return;
 		}
 
-		if (target_mod->cache->prefetch_enabled && target_mod->kind != mod_kind_main_memory)
+		if (stack->request_dir == mod_request_up_down &&
+			target_mod->kind != mod_kind_main_memory &&
+			target_mod->cache->prefetch_enabled)
 		{
 			/* Add access to stride detector and record if there is a stride */
-			if (target_mod->cache->prefetch_enabled && !stack->prefetch)
-				stack->stride = cache_detect_stride(target_mod->cache, stack->addr);
+			stack->stride = cache_detect_stride(target_mod->cache, stack->addr);
 
 			/* Record access */
-			mod_access_start(target_mod, stack, mod_access_store);
+			mod_access_start(target_mod, stack, mod_access_write_request);
 		}
 
-		/* Find and lock */
+		esim_schedule_event(EV_MOD_NMOESI_WRITE_REQUEST_LOCK, stack, 0);
+		return;
+	}
+
+	if (event == EV_MOD_NMOESI_WRITE_REQUEST_LOCK)
+	{
+		struct mod_stack_t * master_stack;
+
+		mem_debug("  %lld %lld 0x%x %s write request lock\n", esim_cycle, stack->id,
+			stack->addr, target_mod->name);
+		mem_trace("mem.access name=\"A-%lld\" state=\"%s:write_request_lock\"\n",
+			stack->id, mod->name);
+
+		/* Wait for other accesses */
+		master_stack = mod_can_coalesce(target_mod, mod_access_write_request, stack->addr, stack);
+		if (master_stack)
+		{
+			mem_debug("    %lld wait for access %lld\n", stack->id, master_stack->id);
+			mod_coalesce(target_mod, master_stack, stack);
+
+			/* Si la master stack te el bit de coalesced pero no master stack, vol dir que ha fet coalesce amb un stream prefetch, per tant açò és un delayed hit */
+			if (master_stack->access_kind == mod_access_prefetch || master_stack->coalesced)
+				mod->delayed_hits++;
+
+			mod_stack_wait_in_stack(stack, master_stack, EV_MOD_NMOESI_WRITE_REQUEST_LOCK);
+			return;
+		}
+
+		/* Call find and lock */
 		new_stack = mod_stack_create(stack->id, target_mod, stack->addr,
 			EV_MOD_NMOESI_WRITE_REQUEST_ACTION, stack, stack->core, stack->thread, stack->prefetch);
 		new_stack->blocking = stack->request_dir == mod_request_down_up;
@@ -4679,6 +4706,11 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			assert(stack->request_dir == mod_request_up_down);
 			ret->err = 1;
 			stack->reply_size = 8;
+
+			/* Delete access */
+			if (target_mod->cache->prefetch_enabled && target_mod->kind != mod_kind_main_memory)
+				mod_access_finish(target_mod, stack);
+
 			esim_schedule_event(EV_MOD_NMOESI_WRITE_REQUEST_REPLY, stack, 0);
 			return;
 		}
@@ -4813,9 +4845,16 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			ret->err = 1;
 			mod_stack_set_reply(ret, reply_ack_error);
 			stack->reply_size = 8;
+
+			/* Delete access */
+			if (target_mod->cache->prefetch_enabled && target_mod->kind != mod_kind_main_memory)
+				mod_access_finish(target_mod, stack);
+
+			/* Unlock dirs */
 			dir_entry_unlock(target_mod->dir, stack->set, stack->way);
 			if (stack->stream_hit)
 				dir_pref_entry_unlock(target_mod->dir, stack->pref_stream, stack->pref_slot);
+
 			esim_schedule_event(EV_MOD_NMOESI_WRITE_REQUEST_REPLY, stack, 0);
 			return;
 		}
@@ -4845,6 +4884,9 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			if (stack->stream_head_hit)
 				sb->head = (sb->head + 1) % sb->num_slots; //HEAD
 			dir_pref_entry_unlock(target_mod->dir, stack->pref_stream, stack->pref_slot);
+
+			/* Statistics */
+			target_mod->useful_prefetches++;
 		}
 
 		/* Set states O/E/S/I->E */
@@ -4869,6 +4911,13 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 
 		/* Unlock, reply_size is the data of the size of the requester's block. */
 		dir_entry_unlock(target_mod->dir, stack->set, stack->way);
+
+		/* Delete access and wake up any waiting stack */
+		if (target_mod->cache->prefetch_enabled && target_mod->kind != mod_kind_main_memory)
+		{
+			mod_access_finish(target_mod, stack);
+			mod_stack_wakeup_stack(stack);
+		}
 
 		int latency = stack->reply == reply_ack_data_sent_to_peer ? 0 : target_mod->latency;
 		esim_schedule_event(EV_MOD_NMOESI_WRITE_REQUEST_REPLY, stack, latency);
@@ -5016,10 +5065,6 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			net_receive(mod->low_net, mod->low_net_node, stack->msg);
 		else
 			net_receive(mod->high_net, mod->high_net_node, stack->msg);
-
-		/* Delete access */
-		if (target_mod->cache->prefetch_enabled && target_mod->kind != mod_kind_main_memory)
-			mod_access_finish(target_mod, stack);
 
 		/* Return */
 		mod_stack_return(stack);
