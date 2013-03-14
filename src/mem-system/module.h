@@ -275,13 +275,19 @@ struct reg_bank_t{
         int is_been_accesed;// show if a bank is been accedid for some instruction
 
         /*Stadistics*/
-        int row_buffer_hits; // number of acceses to row buffer which are hits
-        int t_row_buffer_hit; // cycles needed to acces the bank if the row is in row buffer
+        long long row_buffer_hits; // number of acceses to row buffer which are hits
+   	long long row_buffer_hits_pref;
+	long long row_buffer_hits_normal;
+	int t_row_buffer_hit; // cycles needed to acces the bank if the row is in row buffer
         int t_row_buffer_miss; // cycles needed to acces the bank if the row isn't in row buffer
-        int conflicts;
-        int acceses;
-        int t_wait; // time waited by the requestes to acces to bank
-        int parallelism;////////////
+        long long conflicts;
+        long long acceses;
+        long long pref_accesses;
+	long long normal_accesses;
+	long long t_wait; // time waited by the requestes to acces to bank
+    	long long t_pref_wait;
+	long long t_normal_wait;
+	long long parallelism;////////////
 };
 
 
@@ -293,10 +299,13 @@ struct reg_rank_t{
         int is_been_accesed; //true or false
 
         /*Stadistics*/
-        int parallelism;// number of acceses which acces when that rank is been accesed by others
-        int acceses;
-        int row_buffer_hits; // number of acceses to row buffer which are hits
-
+        long long parallelism;// number of acceses which acces when that rank is been accesed by others
+        long long acceses;
+	long long pref_accesses;
+	long long normal_accesses;
+        long long row_buffer_hits; // number of acceses to row buffer which are hits
+	long long row_buffer_hits_pref;
+	long long row_buffer_hits_normal;
 };
 
 /*Reg channels*/
@@ -315,15 +324,26 @@ struct reg_channel_t{
         int num_regs_rank;
 
         /*Stadistics*/
-        int acceses;
-        //int parallelism_rank; // number of acceses which acces to rank accesed by others
-        int t_wait_send_request; // time waiting to send a request because the channel is busy or the bank is busy
-        int t_wait_channel_busy;  // time waiting to send a request because the channel is busy
-        int t_wait_transfer_request; // time waiting to transfer the block
-        int t_transfer;
-        int num_requests_transfered;
-        int row_buffer_hits; // number of acceses to row buffer which are hits
-
+        long long acceses;
+        long long pref_accesses;
+	long long normal_accesses;
+	//int parallelism_rank; // number of acceses which acces to rank accesed by others
+        long long t_wait_send_request; // time waiting to send a request because the channel is busy or the bank is busy
+	long long t_pref_wait_send_request;
+	long long t_normal_wait_send_request;
+       	long long t_wait_channel_busy;  // time waiting to send a request because the channel is busy
+	long long t_normal_wait_channel_busy;
+	long long t_pref_wait_channel_busy;
+        long long t_wait_transfer_request; // time waiting to transfer the block
+	long long t_normal_wait_transfer_request; // time waiting to transfer the block
+        long long t_pref_wait_transfer_request; // time waiting to transfer the bloc     
+	long long t_transfer;
+        long long num_requests_transfered;
+        long long row_buffer_hits; // number of acceses to row buffer which are hits
+	long long row_buffer_hits_pref;
+	long long row_buffer_hits_normal;
+	long long num_pref_requests_transfered;
+	long long num_normal_requests_transfered;
 
 };
 
