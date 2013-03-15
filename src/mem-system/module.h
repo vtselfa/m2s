@@ -49,6 +49,8 @@ enum mod_access_kind_t
 	mod_access_store,
 	mod_access_nc_store,
 	mod_access_prefetch,
+	mod_access_read_request,
+	mod_access_write_request,
 	mod_access_invalidate //VVV
 };
 
