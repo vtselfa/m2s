@@ -317,8 +317,8 @@ void main_memory_dump_report(char * main_mem_report_file_name)
         for(int c=0; c<mod->num_regs_channel;c++)
          {
                 total_acces+=mod->regs_channel[c].acceses;
-		total_pref_acces+=mod->regs_channel[c].acceses;
-		total_normal_acces+=mod->regs_channel[c].acceses;
+		total_pref_acces+=mod->regs_channel[c].pref_accesses;
+		total_normal_acces+=mod->regs_channel[c].normal_accesses;
                 total_wait_in_mc+=mod->regs_channel[c].t_wait_send_request;
 		total_normal_wait_in_mc+=mod->regs_channel[c].t_normal_wait_send_request;
 		total_pref_wait_in_mc+=mod->regs_channel[c].t_pref_wait_send_request;
@@ -367,9 +367,8 @@ void main_memory_dump_report(char * main_mem_report_file_name)
 			(double)mod->regs_channel[c].t_wait_channel_busy/mod->regs_channel[c].num_requests_transfered : 0.0);
                 fprintf(f, "AvgTimeWaitRequestTransfer = %f\n",mod->regs_channel[c].num_requests_transfered?
 			(double) mod->regs_channel[c].t_wait_transfer_request/mod->regs_channel[c].num_requests_transfered : 0.0);
-                fprintf(f, "AvgTimeRequestTransfer = %f\n\n",mod->regs_channel[c].num_requests_transfered ?
+                fprintf(f, "AvgTimeRequestTransfer = %f\n",mod->regs_channel[c].num_requests_transfered ?
 			(double)mod->regs_channel[c].t_transfer/mod->regs_channel[c].num_requests_transfered : 0.0);
-
 
 		/*Normal requests*/
 		fprintf(f, "NormalRowBufferHitPercent = %F\n", mod->regs_channel[c].normal_accesses?
@@ -392,6 +391,7 @@ void main_memory_dump_report(char * main_mem_report_file_name)
 			(double)mod->regs_channel[c].t_pref_wait_transfer_request/mod->regs_channel[c].num_pref_requests_transfered: 0.0);
                 
 
+		fprintf(f,"\n");
                 for(int r=0; r<mod->regs_channel[c].num_regs_rank; r++){
 
                         fprintf(f, "[Rank %d  (Channel %d)]\n", r, c);
@@ -419,13 +419,13 @@ void main_memory_dump_report(char * main_mem_report_file_name)
                                 fprintf(f, "ParallelismPercent = %f\n", total_bank_parallelism ?
 				       (double)mod->regs_channel[c].regs_rank[r].regs_bank[b].parallelism/total_bank_parallelism:0.0);
                                 fprintf(f, "Conflicts = %lld\n", mod->regs_channel[c].regs_rank[r].regs_bank[b].conflicts);
-                                fprintf(f, "AvgTimeWaitBankBusy = %f\n\n", mod->regs_channel[c].regs_rank[r].regs_bank[b].acceses ?
+                                fprintf(f, "AvgTimeWaitBankBusy = %f\n", mod->regs_channel[c].regs_rank[r].regs_bank[b].acceses ?
 					(double)mod->regs_channel[c].regs_rank[r].regs_bank[b].t_wait/
                                         mod->regs_channel[c].regs_rank[r].regs_bank[b].acceses:0.0);
-				fprintf(f,"AvgTimeNormalWaitBankBusy = %f\n\n",mod->regs_channel[c].regs_rank[r].regs_bank[b].normal_accesses?
+				fprintf(f,"AvgTimeNormalWaitBankBusy = %f\n",mod->regs_channel[c].regs_rank[r].regs_bank[b].normal_accesses?
 					(double)mod->regs_channel[c].regs_rank[r].regs_bank[b].t_normal_wait/
                                         mod->regs_channel[c].regs_rank[r].regs_bank[b].normal_accesses:0.0);
-				fprintf(f,"AvgTimePrefetchWaitBankBusy = %f\n\n",mod->regs_channel[c].regs_rank[r].regs_bank[b].pref_accesses?
+				fprintf(f,"AvgTimePrefetchWaitBankBusy = %f\n",mod->regs_channel[c].regs_rank[r].regs_bank[b].pref_accesses?
 					(double)mod->regs_channel[c].regs_rank[r].regs_bank[b].t_pref_wait/
                                         mod->regs_channel[c].regs_rank[r].regs_bank[b].pref_accesses:0.0);
 
