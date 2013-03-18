@@ -191,7 +191,7 @@ void enqueue_prefetch_group(int core, int thread, struct mod_t *mod, int base_ad
 	 * If there is already a stream with the same tag, replace it
 	 * else, replace the last recently used one.
 	 * */
-	stream = cache_find_stream(cache, (base_addr + mod->block_size) & ~cache->prefetch.stream_mask);
+	stream = cache_find_stream(cache, base_addr & ~cache->prefetch.stream_mask);
 	if (stream == -1) /* stream_tag not found */
 		stream = cache_select_stream(cache);
 	sb = &cache->prefetch.streams[stream];
