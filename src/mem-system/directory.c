@@ -344,7 +344,7 @@ int dir_pref_entry_lock(struct dir_t *dir, int pref_stream, int pref_slot, int e
 	/* If the entry is already locked, enqueue a new waiter and
 	 * return failure to lock. */
 	if (dir_lock->lock){
-		assert(dir_lock->stack_id != stack->id);
+		assert(dir_lock->stack->id != stack->id);
 
 		/* Enqueue the stack to the end of the lock queue */
 		stack->dir_lock_next = NULL;
@@ -381,7 +381,7 @@ int dir_pref_entry_lock(struct dir_t *dir, int pref_stream, int pref_slot, int e
 
 	/* Lock entry */
 	dir_lock->lock = 1;
-	dir_lock->stack_id = stack->id;
+	dir_lock->stack = stack;
 	return 1;
 }
 
@@ -398,7 +398,7 @@ int dir_entry_lock(struct dir_t *dir, int x, int y, int event, struct mod_stack_
 	 * return failure to lock. */
 	if (dir_lock->lock)
 	{
-		assert(dir_lock->stack_id != stack->id);
+		assert(dir_lock->stack->id != stack->id);
 
 		/* Enqueue the stack to the end of the lock queue */
 		stack->dir_lock_next = NULL;
@@ -444,7 +444,7 @@ int dir_entry_lock(struct dir_t *dir, int x, int y, int event, struct mod_stack_
 
 	/* Lock entry */
 	dir_lock->lock = 1;
-	dir_lock->stack_id = stack->id;
+	dir_lock->stack = stack;
 	return 1;
 }
 
@@ -467,7 +467,7 @@ void dir_entry_unlock(struct dir_t *dir, int x, int y)
 
 	/* Trace */
 	mem_trace("mem.end_access_block cache=\"%s\" access=\"A-%lld\" set=%d way=%d\n",
-		dir->name, dir_lock->stack_id, x, y);
+		dir->name, dir_lock->stack->id, x, y);
 
 	/* Unlock entry */
 	dir_lock->lock = 0;
@@ -491,7 +491,7 @@ void dir_pref_entry_unlock(struct dir_t *dir, int pref_stream, int pref_slot)
 	mem_debug("    All accesses waiting for in stream %d slot %d resumed\n", pref_stream, pref_slot);
 
 	/* Trace */
-	mem_trace("mem.end_access_block cache=\"%s\" access=\"A-%lld\" pref_stream=%d pref_slot=%d\n", dir->name, dir_lock->stack_id, pref_stream, pref_slot);
+	mem_trace("mem.end_access_block cache=\"%s\" access=\"A-%lld\" pref_stream=%d pref_slot=%d\n", dir->name, dir_lock->stack->id, pref_stream, pref_slot);
 
 	/* Unlock entry */
 	dir_lock->lock = 0;
@@ -514,6 +514,6 @@ void dir_pref_entry_wake_up_all(struct dir_t *dir, int pref_stream, int pref_slo
 		dir_lock->lock_queue = dir_lock->lock_queue->dir_lock_next;
 
 		/* Trace */
-		mem_trace("mem.end_access_block cache=\"%s\" access=\"A-%lld\" pref_stream=%d pref_slot=%d\n", dir->name, dir_lock->stack_id, pref_stream, pref_slot);
+		mem_trace("mem.end_access_block cache=\"%s\" access=\"A-%lld\" pref_stream=%d pref_slot=%d\n", dir->name, dir_lock->stack->id, pref_stream, pref_slot);
 	}
 }

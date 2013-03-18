@@ -20,11 +20,12 @@
 #ifndef MEM_SYSTEM_DIRECTORY_H
 #define MEM_SYSTEM_DIRECTORY_H
 
+//#include "mod-stack.h"
 
 struct dir_lock_t
 {
 	int lock;
-	long long stack_id;
+	struct mod_stack_t *stack;
 	struct mod_stack_t *lock_queue;
 };
 
