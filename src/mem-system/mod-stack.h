@@ -153,6 +153,7 @@ struct mod_stack_t
 	int fast_resume : 1; /* La stack ha fet hit al buffer i retorna inmediatament, deixant un altra stack encarregada de la coherència */
 	int background : 1;
 	int wb_hit : 1;
+	int stream_retried : 1; /* Tells if this stack id has tried to lock a stream entry and has failed. */
 
 	/* Prefetch */
 	int prefetch;
@@ -160,6 +161,7 @@ struct mod_stack_t
 	int pref_slot;
 	int stride;
 	struct pref_data_t pref;
+	long long stream_retried_cycle;
 
 	/* Message sent through interconnect */
 	struct net_msg_t *msg;

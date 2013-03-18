@@ -381,7 +381,7 @@ void main_memory_dump_report(char * main_mem_report_file_name)
 			(double)mod->regs_channel[c].t_normal_wait_channel_busy/mod->regs_channel[c].num_normal_requests_transfered : 0.0);
                 fprintf(f, "AvgTimeNormalWaitRequestTransfer = %f\n",mod->regs_channel[c].num_normal_requests_transfered?
 			(double)mod->regs_channel[c].t_normal_wait_transfer_request/mod->regs_channel[c].num_normal_requests_transfered: 0.0);
-               
+
 		/*Prefetch requests*/
 		fprintf(f, "PrefetchRowBufferHitPercent = %F\n", mod->regs_channel[c].pref_accesses?
 			 (double)mod->regs_channel[c].row_buffer_hits_pref/mod->regs_channel[c].pref_accesses : 0.0);
@@ -391,7 +391,7 @@ void main_memory_dump_report(char * main_mem_report_file_name)
 			(double)mod->regs_channel[c].t_pref_wait_channel_busy/mod->regs_channel[c].num_pref_requests_transfered : 0.0);
                 fprintf(f, "AvgTimePrefetchWaitRequestTransfer = %f\n",mod->regs_channel[c].num_pref_requests_transfered?
 			(double)mod->regs_channel[c].t_pref_wait_transfer_request/mod->regs_channel[c].num_pref_requests_transfered: 0.0);
-                
+
 
                 for(int r=0; r<mod->regs_channel[c].num_regs_rank; r++){
 
@@ -591,7 +591,8 @@ void mem_system_dump_report()
 		fprintf(f, "PrefetchAccuracy = %.4g\n", mod->completed_prefetches ? (double) mod->useful_prefetches / mod->completed_prefetches : 0.0);
 		fprintf(f, "\n");
 		fprintf(f, "DelayedHits = %lld\n", mod->delayed_hits);
-		fprintf(f, "Timeliness = %.4g\n", mod->hits / (double) (mod->hits + mod->delayed_hits));
+		fprintf(f, "DelayedHitsCyclesCounted = %lld\n", mod->delayed_hits_cycles_counted);
+		fprintf(f, "DelayedHitAvgLostCycles = %.4g\n", mod->delayed_hits_cycles_counted? mod->delayed_hit_cycles / (double) mod->delayed_hits_cycles_counted : 0.0);
 		fprintf(f, "\n");
 		fprintf(f, "SinglePrefetches = %lld\n", mod->single_prefetches);
 		fprintf(f, "GroupPrefetches = %lld\n", mod->group_prefetches);

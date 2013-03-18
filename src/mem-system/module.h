@@ -234,8 +234,10 @@ struct mod_t
 	long long completed_prefetches;
 	long long canceled_prefetches;
 	long long useful_prefetches;
-	double prefetch_precision;
+
 	long long delayed_hits; /* Hit on a block being brougth by a prefetch */
+	long long delayed_hit_cycles; /* Cicles lost due delayed hits */
+	long long delayed_hits_cycles_counted; /* Number of delayed hits whose lost cycles has been counted */
 
 	long long single_prefetches; /* Prefetches on hit */
 	long long group_prefetches; /* Number of GROUPS */
@@ -317,34 +319,32 @@ enum channel_state_t
 
 
 struct reg_channel_t{
+	enum channel_state_t state; // busy, free
+	int bandwith;
+	struct reg_rank_t * regs_rank; // ranks which this channels connects with
+	int num_regs_rank;
 
-        enum channel_state_t state; // busy, free
-        int bandwith;
-        struct reg_rank_t * regs_rank; // ranks which this channels connects with
-        int num_regs_rank;
-
-        /*Stadistics*/
-        long long acceses;
-        long long pref_accesses;
+	/*Stadistics*/
+	long long acceses;
+	long long pref_accesses;
 	long long normal_accesses;
 	//int parallelism_rank; // number of acceses which acces to rank accesed by others
-        long long t_wait_send_request; // time waiting to send a request because the channel is busy or the bank is busy
+	long long t_wait_send_request; // time waiting to send a request because the channel is busy or the bank is busy
 	long long t_pref_wait_send_request;
 	long long t_normal_wait_send_request;
-       	long long t_wait_channel_busy;  // time waiting to send a request because the channel is busy
+	long long t_wait_channel_busy;  // time waiting to send a request because the channel is busy
 	long long t_normal_wait_channel_busy;
 	long long t_pref_wait_channel_busy;
-        long long t_wait_transfer_request; // time waiting to transfer the block
+	long long t_wait_transfer_request; // time waiting to transfer the block
 	long long t_normal_wait_transfer_request; // time waiting to transfer the block
-        long long t_pref_wait_transfer_request; // time waiting to transfer the bloc     
+	long long t_pref_wait_transfer_request; // time waiting to transfer the bloc
 	long long t_transfer;
-        long long num_requests_transfered;
-        long long row_buffer_hits; // number of acceses to row buffer which are hits
+	long long num_requests_transfered;
+	long long row_buffer_hits; // number of acceses to row buffer which are hits
 	long long row_buffer_hits_pref;
 	long long row_buffer_hits_normal;
 	long long num_pref_requests_transfered;
 	long long num_normal_requests_transfered;
-
 };
 
 /*States of request which  try to acces to main memory*/
