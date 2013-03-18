@@ -177,32 +177,21 @@ int must_enqueue_prefetch(struct mod_stack_t *stack)
 		stack->request_dir == mod_request_up_down; //Petició up down
 }
 
-void enqueue_prefetch_on_miss(struct mod_stack_t *stack)
+
+void enqueue_prefetch_group(int core, int thread, struct mod_t *mod, int base_addr, int stride)
 {
-	int i, stream, num_prefetches;
-	struct mod_t *mod;
-	struct cache_t *cache;
-	struct x86_uop_t * uop;
+	struct cache_t *cache = mod->cache;
 	struct stream_buffer_t *sb;
-
-	assert(stack->stride);
-
-	/* L1 prefetch */
-	if (!stack->target_mod)
-		mod = stack->mod;
-
-	/* Deeper than L1 prefetch */
-	else
-		mod = stack->target_mod;
-
-	cache = mod->cache;
-	num_prefetches = cache->prefetch.aggressivity;
+	struct x86_uop_t * uop;
+	int num_prefetches = cache->prefetch.aggressivity;
+	int stream;
+	int i;
 
 	/* Select stream
 	 * If there is already a stream with the same tag, replace it
 	 * else, replace the last recently used one.
 	 * */
-	stream = cache_find_stream(cache, (stack->addr + mod->block_size) & ~cache->prefetch.stream_mask);
+	stream = cache_find_stream(cache, (base_addr + mod->block_size) & ~cache->prefetch.stream_mask);
 	if (stream == -1) /* stream_tag not found */
 		stream = cache_select_stream(cache);
 	sb = &cache->prefetch.streams[stream];
@@ -210,19 +199,19 @@ void enqueue_prefetch_on_miss(struct mod_stack_t *stack)
 	/* Not enqueue prefetch if there are pending prefetches */
 	if (sb->pending_prefetches)
 	{
-		mem_debug("    Canceled prefetch group at addr=0x%x to stream=%d with stride=0x%x(%d)\n", stack->addr + stack->stride, stream, stack->stride, stack->stride);
+		mem_debug("    Canceled prefetch group at addr=0x%x to stream=%d with stride=0x%x(%d)\n", base_addr, stream, stride, stride);
 		mod->canceled_prefetch_groups++;
 		return;
 	}
 
 	/* Set stream's transcient tag to indicate the block is being brought */
-	sb->stream_transcient_tag = (stack->addr + mod->block_size) & ~cache->prefetch.stream_mask;
+	sb->stream_transcient_tag = base_addr & ~cache->prefetch.stream_mask;
 
 	/* Set stream's new stride */
-	sb->stride = stack->stride;
+	sb->stride = stride;
 
 	/* Debug */
-	mem_debug("    Enqueued prefetch group at addr=0x%x to stream=%d with stride=0x%x(%d)\n", stack->addr + stack->stride, stream, stack->stride, stack->stride);
+	mem_debug("    Enqueued prefetch group at addr=0x%x to stream=%d with stride=0x%x(%d)\n", base_addr + stride, stream, stride, stride);
 
 	/* Mark the number of pending prefetches for this stream */
 	sb->pending_prefetches += num_prefetches;
@@ -234,12 +223,12 @@ void enqueue_prefetch_on_miss(struct mod_stack_t *stack)
 		uop = x86_uop_create();
 		uop->uinst = x86_uinst_create();
 		uop->uinst->opcode = x86_uinst_prefetch;
-		uop->phy_addr = stack->addr + (i + 1) * stack->stride;
+		uop->phy_addr = base_addr + i * stride;
 		/* If we reach the end of the stream, AKA the stream_tag changes, insert invalidations */
 		if (sb->stream_transcient_tag != (uop->phy_addr & ~cache->prefetch.stream_mask))
 			uop->pref.invalidating = 1;
-		uop->core = stack->core;
-		uop->thread = stack->thread;
+		uop->core = core;
+		uop->thread = thread;
 		uop->flags = X86_UINST_MEM;
 		uop->pref.kind = GROUP;
 		uop->pref.mod = mod;
@@ -250,8 +239,8 @@ void enqueue_prefetch_on_miss(struct mod_stack_t *stack)
 			x86_pq_insert(uop);
 		else
 		{
-			linked_list_out(stack->target_mod->pq);
-			linked_list_insert(stack->target_mod->pq, uop);
+			linked_list_out(mod->pq);
+			linked_list_insert(mod->pq, uop);
 		}
 	}
 
@@ -262,7 +251,27 @@ void enqueue_prefetch_on_miss(struct mod_stack_t *stack)
 	mod->group_prefetches++;
 
 	/* Update next address to be fetched */
-	sb->next_address = stack->addr + (i + 1) * stack->stride;
+	sb->next_address = base_addr + i * stride;
+}
+
+
+void enqueue_prefetch_on_miss(struct mod_stack_t *stack)
+{
+	struct mod_t *mod;
+
+	assert(stack->stride);
+
+	/* L1 prefetch */
+	if (!stack->target_mod)
+		mod = stack->mod;
+
+	/* Deeper than L1 prefetch */
+	else
+		mod = stack->target_mod;
+
+	enqueue_prefetch_group(stack->core, stack->thread, mod, stack->addr + stack->stride, stack->stride);
+
+	return;
 }
 
 void enqueue_prefetch_on_hit(struct mod_stack_t *stack)
@@ -289,9 +298,7 @@ void enqueue_prefetch_on_hit(struct mod_stack_t *stack)
 	/* Don't prefetch if next_address is not in the stream anymore */
 	if (sb->stream_transcient_tag != (sb->next_address & ~cache->prefetch.stream_mask))
 	{
-		mod->programmed_prefetches++;
-		mod->canceled_prefetches++;
-		mod->canceled_prefetches_end_stream++;
+		enqueue_prefetch_group(stack->core, stack->thread, mod, sb->next_address, sb->stride);
 		return;
 	}
 
