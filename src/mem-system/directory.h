@@ -25,7 +25,8 @@
 struct dir_lock_t
 {
 	int lock;
-	struct mod_stack_t *stack;
+	long long stack_id;
+	int prefetch_stack : 1; /* Tells if the stack locking is a prefetch. For statistics. */
 	struct mod_stack_t *lock_queue;
 };
 

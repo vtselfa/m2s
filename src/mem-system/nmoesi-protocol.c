@@ -211,12 +211,13 @@ void enqueue_prefetch_group(int core, int thread, struct mod_t *mod, int base_ad
 	sb->stride = stride;
 
 	/* Debug */
-	mem_debug("    Enqueued prefetch group at addr=0x%x to stream=%d with stride=0x%x(%d)\n", base_addr + stride, stream, stride, stride);
+	mem_debug("    Enqueued prefetch group at addr=0x%x to stream=%d with stride=0x%x(%d)\n", base_addr, stream, stride, stride);
 
 	/* Mark the number of pending prefetches for this stream */
 	sb->pending_prefetches += num_prefetches;
 	sb->cycle = esim_cycle;
 
+	sb->next_address = base_addr;
 	/* Insert prefetches */
 	for (i = 0; i < num_prefetches; i++)
 	{
@@ -224,9 +225,16 @@ void enqueue_prefetch_group(int core, int thread, struct mod_t *mod, int base_ad
 		uop->uinst = x86_uinst_create();
 		uop->uinst->opcode = x86_uinst_prefetch;
 		uop->phy_addr = base_addr + i * stride;
+
 		/* If we reach the end of the stream, AKA the stream_tag changes, insert invalidations */
 		if (sb->stream_transcient_tag != (uop->phy_addr & ~cache->prefetch.stream_mask))
+		{
 			uop->pref.invalidating = 1;
+			uop->phy_addr = sb->stream_transcient_tag;
+		}
+		else
+			sb->next_address = sb->next_address + stride;
+
 		uop->core = core;
 		uop->thread = thread;
 		uop->flags = X86_UINST_MEM;
@@ -249,9 +257,6 @@ void enqueue_prefetch_group(int core, int thread, struct mod_t *mod, int base_ad
 
 	/* Statistics */
 	mod->group_prefetches++;
-
-	/* Update next address to be fetched */
-	sb->next_address = base_addr + i * stride;
 }
 
 
@@ -613,7 +618,7 @@ void mod_handler_pref(int event, void *data)
 		if (sb->pending_prefetches == 1)
 		{
 			sb->stream_tag = stack->addr & ~cache->prefetch.stream_mask;
-			assert(sb->stream_tag == sb->stream_transcient_tag || stack->pref.invalidating);
+			assert(sb->stream_tag == sb->stream_transcient_tag);
 		}
 		sb->pending_prefetches--;
 
@@ -1569,7 +1574,7 @@ void mod_handler_nmoesi_pref_find_and_lock(int event, void *data)
 		if (dir_lock->lock && !stack->blocking)
 		{
 			struct stream_block_t * block = cache_get_pref_block(cache, stack->pref_stream, stack->pref_slot);
-			mem_debug("    %lld 0x%x %s pref_stream=%d pref_slot=%d containing 0x%x (0x%x) already locked by stack %lld, retrying...\n", stack->id, stack->tag, mod->name, stack->pref_stream, stack->pref_slot, block->tag, block->transient_tag, dir_lock->stack->id);
+			mem_debug("    %lld 0x%x %s pref_stream=%d pref_slot=%d containing 0x%x (0x%x) already locked by stack %lld, retrying...\n", stack->id, stack->tag, mod->name, stack->pref_stream, stack->pref_slot, block->tag, block->transient_tag, dir_lock->stack_id);
 			ret->err = 1;
 			mod_unlock_port(mod, port, stack);
 			mod_stack_return(stack);
@@ -1577,7 +1582,7 @@ void mod_handler_nmoesi_pref_find_and_lock(int event, void *data)
 		}
 		if (!dir_pref_entry_lock(mod->dir, stack->pref_stream, stack->pref_slot, EV_MOD_NMOESI_PREF_FIND_AND_LOCK, stack))
 		{
-			mem_debug("    %lld 0x%x %s pref_stream=%d pref_slot=%d already locked by stack %lld, waiting...\n", stack->id, stack->tag, mod->name, stack->pref_stream, stack->pref_slot, dir_lock->stack->id);
+			mem_debug("    %lld 0x%x %s pref_stream=%d pref_slot=%d already locked by stack %lld, waiting...\n", stack->id, stack->tag, mod->name, stack->pref_stream, stack->pref_slot, dir_lock->stack_id);
 			mod_unlock_port(mod, port, stack);
 			return;
 		}
@@ -2081,7 +2086,7 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 			dir_lock = dir_lock_get(mod->dir, stack->set, stack->way);
 			if (dir_lock->lock && !stack->blocking)
 			{
-				mem_debug("    %lld 0x%x %s block already locked: set=%d, way=%d already locked by stack %lld, retrying...\n", stack->id, stack->tag, mod->name, stack->set, stack->way, dir_lock->stack->id);
+				mem_debug("    %lld 0x%x %s block already locked: set=%d, way=%d already locked by stack %lld, retrying...\n", stack->id, stack->tag, mod->name, stack->set, stack->way, dir_lock->stack_id);
 				ret->err = 1;
 				mod_unlock_port(mod, port, stack);
 				ret->port_locked = 0;
@@ -2094,7 +2099,7 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 			 * directory entry will be retried. */
 			if (!dir_entry_lock(mod->dir, stack->set, stack->way, EV_MOD_NMOESI_FIND_AND_LOCK, stack))
 			{
-				mem_debug("    %lld 0x%x %s block locked at set=%d, way=%d already locked by stack %lld, waiting...\n", stack->id, stack->tag, mod->name, stack->set, stack->way, dir_lock->stack->id);
+				mem_debug("    %lld 0x%x %s block locked at set=%d, way=%d already locked by stack %lld, waiting...\n", stack->id, stack->tag, mod->name, stack->set, stack->way, dir_lock->stack_id);
 				mod_unlock_port(mod, port, stack);
 				ret->port_locked = 0;
 				return;
@@ -2174,11 +2179,11 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 			dir_lock = dir_pref_lock_get(mod->dir, stack->pref_stream, stack->pref_slot);
 			if (dir_lock->lock && stack->request_dir == mod_request_up_down)
 			{
-				mem_debug("    %lld 0x%x %s pref_stream %d pref_slot %d containing 0x%x (0x%x) already locked by stack %lld, retrying...\n", stack->id, stack->tag, mod->name, stack->pref_stream, stack->pref_slot, block->tag, block->transient_tag, dir_lock->stack->id);
+				mem_debug("    %lld 0x%x %s pref_stream %d pref_slot %d containing 0x%x (0x%x) already locked by stack %lld, retrying...\n", stack->id, stack->tag, mod->name, stack->pref_stream, stack->pref_slot, block->tag, block->transient_tag, dir_lock->stack_id);
 				if(!stack->stream_retried)
 				{
 					assert(!stack->stream_retried_cycle);
-					if(dir_lock->stack->prefetch)
+					if(dir_lock->prefetch_stack)
 					{
 						mod->delayed_hits++;
 						ret->stream_retried_cycle = esim_cycle;
@@ -2194,7 +2199,7 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 			}
 			if (!dir_pref_entry_lock(mod->dir, stack->pref_stream, stack->pref_slot, EV_MOD_NMOESI_FIND_AND_LOCK, stack))
 			{
-				mem_debug("    %lld 0x%x %s pref_stream %d pref_slot %d containing 0x%x (0x%x) already locked by stack %lld, waiting...\n", stack->id, stack->tag, mod->name, stack->pref_stream, stack->pref_slot, block->tag, block->transient_tag, dir_lock->stack->id);
+				mem_debug("    %lld 0x%x %s pref_stream %d pref_slot %d containing 0x%x (0x%x) already locked by stack %lld, waiting...\n", stack->id, stack->tag, mod->name, stack->pref_stream, stack->pref_slot, block->tag, block->transient_tag, dir_lock->stack_id);
 				mod_unlock_port(mod, port, stack);
 				ret->port_locked = 0;
 				return;
