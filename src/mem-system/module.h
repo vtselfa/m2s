@@ -235,6 +235,8 @@ struct mod_t
 	long long canceled_prefetches;
 	long long useful_prefetches;
 
+	long long prefetch_retries;
+
 	long long delayed_hits; /* Hit on a block being brougth by a prefetch */
 	long long delayed_hit_cycles; /* Cicles lost due delayed hits */
 	long long delayed_hits_cycles_counted; /* Number of delayed hits whose lost cycles has been counted */
@@ -244,8 +246,7 @@ struct mod_t
 	long long canceled_prefetch_groups;
 
 	long long canceled_prefetches_end_stream;
-	long long canceled_prefetches_coalesce;
-	long long canceled_prefetches_flight_address;
+	long long canceled_prefetches_mshr;
 
 	long long up_down_hits;
 	long long up_down_head_hits;

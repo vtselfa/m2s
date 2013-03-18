@@ -577,26 +577,33 @@ void mem_system_dump_report()
 		fprintf(f, "NoRetryNCWriteHits = %lld\n", mod->no_retry_nc_write_hits);
 		fprintf(f, "NoRetryNCWriteMisses = %lld\n", mod->no_retry_nc_writes
 			- mod->no_retry_write_hits);
-
 		fprintf(f, "\n");
+
 		fprintf(f, "HitsPref = %lld\n", mod->hits_pref);
+		fprintf(f, "\n");
+
 		fprintf(f, "ProgrammedPrefetches = %lld\n", mod->programmed_prefetches);
 		fprintf(f, "CompletedPrefetches = %lld\n", mod->completed_prefetches);
 		fprintf(f, "CanceledPrefetches = %lld\n", mod->canceled_prefetches);
-		fprintf(f, "CanceledPrefetchGroups = %lld\n", mod->canceled_prefetch_groups);
 		fprintf(f, "CanceledPrefetchEndStream = %lld\n", mod->canceled_prefetches_end_stream);
-		fprintf(f, "CanceledPrefetchCoalesce = %lld\n", mod->canceled_prefetches_coalesce);
-		fprintf(f, "CanceledPrefetchFlightAddress = %lld\n", mod->canceled_prefetches_flight_address);
+		fprintf(f, "CanceledPrefetchMSHR = %lld\n", mod->canceled_prefetches_mshr);
+		fprintf(f, "PrefetchRetries = %lld\n", mod->prefetch_retries);
+		fprintf(f, "\n");
+
 		fprintf(f, "UsefulPrefetches = %lld\n", mod->useful_prefetches);
 		fprintf(f, "PrefetchAccuracy = %.4g\n", mod->completed_prefetches ? (double) mod->useful_prefetches / mod->completed_prefetches : 0.0);
+		fprintf(f, "\n");
+
+		fprintf(f, "SinglePrefetches = %lld\n", mod->single_prefetches);
+		fprintf(f, "GroupPrefetches = %lld\n", mod->group_prefetches);
+		fprintf(f, "CanceledPrefetchGroups = %lld\n", mod->canceled_prefetch_groups);
+
 		fprintf(f, "\n");
 		fprintf(f, "DelayedHits = %lld\n", mod->delayed_hits);
 		fprintf(f, "DelayedHitsCyclesCounted = %lld\n", mod->delayed_hits_cycles_counted);
 		fprintf(f, "DelayedHitAvgLostCycles = %.4g\n", mod->delayed_hits_cycles_counted? mod->delayed_hit_cycles / (double) mod->delayed_hits_cycles_counted : 0.0);
 		fprintf(f, "\n");
-		fprintf(f, "SinglePrefetches = %lld\n", mod->single_prefetches);
-		fprintf(f, "GroupPrefetches = %lld\n", mod->group_prefetches);
-		fprintf(f, "\n");
+
 		fprintf(f, "PrefetchHits (rw)(up_down) = %lld\n", mod->up_down_hits);
 		fprintf(f, "PrefetchHeadHits (rw)(up_down) = %lld\n", mod->up_down_head_hits);
 		fprintf(f, "PrefetchHits(r)(down_up) = %lld\n", mod->down_up_read_hits);

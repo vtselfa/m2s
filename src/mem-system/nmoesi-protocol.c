@@ -383,7 +383,6 @@ void mod_handler_pref(int event, void *data)
 
 	if (event == EV_MOD_PREF)
 	{
-		struct mod_stack_t *master_stack;
 		if (stack->pref.kind == SINGLE)
 			mem_debug("%lld %lld 0x%x %s single pref\n", esim_cycle, stack->id, stack->addr, mod->name);
 		else
@@ -416,13 +415,26 @@ void mod_handler_pref(int event, void *data)
 			return;
 		}
 
+		/* Next event */
+		esim_schedule_event(EV_MOD_PREF_LOCK, stack, 0);
+		return;
+	}
+
+	if (event == EV_MOD_PREF_LOCK)
+	{
+		struct mod_stack_t *master_stack;
+		struct mod_stack_t *older_stack;
+
+		mem_debug("  %lld %lld 0x%x %s pref lock\n", esim_cycle, stack->id, stack->addr, mod->name);
+		mem_trace("mem.access name=\"A-%lld\" state=\"%s:pref_lock\"\n", stack->id, mod->name);
+
 		/* Coalesce access, if so die or invalidate slot */
 		master_stack = mod_can_coalesce(mod, mod_access_prefetch, stack->addr, stack);
 		if (master_stack)
 		{
 			mem_debug("    %lld will finish due to %lld\n", stack->id, master_stack->id);
 			mod->canceled_prefetches++; /* Statistics */
-			mod->canceled_prefetches_coalesce++; /* Statistics */
+			mod->canceled_prefetches_mshr++; /* Statistics */
 			if (stack->pref.kind == GROUP)
 			{
 				new_stack = mod_stack_create(stack->id, mod, stack->addr, EV_MOD_PREF_FINISH, stack, stack->core, stack->thread, stack->prefetch);
@@ -435,18 +447,6 @@ void mod_handler_pref(int event, void *data)
 				esim_schedule_event(EV_MOD_PREF_FINISH, stack, 0);
 			return;
 		}
-
-		/* Next event */
-		esim_schedule_event(EV_MOD_PREF_LOCK, stack, 0);
-		return;
-	}
-
-	if (event == EV_MOD_PREF_LOCK)
-	{
-		struct mod_stack_t *older_stack;
-
-		mem_debug("  %lld %lld 0x%x %s pref lock\n", esim_cycle, stack->id, stack->addr, mod->name);
-		mem_trace("mem.access name=\"A-%lld\" state=\"%s:pref_lock\"\n", stack->id, mod->name);
 
 		/* If there is any older write, wait for it */
 		older_stack = mod_in_flight_write(mod, stack);
@@ -455,27 +455,6 @@ void mod_handler_pref(int event, void *data)
 			mem_debug("    %lld wait for write %lld\n",
 				stack->id, older_stack->id);
 			mod_stack_wait_in_stack(stack, older_stack, EV_MOD_PREF_LOCK);
-			return;
-		}
-
-		/* If there is any older access to the same address that this access could not
-		 * be coalesced with, die or invalidate slot */
-		older_stack = mod_in_flight_address(mod, stack->addr, stack);
-		if (older_stack)
-		{
-			mem_debug("    %lld will finish due to access %lld\n", stack->id, older_stack->id);
-			mod->canceled_prefetches++; /* Statistics */
-			mod->canceled_prefetches_flight_address++; /* Statistics */
-			if (stack->pref.kind == GROUP)
-			{
-				new_stack = mod_stack_create(stack->id, mod, stack->addr, EV_MOD_PREF_FINISH, stack, stack->core, stack->thread, stack->prefetch);
-				new_stack->retry = stack->retry;
-				new_stack->pref_stream = stack->pref_stream;
-				new_stack->pref_slot = stack->pref_slot;
-				esim_schedule_event(EV_MOD_NMOESI_INVALIDATE_SLOT, new_stack, 0);
-			}
-			else
-				esim_schedule_event(EV_MOD_PREF_FINISH, stack, 0);
 			return;
 		}
 
@@ -504,7 +483,7 @@ void mod_handler_pref(int event, void *data)
 		/* Error locking */
 		if (stack->err)
 		{
-			mod->read_retries++;
+			mod->prefetch_retries++;
 			retry_lat = mod_get_retry_latency(mod);
 			mem_debug("    lock error, retrying in %d cycles\n", retry_lat);
 			stack->retry = 1;
