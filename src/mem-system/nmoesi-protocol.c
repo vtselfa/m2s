@@ -3096,19 +3096,6 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
                                	 	linked_list_next(pref_queue->queue);
                          	}
 
-				/*if( linked_list_count(normal_queue->queue)>0||linked_list_count( pref_queue->queue)>0)
-				{
-					if (channel[dir_channel].state == channel_state_busy)
-					{
-						channel[dir_channel].t_wait_channel_busy += cycles_proc_by_bus;
-						channel[dir_channel].t_wait_send_request += cycles_proc_by_bus;
-					}else if (channel[dir_channel].regs_rank[dir_rank].regs_bank[dir_bank].is_been_accesed&&channel[dir_channel].state!=channel_state_busy)
-					{
-						channel[dir_channel].t_wait_send_request += cycles_proc_by_bus;
-						channel[dir_channel].regs_rank[dir_rank].regs_bank[dir_bank].conflicts++;
-						channel[dir_channel].regs_rank[dir_rank].regs_bank[dir_bank].t_wait += cycles_proc_by_bus;
-					}
-				}*/
 				continue;
 			}
 
