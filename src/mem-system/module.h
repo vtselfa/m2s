@@ -253,6 +253,7 @@ struct mod_t
 	long long down_up_read_hits;
 	long long down_up_write_hits;
 
+	long long fast_resumed_accesses;
 	long long write_buffer_read_hits;
 	long long write_buffer_write_hits;
 	long long write_buffer_prefetch_hits;

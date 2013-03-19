@@ -609,6 +609,7 @@ void mem_system_dump_report()
 		fprintf(f, "PrefetchHits(r)(down_up) = %lld\n", mod->down_up_read_hits);
 		fprintf(f, "PrefetchHits(w)(down_up) = %lld\n", mod->down_up_write_hits);
 		fprintf(f, "\n");
+		fprintf(f, "FastResumedAccesses  = %lld\n", mod->fast_resumed_accesses);
 		fprintf(f, "WriteBufferReadHits = %lld\n", mod->write_buffer_read_hits);
 		fprintf(f, "WriteBufferWriteHits = %lld\n", mod->write_buffer_read_hits);
 		fprintf(f, "\n");

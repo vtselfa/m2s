@@ -2326,6 +2326,9 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 				/* Unlock stream entry */
 				dir_pref_entry_unlock(mod->dir, stack->pref_stream, stack->pref_slot);
 
+				/* Statistics */
+				mod->fast_resumed_accesses++;
+
 				esim_schedule_event(EV_MOD_NMOESI_EVICT, eviction_stack, 0);
 			}
 			else
@@ -3905,6 +3908,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 		if (stack->err)
 		{
 			assert(stack->request_dir == mod_request_up_down);
+			assert(!stack->background);
 			ret->err = 1;
 			ret->stream_retried = stack->stream_retried;
 			ret->stream_retried_cycle = stack->stream_retried_cycle;
@@ -3940,7 +3944,8 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 		stack->reply_size = mod->block_size + 8;
 		mod_stack_set_reply(stack, reply_ack_data);
 
-		if (stack->wb_hit)
+		/* If write buffer hit or acces fast resumed, finish */
+		if (stack->wb_hit || stack->fast_resume)
 		{
 			esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST_UPDOWN_FINISH, stack, 0);
 			return;
@@ -3949,11 +3954,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 		/* If stream_hit, block can't be in any upper cache */
 		if (stack->stream_hit)
 		{
-			assert(stack->addr % mod->block_size == 0);
-			if (stack->fast_resume)
-				esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST_UPDOWN_FINISH, stack, 0);
-			else
-				esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST_UPDOWN_MISS, stack, 0);
+			esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST_UPDOWN_MISS, stack, 0);
 			return;
 		}
 
@@ -4055,6 +4056,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 		/* Check error */
 		if (stack->err)
 		{
+			assert(!stack->background);
 			ret->err = 1;
 			ret->stream_retried = stack->stream_retried;
 			ret->stream_retried_cycle = stack->stream_retried_cycle;
@@ -4074,6 +4076,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			return;
 		}
 
+		/* Write block from write buffer to cache */
 		if(stack->background)
 		{
 			struct write_buffer_block_t *wb_block;
@@ -4096,11 +4099,11 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 
 			/* Statistics */
 			target_mod->useful_prefetches++;
-
 		}
+
+		/* Move block from stream to cache */
 		else if (stack->stream_hit)
 		{
-			/* Portem el bloc del stream a la cache */
 			struct stream_block_t *block = cache_get_pref_block(target_mod->cache, stack->pref_stream, stack->pref_slot);
 			assert(stack->tag == block->tag);
 			cache_set_block(target_mod->cache, stack->set, stack->way, block->tag, block->state, 0);
@@ -4113,6 +4116,8 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			/* Statistics */
 			target_mod->useful_prefetches++;
 		}
+
+		/* Write block coming from lower level to cache */
 		else
 		{
 			/* Set block state to excl/shared depending on the return value 'shared'
@@ -4121,6 +4126,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			cache_set_block(target_mod->cache, stack->set, stack->way, stack->tag,
 				stack->shared ? cache_block_shared : cache_block_exclusive, 0);
 		}
+
 		esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST_UPDOWN_FINISH, stack, 0);
 		return;
 	}
@@ -4161,6 +4167,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 		if(stack->fast_resume || stack->wb_hit)
 		{
 			latency = stack->reply == reply_ack_data_sent_to_peer ? 0 : target_mod->latency;
+			mod_access_finish(target_mod, stack);
 			esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST_REPLY, stack, latency);
 			return;
 		}
@@ -4229,12 +4236,9 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			}
 		}
 
-		/* Delete access and wake up any waiting stack */
+		/* Delete access */
 		if (target_mod->cache->prefetch_enabled && target_mod->kind != mod_kind_main_memory)
-		{
 			mod_access_finish(target_mod, stack);
-			mod_stack_wakeup_stack(stack);
-		}
 
 		latency = stack->reply == reply_ack_data_sent_to_peer ? 0 : target_mod->latency;
 		esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST_REPLY, stack, latency);
