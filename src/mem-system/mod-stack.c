@@ -142,6 +142,55 @@ void mod_stack_wait_in_stack(struct mod_stack_t *stack,
 }
 
 
+void mod_stack_wait_in_write_buffer(struct mod_stack_t *stack, struct write_buffer_block_t *block, int event)
+{
+	struct mod_stack_t *queue_iter;
+
+	/* Enqueue the stack to the end of the lock queue */
+	stack->dir_lock_next = NULL;
+	stack->dir_lock_event = event;
+
+	/* Special case: queue is empty */
+	if (!block->wait_queue)
+		block->wait_queue = stack;
+
+	else
+	{
+		queue_iter = block->wait_queue;
+
+		while (stack->id > queue_iter->id)
+		{
+			if (!queue_iter->dir_lock_next)
+				break;
+
+			queue_iter = queue_iter->dir_lock_next;
+		}
+
+		/* Stack goes at end of queue */
+		if (!queue_iter->dir_lock_next)
+			queue_iter->dir_lock_next = stack;
+
+		/* Stack goes in front or middle of queue */
+		else
+		{
+			stack->dir_lock_next = queue_iter->dir_lock_next;
+			queue_iter->dir_lock_next = stack;
+		}
+	}
+}
+
+
+void mod_stack_wake_up_write_buffer(struct write_buffer_block_t *block)
+{
+	while (block->wait_queue)
+	{
+		esim_schedule_event(block->wait_queue->dir_lock_event, block->wait_queue, 1);
+		mem_debug("    0x%x access with id %lld waiting in wb resumed\n", block->tag, block->wait_queue->id);
+		block->wait_queue = block->wait_queue->dir_lock_next;
+	}
+}
+
+
 /* Wake up access waiting in a stack's wait list. */
 void mod_stack_wakeup_stack(struct mod_stack_t *master_stack)
 {

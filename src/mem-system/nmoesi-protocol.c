@@ -872,6 +872,7 @@ void mod_handler_nmoesi_load(int event, void *data)
 				if (block->tag == stack->tag)
 				{
 					cache_set_block(cache, stack->set, stack->way, stack->tag, block->state, 0);
+					mod_stack_wake_up_write_buffer(block);
 					linked_list_remove(cache->wb.blocks);
 					free(block);
 					block = NULL;
@@ -1932,10 +1933,10 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 						mem_debug("    %lld 0x%x %s write buffer hit: pos=%d, state=%s\n",
 							stack->id, stack->tag, mod->name, linked_list_current(cache->wb.blocks),
 							str_map_value(&cache_block_state_map, stack->state));
-						mem_debug("    %lld wait for load %lld\n",
-							stack->id, block->stack->id);
+						mem_debug("    %lld wait for %lld\n",
+							stack->id, block->stack_id);
 						mod->write_buffer_write_hits++; /* Statistics */
-						mod_stack_wait_in_stack(stack, block->stack, EV_MOD_NMOESI_FIND_AND_LOCK);
+						mod_stack_wait_in_write_buffer(stack, block, EV_MOD_NMOESI_FIND_AND_LOCK);
 						return;
 					}
 					else
@@ -2264,7 +2265,7 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 		if (!stack->hit && stack->state && stack->request_dir == mod_request_up_down)
 		{
 			/* If stream hit, leave a background stack do the tough job and continue bringing the block to cpu */
-			if (stack->stream_hit && stack->read && 0) //TODO De moment no va. Afegir writes.
+			if (stack->stream_hit && stack->read) //TODO Afegir writes.
 			{
 				struct mod_stack_t *background_stack;
 				struct mod_stack_t *find_and_lock_stack;
@@ -2308,9 +2309,9 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 				eviction_stack->way = stack->way;
 
 				/* Copy block from stream to cache write buffer */
-				block = malloc(sizeof(struct write_buffer_block_t));
+				block = calloc(1, sizeof(struct write_buffer_block_t));
 				cache_get_pref_block_data(cache, stack->pref_stream, stack->pref_slot, &block->tag, (int *) &block->state);
-				block->stack = background_stack; /* Store a reference so other access know who is bringing the block */
+				block->stack_id = background_stack->id;
 				linked_list_add(cache->wb.blocks, block);
 
 				/* This stack will be fast resumed */
@@ -4084,6 +4085,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 				if (wb_block->tag == stack->tag)
 				{
 					cache_set_block(target_cache, stack->set, stack->way, stack->tag, wb_block->state, 0);
+					mod_stack_wake_up_write_buffer(wb_block);
 					linked_list_remove(target_cache->wb.blocks);
 					free(wb_block);
 					wb_block = NULL;

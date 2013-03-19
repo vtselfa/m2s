@@ -21,6 +21,7 @@
 #define MEM_SYSTEM_MOD_STACK_H
 
 #include "module.h"
+#include "cache.h"
 
 
 /* Current identifier for stack */
@@ -216,6 +217,10 @@ void mod_stack_wait_in_stack(struct mod_stack_t *stack,
 	struct mod_stack_t *master_stack, int event);
 void mod_stack_wakeup_stack(struct mod_stack_t *master_stack);
 
+
+void mod_stack_wait_in_write_buffer(struct mod_stack_t *stack,
+	struct write_buffer_block_t *block, int event);
+void mod_stack_wake_up_write_buffer(struct write_buffer_block_t *block);
 
 #endif
 

@@ -54,8 +54,9 @@ enum cache_block_state_t
 struct write_buffer_block_t
 {
 	int tag;
+	long long stack_id;
 	enum cache_block_state_t state;
-	struct mod_stack_t *stack;
+	struct mod_stack_t *wait_queue;
 };
 
 struct cache_write_buffer
