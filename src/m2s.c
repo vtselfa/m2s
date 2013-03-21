@@ -1318,9 +1318,8 @@ void m2s_dump_summary(FILE *f)
 	double time_in_sec;
 	long long useful_prefetch_total=0;
 	long long prefetch_total=0;
-	long long faults_mem_without_pref_total=0;
 	long long delayed_hit_total=0;
-	float accuracy=0, coverage=0;
+	float accuracy=0;
 	long long row_access_hits=0;
 	double total_accesses=0;
 	struct mod_t * mod;
@@ -1344,7 +1343,6 @@ void m2s_dump_summary(FILE *f)
 		mod = list_get(mem_system->mod_list, i);
 		useful_prefetch_total+=mod->useful_prefetches;
 		prefetch_total+=mod->completed_prefetches;
-		faults_mem_without_pref_total+=mod->faults_mem_without_pref;
 		delayed_hit_total+=mod->delayed_hits;
 
 		/*Row buffer*/
@@ -1361,9 +1359,6 @@ void m2s_dump_summary(FILE *f)
 
 	if(prefetch_total>0)
 		accuracy=(double)useful_prefetch_total/prefetch_total;
-	if(faults_mem_without_pref_total>0)
-		coverage=(double)useful_prefetch_total/faults_mem_without_pref_total;
-	/////////////////////////////////////////////////////////////////////////////////////////////////
 	if(total_accesses>0)
 		total_accesses=(double) row_access_hits/total_accesses;
 
@@ -1376,16 +1371,17 @@ void m2s_dump_summary(FILE *f)
 	fprintf(stderr, "GlobalDelayedHits = %lld\n", delayed_hit_total);					////
 	fprintf(stderr, "GlobalUsefulPrefetches = %lld\n",useful_prefetch_total);				////
 	fprintf(stderr, "GlobalAccuracy = %f\n",accuracy);							////
-	fprintf(stderr, "GlobalCoverage = %f\n",coverage);							////
-	for(int i=mem_system->min_level_cache; i<=mem_system->max_level_cache;i++)
-	{   long long total_faults=0;
-		for(int j=0; j<list_count(mem_system->mod_list);j++)
+
+	for(int i = mem_system->min_level_cache; i<=mem_system->max_level_cache; i++)
+	{
+		long long total_misses = 0;
+		for(int j = 0; j < list_count(mem_system->mod_list); j++)
 		{
-			struct mod_t * mod=list_get(mem_system->mod_list, j);
-			if(mod->level==i)
-					total_faults+=mod->accesses-mod->hits;
+			struct mod_t * mod = list_get(mem_system->mod_list, j);
+			if(mod->level == i)
+				total_misses += mod->accesses - mod->hits;
 		}
-		fprintf(stderr, "MPKI_level%d = %f\n", i, x86_cpu->num_committed_inst? total_faults / x86_cpu->num_committed_inst / 1000.0 : 0.0);
+		fprintf(stderr, "MPKI_level%d = %f\n", i, x86_cpu->num_committed_inst? total_misses / x86_cpu->num_committed_inst / 1000.0 : 0.0);
 	}
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////
 

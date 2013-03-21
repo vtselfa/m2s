@@ -158,7 +158,7 @@ int EV_MOD_NMOESI_REMOVE_MEMORY_CONTROLLER;
 int EV_MOD_NMOESI_INSERT_MEMORY_CONTROLLER;
 
 
-/* AUXILIARY FUNCTIONS*/
+/* AUXILIARY FUNCTIONS */
 
 int must_enqueue_prefetch(struct mod_stack_t *stack)
 {
@@ -1627,14 +1627,14 @@ void mod_handler_nmoesi_pref_find_and_lock(int event, void *data)
 		struct stream_block_t *block = cache_get_pref_block(cache, stack->pref_stream, stack->pref_slot);
 		if (block->state)
 		{
-			/*assert(stack->request_dir == mod_request_up_down);
+			/* assert(stack->request_dir == mod_request_up_down);
 			stack->pref_eviction = 1;
 			new_stack = mod_stack_create(stack->id, mod, 0, EV_MOD_NMOESI_PREF_FIND_AND_LOCK_FINISH, stack, stack->core, stack->thread, stack->prefetch);
 			new_stack->pref_stream = stack->pref_stream;
 			new_stack->pref_slot = stack->pref_slot;
 			new_stack->access_kind = stack->access_kind;
 			esim_schedule_event(EV_MOD_NMOESI_PREF_EVICT, new_stack, 0);
-			return;*/
+			return; */
 
 			/* Silent eviction */
 			block->state = cache_block_invalid;
@@ -2540,7 +2540,7 @@ void mod_handler_nmoesi_evict(int event, void *data)
 		/* Receive message */
 		net_receive(target_mod->high_net, target_mod->high_net_node, stack->msg);
 
-		/*If it's an access to main memory*/
+		/* If it's an access to main memory */
 		///////////////////////////////////////////////////////////////////////////////////////////
 		if (target_mod->kind == mod_kind_main_memory && mem_system->mem_controller->enabled)
 		{
@@ -2556,7 +2556,7 @@ void mod_handler_nmoesi_evict(int event, void *data)
 		}
 		else
 		{
-			/*Find and lock*/
+			/* Find and lock */
 			if (stack->state == cache_block_noncoherent)
 			{
 				new_stack = mod_stack_create(stack->id, target_mod, stack->src_tag,
@@ -2782,7 +2782,7 @@ void mod_handler_nmoesi_evict(int event, void *data)
 	abort();
 }
 
-///////////////////////////////////////////////////////
+
 void mod_handler_nmoesi_request_main_memory(int event, void *data )
 {
 
@@ -2810,7 +2810,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 	int num_channels = mem_controller->num_regs_channel;
 	int time;
 
-	/*Select main memory module*/
+	/* Select main memory module */
 	for (int i = 0; i < list_count(mem_system->mod_list); i++)
 	{
 		mod_mm = list_get(mem_system->mod_list, i);
@@ -2828,7 +2828,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 		mem_debug("  %lld %lld 0x%x %s insert request in mem. controller\n", esim_cycle, stack->id, stack->addr&~mod->cache->block_mask, mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:insert request in MC (pref=%d)\"\n", stack->id,mod->name , stack->prefetch);
 
-		/*Stadistics*/
+		/* Statistics */
 		time = esim_cycle - mem_controller->last_cycle;
 
 		for (int i = 0; i < num_queues; i++)
@@ -2846,7 +2846,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 				normal_queue->total_requests += size_queue * time;
 
 
-			/*if(linked_list_count(normal_queue->queue)== size_queue)
+			/* if(linked_list_count(normal_queue->queue)== size_queue)
 			        normal_queue->instant_begin_full=esim_cycle;
 
 			if(linked_list_count(pref_queue->queue)== size_queue)
@@ -2856,16 +2856,16 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 			        mem_controller->t_normal_queue_full+=cycles_proc_by_bus;
 
 			if(linked_list_count(pref_queue)>= size_queue)
-			        mem_controller->t_pref_queue_full+=cycles_proc_by_bus;*/
+			        mem_controller->t_pref_queue_full+=cycles_proc_by_bus; */
 
 		}
 		mem_controller->n_times_queue_examined += time; //se podria cambiar dividinto x esim al final
-		/*Update last cycle queue will be examined*/
+		/* Update last cycle queue will be examined */
 		mem_controller->last_cycle = esim_cycle;
 
 
 
-		/*Depending on MC priory policy,  select and add request one of the MC queues*/
+		/* Depending on MC priory policy,  select and add request one of the MC queues */
 		if (mem_controller->policy_queues == policy_prefetch_normal_queues)
 		{
 			if (!stack->prefetch)
@@ -2877,13 +2877,13 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 		else
 			fatal("Invalid MC priroity policy of queues :%d\n", mem_controller->policy_queues);
 
-		/*Was the MC examining the queues to send the requests?*/
+		/* Was the MC examining the queues to send the requests? */
 		if (mem_controller_stacks_normalQueues_count() + mem_controller_stacks_prefQueues_count() == 1) //this request is the only one in the queue
 		{
-			/*Calcul when is the next cycle of bus*/
+			/* Calcul when is the next cycle of bus */
 			int when = esim_cycle % mem_controller->cycles_proc_bus;
 
-			/*X cycles less that ALL request have to wait before they throw*/
+			/* X cycles less that ALL request have to wait before they throw */
 			mem_controller_update_requests_threshold(when);
 			if (mem_controller->queue_per_bank)
 				esim_schedule_event(EV_MOD_NMOESI_EXAMINE_QUEUE_REQUEST, stack, when);
@@ -2911,13 +2911,13 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 				new_stack->addr&~new_stack->mod->cache->block_mask, new_stack->mod->name, new_stack->row, new_stack->bank,
 				new_stack->rank, new_stack->channel);
 
-			/*We can serve the request*/
+			/* We can serve the request */
 			if (can_acces_bank)
 			{
-				/*Is the row in the row buffer?*/
+				/* Is the row in the row buffer? */
 				if (new_stack->state_main_memory == row_buffer_hit)
 				{
-					/*HIT*/
+					/* HIT */
 					channel[new_stack->channel].regs_rank[new_stack->rank].regs_bank[new_stack
 						->bank].row_buffer_hits++;
 					channel[new_stack->channel].regs_rank[new_stack->rank].row_buffer_hits++;
@@ -2935,9 +2935,9 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 						channel[new_stack->channel].row_buffer_hits_normal++;
 					}
 				}
-				else{/*MISS*/}
+				else{/* MISS */}
 
-				/*Reserve the acces*/
+				/* Reserve the acces */
 				channel[new_stack->channel].state = channel_state_busy;
 				channel[new_stack->channel].regs_rank[new_stack->rank].regs_bank[new_stack->bank].is_been_accesed = 1;
 				channel[new_stack->channel].regs_rank[new_stack->rank].is_been_accesed = 1;
@@ -2946,7 +2946,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 				pref_queue = mem_controller->pref_queue[0];
 
 
-				/*Stadistics*/
+				/* Stadistics */
 				time = esim_cycle - mem_controller->last_cycle;
 				if (linked_list_count(pref_queue->queue) < size_queue)
 					pref_queue->total_requests += linked_list_count(pref_queue->queue) * time;
@@ -2965,24 +2965,19 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 				else
 					mem_controller->t_normal_acces_main_memory += mem_controller->t_send_request;
 
-
-
-				/*Delete the request in the MC queue*/
+				/* Delete the request in the MC queue */
 				if (mem_controller_remove(new_stack, normal_queue)&&linked_list_count(normal_queue->queue) == size_queue - 1)
 					normal_queue->t_full += esim_cycle - normal_queue->instant_begin_full;
 				else if (mem_controller_remove(new_stack, pref_queue)&&linked_list_count(pref_queue->queue)==size_queue - 1)
 					pref_queue->t_full += esim_cycle - pref_queue->instant_begin_full;
 
-
-				/*Send the request to the bank*/
+				/* Send the request to the bank */
 				esim_schedule_event(EV_MOD_NMOESI_ACCES_BANK, new_stack, mem_controller->t_send_request);
 			}
 			new_stack = mem_controller_select_request(0, mem_controller->priority_request_in_queue);
-
-
 		}
 
-		/*Stadistics*/
+		/* Stadistics */
 		normal = mem_controller->normal_queue[0]->queue;
 		pref = mem_controller->pref_queue[0]->queue;
 
@@ -3001,8 +2996,8 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 			else if(channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].is_been_accesed)
 			{
 				channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
- 		               	channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].conflicts++;
-                		channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_wait += cycles_proc_by_bus;
+				channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].conflicts++;
+				channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_wait += cycles_proc_by_bus;
 				channel[stack->channel].t_normal_wait_send_request+=cycles_proc_by_bus;
  				channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_normal_wait+=cycles_proc_by_bus;
 			}
@@ -3014,25 +3009,25 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 		{
 			stack = linked_list_get(pref);
 			row_buffer_find_row(stack->mod, stack->addr,&stack->channel,&stack->rank,&stack->bank,NULL,NULL,NULL);
-                        if ( channel[stack->channel].state == channel_state_busy)
-                        {
-                                channel[stack->channel].t_wait_channel_busy += cycles_proc_by_bus;
-                                channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
+			if (channel[stack->channel].state == channel_state_busy)
+			{
+				channel[stack->channel].t_wait_channel_busy += cycles_proc_by_bus;
+				channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
 				channel[stack->channel].t_pref_wait_channel_busy+=cycles_proc_by_bus;
 				channel[stack->channel].t_pref_wait_send_request+=cycles_proc_by_bus;
 			}
-                        else if(channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].is_been_accesed)
+			else if(channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].is_been_accesed)
 			{
-                                channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
-                                channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].conflicts++;
-                                channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_wait += cycles_proc_by_bus;
-                       		channel[stack->channel].t_pref_wait_send_request+=cycles_proc_by_bus;
+				channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
+				channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].conflicts++;
+				channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_wait += cycles_proc_by_bus;
+				channel[stack->channel].t_pref_wait_send_request+=cycles_proc_by_bus;
 				channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_pref_wait += cycles_proc_by_bus;
 			}
 			linked_list_next(pref);
 		}
 
-		/*One cycle less (memory bus clock )that ALL request have to wait before they throw*/
+		/* One cycle less (memory bus clock) that ALL request have to wait before they throw */
 		mem_controller_update_requests_threshold(1);
 
 		if ((mem_controller_stacks_normalQueues_count() + mem_controller_stacks_prefQueues_count()) > 0)
@@ -3047,7 +3042,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 
 		while (queues_examined < num_queues)
 		{
-			/*Depending of round robin priority, select apropiate bank to throw requests*/
+			/* Depending of round robin priority, select apropiate bank to throw requests */
 			num_bank = mem_controller_get_bank_queue(queues_examined);
 			assert(num_bank >= 0 && num_bank < num_queues);
 
@@ -3064,81 +3059,83 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 			new_stack = mem_controller_select_request(num_bank, mem_controller->priority_request_in_queue);
 			if (new_stack == NULL)
 			{
-				/*Next queue*/
+				/* Next queue */
 				queues_examined++;
 
-				/*Stadistics*/
+				/* Stadistics */
 				linked_list_head(normal_queue->queue);
-	                        while (!linked_list_is_end(normal_queue->queue) && linked_list_current(normal_queue->queue) < size_queue)
-        	                {       stack = linked_list_get(normal_queue->queue);
-        	                        row_buffer_find_row(stack->mod, stack->addr,&stack->channel,&stack->rank,&stack->bank,NULL,NULL,NULL);
-        	                        if ( channel[stack->channel].state == channel_state_busy)
-        	                        {
-                	                        channel[stack->channel].t_wait_channel_busy += cycles_proc_by_bus;
-                        	                channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
-                	                        channel[stack->channel].t_normal_wait_channel_busy += cycles_proc_by_bus;
-                        	                channel[stack->channel].t_normal_wait_send_request+=cycles_proc_by_bus;
-                        	        }
-                        	        else if(channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].is_been_accesed)
+	  			while (!linked_list_is_end(normal_queue->queue) && linked_list_current(normal_queue->queue) < size_queue)
+				{
+					stack = linked_list_get(normal_queue->queue);
+					row_buffer_find_row(stack->mod, stack->addr,&stack->channel,&stack->rank,&stack->bank,NULL,NULL,NULL);
+					if ( channel[stack->channel].state == channel_state_busy)
 					{
-                        	                channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
-                        	                channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].conflicts++;
-                        	                channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_wait += cycles_proc_by_bus;
-                	                        channel[stack->channel].t_normal_wait_send_request += cycles_proc_by_bus;
+						channel[stack->channel].t_wait_channel_busy += cycles_proc_by_bus;
+						channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
+						channel[stack->channel].t_normal_wait_channel_busy += cycles_proc_by_bus;
+						channel[stack->channel].t_normal_wait_send_request+=cycles_proc_by_bus;
+					}
+					else if(channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].is_been_accesed)
+					{
+						channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
+						channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].conflicts++;
+						channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_wait += cycles_proc_by_bus;
+						channel[stack->channel].t_normal_wait_send_request += cycles_proc_by_bus;
 						channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_normal_wait+=cycles_proc_by_bus;
 					}
-                        	        linked_list_next(normal_queue->queue);
-                        	}
+						linked_list_next(normal_queue->queue);
+				}
 
-                        	linked_list_head(pref_queue->queue);
-                       		while (!linked_list_is_end(pref_queue->queue) && linked_list_current(pref_queue->queue) < size_queue)
-                        	{
-                        	        stack = linked_list_get(pref_queue->queue);
-                                	row_buffer_find_row(stack->mod, stack->addr,&stack->channel,&stack->rank,&stack->bank,NULL,NULL,NULL);
-                                	if ( channel[stack->channel].state == channel_state_busy)
-                                	{
-                                	        channel[stack->channel].t_wait_channel_busy += cycles_proc_by_bus;
-                                	        channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
-                                	        channel[stack->channel].t_pref_wait_channel_busy += cycles_proc_by_bus;
-                                	        channel[stack->channel].t_pref_wait_send_request+=cycles_proc_by_bus;
-                                	}
-                                	else if(channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].is_been_accesed)
+				linked_list_head(pref_queue->queue);
+				while (!linked_list_is_end(pref_queue->queue) && linked_list_current(pref_queue->queue) < size_queue)
+				{
+					stack = linked_list_get(pref_queue->queue);
+					row_buffer_find_row(stack->mod, stack->addr,&stack->channel,&stack->rank,&stack->bank,NULL,NULL,NULL);
+					if ( channel[stack->channel].state == channel_state_busy)
 					{
-                                	        channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
-                                	        channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].conflicts++;
-                                	        channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_wait += cycles_proc_by_bus;
-                                	        channel[stack->channel].t_pref_wait_send_request += cycles_proc_by_bus;
-                                	        channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_pref_wait+=cycles_proc_by_bus;
-                                	}
-                               	 	linked_list_next(pref_queue->queue);
-                         	}
-
+						channel[stack->channel].t_wait_channel_busy += cycles_proc_by_bus;
+						channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
+						channel[stack->channel].t_pref_wait_channel_busy += cycles_proc_by_bus;
+						channel[stack->channel].t_pref_wait_send_request+=cycles_proc_by_bus;
+					}
+					else if(channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].is_been_accesed)
+					{
+						channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
+						channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].conflicts++;
+						channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_wait += cycles_proc_by_bus;
+						channel[stack->channel].t_pref_wait_send_request += cycles_proc_by_bus;
+						channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_pref_wait+=cycles_proc_by_bus;
+					}
+					linked_list_next(pref_queue->queue);
+				}
 				continue;
 			}
 
-
-			can_acces_bank = row_buffer_find_row(new_stack->mod, new_stack->addr, &new_stack->channel, &new_stack->rank,
-				&new_stack->bank, &new_stack->row, & new_stack->tag, &new_stack->state_main_memory);
-			mem_trace("mem.access name=\"A-%lld\" state=\"%s:examine queue MC\"\n", new_stack->id, new_stack->mod->name);
-			mem_debug("  %lld %lld 0x%x %s examine queue MC (row=%d bank=%d rank=%d channel=%d)\n", esim_cycle, new_stack->id,
-				new_stack->addr&~new_stack->mod->cache->block_mask, new_stack->mod->name, new_stack->row, new_stack->bank,
-				new_stack->rank, new_stack->channel);
+			can_acces_bank = row_buffer_find_row(new_stack->mod, new_stack->addr, &new_stack->channel,
+				&new_stack->rank, &new_stack->bank, &new_stack->row, & new_stack->tag,
+				&new_stack->state_main_memory);
+			mem_trace("mem.access name=\"A-%lld\" state=\"%s:examine queue MC\"\n", new_stack->id,
+				new_stack->mod->name);
+			mem_debug("  %lld %lld 0x%x %s examine queue MC (row=%d bank=%d rank=%d channel=%d)\n",
+				esim_cycle, new_stack->id, new_stack->addr&~new_stack->mod->cache->block_mask,
+				new_stack->mod->name, new_stack->row, new_stack->bank, new_stack->rank, new_stack->channel);
 			assert(dir_bank == new_stack->bank);
 			assert(dir_channel == new_stack->channel);
 			assert(dir_rank == new_stack->rank);
 
-			/*We can serve the request*/
+			/* We can serve the request */
 			if (can_acces_bank)
 			{
-				/*Is the row in the row buffer?*/
+				/* Is the row in the row buffer? */
 				if (new_stack->state_main_memory == row_buffer_hit)
 				{
-					/*HIT*/
+					/* HIT */
 					channel[new_stack->channel].regs_rank[new_stack->rank].regs_bank[new_stack->bank].row_buffer_hits++;
 					channel[new_stack->channel].regs_rank[new_stack->rank].row_buffer_hits++;
 					channel[new_stack->channel].row_buffer_hits++;
 					if(new_stack->prefetch)
-					{	channel[new_stack->channel].regs_rank[new_stack->rank].regs_bank[new_stack
+					{
+						channel[new_stack->channel].regs_rank[new_stack->rank].regs_bank[new_stack
 						->bank].row_buffer_hits_pref++;
 						channel[new_stack->channel].regs_rank[new_stack->rank].row_buffer_hits_pref++;
 						channel[new_stack->channel].row_buffer_hits_pref++;
@@ -3150,14 +3147,14 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 						channel[new_stack->channel].row_buffer_hits_normal++;
 					}
 				}
-				else{/*MISS*/}
+				else{/* MISS */}
 
-				/*Reserve the acces*/
+				/* Reserve the acces */
 				channel[new_stack->channel].state = channel_state_busy;
 				channel[new_stack->channel].regs_rank[new_stack->rank].regs_bank[new_stack->bank].is_been_accesed = 1;
 				channel[new_stack->channel].regs_rank[new_stack->rank].is_been_accesed = 1;
 
-				/*Stadistics*/
+				/* Stadistics */
 				time = esim_cycle - mem_controller->last_cycle;
 				for (int i = 0; i < num_queues; i++)
 				{
@@ -3174,72 +3171,74 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 						normq_aux->total_requests += size_queue * time;
 				}
 				mem_controller->n_times_queue_examined += time; //se podria cambiar dividinto x esim al final
-				/*Update last cycle queue will be examined*/
+				/* Update last cycle queue will be examined */
 				mem_controller->last_cycle = esim_cycle;
 
-				/*Delete the request in the MC queue*/
+				/* Delete the request in the MC queue */
 				if (mem_controller_remove(new_stack, normal_queue)&&linked_list_count(normal_queue->queue) == size_queue - 1)
 					normal_queue->t_full += esim_cycle - normal_queue->instant_begin_full;
 				else if (mem_controller_remove(new_stack,pref_queue)&&linked_list_count(pref_queue->queue) == size_queue - 1)
 					pref_queue->t_full += esim_cycle - pref_queue->instant_begin_full;
 
-				/*Send the request to the bank*/
+				/* Send the request to the bank */
 				esim_schedule_event(EV_MOD_NMOESI_ACCES_BANK, new_stack, mem_controller->t_send_request);
 			}
 
-			/*Next queue*/
+			/* Next queue */
 			queues_examined++;
 
-			/*Stadistics*/
-     		        linked_list_head(normal_queue->queue);
-        	        while (!linked_list_is_end(normal_queue->queue) && linked_list_current(normal_queue->queue) < size_queue)
-                        {	stack = linked_list_get(normal_queue->queue);
-                        	row_buffer_find_row(stack->mod, stack->addr,&stack->channel,&stack->rank,&stack->bank,NULL,NULL,NULL);
-                        	if ( channel[stack->channel].state == channel_state_busy)
-                        	{
-                    	       		channel[stack->channel].t_wait_channel_busy += cycles_proc_by_bus;
-                                	channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
-					channel[stack->channel].t_normal_wait_channel_busy += cycles_proc_by_bus;
-                                	channel[stack->channel].t_normal_wait_send_request+=cycles_proc_by_bus;
-                       		}
-                        	else if(channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].is_been_accesed)
+			/* Stadistics */
+			linked_list_head(normal_queue->queue);
+			while (!linked_list_is_end(normal_queue->queue) && linked_list_current(normal_queue->queue) < size_queue)
+			{
+				stack = linked_list_get(normal_queue->queue);
+				row_buffer_find_row(stack->mod, stack->addr,&stack->channel,&stack->rank,&stack->bank,NULL,NULL,NULL);
+				if ( channel[stack->channel].state == channel_state_busy)
 				{
-                        	        channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
-                        	        channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].conflicts++;
-                        	        channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_wait += cycles_proc_by_bus;
+					channel[stack->channel].t_wait_channel_busy += cycles_proc_by_bus;
+					channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
+					channel[stack->channel].t_normal_wait_channel_busy += cycles_proc_by_bus;
 					channel[stack->channel].t_normal_wait_send_request+=cycles_proc_by_bus;
-                        	        channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_normal_wait+=cycles_proc_by_bus;
-                        	}
-                        	linked_list_next(normal_queue->queue);
-                	}
-
-               		linked_list_head(pref_queue->queue);
-                	while (!linked_list_is_end(pref_queue->queue) && linked_list_current(pref_queue->queue) < size_queue)
-                	{
-                	        stack = linked_list_get(pref_queue->queue);
-                	        row_buffer_find_row(stack->mod, stack->addr,&stack->channel,&stack->rank,&stack->bank,NULL,NULL,NULL);
-                	        if ( channel[stack->channel].state == channel_state_busy)
-                	        {
-                	                channel[stack->channel].t_wait_channel_busy += cycles_proc_by_bus;
-                        	        channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
-					channel[stack->channel].t_pref_wait_channel_busy += cycles_proc_by_bus;
-                        	        channel[stack->channel].t_pref_wait_send_request+=cycles_proc_by_bus;
-                        	}
-                        	else if(channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].is_been_accesed)               					{
-                                	channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
-                                	channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].conflicts++;
-                                	channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_wait += cycles_proc_by_bus;
-					channel[stack->channel].t_pref_wait_send_request+=cycles_proc_by_bus;
-                                	channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_pref_wait += cycles_proc_by_bus;
 				}
-                	        linked_list_next(pref_queue->queue);
-               		 }
+				else if(channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].is_been_accesed)
+				{
+					channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
+					channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].conflicts++;
+					channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_wait += cycles_proc_by_bus;
+					channel[stack->channel].t_normal_wait_send_request+=cycles_proc_by_bus;
+					channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_normal_wait+=cycles_proc_by_bus;
+				}
+				linked_list_next(normal_queue->queue);
+			}
+
+			linked_list_head(pref_queue->queue);
+			while (!linked_list_is_end(pref_queue->queue) && linked_list_current(pref_queue->queue) < size_queue)
+			{
+				stack = linked_list_get(pref_queue->queue);
+				row_buffer_find_row(stack->mod, stack->addr,&stack->channel,&stack->rank,&stack->bank,NULL,NULL,NULL);
+				if (channel[stack->channel].state == channel_state_busy)
+				{
+					channel[stack->channel].t_wait_channel_busy += cycles_proc_by_bus;
+					channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
+					channel[stack->channel].t_pref_wait_channel_busy += cycles_proc_by_bus;
+					channel[stack->channel].t_pref_wait_send_request+=cycles_proc_by_bus;
+				}
+				else if(channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].is_been_accesed)
+				{
+					channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
+					channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].conflicts++;
+					channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_wait += cycles_proc_by_bus;
+					channel[stack->channel].t_pref_wait_send_request+=cycles_proc_by_bus;
+					channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_pref_wait += cycles_proc_by_bus;
+				}
+				linked_list_next(pref_queue->queue);
+			}
 		}
 
-		/*Update round robin to next queue*/
+		/* Update round robin to next queue */
 		mem_controller->queue_round_robin = (mem_controller->queue_round_robin + 1) % num_queues;
 
-		/*One cycle less (memory bus clock )that ALL request have to wait before they throw*/
+		/* One cycle less (memory bus clock )that ALL request have to wait before they throw */
 		mem_controller_update_requests_threshold(1);
 
 		if ((mem_controller_stacks_normalQueues_count() + mem_controller_stacks_prefQueues_count()) > 0)
@@ -3256,20 +3255,20 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 
 		bank = mod->regs_channel[stack->channel].regs_rank[stack->rank].regs_bank;
 
-		/*Free channel*/
+		/* Free channel */
 		mod->regs_channel[stack->channel].state = channel_state_free;
 
-		/*Acces the bank*/
-		/*Is the row in the row buffer?*/
+		/* Acces the bank */
+		/* Is the row in the row buffer? */
 		if (stack->state_main_memory == row_buffer_hit)
 		{
 
-			/*HIT*/
+			/* HIT */
 			mem_debug("  %lld %lld 0x%x %s hit row buffer acces bank\n", esim_cycle, stack->id,
 				stack->addr&~mod->cache->block_mask, mod->name);
 			esim_schedule_event(EV_MOD_NMOESI_TRANSFER_FROM_BANK, stack, bank[stack->bank].t_row_buffer_hit);
 
-			/*Stadistics*/
+			/* Stadistics */
 			mem_controller->t_acces_main_memory += bank[stack->bank].t_row_buffer_hit;
 			if(stack->prefetch)
 				mem_controller->t_pref_acces_main_memory += bank[stack->bank].t_row_buffer_hit;
@@ -3277,13 +3276,13 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 				mem_controller->t_normal_acces_main_memory += bank[stack->bank].t_row_buffer_hit;
 
 		}
-		else    /*MISS*/
+		else    /* MISS */
 		{
 			mem_debug("  %lld %lld 0x%x %s miss row buffer acces bank\n", esim_cycle, stack->id,
 				stack->addr&~mod->cache->block_mask, mod->name);
 			esim_schedule_event(EV_MOD_NMOESI_TRANSFER_FROM_BANK, stack, bank[stack->bank].t_row_buffer_miss);
 
-			/*Stadistics*/
+			/* Stadistics */
 			mem_controller->t_acces_main_memory += bank[stack->bank].t_row_buffer_miss;
 			if(stack->prefetch)
 				mem_controller->t_pref_acces_main_memory += bank[stack->bank].t_row_buffer_miss;
@@ -3291,10 +3290,10 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 				mem_controller->t_normal_acces_main_memory += bank[stack->bank].t_row_buffer_miss;
 		}
 
-		/*Update the new row into row buffer*/
+		/* Update the new row into row buffer */
 		bank[stack->bank].row_buffer = stack->row;
 
-		/*Stadistics*/
+		/* Stadistics */
 		for (int i = 0; i < channel[stack->channel].regs_rank[stack->rank].num_regs_bank; i++)
 			if (bank[i].is_been_accesed)
 				bank[i].parallelism++;
@@ -3329,14 +3328,13 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 
 		if (mod->regs_channel[stack->channel].state == channel_state_free)
 		{
-
-			/*Busy the channel*/
+			/* Busy the channel */
 			channel[stack->channel].state = channel_state_busy;
 
-			/*Calcul the cycles of proccesor for transfering*/
+			/* Calcul the cycles of proccesor for transfering */
 			t_trans = mod->cache->block_size / (mod->regs_channel[stack->channel].bandwith * 2) * cycles_proc_by_bus; //2 because is DDR3
 
-			/*Stadistics*/
+			/* Stadistics */
 			mem_controller->t_transfer += t_trans;
 			channel[stack->channel].t_transfer += t_trans;
 			if(stack->prefetch)
@@ -3351,10 +3349,10 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 		{
 			mem_debug("  %lld %lld 0x%x %s wait for transfer from bank\n", esim_cycle, stack->id, stack->addr&~mod->cache->block_mask, mod->name);
 
-			/*We can't transfer the block because the channed is busy, so we have to wait*/
+			/* We can't transfer the block because the channed is busy, so we have to wait */
 			esim_schedule_event(EV_MOD_NMOESI_TRANSFER_FROM_BANK, stack, 1);
 
-			/*Stadistics*/
+			/* Stadistics */
 			channel[stack->channel].t_wait_transfer_request += 1;
 			mem_controller->t_transfer += 1; // no heu tinc segur
 			if(stack->prefetch){
@@ -3374,10 +3372,10 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 		mem_debug("  %lld %lld 0x%x %s remove request in MC\n ", esim_cycle, stack->id, stack->addr & ~mod->cache->block_mask, mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:remove request in MC\"\n", stack->id, mod->name);
 
-		/*Free the bank*/
+		/* Free the bank */
 		channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].is_been_accesed = 0;
 
-		/*Free the rank*/
+		/* Free the rank */
 		int accesed = 0;
 		for (int i = 0; i < channel[stack->channel].regs_rank[stack->rank].num_regs_bank; i++)
 			if (channel[stack->channel].regs_rank[stack->rank].regs_bank[i].is_been_accesed)
@@ -3389,17 +3387,17 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 		if (!accesed)
 			channel[stack->channel].regs_rank[stack->rank].is_been_accesed = 0;
 
-		/*Free channel*/
+		/* Free channel */
 		channel[stack->channel].state = channel_state_free;
 
-		/*Stadistics*/
+		/* Stadistics */
 		channel[stack->channel].num_requests_transfered++;
 		if(stack->prefetch)
 			channel[stack->channel].num_pref_requests_transfered++;
 		else
 			channel[stack->channel].num_normal_requests_transfered++;
 
-		/*Parametres block*/
+		/* Parametres block */
 		stack->hit = 1;
 		stack->port = NULL;
 
@@ -3434,24 +3432,8 @@ void mod_handler_nmoesi_invalidate_slot(int event, void *data)
 
 	if (event == EV_MOD_NMOESI_INVALIDATE_SLOT)
 	{
-		//struct mod_stack_t *master_stack;
-
 		mem_debug("%lld %lld 0x%x %s invalidate slot\n", esim_cycle, stack->id, stack->addr, mod->name);
 		mem_trace("mem.new_access name=\"A-%lld\" type=\"invalidate_slot\" state=\"%s:invalidate_slot\" addr=0x%x\n", stack->id, mod->name, stack->addr);
-
-		/* Record access */
-		mod_access_start(mod, stack, mod_access_invalidate);
-
-		/* No coalesce
-		master_stack = mod_can_coalesce(mod, mod_access_invalidate, stack->addr, stack);
-		if (master_stack)
-		{
-			assert(!master_stack->prefetch);
-			assert(!master_stack->read);
-			assert(master_stack->request_dir == mod_request_up_down);
-			esim_schedule_event(EV_MOD_NMOESI_INVALIDATE_SLOT_FINISH, stack, 0);
-			return;
-		}*/
 
 		/* Next event */
 		esim_schedule_event(EV_MOD_NMOESI_INVALIDATE_SLOT_LOCK, stack, 0);
@@ -3461,20 +3443,8 @@ void mod_handler_nmoesi_invalidate_slot(int event, void *data)
 
 	if (event == EV_MOD_NMOESI_INVALIDATE_SLOT_LOCK)
 	{
-		//struct mod_stack_t *older_stack;
-
 		mem_debug("  %lld %lld 0x%x %s invalidate slot lock\n", esim_cycle, stack->id, stack->addr, mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:invalidate_slot_lock\"\n", stack->id, mod->name);
-
-		/* If there is any older access to the same address that this access could not
-		 * be coalesced with, wait for it.
-		older_stack = mod_in_flight_address(mod, stack->addr, stack);
-		if (older_stack)
-		{
-			mem_debug("    %lld wait for access %lld\n", stack->id, older_stack->id);
-			mod_stack_wait_in_stack(stack, older_stack, EV_MOD_NMOESI_INVALIDATE_SLOT_LOCK);
-			return;
-		}*/
 
 		/* Call pref find and lock */
 		new_stack = mod_stack_create(stack->id, mod, stack->addr, EV_MOD_NMOESI_INVALIDATE_SLOT_ACTION, stack, stack->core, stack->thread, stack->prefetch);
@@ -3540,9 +3510,6 @@ void mod_handler_nmoesi_invalidate_slot(int event, void *data)
 		if (stack->event_queue && stack->event_queue_item)
 			linked_list_add(stack->event_queue, stack->event_queue_item);
 
-		/* Finish access */
-		mod_access_finish(mod, stack);
-
 		/* Return */
 		mod_stack_return(stack);
 		return;
@@ -3550,7 +3517,6 @@ void mod_handler_nmoesi_invalidate_slot(int event, void *data)
 
 	abort();
 }
-
 
 
 void mod_handler_nmoesi_pref_evict(int event, void *data)
@@ -3640,7 +3606,7 @@ void mod_handler_nmoesi_pref_evict(int event, void *data)
 		/* Find and lock */
 		new_stack = mod_stack_create(stack->id, target_mod, stack->src_tag, EV_MOD_NMOESI_PREF_EVICT_PROCESS, stack, stack->core, stack->thread, stack->prefetch);
 		new_stack->blocking = 0;
-		new_stack->write = 1; /* FIXME: En eviction diu que no es segur que siga un write*/
+		new_stack->write = 1; /* FIXME: En eviction diu que no es segur que siga un write */
 		new_stack->retry = 0;
 		new_stack->request_dir = mod_request_up_down;
 		esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK, new_stack, 0);
@@ -3757,7 +3723,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:read_request\"\n",
 			stack->id, mod->name);
 
-		/* Default return values*/
+		/* Default return values */
 		ret->shared = 0;
 		ret->err = 0;
 
@@ -3835,21 +3801,6 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			stack->addr, target_mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:read_request_lock\"\n",
 			stack->id, mod->name);
-
-		/* Wait for other accesses */
-		/*master_stack = mod_can_coalesce(target_mod, mod_access_read_request, stack->addr, stack);
-		if (master_stack)
-		{
-			mem_debug("    %lld wait for access %lld\n", stack->id, master_stack->id);
-			mod_coalesce(target_mod, master_stack, stack);*/
-
-			/* Si la master stack te el bit de coalesced pero no master stack, vol dir que ha fet coalesce amb un stream prefetch, per tant açò és un delayed hit */
-			/*if (master_stack->access_kind == mod_access_prefetch || master_stack->coalesced)
-				mod->delayed_hits++;
-
-			mod_stack_wait_in_stack(stack, master_stack, EV_MOD_NMOESI_READ_REQUEST_LOCK);
-			return;
-		}*/
 
 		/* Call find and lock */
 		new_stack = mod_stack_create(stack->id, target_mod, stack->addr,
@@ -4736,21 +4687,6 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:write_request_lock\"\n",
 			stack->id, mod->name);
 
-		/* Wait for other accesses */
-		/*master_stack = mod_can_coalesce(target_mod, mod_access_write_request, stack->addr, stack);
-		if (master_stack)
-		{
-			mem_debug("    %lld wait for access %lld\n", stack->id, master_stack->id);
-			mod_coalesce(target_mod, master_stack, stack);*/
-
-			/* Si la master stack te el bit de coalesced pero no master stack, vol dir que ha fet coalesce amb un stream prefetch, per tant açò és un delayed hit */
-			/*if (master_stack->access_kind == mod_access_prefetch || master_stack->coalesced)
-				mod->delayed_hits++;
-
-			mod_stack_wait_in_stack(stack, master_stack, EV_MOD_NMOESI_WRITE_REQUEST_LOCK);
-			return;
-		}*/
-
 		/* Call find and lock */
 		new_stack = mod_stack_create(stack->id, target_mod, stack->addr,
 			EV_MOD_NMOESI_WRITE_REQUEST_ACTION, stack, stack->core, stack->thread, stack->prefetch);
@@ -5397,7 +5333,7 @@ void mod_handler_nmoesi_message(int event, void *data)
 		stack->reply_size = 8;
 		stack->reply = reply_ack;
 
-		/* Default return values*/
+		/* Default return values */
 		ret->err = 0;
 
 		/* Checks */
