@@ -2990,16 +2990,33 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 			{
 				channel[stack->channel].t_wait_channel_busy += cycles_proc_by_bus;
 				channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
-				channel[stack->channel].t_normal_wait_channel_busy+=cycles_proc_by_bus;
-				channel[stack->channel].t_normal_wait_send_request+=cycles_proc_by_bus;
+
+				if(!stack->prefetch)// if it's only one queue, prefetches can be in the normal queue
+				{
+					channel[stack->channel].t_normal_wait_channel_busy+=cycles_proc_by_bus;
+					channel[stack->channel].t_normal_wait_send_request+=cycles_proc_by_bus;
+				}
+				else
+				{
+					channel[stack->channel].t_pref_wait_channel_busy+=cycles_proc_by_bus;
+					channel[stack->channel].t_pref_wait_send_request+=cycles_proc_by_bus;
+				}
 			}
 			else if(channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].is_been_accesed)
 			{
 				channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
 				channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].conflicts++;
 				channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_wait += cycles_proc_by_bus;
-				channel[stack->channel].t_normal_wait_send_request+=cycles_proc_by_bus;
- 				channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_normal_wait+=cycles_proc_by_bus;
+				if(!stack->prefetch) // if it's only one queue, prefetches can be in the normal queue
+				{
+					channel[stack->channel].t_normal_wait_send_request+=cycles_proc_by_bus;
+	 				channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_normal_wait+=cycles_proc_by_bus;
+				}
+				else
+				{
+					channel[stack->channel].t_pref_wait_send_request+=cycles_proc_by_bus;
+	 				channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_pref_wait+=cycles_proc_by_bus;
+				}
 			}
 			linked_list_next(normal);
 		}
@@ -3072,18 +3089,34 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 					{
 						channel[stack->channel].t_wait_channel_busy += cycles_proc_by_bus;
 						channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
-						channel[stack->channel].t_normal_wait_channel_busy += cycles_proc_by_bus;
-						channel[stack->channel].t_normal_wait_send_request+=cycles_proc_by_bus;
+						if(!stack->prefetch)// if it's only one queue, prefetches can be in the normal queue
+						{
+							channel[stack->channel].t_normal_wait_channel_busy+=cycles_proc_by_bus;
+							channel[stack->channel].t_normal_wait_send_request+=cycles_proc_by_bus;
+						}
+						else
+						{
+							channel[stack->channel].t_pref_wait_channel_busy+=cycles_proc_by_bus;
+							channel[stack->channel].t_pref_wait_send_request+=cycles_proc_by_bus;
+						}
 					}
 					else if(channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].is_been_accesed)
 					{
 						channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
 						channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].conflicts++;
 						channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_wait += cycles_proc_by_bus;
-						channel[stack->channel].t_normal_wait_send_request += cycles_proc_by_bus;
-						channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_normal_wait+=cycles_proc_by_bus;
+						if(!stack->prefetch) // if it's only one queue, prefetches can be in the normal queue
+						{
+							channel[stack->channel].t_normal_wait_send_request+=cycles_proc_by_bus;
+			 				channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_normal_wait+=cycles_proc_by_bus;
+						}
+						else
+						{
+							channel[stack->channel].t_pref_wait_send_request+=cycles_proc_by_bus;
+			 				channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_pref_wait+=cycles_proc_by_bus;
+						}
 					}
-						linked_list_next(normal_queue->queue);
+					linked_list_next(normal_queue->queue);
 				}
 
 				linked_list_head(pref_queue->queue);
@@ -3197,16 +3230,32 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 				{
 					channel[stack->channel].t_wait_channel_busy += cycles_proc_by_bus;
 					channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
-					channel[stack->channel].t_normal_wait_channel_busy += cycles_proc_by_bus;
-					channel[stack->channel].t_normal_wait_send_request+=cycles_proc_by_bus;
+					if(!stack->prefetch) // if it's only one queue, prefetches can be in normal queue
+					{
+						channel[stack->channel].t_normal_wait_channel_busy += cycles_proc_by_bus;
+						channel[stack->channel].t_normal_wait_send_request+=cycles_proc_by_bus;
+					}
+					else
+					{
+						channel[stack->channel].t_pref_wait_channel_busy += cycles_proc_by_bus;
+						channel[stack->channel].t_pref_wait_send_request+=cycles_proc_by_bus;
+					}
 				}
 				else if(channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].is_been_accesed)
 				{
 					channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
 					channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].conflicts++;
 					channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_wait += cycles_proc_by_bus;
-					channel[stack->channel].t_normal_wait_send_request+=cycles_proc_by_bus;
-					channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_normal_wait+=cycles_proc_by_bus;
+					if(!stack->prefetch) // if it's only one queue, prefetches can be in normal queue
+					{
+						channel[stack->channel].t_normal_wait_send_request+=cycles_proc_by_bus;
+						channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_normal_wait+=cycles_proc_by_bus;
+					}
+					else
+					{
+						channel[stack->channel].t_pref_wait_send_request+=cycles_proc_by_bus;
+						channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_pref_wait+=cycles_proc_by_bus;
+					}
 				}
 				linked_list_next(normal_queue->queue);
 			}
