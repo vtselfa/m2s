@@ -2646,7 +2646,7 @@ void mod_handler_nmoesi_find_and_lock_mem_controller(int event, void *data)
 		}
 
 		/* Continue */
-		esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK_FINISH, stack, 0);
+		esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER_FINISH, stack, 0);
 		return;
 	}
 
@@ -3743,6 +3743,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 		else fatal("Invalid main memory acces\n");
 
 		stack->reply_size = 8;
+		stack->tag=stack->addr&~mod->cache->block_mask;///////// si fique aso salta
 		ret->err = 0;
 		ret->state = stack->state;
 		ret->tag = stack->tag;
@@ -4476,7 +4477,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 		
 
 		/* Trace */
-		mem_debug("  %lld %lld 0x%x %s read request updown finish update dirrectory(fr=%d bg=%d)\n", esim_cycle, stack->id,stack->tag, target_mod->name, stack->fast_resume, stack->background);
+		mem_debug("  %lld %lld 0x%x %s read request updown finish update directory(fr=%d bg=%d)\n", esim_cycle, stack->id,stack->tag, target_mod->name, stack->fast_resume, stack->background);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:read_request_updown_finish_update_directory\"\n", stack->id, target_mod->name);
 
 		if(!stack->background)
