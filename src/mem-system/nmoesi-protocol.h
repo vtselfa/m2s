@@ -67,6 +67,7 @@ extern int EV_MOD_NMOESI_WRITE_REQUEST_ACTION;
 extern int EV_MOD_NMOESI_WRITE_REQUEST_EXCLUSIVE;
 extern int EV_MOD_NMOESI_WRITE_REQUEST_UPDOWN;
 extern int EV_MOD_NMOESI_WRITE_REQUEST_UPDOWN_FINISH;
+extern int EV_MOD_NMOESI_WRITE_REQUEST_UPDOWN_FINISH_UPDATE_DIRECTORY;
 extern int EV_MOD_NMOESI_WRITE_REQUEST_DOWNUP;
 extern int EV_MOD_NMOESI_WRITE_REQUEST_DOWNUP_FINISH;
 extern int EV_MOD_NMOESI_WRITE_REQUEST_REPLY;
@@ -79,6 +80,7 @@ extern int EV_MOD_NMOESI_READ_REQUEST_ACTION;
 extern int EV_MOD_NMOESI_READ_REQUEST_UPDOWN;
 extern int EV_MOD_NMOESI_READ_REQUEST_UPDOWN_MISS;
 extern int EV_MOD_NMOESI_READ_REQUEST_UPDOWN_FINISH;
+extern int EV_MOD_NMOESI_READ_REQUEST_UPDOWN_FINISH_UPDATE_DIRECTORY;/////
 extern int EV_MOD_NMOESI_READ_REQUEST_DOWNUP;
 extern int EV_MOD_NMOESI_READ_REQUEST_DOWNUP_WAIT_FOR_REQS;
 extern int EV_MOD_NMOESI_READ_REQUEST_DOWNUP_FINISH;
@@ -144,10 +146,17 @@ extern int EV_MOD_NMOESI_ACCES_BANK;                    //
 extern int EV_MOD_NMOESI_TRANSFER_FROM_BANK;            //
 extern int EV_MOD_NMOESI_REMOVE_MEMORY_CONTROLLER;      //
 extern int EV_MOD_NMOESI_INSERT_MEMORY_CONTROLLER;      //
+
+/*Memory controller*/
+extern int EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER;
+extern int EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER_PORT;
+extern int EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER_ACTION;
+extern int EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER_FINISH;
 //////////////////////////////////////////////////////////
 
 /////////////////////////////////////////////////////////////////////
 void mod_handler_nmoesi_request_main_memory(int event, void *data);
+void mod_handler_nmoesi_find_and_lock_mem_controller(int event, void *data);
 /////////////////////////////////////////////////////////////////////
 void mod_handler_nmoesi_find_and_lock(int event, void *data);
 void mod_handler_nmoesi_load(int event, void *data);

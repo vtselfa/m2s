@@ -213,7 +213,7 @@ PolicyMCQueues = PrefetchNormalQueue
 PriorityMCQueues = Threshold-Normal-Prefetch
 QueuePerBank = 1
 SizeQueue = 128
-MemoryControllerEnabled = 0
+MemoryControllerEnabled = 1
 
 #
 # Nodes
