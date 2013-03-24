@@ -1381,7 +1381,7 @@ void m2s_dump_summary(FILE *f)
 			if(mod->level == i)
 				total_misses += mod->accesses - mod->hits;
 		}
-		fprintf(stderr, "MPKI_level%d = %f\n", i, x86_cpu->num_committed_inst? total_misses / x86_cpu->num_committed_inst / 1000.0 : 0.0);
+		fprintf(stderr, "MPKI_level%d = %f\n", i, x86_cpu->num_committed_inst? (double)total_misses / x86_cpu->num_committed_inst / 1000.0 : 0.0);
 	}
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
