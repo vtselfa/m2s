@@ -809,7 +809,7 @@ void x86_ctx_ipc_report_schedule(struct x86_ctx_t *ctx)
 
 	/* Print header */
 	fprintf(f, "%s", help_x86_ctx_ipc_report);
-	fprintf(f, "%10s %8s %10s %10s\n", "cycle", "inst", "ipc-glob", "ipc-int");
+	fprintf(f, "%10s %8s %10s %10s %10s\n", "cycle", "inst", "ipc-glob", "ipc-int","total-time-mc");
 	for (i = 0; i < 43; i++)
 		fprintf(f, "-");
 	fprintf(f, "\n");
@@ -823,10 +823,15 @@ void x86_ctx_ipc_report_handler(int event, void *data)
 {
 	struct x86_ctx_ipc_report_stack_t *stack = data;
 	struct x86_ctx_t *ctx;
-
+	struct mem_controller_t * mem_controller=mem_system->mem_controller;
+	struct mod_t * mod;
 	long long inst_count;
 	double ipc_interval;
 	double ipc_global;
+	double t_total_mc;
+	double t_total_mc_request=0;
+	long long total_accesses=0;
+	long long total_wait_in_mc =0;
 
 	/* Get context. If it does not exist anymore, no more
 	 * events to schedule. */
@@ -837,13 +842,33 @@ void x86_ctx_ipc_report_handler(int event, void *data)
 		return;
 	}
 
+
+	 /*Select main memory module and calcule stadistics*/
+        for (int i = 0; i < list_count(mem_system->mod_list); i++)
+        {
+                mod = list_get(mem_system->mod_list, i);
+                if(mod->kind==mod_kind_main_memory)
+                        break;
+        }
+	for(int c=0; c<mod->num_regs_channel;c++)
+        {
+                total_accesses+=mod->regs_channel[c].acceses;
+                total_wait_in_mc+=mod->regs_channel[c].t_wait_send_request;
+        }
+	t_total_mc=total_wait_in_mc+mem_controller->t_acces_main_memory+mem_controller->t_transfer;
+
 	/* Dump new IPC */
 	assert(ctx->loader->ipc_report_interval);
 	inst_count = ctx->inst_count - stack->inst_count;
 	ipc_global = esim_cycle ? (double) ctx->inst_count / esim_cycle : 0.0;
 	ipc_interval = (double) inst_count / ctx->loader->ipc_report_interval;
-	fprintf(ctx->loader->ipc_report_file, "%10lld %8lld %10.4f %10.4f\n",
-		esim_cycle, inst_count, ipc_global, ipc_interval);
+	t_total_mc_request=total_accesses-last_accesses ? (double)(t_total_mc-t_last_mc_total)/(total_accesses-last_accesses):0;
+	fprintf(ctx->loader->ipc_report_file, "%10lld %8lld %10.4f %10.4f %10.4f\n",
+		esim_cycle, inst_count, ipc_global, ipc_interval,t_total_mc_request);
+
+	/*Update intermediate calcules*/
+	last_accesses=total_accesses;
+	t_last_mc_total=t_total_mc;
 
 	/* Schedule new event */
 	stack->inst_count = ctx->inst_count;
