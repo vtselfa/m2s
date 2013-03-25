@@ -93,12 +93,18 @@ struct mem_controller_t
 	long long last_cycle;
 
 	/*Stadistics*/
+	long long t_wait; // time waiting in memory controller queues
+	long long t_normal_wait;
+	long long t_pref_wait;
+
 	long long t_acces_main_memory;
 	long long t_pref_acces_main_memory;
 	long long t_normal_acces_main_memory;
+
 	long long t_transfer; // time for tranfer a bloc from main memory
 	long long t_pref_transfer;
 	long long t_normal_transfer;
+
 	long long n_times_queue_examined; // times which queue is examined
 };
 

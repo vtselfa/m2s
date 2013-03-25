@@ -855,7 +855,7 @@ void x86_ctx_ipc_report_handler(int event, void *data)
                 total_accesses+=mod->regs_channel[c].acceses;
                 total_wait_in_mc+=mod->regs_channel[c].t_wait_send_request;
         }
-	t_total_mc=total_wait_in_mc+mem_controller->t_acces_main_memory+mem_controller->t_transfer;
+	t_total_mc=mem_controller->t_wait+mem_controller->t_acces_main_memory+mem_controller->t_transfer;
 
 	/* Dump new IPC */
 	assert(ctx->loader->ipc_report_interval);

@@ -3167,6 +3167,11 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 			/* Calcul when is the next cycle of bus */
 			int when = esim_cycle % mem_controller->cycles_proc_bus;
 
+			/*Stadistics*/
+			mem_controller->t_wait+=when;
+			if(!stack->prefetch) mem_controller->t_normal_wait+=when;
+			else mem_controller->t_pref_wait+=when;
+
 			/* X cycles less that ALL request have to wait before they throw */
 			mem_controller_update_requests_threshold(when);
 			if (mem_controller->queue_per_bank)
@@ -3274,30 +3279,36 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 			{
 				channel[stack->channel].t_wait_channel_busy += cycles_proc_by_bus;
 				channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
+				mem_controller->t_wait+=cycles_proc_by_bus;
 
 				if(!stack->prefetch)// if it's only one queue, prefetches can be in the normal queue
 				{
 					channel[stack->channel].t_normal_wait_channel_busy+=cycles_proc_by_bus;
 					channel[stack->channel].t_normal_wait_send_request+=cycles_proc_by_bus;
+					mem_controller->t_normal_wait+=cycles_proc_by_bus;
 				}
 				else
 				{
 					channel[stack->channel].t_pref_wait_channel_busy+=cycles_proc_by_bus;
 					channel[stack->channel].t_pref_wait_send_request+=cycles_proc_by_bus;
+					mem_controller->t_pref_wait+=cycles_proc_by_bus;
 				}
 			}
 			else if(channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].is_been_accesed)
 			{
 				channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
+				mem_controller->t_wait+=cycles_proc_by_bus;
 				channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].conflicts++;
 				channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_wait += cycles_proc_by_bus;
 				if(!stack->prefetch) // if it's only one queue, prefetches can be in the normal queue
 				{
+					mem_controller->t_normal_wait+=cycles_proc_by_bus;
 					channel[stack->channel].t_normal_wait_send_request+=cycles_proc_by_bus;
 	 				channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_normal_wait+=cycles_proc_by_bus;
 				}
 				else
 				{
+					mem_controller->t_pref_wait+=cycles_proc_by_bus;
 					channel[stack->channel].t_pref_wait_send_request+=cycles_proc_by_bus;
 	 				channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_pref_wait+=cycles_proc_by_bus;
 				}
@@ -3312,6 +3323,8 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 			row_buffer_find_row(stack->mod, stack->addr,&stack->channel,&stack->rank,&stack->bank,NULL,NULL,NULL);
 			if (channel[stack->channel].state == channel_state_busy)
 			{
+				mem_controller->t_wait+=cycles_proc_by_bus;
+				mem_controller->t_pref_wait+=cycles_proc_by_bus;
 				channel[stack->channel].t_wait_channel_busy += cycles_proc_by_bus;
 				channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
 				channel[stack->channel].t_pref_wait_channel_busy+=cycles_proc_by_bus;
@@ -3319,6 +3332,8 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 			}
 			else if(channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].is_been_accesed)
 			{
+				mem_controller->t_wait+=cycles_proc_by_bus;
+				mem_controller->t_pref_wait+=cycles_proc_by_bus;
 				channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
 				channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].conflicts++;
 				channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_wait += cycles_proc_by_bus;
@@ -3373,29 +3388,35 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 					{
 						channel[stack->channel].t_wait_channel_busy += cycles_proc_by_bus;
 						channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
+						mem_controller->t_wait+=cycles_proc_by_bus;
 						if(!stack->prefetch)// if it's only one queue, prefetches can be in the normal queue
 						{
 							channel[stack->channel].t_normal_wait_channel_busy+=cycles_proc_by_bus;
 							channel[stack->channel].t_normal_wait_send_request+=cycles_proc_by_bus;
+							mem_controller->t_normal_wait+=cycles_proc_by_bus;
 						}
 						else
 						{
+							mem_controller->t_pref_wait+=cycles_proc_by_bus;
 							channel[stack->channel].t_pref_wait_channel_busy+=cycles_proc_by_bus;
 							channel[stack->channel].t_pref_wait_send_request+=cycles_proc_by_bus;
 						}
 					}
 					else if(channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].is_been_accesed)
 					{
+						mem_controller->t_wait+=cycles_proc_by_bus;
 						channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
 						channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].conflicts++;
 						channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_wait += cycles_proc_by_bus;
 						if(!stack->prefetch) // if it's only one queue, prefetches can be in the normal queue
 						{
+							mem_controller->t_normal_wait+=cycles_proc_by_bus;
 							channel[stack->channel].t_normal_wait_send_request+=cycles_proc_by_bus;
 			 				channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_normal_wait+=cycles_proc_by_bus;
 						}
 						else
 						{
+							mem_controller->t_pref_wait+=cycles_proc_by_bus;
 							channel[stack->channel].t_pref_wait_send_request+=cycles_proc_by_bus;
 			 				channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_pref_wait+=cycles_proc_by_bus;
 						}
@@ -3410,6 +3431,8 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 					row_buffer_find_row(stack->mod, stack->addr,&stack->channel,&stack->rank,&stack->bank,NULL,NULL,NULL);
 					if ( channel[stack->channel].state == channel_state_busy)
 					{
+						mem_controller->t_wait+=cycles_proc_by_bus;
+						mem_controller->t_pref_wait+=cycles_proc_by_bus;
 						channel[stack->channel].t_wait_channel_busy += cycles_proc_by_bus;
 						channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
 						channel[stack->channel].t_pref_wait_channel_busy += cycles_proc_by_bus;
@@ -3417,9 +3440,11 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 					}
 					else if(channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].is_been_accesed)
 					{
+						mem_controller->t_wait+=cycles_proc_by_bus;
+						mem_controller->t_pref_wait+=cycles_proc_by_bus;
 						channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
 						channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].conflicts++;
-						channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_wait += cycles_proc_by_bus;
+						channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_wait+= cycles_proc_by_bus;
 						channel[stack->channel].t_pref_wait_send_request += cycles_proc_by_bus;
 						channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_pref_wait+=cycles_proc_by_bus;
 					}
@@ -3512,31 +3537,37 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 				row_buffer_find_row(stack->mod, stack->addr,&stack->channel,&stack->rank,&stack->bank,NULL,NULL,NULL);
 				if ( channel[stack->channel].state == channel_state_busy)
 				{
+					mem_controller->t_wait+=cycles_proc_by_bus;
 					channel[stack->channel].t_wait_channel_busy += cycles_proc_by_bus;
 					channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
 					if(!stack->prefetch) // if it's only one queue, prefetches can be in normal queue
 					{
+						mem_controller->t_normal_wait+=cycles_proc_by_bus;
 						channel[stack->channel].t_normal_wait_channel_busy += cycles_proc_by_bus;
 						channel[stack->channel].t_normal_wait_send_request+=cycles_proc_by_bus;
 					}
 					else
 					{
+						mem_controller->t_pref_wait+=cycles_proc_by_bus;
 						channel[stack->channel].t_pref_wait_channel_busy += cycles_proc_by_bus;
 						channel[stack->channel].t_pref_wait_send_request+=cycles_proc_by_bus;
 					}
 				}
 				else if(channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].is_been_accesed)
 				{
+					mem_controller->t_wait+=cycles_proc_by_bus;
 					channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
 					channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].conflicts++;
 					channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_wait += cycles_proc_by_bus;
 					if(!stack->prefetch) // if it's only one queue, prefetches can be in normal queue
 					{
+						mem_controller->t_normal_wait+=cycles_proc_by_bus;
 						channel[stack->channel].t_normal_wait_send_request+=cycles_proc_by_bus;
 						channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_normal_wait+=cycles_proc_by_bus;
 					}
 					else
 					{
+						mem_controller->t_pref_wait+=cycles_proc_by_bus;
 						channel[stack->channel].t_pref_wait_send_request+=cycles_proc_by_bus;
 						channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_pref_wait+=cycles_proc_by_bus;
 					}
@@ -3551,6 +3582,8 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 				row_buffer_find_row(stack->mod, stack->addr,&stack->channel,&stack->rank,&stack->bank,NULL,NULL,NULL);
 				if (channel[stack->channel].state == channel_state_busy)
 				{
+					mem_controller->t_wait+=cycles_proc_by_bus;
+					mem_controller->t_pref_wait+=cycles_proc_by_bus;
 					channel[stack->channel].t_wait_channel_busy += cycles_proc_by_bus;
 					channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
 					channel[stack->channel].t_pref_wait_channel_busy += cycles_proc_by_bus;
@@ -3558,6 +3591,8 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 				}
 				else if(channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].is_been_accesed)
 				{
+					mem_controller->t_wait+=cycles_proc_by_bus;
+					mem_controller->t_pref_wait+=cycles_proc_by_bus;
 					channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
 					channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].conflicts++;
 					channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_wait += cycles_proc_by_bus;

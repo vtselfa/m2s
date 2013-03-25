@@ -393,7 +393,7 @@ static char *m2s_help =
 	"      File to dump a report of memory access. The file contains a list of\n"
 	"      allocated memory pages, ordered as per number of accesses. It lists read,\n"
 	"      write, and execution accesses to each physical memory page.\n"
-	"  --report--mem-main-memory\n"
+	"  --main-mem-report\n"
 	"	File to dump the stadisitics of banks, ranks and channels\n"
 	"\n"
 	"  --misses_no_prefetch-write <file>\n"
@@ -1022,7 +1022,7 @@ static void m2s_read_command_line(int *argc_ptr, char **argv)
 		}
 		//////////////////////////////////////////////////
 		/*Option dump main memory and row buffer stadistics*/
-		if (!strcmp(argv[argi], "--report-mem-main-memory"))
+		if (!strcmp(argv[argi], "--main-mem-report"))
 		{
 			m2s_need_argument(argc, argv, argi);
 			main_mem_report_file_name = argv[++argi];
@@ -1205,7 +1205,7 @@ static void m2s_read_command_line(int *argc_ptr, char **argv)
 			fatal(msg, "--report-mem");
 		////////////////////////////////////////////////////////
 		if(*main_mem_report_file_name)
-			fatal(msg, "--report-mem-main-memory");
+			fatal(msg, "--main-mem-report");
 		///////////////////////////////////////////////////////
 	}
 
