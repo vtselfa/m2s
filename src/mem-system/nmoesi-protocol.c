@@ -185,7 +185,7 @@ int must_enqueue_prefetch(struct mod_stack_t *stack)
 }
 
 
-void enqueue_prefetch_group(int core, int thread, struct mod_t *mod, int base_addr, int stride)
+void enqueue_prefetch_group(int core, int thread, struct mod_t *mod, unsigned int base_addr, int stride)
 {
 	struct cache_t *cache = mod->cache;
 	struct stream_buffer_t *sb;
@@ -193,6 +193,8 @@ void enqueue_prefetch_group(int core, int thread, struct mod_t *mod, int base_ad
 	int num_prefetches = cache->prefetch.aggressivity;
 	int stream;
 	int i;
+
+	assert(stride);
 
 	/* Select stream
 	 * If there is already a stream with the same tag, replace it
@@ -262,6 +264,9 @@ void enqueue_prefetch_group(int core, int thread, struct mod_t *mod, int base_ad
 	/* Reset tail */
 	sb->tail = sb->head; //TAIL
 
+	/* Reset dead bit */
+	sb->dead = 0;
+
 	/* Statistics */
 	mod->group_prefetches++;
 }
@@ -280,6 +285,12 @@ void enqueue_prefetch_on_miss(struct mod_stack_t *stack)
 	/* Deeper than L1 prefetch */
 	else
 		mod = stack->target_mod;
+
+	/* Underflow */
+	if(stack->stride < 0 && (stack->addr - stack->stride) > stack->addr) return;
+
+	/* Overflow */
+	if(stack->stride > 0 && (stack->addr + stack->stride) < stack->addr) return;
 
 	enqueue_prefetch_group(stack->core, stack->thread, mod, stack->addr + stack->stride, stack->stride);
 
@@ -307,9 +318,24 @@ void enqueue_prefetch_on_hit(struct mod_stack_t *stack)
 	/* Statistics */
 	mod->single_prefetches++;
 
-	/* Don't prefetch if next_address is not in the stream anymore */
+	/* Enqueue a new prefetch group if next_address is not in the stream anymore */
 	if (sb->stream_transcient_tag != (sb->next_address & ~cache->prefetch.stream_mask))
 	{
+		/* Only do this the first time */
+		if(sb->dead)
+			return;
+		else
+			sb->dead = 1;
+
+		/* We have to test if next_address has suffered an over/underflow */
+		/* Underflow */
+		if(sb->stride < 0 && (sb->next_address + sb->stride) < sb->next_address)
+			return;
+
+		/* Overflow */
+		if(sb->stride > 0 && (sb->next_address - sb->stride) > sb->next_address)
+			return;
+
 		enqueue_prefetch_group(stack->core, stack->thread, mod, sb->next_address, sb->stride);
 		return;
 	}

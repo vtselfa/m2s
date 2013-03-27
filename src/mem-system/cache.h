@@ -117,6 +117,7 @@ struct stream_buffer_t
 	int tail;
 	int stride;
 	int next_address;
+	int dead : 1;
 };
 
 struct cache_t
