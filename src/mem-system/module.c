@@ -412,8 +412,8 @@ int mod_find_block(struct mod_t *mod, unsigned int addr, int *set_ptr,
 			dir_lock = dir_lock_get(mod->dir, set, way);
 			if (dir_lock->lock)
 				break;
-			else
-				assert(!dir_lock->lock_queue); //VVV
+			//else
+				//assert(!dir_lock->lock_queue); //VVV
 		}
 	}
 
