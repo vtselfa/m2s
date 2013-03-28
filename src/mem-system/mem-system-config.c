@@ -904,6 +904,8 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config, char *
 		policy_type = policy_one_queue_FCFS;
 	else if (strcmp(policy, "PrefetchNormalQueue") == 0)
 		policy_type = policy_prefetch_normal_queues;
+	else if(strcmp(policy, "CoalesceQueue") == 0)
+		policy_type = policy_coalesce_queue;
 	else
 		fatal("%s: %s: invalid value for variable 'PolicyMCQueues'.\n%s",
 			mem_config_file_name, mod_name, err_mem_config_note);

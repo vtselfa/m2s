@@ -30,7 +30,8 @@ enum step_priority_t
 enum policy_mc_queue_t
 {
 	policy_one_queue_FCFS = 0, // one queue where prefetch and normal requests hace the same prioritiy, FCFS
-	policy_prefetch_normal_queues // prefetch queue and normal queue, normal is more priority
+	policy_prefetch_normal_queues, // prefetch queue and normal queue, normal is more priority
+	policy_coalesce_queue //one queue for prefetch and normal, we can transfer several blocks from row buffer
 };
 
 struct mem_controller_queue_t
@@ -106,6 +107,9 @@ struct mem_controller_t
 	long long t_normal_transfer;
 
 	long long n_times_queue_examined; // times which queue is examined
+	long long accesses;
+	long long pref_accesses;
+	long long normal_accesses;
 };
 
 struct mem_controller_t * mem_controller_create(void);
@@ -120,6 +124,9 @@ void mem_controller_update_requests_threshold(int cycles);
 int mem_controller_queue_has_consumed_threshold(struct linked_list_t * queue);
 struct mod_stack_t* mem_controller_select_request(int queues_examined, enum priority_t select);
 int mem_controller_queue_has_row_buffer_hit(struct linked_list_t * queue);
+int mem_controller_calcul_number_blocks_transfered(struct mod_stack_t *stack);
+void mem_controller_coalesce_acces_row_buffer( struct mod_stack_t * stack, struct linked_list_t * queue);
+
 
 ///////////////////////////////////////////////////////////////////////////
 /*Memory controller queue*/

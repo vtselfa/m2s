@@ -19,7 +19,7 @@
 
 #include <assert.h>
 #include <stdlib.h>
-
+#include <lib/util/linked-list.h>
 #include <lib/esim/esim.h>
 #include <lib/mhandle/mhandle.h>
 #include <lib/util/misc.h>
@@ -71,6 +71,14 @@ void mod_stack_return(struct mod_stack_t *stack)
 	mod_stack_wakeup_stack(stack);
 
 	/* Free */
+	if(stack->coalesced_stacks!=NULL)
+	{
+		assert(linked_list_count(stack->coalesced_stacks)==0);
+		linked_list_free(stack->coalesced_stacks);
+		//free(stack->coalesced_stacks);
+
+	}
+	
 	free(stack);
 	esim_schedule_event(ret_event, ret_stack, 0);
 }

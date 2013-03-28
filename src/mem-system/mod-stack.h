@@ -108,6 +108,7 @@ struct mod_stack_t
 	unsigned int row;
 	enum mod_request_type_t request_type; // (eviction,read request, write request )
 	long long threshold; //cycles that a request can be waiting in the MC queue befaore to be throw to the bank
+	struct linked_list_t * coalesced_stacks; //stacks which caolesce with this in memory controller
 
 	int src_set;
 	int src_way;

@@ -334,26 +334,26 @@ void main_memory_dump_report(char * main_mem_report_file_name)
 
 
  	fprintf(f, "[MAIN MEMORY]\n");
-	fprintf(f, "TotalTime = %f\n",total_acces ? (double) (mem_controller->t_wait+mem_controller->t_acces_main_memory+mem_controller->t_transfer)/total_acces:0.0);
-        fprintf(f, "AvgTimeWaitMCQueue = %f\n",total_acces ? (double) mem_controller->t_wait/total_acces:0.0);
-        fprintf(f, "AvgTimeAccesMM = %f\n",total_acces ? (double) mem_controller->t_acces_main_memory/total_acces :0.0);
-	fprintf(f, "AvgTimeTransferFromMM = %f\n",total_acces ? (double)mem_controller->t_transfer/total_acces:0.0 );
-	fprintf(f,"TotalAccessesMC = %lld\n", total_acces);
+	fprintf(f, "TotalTime = %f\n",mem_controller->accesses ? (double) (mem_controller->t_wait+mem_controller->t_acces_main_memory+mem_controller->t_transfer)/mem_controller->accesses:0.0);
+        fprintf(f, "AvgTimeWaitMCQueue = %f\n",mem_controller->accesses ? (double) mem_controller->t_wait/mem_controller->accesses:0.0);
+        fprintf(f, "AvgTimeAccesMM = %f\n",mem_controller->accesses ? (double) mem_controller->t_acces_main_memory/mem_controller->accesses :0.0);
+	fprintf(f, "AvgTimeTransferFromMM = %f\n",mem_controller->accesses ? (double)mem_controller->t_transfer/mem_controller->accesses:0.0 );
+	fprintf(f,"TotalAccessesMC = %lld\n", mem_controller->accesses);
 
 	/*Normal requests*/
-	fprintf(f, "TotalTimeNormal = %f\n",total_normal_acces ? (double) (mem_controller->t_normal_wait+mem_controller->t_normal_acces_main_memory+mem_controller->t_normal_transfer)/total_normal_acces:0.0);
-        fprintf(f, "AvgTimeNormalWaitMCQueueN = %f\n",total_normal_acces ? (double) mem_controller->t_normal_wait/total_normal_acces:0.0);
-        fprintf(f, "AvgTimeNormalAccesMM = %f\n",total_normal_acces ? (double) mem_controller->t_normal_acces_main_memory/total_normal_acces :0.0);
-	fprintf(f,"AvgTimeNormalTransferFromMM = %f\n",total_normal_acces?(double)mem_controller->t_normal_transfer/total_normal_acces:0.0 );
-	fprintf(f,"TotalNormalAccessesMC = %lld\n", total_normal_acces);
+	fprintf(f, "TotalTimeNormal = %f\n",mem_controller->normal_accesses ? (double) (mem_controller->t_normal_wait+mem_controller->t_normal_acces_main_memory+mem_controller->t_normal_transfer)/mem_controller->normal_accesses:0.0);
+        fprintf(f, "AvgTimeNormalWaitMCQueueN = %f\n",mem_controller->normal_accesses ? (double) mem_controller->t_normal_wait/mem_controller->normal_accesses:0.0);
+        fprintf(f, "AvgTimeNormalAccesMM = %f\n",mem_controller->normal_accesses ? (double) mem_controller->t_normal_acces_main_memory/mem_controller->normal_accesses :0.0);
+	fprintf(f,"AvgTimeNormalTransferFromMM = %f\n",mem_controller->normal_accesses?(double)mem_controller->t_normal_transfer/mem_controller->normal_accesses:0.0 );
+	fprintf(f,"TotalNormalAccessesMC = %lld\n", mem_controller->normal_accesses);
 
 
 	/*Prefetch requests*/
-	fprintf(f, "TotalTimePrefetch = %f\n",total_pref_acces ? (double) (mem_controller->t_pref_wait+mem_controller->t_pref_acces_main_memory+mem_controller->t_pref_transfer)/total_normal_acces:0.0);
-        fprintf(f, "AvgTimePrefetchWaitMCQueueN = %f\n",total_pref_acces ? (double) mem_controller->t_pref_wait/total_pref_acces:0.0);
-        fprintf(f, "AvgTimePrefetchAccesMM = %f\n",total_pref_acces?(double) mem_controller->t_pref_acces_main_memory/total_pref_acces :0.0);
-	fprintf(f,"AvgTimePrefetchTransferFromMM = %f\n",total_pref_acces?(double)mem_controller->t_pref_transfer/total_pref_acces:0.0 );
-	fprintf(f,"TotalPrefetchAccessesMC = %lld\n", total_pref_acces);
+	fprintf(f, "TotalTimePrefetch = %f\n",mem_controller->pref_accesses ? (double) (mem_controller->t_pref_wait+mem_controller->t_pref_acces_main_memory+mem_controller->t_pref_transfer)/mem_controller->pref_accesses:0.0);
+        fprintf(f, "AvgTimePrefetchWaitMCQueueN = %f\n",mem_controller->pref_accesses ? (double) mem_controller->t_pref_wait/mem_controller->pref_accesses:0.0);
+        fprintf(f, "AvgTimePrefetchAccesMM = %f\n",mem_controller->pref_accesses?(double) mem_controller->t_pref_acces_main_memory/mem_controller->pref_accesses :0.0);
+	fprintf(f,"AvgTimePrefetchTransferFromMM = %f\n",mem_controller->pref_accesses?(double)mem_controller->t_pref_transfer/mem_controller->pref_accesses:0.0 );
+	fprintf(f,"TotalPrefetchAccessesMC = %lld\n", mem_controller->pref_accesses);
 
 	fprintf(f,"\n\n");
 
@@ -371,7 +371,7 @@ void main_memory_dump_report(char * main_mem_report_file_name)
 			(double) mod->regs_channel[c].t_wait_transfer_request/mod->regs_channel[c].num_requests_transfered : 0.0);
                 fprintf(f, "AvgTimeRequestTransfer = %f\n",mod->regs_channel[c].num_requests_transfered ?
 			(double)mod->regs_channel[c].t_transfer/mod->regs_channel[c].num_requests_transfered : 0.0);
-
+printf("%lld\n",mod->regs_channel[c].num_requests_transfered);
 		/*Normal requests*/
 		fprintf(f, "NormalRowBufferHitPercent = %F\n", mod->regs_channel[c].normal_accesses?
 			 (double)mod->regs_channel[c].row_buffer_hits_normal/mod->regs_channel[c].normal_accesses : 0.0);

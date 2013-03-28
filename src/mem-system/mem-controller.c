@@ -27,7 +27,7 @@ int row_buffer_find_row(struct mod_t *mod, unsigned int addr, unsigned int *chan
 	unsigned int row_buffer;
 	int tag;
 	
-	row_buffer = addr &  mem_controller->row_buffer_size;
+	row_buffer = addr %  mem_controller->row_buffer_size;
 
 	unsigned int num_ranks = mem_controller->num_regs_rank ;
 	unsigned int num_banks = mem_controller->num_regs_bank ;
@@ -509,4 +509,77 @@ int mem_controller_stacks_prefQueues_count()
 
 
 
+void mem_controller_coalesce_acces_row_buffer( struct mod_stack_t * stack, struct linked_list_t * queue)
+{
+	struct mod_stack_t * stack_aux;
+	unsigned int num_ranks = mem_system->mem_controller->num_regs_rank ;
+	unsigned int num_banks = mem_system->mem_controller->num_regs_bank ;
+	unsigned int log2_row_size= log_base2( mem_system->mem_controller->row_buffer_size);
+	unsigned int num_channels = mem_system->mem_controller->num_regs_channel ;
+
+	linked_list_head(queue);
+	while(!linked_list_is_end(queue)&&linked_list_current(queue)<mem_system->mem_controller->size_queue)
+	{
+		stack_aux=linked_list_get(queue);
+		
+		/*This stack has its block in the same main mamory row than origin stack*/
+		unsigned int row_buffer = stack_aux->addr &  mem_system->mem_controller->row_buffer_size;
+		int row=(stack_aux->addr>>(log2_row_size+log_base2(num_banks)+log_base2(num_ranks)));
+		int rank = (stack_aux->addr >> (log2_row_size+ log_base2(num_banks))) % num_ranks;
+		int bank = (stack_aux->addr >> log2_row_size) % num_banks;
+		int channel=(row_buffer >>7 )%num_channels;
+		
+
+		assert(rank==stack->rank && bank==stack->bank && channel==stack->channel);
+		
+	
+		if(row==stack->row)
+		{
+			/*Coalesce*/
+			mem_debug("   stack %lld coalesced with stack %lld\n", stack_aux->id, stack->id);
+			if(stack->coalesced_stacks==NULL)
+				stack->coalesced_stacks=linked_list_create();
+			linked_list_add(stack->coalesced_stacks, stack_aux);
+			linked_list_remove(queue);
+		}else
+			linked_list_next(queue);
+
+	}
+
+}
+
+int mem_controller_calcul_number_blocks_transfered(struct mod_stack_t *stack)
+{
+
+	struct linked_list_t * queue=stack->coalesced_stacks;
+	struct mod_stack_t * stack_aux;
+	struct mem_controller_t * mem_controller= mem_system->mem_controller;
+	unsigned int first;
+	unsigned int last;
+	unsigned int block;
+
+	/*Initialize*/
+	first = last = stack->addr %  mem_controller->row_buffer_size;
+	linked_list_head(queue);
+	while(!linked_list_is_end(queue))
+	{
+		stack_aux=linked_list_get(queue);
+		block=stack_aux->addr %  mem_controller->row_buffer_size;
+		/*Get fist block of this row*/
+		if(first>block)
+			first=block;
+		
+		else if(last<block)
+			last=block;
+
+		linked_list_next(queue);
+		
+	}
+	assert(last+stack->mod->cache->block_size <= mem_controller->row_buffer_size);
+	assert(first>=0 && last>=0);
+	assert((last-first) % stack->mod->cache->block_size==0);
+
+	return (last-first)/stack->mod->cache->block_size + 1;
+
+}
 
