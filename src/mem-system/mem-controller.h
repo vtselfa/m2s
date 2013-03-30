@@ -31,7 +31,8 @@ enum policy_mc_queue_t
 {
 	policy_one_queue_FCFS = 0, // one queue where prefetch and normal requests hace the same prioritiy, FCFS
 	policy_prefetch_normal_queues, // prefetch queue and normal queue, normal is more priority
-	policy_coalesce_queue //one queue for prefetch and normal, we can transfer several blocks from row buffer
+	policy_coalesce_queue, //one queue for prefetch and normal, we can transfer several blocks from row buffer
+	policy_coalesce_useful_blocks_queue //one queue for prefetch and normal, we transfer only useful blocks from row buffer (only coalesced blocks)
 };
 
 struct mem_controller_queue_t
@@ -110,6 +111,9 @@ struct mem_controller_t
 	long long accesses;
 	long long pref_accesses;
 	long long normal_accesses;
+
+	long long blocks_transfered;
+	long long useful_blocks_transfered;
 };
 
 struct mem_controller_t * mem_controller_create(void);

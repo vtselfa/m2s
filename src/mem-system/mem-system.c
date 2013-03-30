@@ -339,6 +339,8 @@ void main_memory_dump_report(char * main_mem_report_file_name)
         fprintf(f, "AvgTimeAccesMM = %f\n",mem_controller->accesses ? (double) mem_controller->t_acces_main_memory/mem_controller->accesses :0.0);
 	fprintf(f, "AvgTimeTransferFromMM = %f\n",mem_controller->accesses ? (double)mem_controller->t_transfer/mem_controller->accesses:0.0 );
 	fprintf(f,"TotalAccessesMC = %lld\n", mem_controller->accesses);
+	fprintf(f,"AccuracyTransferedBlocks = %f\n", mem_controller->blocks_transfered ? (double)mem_controller->useful_blocks_transfered/mem_controller->blocks_transfered:0);
+	fprintf(f,"\n");
 
 	/*Normal requests*/
 	fprintf(f, "TotalTimeNormal = %f\n",mem_controller->normal_accesses ? (double) (mem_controller->t_normal_wait+mem_controller->t_normal_acces_main_memory+mem_controller->t_normal_transfer)/mem_controller->normal_accesses:0.0);
@@ -347,6 +349,7 @@ void main_memory_dump_report(char * main_mem_report_file_name)
 	fprintf(f,"AvgTimeNormalTransferFromMM = %f\n",mem_controller->normal_accesses?(double)mem_controller->t_normal_transfer/mem_controller->normal_accesses:0.0 );
 	fprintf(f,"TotalNormalAccessesMC = %lld\n", mem_controller->normal_accesses);
 
+	fprintf(f,"\n");
 
 	/*Prefetch requests*/
 	fprintf(f, "TotalTimePrefetch = %f\n",mem_controller->pref_accesses ? (double) (mem_controller->t_pref_wait+mem_controller->t_pref_acces_main_memory+mem_controller->t_pref_transfer)/mem_controller->pref_accesses:0.0);
@@ -371,7 +374,8 @@ void main_memory_dump_report(char * main_mem_report_file_name)
 			(double) mod->regs_channel[c].t_wait_transfer_request/mod->regs_channel[c].num_requests_transfered : 0.0);
                 fprintf(f, "AvgTimeRequestTransfer = %f\n",mod->regs_channel[c].num_requests_transfered ?
 			(double)mod->regs_channel[c].t_transfer/mod->regs_channel[c].num_requests_transfered : 0.0);
-printf("%lld\n",mod->regs_channel[c].num_requests_transfered);
+		fprintf(f,"\n");
+
 		/*Normal requests*/
 		fprintf(f, "NormalRowBufferHitPercent = %F\n", mod->regs_channel[c].normal_accesses?
 			 (double)mod->regs_channel[c].row_buffer_hits_normal/mod->regs_channel[c].normal_accesses : 0.0);
@@ -381,6 +385,7 @@ printf("%lld\n",mod->regs_channel[c].num_requests_transfered);
 			(double)mod->regs_channel[c].t_normal_wait_channel_busy/mod->regs_channel[c].num_normal_requests_transfered : 0.0);
                 fprintf(f, "AvgTimeNormalWaitRequestTransfer = %f\n",mod->regs_channel[c].num_normal_requests_transfered?
 			(double)mod->regs_channel[c].t_normal_wait_transfer_request/mod->regs_channel[c].num_normal_requests_transfered: 0.0);
+		fprintf(f,"\n");
 
 		/*Prefetch requests*/
 		fprintf(f, "PrefetchRowBufferHitPercent = %F\n", mod->regs_channel[c].pref_accesses?
@@ -430,7 +435,7 @@ printf("%lld\n",mod->regs_channel[c].num_requests_transfered);
 				fprintf(f,"AvgTimePrefetchWaitBankBusy = %f\n",mod->regs_channel[c].regs_rank[r].regs_bank[b].pref_accesses?
 					(double)mod->regs_channel[c].regs_rank[r].regs_bank[b].t_pref_wait/
                                         mod->regs_channel[c].regs_rank[r].regs_bank[b].pref_accesses:0.0);
-
+				fprintf(f,"\n");
 
 
                         }

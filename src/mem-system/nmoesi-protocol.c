@@ -3164,7 +3164,9 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 			   	mem_controller_prefetch_queue_add(stack);
 			}
 		}
-		else if (mem_controller->policy_queues == policy_one_queue_FCFS || mem_controller->policy_queues == policy_coalesce_queue)
+		else if (mem_controller->policy_queues == policy_one_queue_FCFS ||
+		mem_controller->policy_queues == policy_coalesce_queue || 
+		mem_controller->policy_queues == policy_coalesce_useful_blocks_queue)
 		{	mem_controller_normal_queue_add(stack);
 			mem_controller->normal_accesses++;
 		}else
@@ -3511,7 +3513,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 
 				/*Coalesce stacks whose bocks will be in the row buffer 
 				  when stack will get its block from row buffer*/
-				if(mem_controller->policy_queues==policy_coalesce_queue)
+				if(mem_controller->policy_queues==policy_coalesce_queue||mem_controller->policy_queues == policy_coalesce_useful_blocks_queue)
 				{
 					assert(linked_list_count(pref_queue->queue)==0);
 					mem_controller_coalesce_acces_row_buffer(new_stack, normal_queue->queue);
@@ -3711,16 +3713,29 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 
 			
 			/* Calcul the cycles of proccesor for transfering */
-			if(mem_controller->policy_queues!= policy_coalesce_queue || stack->coalesced_stacks==NULL)
+			if((mem_controller->policy_queues!= policy_coalesce_queue && mem_controller->policy_queues != policy_coalesce_useful_blocks_queue) || stack->coalesced_stacks==NULL)
+			{
 				t_trans = mod->cache->block_size / (mod->regs_channel[stack->channel].bandwith * 2) * cycles_proc_by_bus; //2 because is DDR3
+				/*Stadistics*/
+				mem_controller->blocks_transfered+=1;
+				mem_controller->useful_blocks_transfered+=1; 
+			}
 			else
 			{
 				/*Transfer all block that have coalesced*/
-				num_blocks=mem_controller_calcul_number_blocks_transfered(stack);
+				if(mem_controller->policy_queues == policy_coalesce_queue) //tranfer all blocks between min and max block
+					num_blocks=mem_controller_calcul_number_blocks_transfered(stack);
+				else
+					num_blocks=linked_list_count(stack->coalesced_stacks)+1;//transfer only blocks required (this and coalesced)
+
 				assert(num_blocks>0 && num_blocks <= mem_controller->row_buffer_size/mod->cache->block_size);
 
 				t_trans = num_blocks*mod->cache->block_size / (mod->regs_channel[stack->channel].bandwith * 2) * cycles_proc_by_bus; //2 because is DDR3
-				printf("    blocks transfered = %d  coalesced requests=%d\n", num_blocks, linked_list_count(stack->coalesced_stacks));
+				mem_debug("    blocks transfered = %d  coalesced requests=%d\n",num_blocks,linked_list_count(stack->coalesced_stacks));
+				/*Stadistics*/
+				mem_controller->blocks_transfered+=num_blocks;
+				mem_controller->useful_blocks_transfered+=linked_list_count(stack->coalesced_stacks)+1; // 1 is the current stack
+
 			}
 
 			/* Stadistics */
@@ -3782,8 +3797,9 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 		
 		
 		/*Coalesced requests*/
-		if(mem_controller->policy_queues == policy_coalesce_queue && stack->coalesced_stacks!=NULL)
+		if( stack->coalesced_stacks!=NULL)
 		{
+			assert(mem_controller->policy_queues==policy_coalesce_queue||mem_controller->policy_queues== policy_coalesce_useful_blocks_queue);
 			linked_list_head(stack->coalesced_stacks);
 			while(!linked_list_is_end(stack->coalesced_stacks))
 			{

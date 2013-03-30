@@ -905,8 +905,23 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config, char *
 	else if (strcmp(policy, "PrefetchNormalQueue") == 0)
 		policy_type = policy_prefetch_normal_queues;
 	else if(strcmp(policy, "CoalesceQueue") == 0)
+	{
 		policy_type = policy_coalesce_queue;
-	else
+		if(!queue_per_bank)
+		{
+			warning(" Coalesced option is just compatible with a queue for each bank\n");
+			queue_per_bank=1;
+		}
+	}
+	else if(strcmp(policy, "CoalesceUsefulBlocksQueue") == 0)
+	{
+		policy_type = policy_coalesce_useful_blocks_queue;
+		if(!queue_per_bank)
+		{
+			warning(" Coalesced option is just compatible with a queue for each bank\n");
+			queue_per_bank=1;
+		}
+	}else
 		fatal("%s: %s: invalid value for variable 'PolicyMCQueues'.\n%s",
 			mem_config_file_name, mod_name, err_mem_config_note);
 	if (size_queue <= 0)
