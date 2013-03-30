@@ -2899,7 +2899,8 @@ void mod_handler_nmoesi_evict(int event, void *data)
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:evict_process\"\n",
 			stack->id, target_mod->name);
 
-		assert(!stack->stream_hit);
+		assert(!stack->stream_hit); //VVV
+		assert(stack->state); //VVV
 
 		/* Error locking block */
 		if (stack->err)
@@ -4206,6 +4207,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 		new_stack->blocking = stack->request_dir == mod_request_down_up;
 		new_stack->read = 1;
 		new_stack->retry = 0;
+		new_stack->background = stack->background; /* Per si hi ha fallada (err=-1) en la eviction */
 		new_stack->stream_retried = stack->stream_retried;
 		new_stack->stream_retried_cycle = stack->stream_retried_cycle;
 		new_stack->request_dir = stack->request_dir;
@@ -5142,6 +5144,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 		new_stack->blocking = stack->request_dir == mod_request_down_up;
 		new_stack->write = 1;
 		new_stack->retry = 0;
+		new_stack->background = stack->background;
 		new_stack->stream_retried = stack->stream_retried;
 		new_stack->stream_retried_cycle = stack->stream_retried_cycle;
 		new_stack->request_dir = stack->request_dir;
