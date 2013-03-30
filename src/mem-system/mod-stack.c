@@ -73,7 +73,6 @@ void mod_stack_return(struct mod_stack_t *stack)
 	/* Free */
 	if(stack->coalesced_stacks!=NULL)
 	{
-		assert(linked_list_count(stack->coalesced_stacks)==0);
 		linked_list_free(stack->coalesced_stacks);
 		//free(stack->coalesced_stacks);
 
