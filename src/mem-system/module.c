@@ -365,7 +365,7 @@ int mod_find_block_in_stream(struct mod_t *mod, unsigned int addr, int stream)
 	for(i = sb->head; i < count; i++){
 		slot = i % sb->num_slots;
 		block = cache_get_pref_block(cache, sb->stream, slot);
-		if(block->tag == tag)
+		if(block->tag == tag && block->state)
 			return slot;
 	}
 	return -1;
