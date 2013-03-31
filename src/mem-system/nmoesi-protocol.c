@@ -2145,11 +2145,8 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 		/* Cache entry is locked. Record the transient tag so that a subsequent lookup
 		 * detects that the block is being brought.
 		 * Also, update LRU counters here. */
-		if (stack->request_dir == mod_request_up_down)
-		{
-			cache_set_transient_tag(mod->cache, stack->set, stack->way, stack->tag);
-			cache_access_block(mod->cache, stack->set, stack->way);
-		}
+		cache_set_transient_tag(mod->cache, stack->set, stack->way, stack->tag);
+		cache_access_block(mod->cache, stack->set, stack->way);
 
 		if (!stack->hit && !stack->background && cache->prefetch_enabled == prefetch_streams)
 			esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK_PREF_STREAM, stack, 0);
