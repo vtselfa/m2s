@@ -548,6 +548,114 @@ void mem_controller_coalesce_acces_row_buffer( struct mod_stack_t * stack, struc
 
 }
 
+int mem_controller_coalesce_acces_between_blocks(struct mod_stack_t * stack, struct linked_list_t *queue, int block_min, int block_max)
+{
+
+	struct mod_stack_t * stack_aux;
+	unsigned int num_ranks = mem_system->mem_controller->num_regs_rank ;
+	unsigned int num_banks = mem_system->mem_controller->num_regs_bank ;
+	unsigned int log2_row_size= log_base2( mem_system->mem_controller->row_buffer_size);
+	unsigned int num_channels = mem_system->mem_controller->num_regs_channel ;
+	int n_coal=0;
+
+	linked_list_head(queue);
+	while(!linked_list_is_end(queue)&&linked_list_current(queue)<mem_system->mem_controller->size_queue)
+	{
+		stack_aux=linked_list_get(queue);
+		
+		/*This stack has its block in the same main mamory row than origin stack*/
+		unsigned int row_buffer = stack_aux->addr &  mem_system->mem_controller->row_buffer_size;
+		unsigned int row=(stack_aux->addr>>(log2_row_size+log_base2(num_banks)+log_base2(num_ranks)));
+		unsigned int rank = (stack_aux->addr >> (log2_row_size+ log_base2(num_banks))) % num_ranks;
+		unsigned int bank = (stack_aux->addr >> log2_row_size) % num_banks;
+		unsigned int channel=(row_buffer >>7 )%num_channels;
+		unsigned int block=stack_aux->addr %  mem_system->mem_controller->row_buffer_size;
+
+		assert(rank==stack->rank && bank==stack->bank && channel==stack->channel);
+		
+		/*Is this request between the min and max block? */
+		if(row==stack->row && block>=block_min&& block<=block_max)
+		{
+
+			/*Coalesce*/
+			mem_debug("   stack %lld coalesced with stack %lld\n", stack_aux->id, stack->id);
+			if(stack->coalesced_stacks==NULL)
+				stack->coalesced_stacks=linked_list_create();
+			linked_list_add(stack->coalesced_stacks, stack_aux);
+			linked_list_remove(queue);
+			n_coal++;
+		}else
+			linked_list_next(queue);
+
+	}
+
+	return n_coal;
+
+}
+
+unsigned int mem_controller_min_block(struct mod_stack_t *stack)
+{
+
+	struct linked_list_t * queue=stack->coalesced_stacks;
+	struct mod_stack_t * stack_aux;
+	struct mem_controller_t * mem_controller= mem_system->mem_controller;
+	unsigned int first;
+	unsigned int block;
+
+	first = stack->addr %  mem_controller->row_buffer_size;
+
+	linked_list_head(queue);
+	while(!linked_list_is_end(queue))
+	{
+		stack_aux=linked_list_get(queue);
+		block=stack_aux->addr %  mem_controller->row_buffer_size;
+
+
+		if(first>block)
+			first=block;
+
+		linked_list_next(queue);
+		
+	}
+	assert(first+stack->mod->cache->block_size <= mem_controller->row_buffer_size);
+	assert(first>=0 );
+	assert(first % stack->mod->cache->block_size==0);
+
+	return first;
+
+}
+
+
+unsigned int mem_controller_max_block(struct mod_stack_t *stack)
+{
+
+	struct linked_list_t * queue=stack->coalesced_stacks;
+	struct mod_stack_t * stack_aux;
+	struct mem_controller_t * mem_controller= mem_system->mem_controller;
+	unsigned int last;
+	unsigned int block;
+
+	last = stack->addr %  mem_controller->row_buffer_size;
+
+	linked_list_head(queue);
+	while(!linked_list_is_end(queue))
+	{
+		stack_aux=linked_list_get(queue);
+		block=stack_aux->addr %  mem_controller->row_buffer_size;
+
+		if(last<block)
+			last=block;
+
+		linked_list_next(queue);
+	}
+	assert(last+stack->mod->cache->block_size <= mem_controller->row_buffer_size);
+	assert(last>=0);
+	assert(last % stack->mod->cache->block_size==0);
+
+	return last;
+
+}
+
 int mem_controller_calcul_number_blocks_transfered(struct mod_stack_t *stack)
 {
 

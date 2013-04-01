@@ -332,13 +332,14 @@ void main_memory_dump_report(char * main_mem_report_file_name)
                 }
          }
 
-
  	fprintf(f, "[MAIN MEMORY]\n");
 	fprintf(f, "TotalTime = %f\n",mem_controller->accesses ? (double) (mem_controller->t_wait+mem_controller->t_acces_main_memory+mem_controller->t_transfer)/mem_controller->accesses:0.0);
         fprintf(f, "AvgTimeWaitMCQueue = %f\n",mem_controller->accesses ? (double) mem_controller->t_wait/mem_controller->accesses:0.0);
         fprintf(f, "AvgTimeAccesMM = %f\n",mem_controller->accesses ? (double) mem_controller->t_acces_main_memory/mem_controller->accesses :0.0);
-	fprintf(f, "AvgTimeTransferFromMM = %f\n",mem_controller->accesses ? (double)mem_controller->t_transfer/mem_controller->accesses:0.0 );
+	fprintf(f, "AvgTimeTransferFromMM = %f\n",mem_controller->accesses?(double)mem_controller->t_transfer/mem_controller->accesses:0.0 );
 	fprintf(f,"TotalAccessesMC = %lld\n", mem_controller->accesses);
+	fprintf(f,"TotalNonCoalescedAccessesMC = %lld\n", mem_controller->non_coalesced_accesses);
+	fprintf(f,"RequestsPerCoalesdedAcces = %f\n", mem_controller->non_coalesced_accesses ?(double)mem_controller->accesses/mem_controller->non_coalesced_accesses:0);
 	fprintf(f,"AccuracyTransferedBlocks = %f\n", mem_controller->blocks_transfered ? (double)mem_controller->useful_blocks_transfered/mem_controller->blocks_transfered:0);
 	fprintf(f,"\n");
 
