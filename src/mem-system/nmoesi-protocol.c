@@ -2145,11 +2145,8 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 		/* Cache entry is locked. Record the transient tag so that a subsequent lookup
 		 * detects that the block is being brought.
 		 * Also, update LRU counters here. */
-		if (stack->request_dir == mod_request_up_down)
-		{
-			cache_set_transient_tag(mod->cache, stack->set, stack->way, stack->tag);
-			cache_access_block(mod->cache, stack->set, stack->way);
-		}
+		cache_set_transient_tag(mod->cache, stack->set, stack->way, stack->tag);
+		cache_access_block(mod->cache, stack->set, stack->way);
 
 		if (!stack->hit && !stack->background && cache->prefetch_enabled == prefetch_streams)
 			esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK_PREF_STREAM, stack, 0);
@@ -5334,15 +5331,15 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			return;
 		}
 
-		/* If stream_hit or background stack, there aren't any upper level sharers of the block */
-		if (stack->stream_hit || stack->background)
+		/* If stream_hit, background stack or down up miss (silent eviction of stream block) there aren't any upper level sharers of the block */
+		if (stack->stream_hit || stack->background || !stack->state)
 		{
 			mem_debug("  %lld %lld 0x%x %s write prefetch hit direction %d\n",
 				esim_cycle, stack->id, stack->tag, target_mod->name,
 				stack->request_dir == mod_request_up_down);
 			assert(target_mod->kind != mod_kind_main_memory);
 
-			/* Li posem l'estat del bloc prebuscat */
+			/* Block in write buffer */
 			if(stack->background)
 			{
 				struct write_buffer_block_t *wb_block;
@@ -5360,6 +5357,14 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 				assert(wb_block);
 				assert(wb_block->tag == stack->tag);
 			}
+
+			/* Down up miss due a silent eviction in the stream */
+			else if(!stack->state && !stack->stream_hit)
+			{
+				/* Do nothing */
+			}
+
+			/* Stream hit */
 			else
 			{
 				struct stream_block_t * block = cache_get_pref_block(
@@ -5593,13 +5598,13 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			stack->id, target_mod->name);
 
 		//assert(stack->state != cache_block_invalid);
-		assert(stack->stream_hit ||
+		assert(stack->stream_hit || stack->state == cache_block_invalid || // Stream hit or silent eviction
 			!dir_entry_group_shared_or_owned(target_mod->dir, stack->set, stack->way));
 
 		/* Compute reply size */
 		if (stack->state == cache_block_exclusive ||
-			stack->state == cache_block_shared || //VVV
-			stack->state == cache_block_invalid)
+			stack->state == cache_block_shared ||
+			stack->state == cache_block_invalid) //VVV
 		{
 			/* Exclusive and shared states send an ack */
 			stack->reply_size = 8;
