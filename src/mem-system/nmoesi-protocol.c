@@ -3808,6 +3808,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 		struct mod_stack_t * stack_aux;
 		struct linked_list_t * coalesced_stacks=linked_list_create();
 		int n_coalesce=0;
+		struct mem_controller_queue_t* normq_aux;
 		bank = mod->regs_channel[stack->channel].regs_rank[stack->rank].regs_bank;
 
 		
@@ -3863,7 +3864,24 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 				channel[stack->channel].regs_rank[stack->rank].normal_accesses+=n_coalesce;
 				channel[stack->channel].normal_accesses+= n_coalesce;
 			}
-		
+			
+			time = esim_cycle - mem_controller->last_cycle;
+			for (int i = 0; i < num_queues; i++)
+			{
+				normq_aux = mem_controller->normal_queue[i];
+				assert(linked_list_count(mem_controller->pref_queue[i]->queue)==0);
+
+				if (linked_list_count(normq_aux->queue) < size_queue)
+					normq_aux->total_requests += linked_list_count(normq_aux->queue) * time;
+				else // queue full, add the limit
+					normq_aux->total_requests += size_queue * time;
+			}
+			mem_controller->n_times_queue_examined += time; //se podria cambiar dividinto x esim al final
+			mem_controller->last_cycle = esim_cycle;
+
+			if (linked_list_count(mem_controller->normal_queue[q]->queue) == size_queue - n_coalesce &&n_coalesce>0)
+				mem_controller->normal_queue[q]->t_full += esim_cycle - mem_controller->normal_queue[q]->instant_begin_full;
+	
 		}
 
 		
