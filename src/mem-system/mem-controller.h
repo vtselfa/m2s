@@ -32,7 +32,8 @@ enum policy_mc_queue_t
 	policy_one_queue_FCFS = 0, // one queue where prefetch and normal requests hace the same prioritiy, FCFS
 	policy_prefetch_normal_queues, // prefetch queue and normal queue, normal is more priority
 	policy_coalesce_queue, //one queue for prefetch and normal, we can transfer several blocks from row buffer
-	policy_coalesce_useful_blocks_queue //one queue for prefetch and normal, we transfer only useful blocks from row buffer (only coalesced blocks)
+	policy_coalesce_useful_blocks_queue, //one queue for prefetch and normal, we transfer only useful blocks from row buffer (only coalesced blocks)
+	policy_coalesce_delayed_request_queue //one queue for prefetch and normal, we transfer several blocks from row buffer and then we check if some are in MC queue
 };
 
 struct mem_controller_queue_t
@@ -109,6 +110,7 @@ struct mem_controller_t
 
 	long long n_times_queue_examined; // times which queue is examined
 	long long accesses;
+	long long non_coalesced_accesses;
 	long long pref_accesses;
 	long long normal_accesses;
 
@@ -130,6 +132,10 @@ struct mod_stack_t* mem_controller_select_request(int queues_examined, enum prio
 int mem_controller_queue_has_row_buffer_hit(struct linked_list_t * queue);
 int mem_controller_calcul_number_blocks_transfered(struct mod_stack_t *stack);
 void mem_controller_coalesce_acces_row_buffer( struct mod_stack_t * stack, struct linked_list_t * queue);
+int mem_controller_coalesce_acces_between_blocks(struct mod_stack_t * stack, struct linked_list_t *queue, int block_min, int block_max);
+unsigned int mem_controller_max_block(struct mod_stack_t *stack);
+unsigned int mem_controller_min_block(struct mod_stack_t *stack);
+
 
 
 ///////////////////////////////////////////////////////////////////////////

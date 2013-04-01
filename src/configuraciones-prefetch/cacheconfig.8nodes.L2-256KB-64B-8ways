@@ -21,9 +21,9 @@ Sets = 256
 Assoc = 8
 BlockSize = 64
 Latency = 10
-;Prefetch = streams
-;PrefetchStreams = 32
-;PrefetchAggressivity = 4
+Prefetch = streams
+PrefetchStreams = 32
+PrefetchAggressivity = 4
 
 #
 # Level 1 Caches
@@ -209,7 +209,7 @@ CyclesRowBufferMiss = 180
 Bandwith = 16
 CyclesProcByCyclesBus = 3
 Threshold= 100000
-PolicyMCQueues = CoalesceUsefulBlocksQueue
+PolicyMCQueues = CoalesceDelayedRequestQueue
 PriorityMCQueues = Threshold-RowBufferHit-FCFS
 QueuePerBank = 1
 SizeQueue = 128

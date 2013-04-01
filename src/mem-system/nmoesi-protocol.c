@@ -3192,7 +3192,8 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 		}
 		else if (mem_controller->policy_queues == policy_one_queue_FCFS ||
 		mem_controller->policy_queues == policy_coalesce_queue || 
-		mem_controller->policy_queues == policy_coalesce_useful_blocks_queue)
+		mem_controller->policy_queues == policy_coalesce_useful_blocks_queue ||
+		mem_controller->policy_queues == policy_coalesce_delayed_request_queue)
 		{	mem_controller_normal_queue_add(stack);
 			mem_controller->normal_accesses++;
 		}else
@@ -3539,7 +3540,9 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 
 				/*Coalesce stacks whose bocks will be in the row buffer
 				  when stack will get its block from row buffer*/
-				if(mem_controller->policy_queues==policy_coalesce_queue||mem_controller->policy_queues == policy_coalesce_useful_blocks_queue)
+				if(mem_controller->policy_queues==policy_coalesce_queue||
+				 mem_controller->policy_queues == policy_coalesce_useful_blocks_queue || 
+				 mem_controller->policy_queues == policy_coalesce_delayed_request_queue)
 				{
 					assert(linked_list_count(pref_queue->queue)==0);
 					mem_controller_coalesce_acces_row_buffer(new_stack, normal_queue->queue);
@@ -3641,7 +3644,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 	if (event == EV_MOD_NMOESI_ACCES_BANK)  // the request has arrived until the rank and bank
 	{
 
-		//int n_coalesce= stack->coalesced_stacks!=NULL ? linked_list_count(stack->coalesced_stacks): 0;
+		int n_coalesce= stack->coalesced_stacks!=NULL ? linked_list_count(stack->coalesced_stacks): 0;
 		mem_debug("  %lld %lld 0x%x %s acces bank\n", esim_cycle, stack->id, stack->addr & ~mod->cache->block_mask, mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:acces bank\"\n", stack->id, mod->name);
 
@@ -3661,21 +3664,22 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 
 
 			/* Stadistics */
-			channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].row_buffer_hits+=1;
-			channel[stack->channel].regs_rank[stack->rank].row_buffer_hits+=1;
-			channel[stack->channel].row_buffer_hits+=1;
+			channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].row_buffer_hits+=1+ n_coalesce;
+			channel[stack->channel].regs_rank[stack->rank].row_buffer_hits+=1+ n_coalesce;
+			channel[stack->channel].row_buffer_hits+=1+ n_coalesce;
 			mem_controller->t_acces_main_memory += bank[stack->bank].t_row_buffer_hit;
 
 			if(stack->prefetch)
 			{
-				channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].row_buffer_hits_pref+=1;
+				/*TODO sauria de mirar kines coalesed son prefetch i kine sno*/
+				channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].row_buffer_hits_pref+=1; 
 				channel[stack->channel].regs_rank[stack->rank].row_buffer_hits_pref+=1;
 				channel[stack->channel].row_buffer_hits_pref+=1;
 				mem_controller->t_pref_acces_main_memory += bank[stack->bank].t_row_buffer_hit;
 			}else{
-				channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].row_buffer_hits_normal+=1;
-				channel[stack->channel].regs_rank[stack->rank].row_buffer_hits_normal+=1;
-				channel[stack->channel].row_buffer_hits_normal+=1;
+				channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].row_buffer_hits_normal+=1+ n_coalesce;
+				channel[stack->channel].regs_rank[stack->rank].row_buffer_hits_normal+=1+ n_coalesce;
+				channel[stack->channel].row_buffer_hits_normal+=1+ n_coalesce;
 				mem_controller->t_normal_acces_main_memory += bank[stack->bank].t_row_buffer_hit;
 			}
 
@@ -3707,20 +3711,21 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 			if (channel[stack->channel].regs_rank[i].is_been_accesed)
 				channel[stack->channel].regs_rank[i].parallelism++;
 
-		bank[stack->bank].acceses+=1;
-		channel[stack->channel].regs_rank[stack->rank].acceses+=1;
-		channel[stack->channel].acceses+=1;
+		bank[stack->bank].acceses+=1+ n_coalesce;
+		channel[stack->channel].regs_rank[stack->rank].acceses+=1+ n_coalesce;
+		channel[stack->channel].acceses+=1+ n_coalesce;
+		mem_controller->non_coalesced_accesses++;
 		if(stack->prefetch)
 		{
-			bank[stack->bank].pref_accesses+=1;
-			channel[stack->channel].regs_rank[stack->rank].pref_accesses+=1;
-			channel[stack->channel].pref_accesses+=1;
+			bank[stack->bank].pref_accesses+=1+ n_coalesce;
+			channel[stack->channel].regs_rank[stack->rank].pref_accesses+=1+ n_coalesce;
+			channel[stack->channel].pref_accesses+=1+ n_coalesce;
 		}
 		else
 		{
-			bank[stack->bank].normal_accesses+=1;
-			channel[stack->channel].regs_rank[stack->rank].normal_accesses+=1;
-			channel[stack->channel].normal_accesses+=1;
+			bank[stack->bank].normal_accesses+=1+ n_coalesce;
+			channel[stack->channel].regs_rank[stack->rank].normal_accesses+=1+ n_coalesce;
+			channel[stack->channel].normal_accesses+=1+ n_coalesce;
 		}
 		return;
 	}
@@ -3729,7 +3734,8 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 	if (event == EV_MOD_NMOESI_TRANSFER_FROM_BANK)
 	{
 		int num_blocks;
-		mem_debug("  %lld %lld 0x%x %s transfer from bank\n", esim_cycle, stack->id, stack->addr & ~mod->cache->block_mask, mod->name);
+		
+		mem_debug("  %lld %lld 0x%x %s transfer from bank\n", esim_cycle, stack->id,stack->addr&~mod->cache->block_mask, mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:transfer from bank\"\n", stack->id, mod->name);
 
 		if (mod->regs_channel[stack->channel].state == channel_state_free)
@@ -3739,17 +3745,17 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 
 
 			/* Calcul the cycles of proccesor for transfering */
-			if((mem_controller->policy_queues!= policy_coalesce_queue && mem_controller->policy_queues != policy_coalesce_useful_blocks_queue) || stack->coalesced_stacks==NULL)
+			if((mem_controller->policy_queues!= policy_coalesce_queue && mem_controller->policy_queues != policy_coalesce_useful_blocks_queue && mem_controller->policy_queues != policy_coalesce_delayed_request_queue) || stack->coalesced_stacks==NULL)
 			{
 				t_trans = mod->cache->block_size / (mod->regs_channel[stack->channel].bandwith * 2) * cycles_proc_by_bus; //2 because is DDR3
 				/*Stadistics*/
 				mem_controller->blocks_transfered+=1;
-				mem_controller->useful_blocks_transfered+=1; 
 			}
 			else
 			{
 				/*Transfer all block that have coalesced*/
-				if(mem_controller->policy_queues == policy_coalesce_queue) //tranfer all blocks between min and max block
+				if(mem_controller->policy_queues == policy_coalesce_queue || mem_controller->policy_queues ==
+				 policy_coalesce_delayed_request_queue) //tranfer all blocks between min and max block
 					num_blocks=mem_controller_calcul_number_blocks_transfered(stack);
 				else
 					num_blocks=linked_list_count(stack->coalesced_stacks)+1;//transfer only blocks required (this and coalesced)
@@ -3760,7 +3766,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 				mem_debug("    blocks transfered = %d  coalesced requests=%d\n",num_blocks,linked_list_count(stack->coalesced_stacks));
 				/*Stadistics*/
 				mem_controller->blocks_transfered+=num_blocks;
-				mem_controller->useful_blocks_transfered+=linked_list_count(stack->coalesced_stacks)+1; // 1 is the current stack
+				
 
 			}
 
@@ -3801,8 +3807,12 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 	{
 		struct mod_stack_t * stack_aux;
 		struct linked_list_t * coalesced_stacks=linked_list_create();
+		int n_coalesce=0;
+		struct mem_controller_queue_t* normq_aux;
+		bank = mod->regs_channel[stack->channel].regs_rank[stack->rank].regs_bank;
+
 		
-		mem_debug("  %lld %lld 0x%x %s remove request in MC\n ", esim_cycle, stack->id, stack->addr & ~mod->cache->block_mask, mod->name);
+		mem_debug("  %lld %lld 0x%x %s remove request in MC\n ",esim_cycle,stack->id, stack->addr&~mod->cache->block_mask,mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:remove request in MC\"\n", stack->id, mod->name);
 
 		/* Free the bank */
@@ -3824,6 +3834,58 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 		channel[stack->channel].state = channel_state_free;
 
 
+		/*Coalesced delayed requests*/
+		if(mem_controller->policy_queues == policy_coalesce_delayed_request_queue && stack->coalesced_stacks!=NULL)
+		{
+			unsigned int log2_row_size= log_base2( mem_controller->row_buffer_size);
+			assert(mem_controller->queue_per_bank);
+			int q=stack->channel|((stack->addr>> log2_row_size) % (mem_controller->num_regs_bank*mem_controller->num_regs_rank));		
+			unsigned int block_min=mem_controller_min_block(stack);
+			unsigned int block_max=mem_controller_max_block(stack);
+
+			/*Check if any request in MC queue goes to the same row in the bank,
+			and if the block is transfering*/
+			n_coalesce=mem_controller_coalesce_acces_between_blocks(stack,mem_controller->normal_queue[q]->queue,block_min, block_max);
+
+			/*Stadistics*/
+			bank[stack->bank].acceses+= n_coalesce;
+			channel[stack->channel].regs_rank[stack->rank].acceses+=n_coalesce;
+			channel[stack->channel].acceses+= n_coalesce;
+
+			if(stack->prefetch)
+			{
+				bank[stack->bank].pref_accesses+= n_coalesce;
+				channel[stack->channel].regs_rank[stack->rank].pref_accesses+= n_coalesce;
+				channel[stack->channel].pref_accesses+= n_coalesce;
+			}
+			else
+			{
+				bank[stack->bank].normal_accesses+= n_coalesce;
+				channel[stack->channel].regs_rank[stack->rank].normal_accesses+=n_coalesce;
+				channel[stack->channel].normal_accesses+= n_coalesce;
+			}
+			
+			time = esim_cycle - mem_controller->last_cycle;
+			for (int i = 0; i < num_queues; i++)
+			{
+				normq_aux = mem_controller->normal_queue[i];
+				assert(linked_list_count(mem_controller->pref_queue[i]->queue)==0);
+
+				if (linked_list_count(normq_aux->queue) < size_queue)
+					normq_aux->total_requests += linked_list_count(normq_aux->queue) * time;
+				else // queue full, add the limit
+					normq_aux->total_requests += size_queue * time;
+			}
+			mem_controller->n_times_queue_examined += time; //se podria cambiar dividinto x esim al final
+			mem_controller->last_cycle = esim_cycle;
+
+			if (linked_list_count(mem_controller->normal_queue[q]->queue) == size_queue - n_coalesce &&n_coalesce>0)
+				mem_controller->normal_queue[q]->t_full += esim_cycle - mem_controller->normal_queue[q]->instant_begin_full;
+	
+		}
+
+		
+
 		/*Copy coalesced stacks*/
 		if(stack->coalesced_stacks!=NULL)
 		{
@@ -3833,15 +3895,19 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 				stack_aux=linked_list_get(stack->coalesced_stacks);
 				linked_list_add(coalesced_stacks,stack_aux);
 				linked_list_next(stack->coalesced_stacks);
+				
+
 			}
 		}
 
+
 		/* Stadistics */
-		channel[stack->channel].num_requests_transfered++;
+		mem_controller->useful_blocks_transfered+=1+ linked_list_count(coalesced_stacks);
+		channel[stack->channel].num_requests_transfered+=1+linked_list_count(coalesced_stacks);
 		if(stack->prefetch)
-			channel[stack->channel].num_pref_requests_transfered++;
+			channel[stack->channel].num_pref_requests_transfered+=1+ linked_list_count(coalesced_stacks);
 		else
-			channel[stack->channel].num_normal_requests_transfered++;
+			channel[stack->channel].num_normal_requests_transfered=1+ linked_list_count(coalesced_stacks);
 
 		/* Parametres block */
 		stack->hit = 1;
@@ -3860,20 +3926,21 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 		ret->tag = stack->tag;
 		ret->reply_size = 8;
 		ret->prefetch = stack->prefetch;
-
 		mod_stack_return(stack);
 
 
 		/*Coalesced requests*/
-		if( coalesced_stacks!=NULL)
+		if( linked_list_count( coalesced_stacks)>0)
 		{
-			assert(mem_controller->policy_queues==policy_coalesce_queue||mem_controller->policy_queues== policy_coalesce_useful_blocks_queue);
+			assert(mem_controller->policy_queues==policy_coalesce_queue ||
+				mem_controller->policy_queues== policy_coalesce_useful_blocks_queue ||
+				mem_controller->policy_queues == policy_coalesce_delayed_request_queue);
 			linked_list_head(coalesced_stacks);
 			while(!linked_list_is_end(coalesced_stacks))
 			{
 				stack_aux=linked_list_get(coalesced_stacks);
 				mem_debug("  %lld %lld 0x%x %s remove request in MC\n ", esim_cycle, stack_aux->id, stack_aux->addr & ~mod->cache->block_mask, mod->name);
-		mem_trace("mem.access name=\"A-%lld\" state=\"%s:remove request in MC\"\n", stack_aux->id, mod->name);
+				mem_trace("mem.access name=\"A-%lld\" state=\"%s:remove request in MC\"\n", stack_aux->id, mod->name);
 
 
 				/* Parametres block */
@@ -3887,7 +3954,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 				else fatal("Invalid main memory acces\n");
 
 				stack_aux->reply_size = 8;
-				stack_aux->tag=stack->addr&~mod->cache->block_mask;///////// si fique aso salta
+				stack_aux->tag=stack_aux->addr&~mod->cache->block_mask;///////// si fique aso salta
 				stack_aux->ret_stack->err = 0;
 				stack_aux->ret_stack->state = stack_aux->state;
 				stack_aux->ret_stack->tag = stack_aux->tag;
@@ -3899,8 +3966,10 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 		}
 
 		/*Free*/
-		if(coalesced_stacks!=NULL)
-			linked_list_free(coalesced_stacks);
+		linked_list_free(coalesced_stacks);
+
+
+		
 
 		return;
 	}
