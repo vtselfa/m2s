@@ -2273,6 +2273,9 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 		/* Because of silent replacement used in streams, there may be misses in down up requests */
 		if(!stack->hit && !stack->stream_hit && stack->request_dir == mod_request_down_up)
 		{
+			mem_debug("  %lld %lld 0x%x %s down up miss due a silent eviction in a stream\n", esim_cycle, stack->id,
+				stack->tag, mod->name);
+			stack->state = cache_block_invalid;
 			if(stack->read)
 				mod->down_up_read_misses++;
 			else if(stack->write)
@@ -5242,7 +5245,8 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 		}
 
 		/* If stream_hit, background stack or down up miss (silent eviction of stream block) there aren't any upper level sharers of the block */
-		if (stack->stream_hit || stack->background || !stack->state)
+		if (stack->stream_hit || stack->background ||
+			(!stack->stream_hit && !stack->state && stack->request_dir == mod_request_down_up))
 		{
 			mem_debug("  %lld %lld 0x%x %s write prefetch hit direction %d\n",
 				esim_cycle, stack->id, stack->tag, target_mod->name,
@@ -5268,20 +5272,16 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 				assert(wb_block->tag == stack->tag);
 			}
 
-			/* Down up miss due a silent eviction in the stream */
-			else if(!stack->state && !stack->stream_hit)
+			/* Stream hit */
+			else if(stack->stream_hit)
 			{
-				/* Do nothing */
+				int tag;
+				cache_get_pref_block_data(target_mod->cache, stack->pref_stream, stack->pref_slot,
+					&tag, &stack->state);
+				assert(stack->tag == tag);
 			}
 
-			/* Stream hit */
-			else
-			{
-				struct stream_block_t * block = cache_get_pref_block(
-					target_mod->cache, stack->pref_stream, stack->pref_slot);
-				assert(stack->tag == block->tag);
-				stack->state = block->state;
-			}
+			/* Else, block is a down up miss due a silent eviction in a stream */
 
 			esim_schedule_event(EV_MOD_NMOESI_WRITE_REQUEST_EXCLUSIVE, stack, 0);
 			return;
