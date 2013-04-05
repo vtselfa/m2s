@@ -28,13 +28,13 @@ extern int x86_ctx_debug_category;
 
 /* Event scheduled periodically to dump IPC statistics for a context */
 extern int EV_X86_CTX_IPC_REPORT;
+extern int EV_X86_CTX_MISC_REPORT;
 
 struct x86_ctx_t;
 typedef int (*x86_ctx_can_wakeup_callback_func_t)(struct x86_ctx_t *ctx, void *data);
 typedef void (*x86_ctx_wakeup_callback_func_t)(struct x86_ctx_t *ctx, void *data);
 
-
-/*Auxiliar variable to print intermediate calculs*/
+/* TODO: Moure açò a un camp de la stack */
 int t_last_mc_total; // last total time that a request lasts in memory controller
 int last_accesses; // last amount of requests which have accessed to main mem
 
@@ -215,6 +215,9 @@ void x86_ctx_gen_proc_self_maps(struct x86_ctx_t *ctx, char *path);
 
 void x86_ctx_ipc_report_schedule(struct x86_ctx_t *ctx);
 void x86_ctx_ipc_report_handler(int event, void *data);
+
+void x86_ctx_misc_report_schedule(struct x86_ctx_t *ctx);
+void x86_ctx_misc_report_handler(int event, void *data);
 
 #endif
 

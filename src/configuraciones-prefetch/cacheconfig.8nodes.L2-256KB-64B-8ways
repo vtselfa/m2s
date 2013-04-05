@@ -21,9 +21,9 @@ Sets = 256
 Assoc = 8
 BlockSize = 64
 Latency = 10
-;Prefetch = streams
-;PrefetchStreams = 32
-;PrefetchAggressivity = 4
+Prefetch = streams
+PrefetchStreams = 32
+PrefetchAggressivity = 4
 
 #
 # Level 1 Caches

@@ -4,4 +4,5 @@ args = -v t5.xml xalanc.xsl
 cwd = benchmarks/spec2006/483.xalancbmk
 StdOut = xalancbmk.out
 IPCReport = xalancbmk.ipc
+MiscReport = xalancbmk.misc
 IPCReportInterval = 100000

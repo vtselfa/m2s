@@ -96,10 +96,13 @@ void x86_emu_init(void)
 	/* Event for context IPC reports */
 	EV_X86_CTX_IPC_REPORT = esim_register_event_with_name(x86_ctx_ipc_report_handler, "x86_ctx_ipc_report");
 
+	/* Event for context misc reports */
+	EV_X86_CTX_MISC_REPORT = esim_register_event_with_name(x86_ctx_misc_report_handler, "x86_ctx_misc_report");
+
 	/* Initialize */
 	x86_emu->current_pid = 1000;  /* Initial assigned pid */
 	x86_emu->timer = m2s_timer_create("x86 emulation timer");
-	
+
 	/* Initialize mutex for variables controlling calls to 'x86_emu_process_events()' */
 	pthread_mutex_init(&x86_emu->process_events_mutex, NULL);
 
@@ -141,7 +144,7 @@ void x86_emu_done(void)
 	/* Free contexts */
 	while (x86_emu->context_list_head)
 		x86_ctx_free(x86_emu->context_list_head);
-	
+
 	/* Finalize GPU */
 	evg_emu_done();
 	si_emu_done();
@@ -311,18 +314,18 @@ static void *x86_emu_host_thread_suspend(void *arg)
 	if (x86_ctx_get_status(ctx, x86_ctx_nanosleep))
 	{
 		long long timeout;
-		
+
 		/* Calculate remaining sleep time in microseconds */
 		timeout = ctx->wakeup_time > now ? ctx->wakeup_time - now : 0;
 		usleep(timeout);
-	
+
 	}
 	else if (x86_ctx_get_status(ctx, x86_ctx_poll))
 	{
 		struct x86_file_desc_t *fd;
 		struct pollfd host_fds;
 		int err, timeout;
-		
+
 		/* Get file descriptor */
 		fd = x86_file_desc_table_entry_get(ctx->file_desc_table, ctx->wakeup_fd);
 		if (!fd)
@@ -429,7 +432,7 @@ void x86_emu_process_events()
 {
 	struct x86_ctx_t *ctx, *next;
 	long long now = esim_real_time();
-	
+
 	/* Check if events need actually be checked. */
 	pthread_mutex_lock(&x86_emu->process_events_mutex);
 	if (!x86_emu->process_events_force)
@@ -437,7 +440,7 @@ void x86_emu_process_events()
 		pthread_mutex_unlock(&x86_emu->process_events_mutex);
 		return;
 	}
-	
+
 	/* By default, no subsequent call to 'x86_emu_process_events' is assumed */
 	x86_emu->process_events_force = 0;
 
@@ -694,7 +697,7 @@ void x86_emu_process_events()
 				pbuf = ctx->regs->ecx;
 				count = ctx->regs->edx;
 				buf = malloc(count);
-				
+
 				count = read(fd->host_fd, buf, count);
 				if (count < 0)
 					fatal("syscall 'read': unexpected error in host 'read'");
@@ -838,7 +841,7 @@ void x86_emu_process_events()
 		x86_signal_handler_check(ctx);
 	}
 
-	
+
 	/* Unlock */
 	pthread_mutex_unlock(&x86_emu->process_events_mutex);
 }
