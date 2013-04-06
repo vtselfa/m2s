@@ -192,7 +192,10 @@ struct mod_t
 
 	/* Statistics */
 	long long accesses;
+	long long last_accesses;
 	long long hits;
+	long long last_hits;
+
 	long long hits_pref; /* Hits de stacks de prefetch en els moduls inferiors */
 
 	long long reads;
@@ -232,13 +235,17 @@ struct mod_t
 	/* Prefetch */
 	long long programmed_prefetches;
 	long long completed_prefetches;
+	long long last_completed_prefetches;
 	long long canceled_prefetches;
 	long long useful_prefetches;
+	long long last_useful_prefetches;
 
 	long long prefetch_retries;
 
 	long long delayed_hits; /* Hit on a block being brougth by a prefetch */
+	long long last_delayed_hits;
 	long long delayed_hit_cycles; /* Cicles lost due delayed hits */
+	long long last_delayed_hit_cycles;
 	long long delayed_hits_cycles_counted; /* Number of delayed hits whose lost cycles has been counted */
 
 	long long single_prefetches; /* Prefetches on hit */

@@ -42,6 +42,10 @@ struct x86_loader_t
 	FILE *ipc_report_file;
 	int ipc_report_interval;
 
+	/* Misc report (for detailed simulation) */
+	FILE *misc_report_file;
+	int misc_report_interval;
+
 	/* Stack */
 	unsigned int stack_base;
 	unsigned int stack_top;

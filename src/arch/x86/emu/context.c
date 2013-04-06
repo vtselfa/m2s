@@ -42,6 +42,7 @@
 int x86_ctx_debug_category;
 
 int EV_X86_CTX_IPC_REPORT;
+int EV_X86_CTX_MISC_REPORT;
 
 static char *help_x86_ctx_ipc_report =
 	"The IPC (instructions-per-cycle) report file shows performance value for a\n"
@@ -62,6 +63,29 @@ static char *help_x86_ctx_ipc_report =
 	"      non-speculative instructions divided by the current cycle.\n"
 	"\n"
 	"  <ipc-int>\n"
+	"      IPC observed in the current interval. This value is equal to the number\n"
+	"      of instructions executed in the current interval divided by the number of\n"
+	"      cycles of the interval.\n"
+	"\n";
+
+static char *help_x86_ctx_misc_report =
+	"The misc (miscellaneous) report file shows some relevant statistics related to\n"
+	"prefetch amd memory controller at specific intervals.\n"
+	"The following fields are shown in each record:\n"
+	"\n"
+	"  <cycle>\n"
+	"      Current simulation cycle. The increment between this value and the value\n"
+	"      shown in the next record is the interval specified in the context\n"
+	"      configuration file.\n"
+	"\n"
+	"  <inst>\n"
+	"      Number of non-speculative instructions executed in the current interval.\n"
+	"\n"
+	"  <...>\n"
+	"      Global IPC observed so far. This value is equal to the number of executed\n"
+	"      non-speculative instructions divided by the current cycle.\n"
+	"\n"
+	"  <...>\n"
 	"      IPC observed in the current interval. This value is equal to the number\n"
 	"      of instructions executed in the current interval divided by the number of\n"
 	"      cycles of the interval.\n"
@@ -122,7 +146,7 @@ static struct x86_ctx_t *ctx_do_create()
 struct x86_ctx_t *x86_ctx_create(void)
 {
 	struct x86_ctx_t *ctx;
-	
+
 	ctx = ctx_do_create();
 
 	/* Loader */
@@ -136,7 +160,7 @@ struct x86_ctx_t *x86_ctx_create(void)
 	/* Signal handlers and file descriptor table */
 	ctx->signal_handler_table = x86_signal_handler_table_create();
 	ctx->file_desc_table = x86_file_desc_table_create();
-	
+
 	return ctx;
 }
 
@@ -219,7 +243,7 @@ void x86_ctx_free(struct x86_ctx_t *ctx)
 	 * This removes all references to current freed context. */
 	if (!x86_ctx_get_status(ctx, x86_ctx_finished | x86_ctx_zombie))
 		x86_ctx_finish(ctx, 0);
-	
+
 	/* Remove context from finished contexts list. This should
 	 * be the only list the context is in right now. */
 	assert(!x86_emu_list_member(x86_emu_list_running, ctx));
@@ -227,7 +251,7 @@ void x86_ctx_free(struct x86_ctx_t *ctx)
 	assert(!x86_emu_list_member(x86_emu_list_zombie, ctx));
 	assert(x86_emu_list_member(x86_emu_list_finished, ctx));
 	x86_emu_list_remove(x86_emu_list_finished, ctx);
-		
+
 	/* Free private structures */
 	x86_regs_free(ctx->regs);
 	x86_regs_free(ctx->backup_regs);
@@ -251,7 +275,7 @@ void x86_ctx_free(struct x86_ctx_t *ctx)
 		if (ctx->libopencl_open_attempt)
 			si_emu_libopencl_failed(ctx->pid);
 	}
-	else 
+	else
 		panic("%s: invalid GPU emulation kind", __FUNCTION__);
 
 	/* Remove context from contexts list and free */
@@ -329,7 +353,7 @@ void x86_ctx_execute(struct x86_ctx_t *ctx)
 
 	/* Execute instruction */
 	x86_isa_execute_inst(ctx);
-	
+
 	/* Statistics */
 	x86_emu->inst_count++;
 }
@@ -347,7 +371,7 @@ void x86_ctx_set_eip(struct x86_ctx_t *ctx, unsigned int eip)
 		x86_regs_copy(ctx->backup_regs, ctx->regs);
 		ctx->regs->fpu_ctrl |= 0x3f; /* mask all FP exceptions on wrong path */
 	}
-	
+
 	/* Set it */
 	ctx->regs->eip = eip;
 }
@@ -384,13 +408,13 @@ static void x86_ctx_update_status(struct x86_ctx_t *ctx, enum x86_ctx_status_t s
 		x86_emu_list_remove(x86_emu_list_finished, ctx);
 	if (x86_emu_list_member(x86_emu_list_alloc, ctx))
 		x86_emu_list_remove(x86_emu_list_alloc, ctx);
-	
+
 	/* If the difference between the old and new status lies in other
 	 * states other than 'x86_ctx_specmode', a reschedule is marked. */
 	status_diff = ctx->status ^ status;
 	if (status_diff & ~x86_ctx_spec_mode)
 		x86_emu->context_reschedule = 1;
-	
+
 	/* Update status */
 	ctx->status = status;
 	if (ctx->status & x86_ctx_finished)
@@ -404,7 +428,7 @@ static void x86_ctx_update_status(struct x86_ctx_t *ctx, enum x86_ctx_status_t s
 		ctx->status |= x86_ctx_running;
 	else
 		ctx->status &= ~x86_ctx_running;
-	
+
 	/* Insert context into the corresponding lists. */
 	if (ctx->status & x86_ctx_running)
 		x86_emu_list_insert_head(x86_emu_list_running, ctx);
@@ -416,7 +440,7 @@ static void x86_ctx_update_status(struct x86_ctx_t *ctx, enum x86_ctx_status_t s
 		x86_emu_list_insert_head(x86_emu_list_suspended, ctx);
 	if (ctx->status & x86_ctx_alloc)
 		x86_emu_list_insert_head(x86_emu_list_alloc, ctx);
-	
+
 	/* Dump new status (ignore 'x86_ctx_specmode' status, it's too frequent) */
 	if (debug_status(x86_ctx_debug_category) && (status_diff & ~x86_ctx_spec_mode))
 	{
@@ -556,7 +580,7 @@ void x86_ctx_finish_group(struct x86_ctx_t *ctx, int status)
 	if (ctx->group_parent)
 		ctx = ctx->group_parent;
 	assert(!ctx->group_parent);  /* Only one level */
-	
+
 	/* Context already finished */
 	if (x86_ctx_get_status(ctx, x86_ctx_finished | x86_ctx_zombie))
 		return;
@@ -596,11 +620,11 @@ void x86_ctx_finish_group(struct x86_ctx_t *ctx, int status)
 void x86_ctx_finish(struct x86_ctx_t *ctx, int status)
 {
 	struct x86_ctx_t *aux;
-	
+
 	/* Context already finished */
 	if (x86_ctx_get_status(ctx, x86_ctx_finished | x86_ctx_zombie))
 		return;
-	
+
 	/* If context is waiting for host events, cancel spawned host threads. */
 	x86_ctx_host_thread_suspend_cancel(ctx);
 	x86_ctx_host_thread_timer_cancel(ctx);
@@ -705,7 +729,7 @@ void x86_ctx_exit_robust_list(struct x86_ctx_t *ctx)
 	lock_entry = ctx->robust_list_head;
 	if (!lock_entry)
 		return;
-	
+
 	x86_sys_debug("ctx %d: processing robust futex list\n",
 		ctx->pid);
 	for (;;)
@@ -765,7 +789,7 @@ void x86_ctx_gen_proc_self_maps(struct x86_ctx_t *ctx, char *path)
 			perm = page_perm;
 		}
 
-		/* Dump range */ 
+		/* Dump range */
 		fprintf(f, "%08x-%08x %c%c%c%c 00000000 00:00", start, end + MEM_PAGE_SIZE,
 			perm & mem_access_read ? 'r' : '-',
 			perm & mem_access_write ? 'w' : '-',
@@ -873,4 +897,139 @@ void x86_ctx_ipc_report_handler(int event, void *data)
 	/* Schedule new event */
 	stack->inst_count = ctx->inst_count;
 	esim_schedule_event(event, stack, ctx->loader->ipc_report_interval);
+}
+
+/*
+ * Misc report
+ */
+
+struct x86_ctx_misc_report_stack_t
+{
+	int pid;
+	long long inst_count;
+};
+
+void x86_ctx_misc_report_schedule(struct x86_ctx_t *ctx)
+{
+	struct x86_ctx_misc_report_stack_t *stack;
+	FILE *f = ctx->loader->misc_report_file;
+	int i;
+
+	/* Create new stack */
+	stack = calloc(1, sizeof(struct x86_ctx_misc_report_stack_t));
+	if (!stack)
+		fatal("%s: out of memory", __FUNCTION__);
+
+	/* Initialize */
+	assert(ctx->loader->misc_report_file);
+	assert(ctx->loader->misc_report_interval > 0);
+	stack->pid = ctx->pid;
+
+	/* Print header */
+	fprintf(f, "%s", help_x86_ctx_misc_report);
+	fprintf(f, "%10s %8s %8s %10s %s %s %s %s\n", "cycle", "inst", "module",
+		"completed-prefetches-int", "prefetch-accuracy-int", "delayed-hits-int",
+		"delayed-hit-avg-lost-cycles-int", "misses");
+	for (i = 0; i < 43; i++)
+		fprintf(f, "-");
+	fprintf(f, "\n");
+
+	/* Schedule first event */
+	esim_schedule_event(EV_X86_CTX_MISC_REPORT, stack,
+		ctx->loader->misc_report_interval);
+}
+
+void x86_ctx_misc_report_handler(int event, void *data)
+{
+	struct x86_ctx_misc_report_stack_t *stack = data;
+	struct x86_ctx_t *ctx;
+	struct mod_t * mod;
+	long long inst_count;
+	int i;
+	//struct mem_controller_t * mem_controller = mem_system->mem_controller;
+	//double t_total_mc;
+	//double t_total_mc_request = 0;
+	//long long total_accesses = 0;
+	//long long total_wait_in_mc = 0;
+
+	/* Get context. If it does not exist anymore, no more
+	 * events to schedule. */
+	ctx = x86_ctx_get(stack->pid);
+	if (!ctx || x86_ctx_get_status(ctx, x86_ctx_finished) || esim_finish)
+	{
+		free(stack);
+		return;
+	}
+
+	/* Compute statistics */
+	inst_count = ctx->inst_count - stack->inst_count;
+	LIST_FOR_EACH(mem_system->mod_list, i)
+	{
+		mod = list_get(mem_system->mod_list, i);
+
+		/* Main memory */
+		if(mod->kind == mod_kind_main_memory)
+		{
+			/*for(int c = 0; c < mod->num_regs_channel; c++)
+			{
+				total_accesses += mod->regs_channel[c].acceses;
+				total_wait_in_mc += mod->regs_channel[c].t_wait_send_request;
+			}*/
+		}
+
+		/* Cache */
+		else
+		{
+			/* Prefetch accuracy */
+			long long completed_prefetches_int = mod->completed_prefetches -
+				mod->last_completed_prefetches;
+			long long useful_prefetches_int = mod->useful_prefetches -
+				mod->last_useful_prefetches;
+			double prefetch_accuracy_int = completed_prefetches_int ?
+				(double) useful_prefetches_int / completed_prefetches_int : 0.0;
+			prefetch_accuracy_int = prefetch_accuracy_int > 1 ? 1 : prefetch_accuracy_int; /* May be slightly greather than 1 due bad timing with cycles */
+
+			/* Delayed hits */
+			long long delayed_hits_int = mod->delayed_hits -
+				mod->last_delayed_hits;
+			long long delayed_hit_cycles_int = mod->delayed_hit_cycles -
+				mod->last_delayed_hit_cycles;
+			double delayed_hit_avg_lost_cycles_int = delayed_hits_int ?
+				(double) delayed_hit_cycles_int / delayed_hits_int : 0.0;
+
+			/* Cache misses */
+			long long accesses_int = mod->accesses - mod->last_accesses;
+			long long hits_int = mod->hits - mod->last_hits;
+			long long misses_int = accesses_int - hits_int;
+
+			/* Dump stats */
+			fprintf(ctx->loader->misc_report_file, "%10lld %8lld %8s %8lld %10.4f %8lld %10.4f %8lld\n",
+				esim_cycle, inst_count, mod->name, completed_prefetches_int, prefetch_accuracy_int,
+				delayed_hits_int, delayed_hit_avg_lost_cycles_int, misses_int);
+
+			mod->last_delayed_hits = mod->delayed_hits;
+			mod->last_delayed_hit_cycles = mod->delayed_hit_cycles;
+			mod->last_useful_prefetches = mod->useful_prefetches;
+			mod->last_completed_prefetches = mod->completed_prefetches;
+			mod->last_accesses = mod->accesses;
+			mod->last_hits = mod->hits;
+		}
+	}
+	// t_total_mc = mem_controller->t_wait + mem_controller->t_acces_main_memory + mem_controller->t_transfer;
+
+
+	/* Dump new IPC */
+	/*t_total_mc_request = total_accesses - last_accesses ?
+		(double) (t_total_mc - t_last_mc_total) / (total_accesses - last_accesses) : 0.0;
+	fprintf(ctx->loader->misc_report_file, "%10lld %8lld %10.4f %10.4f %10.4f\n",
+		esim_cycle, inst_count, ipc_global, ipc_interval,t_total_mc_request);*/
+
+	/* Update intermediate calcules */
+	//last_accesses = total_accesses;
+	//t_last_mc_total = t_total_mc;
+
+	/* Schedule new event */
+	assert(ctx->loader->ipc_report_interval);
+	stack->inst_count = ctx->inst_count;
+	esim_schedule_event(event, stack, ctx->loader->misc_report_interval);
 }

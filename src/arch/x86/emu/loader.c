@@ -88,6 +88,10 @@ static char *err_x86_ctx_ipc_report =
 	"\tfunctional simulation does not track cycles. Please use option\n"
 	"\t'--cpu-sim detailed' in the command line to activate IPC reports.\n";
 
+static char *err_x86_ctx_misc_report =
+	"\tThe misc report file has been specified for a context, but the\n"
+	"\tfunctional simulation does not track cycles. Please use option\n"
+	"\t'--cpu-sim detailed' in the command line to activate misc reports.\n";
 
 static struct str_map_t elf_section_flags_map =
 {
@@ -120,7 +124,7 @@ static void x86_loader_add_args_string(struct x86_ctx_t *ctx, char *args)
 
 	char *delim = " ";
 	char *arg;
-	
+
 	/* Duplicate argument string */
 	args = str_set(NULL, args);
 
@@ -154,7 +158,7 @@ static void x86_loader_add_environ(struct x86_ctx_t *ctx, char *env)
 		str = str_set(NULL, environ[i]);
 		linked_list_add(ld->env, str);
 	}
-	
+
 	/* Add the environment vars provided in 'env' */
 	while (env)
 	{
@@ -257,7 +261,7 @@ static void x86_loader_load_interp(struct x86_ctx_t *ctx)
 	/* Open dynamic loader */
 	x86_loader_debug("\nLoading program interpreter '%s'\n", ld->interp);
 	elf_file = elf_file_create_from_path(ld->interp);
-	
+
 	/* Load section from program interpreter */
 	x86_loader_load_sections(ctx, elf_file);
 
@@ -305,7 +309,7 @@ static void x86_loader_load_program_headers(struct x86_ctx_t *ctx)
 	phdr_size = elf_file->header->e_phentsize;
 	phdt_size = phdr_count * phdr_size;
 	assert(phdr_count == list_count(elf_file->program_header_list));
-	
+
 	/* Program header PT_PHDR, specifying location and size of the program header table itself. */
 	/* Search for program header PT_PHDR, specifying location and size of the program header table.
 	 * If none found, choose ld->bottom - phdt_size. */
@@ -453,7 +457,7 @@ static void x86_loader_load_stack(struct x86_ctx_t *ctx)
 	mem_map(mem, ld->stack_top, ld->stack_size, mem_access_read | mem_access_write);
 	x86_loader_debug("mapping region for stack from 0x%x to 0x%x\n",
 		ld->stack_top, ld->stack_base - 1);
-	
+
 	/* Load arguments and environment variables */
 	ld->environ_base = LD_STACK_BASE - LD_MAX_ENVIRON;
 	sp = ld->environ_base;
@@ -551,8 +555,8 @@ void x86_loader_load_exe(struct x86_ctx_t *ctx, char *exe)
 			fatal("%s: cannot open stdout/stderr", ld->stdout_file);
 		x86_loader_debug("%s: stdout redirected\n", stdout_file_full_path);
 	}
-	
-	
+
+
 	/* Load program into memory */
 	x86_loader_get_full_path(ctx, exe, exe_full_path, MAX_STRING_SIZE);
 	ld->elf_file = elf_file_create_from_path(exe_full_path);
@@ -709,6 +713,7 @@ void x86_loader_load_from_ctx_config(struct config_t *config, char *section)
 	char *out;
 
 	char *ipc_report_file_name;
+	char *misc_report_file_name;
 	char *config_file_name;
 
 	/* Get configuration file name for errors */
@@ -717,7 +722,7 @@ void x86_loader_load_from_ctx_config(struct config_t *config, char *section)
 	/* Create new context */
 	ctx = x86_ctx_create();
 	ld = ctx->loader;
-		
+
 	/* Executable */
 	exe = config_read_string(config, section, "Exe", "");
 	exe = str_set(NULL, exe);
@@ -780,6 +785,29 @@ void x86_loader_load_from_ctx_config(struct config_t *config, char *section)
 		}
 	}
 
+	/* Misc stats report file */
+	misc_report_file_name = config_read_string(config, section,
+			"MiscReport", "");
+	ld->misc_report_interval = config_read_int(config, section,
+			"MiscReportInterval", ld->ipc_report_interval); /* By default, same as IPC */
+	if (*misc_report_file_name)
+	{
+		if (x86_emu_kind == x86_emu_kind_functional)
+			warning("%s: [%s]: value for 'MiscReport' ignored.\n%s",
+				config_file_name, section, err_x86_ctx_misc_report);
+		else
+		{
+			ld->misc_report_file = file_open_for_write(misc_report_file_name);
+			if (!ld->misc_report_file)
+				fatal("%s: cannot open misc report file",
+						misc_report_file_name);
+			if (ld->misc_report_interval < 1)
+				fatal("%s: invalid value for 'MiscReportInterval'",
+						config_file_name);
+			x86_ctx_misc_report_schedule(ctx);
+		}
+	}
+
 	/* Load executable */
 	x86_loader_load_exe(ctx, exe);
 }
@@ -789,7 +817,7 @@ void x86_loader_load_from_command_line(int argc, char **argv)
 {
 	struct x86_ctx_t *ctx;
 	struct x86_loader_t *ld;
-	
+
 	char buf[MAX_STRING_SIZE];
 
 	/* Create context */
