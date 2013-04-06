@@ -1939,7 +1939,7 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 		ret->err = 0;
 
 		/* Look for block in write buffer */
-		if (!stack->background)
+		if (!stack->background && mod->level == 1)
 		{
 			struct write_buffer_block_t *block;
 			stack->tag = stack->addr & ~cache->block_mask;
