@@ -1938,8 +1938,8 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 		/* Default return values */
 		ret->err = 0;
 
-		/* Look for block in write buffer */
-		if (!stack->background && mod->level == 1)
+		/* Retry if block is in write buffer */
+		if (!stack->background)
 		{
 			struct write_buffer_block_t *block;
 			stack->tag = stack->addr & ~cache->block_mask;
@@ -1955,25 +1955,20 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 						mem_debug("    %lld 0x%x %s write buffer hit: pos=%d, state=%s\n",
 							stack->id, stack->tag, mod->name, linked_list_current(cache->wb.blocks),
 							str_map_value(&cache_block_state_map, stack->state));
-						stack->hit = 1;
-						stack->wb_hit = 1;
 						mod->write_buffer_read_hits++; /* Statistics */
-						esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK_FINISH, stack, mod->dir_latency); /* Access latency */
-						return;
 					}
 					else if (stack->write)
 					{
 						mem_debug("    %lld 0x%x %s write buffer hit: pos=%d, state=%s\n",
 							stack->id, stack->tag, mod->name, linked_list_current(cache->wb.blocks),
 							str_map_value(&cache_block_state_map, stack->state));
-						mem_debug("    %lld wait for %lld\n",
-							stack->id, block->stack_id);
 						mod->write_buffer_write_hits++; /* Statistics */
-						mod_stack_wait_in_write_buffer(stack, block, EV_MOD_NMOESI_FIND_AND_LOCK);
-						return;
 					}
 					else
 						fatal("Unknown memory operation type");
+					ret->err = 1;
+					mod_stack_return(stack);
+					return;
 				}
 			}
 		}
@@ -2007,6 +2002,7 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 		if (stack->hit)
 			mem_debug("    %lld 0x%x %s hit: set=%d, way=%d, state=%s\n", stack->id, stack->tag, mod->name, stack->set, stack->way, str_map_value(&cache_block_state_map, stack->state));
 
+		/* If there is a background stack, no other stack can be retrieving the same block */
 		assert(!(stack->background && stack->hit));
 
 		/* Statistics */
@@ -4316,8 +4312,8 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 		stack->reply_size = mod->block_size + 8;
 		mod_stack_set_reply(stack, reply_ack_data);
 
-		/* If write buffer hit or acces fast resumed, finish */
-		if (stack->wb_hit || stack->fast_resume)
+		/* If acces fast resumed, finish */
+		if (stack->fast_resume)
 		{
 			assert(target_mod->kind != mod_kind_main_memory);
 			esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST_UPDOWN_FINISH, stack, 0);
@@ -4567,7 +4563,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 				fatal("Invalid reply size: %d", stack->reply_size);
 		}
 
-		if(stack->fast_resume || stack->wb_hit)
+		if(stack->fast_resume)
 		{
 			latency = stack->reply == reply_ack_data_sent_to_peer ? 0 : target_mod->latency;
 			mod_access_finish(target_mod, stack);
