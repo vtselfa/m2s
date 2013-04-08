@@ -29,6 +29,7 @@ extern int x86_ctx_debug_category;
 /* Event scheduled periodically to dump IPC statistics for a context */
 extern int EV_X86_CTX_IPC_REPORT;
 extern int EV_X86_CTX_MISC_REPORT;
+extern int EV_X86_CTX_MC_REPORT;
 
 struct x86_ctx_t;
 typedef int (*x86_ctx_can_wakeup_callback_func_t)(struct x86_ctx_t *ctx, void *data);
@@ -218,6 +219,9 @@ void x86_ctx_ipc_report_handler(int event, void *data);
 
 void x86_ctx_misc_report_schedule(struct x86_ctx_t *ctx);
 void x86_ctx_misc_report_handler(int event, void *data);
+
+void x86_ctx_mc_report_schedule(struct x86_ctx_t *ctx);
+void x86_ctx_mc_report_handler(int event, void *data);
 
 #endif
 

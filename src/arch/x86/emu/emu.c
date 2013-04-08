@@ -99,6 +99,9 @@ void x86_emu_init(void)
 	/* Event for context misc reports */
 	EV_X86_CTX_MISC_REPORT = esim_register_event_with_name(x86_ctx_misc_report_handler, "x86_ctx_misc_report");
 
+	/* Event for context mc reports */
+	EV_X86_CTX_MC_REPORT = esim_register_event_with_name(x86_ctx_mc_report_handler, "x86_ctx_mc_report");
+
 	/* Initialize */
 	x86_emu->current_pid = 1000;  /* Initial assigned pid */
 	x86_emu->timer = m2s_timer_create("x86 emulation timer");

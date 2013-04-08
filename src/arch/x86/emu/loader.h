@@ -46,6 +46,11 @@ struct x86_loader_t
 	FILE *misc_report_file;
 	int misc_report_interval;
 
+	/* MC (memory controller) report (for detailed simulation) */
+	FILE *mc_report_file;
+	int mc_report_interval;
+
+
 	/* Stack */
 	unsigned int stack_base;
 	unsigned int stack_top;

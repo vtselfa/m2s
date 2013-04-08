@@ -43,6 +43,7 @@ int x86_ctx_debug_category;
 
 int EV_X86_CTX_IPC_REPORT;
 int EV_X86_CTX_MISC_REPORT;
+int EV_X86_CTX_MC_REPORT;
 
 static char *help_x86_ctx_ipc_report =
 	"The IPC (instructions-per-cycle) report file shows performance value for a\n"
@@ -70,7 +71,7 @@ static char *help_x86_ctx_ipc_report =
 
 static char *help_x86_ctx_misc_report =
 	"The misc (miscellaneous) report file shows some relevant statistics related to\n"
-	"prefetch amd memory controller at specific intervals.\n"
+	"prefetch at specific intervals.\n"
 	"The following fields are shown in each record:\n"
 	"\n"
 	"  <cycle>\n"
@@ -91,6 +92,24 @@ static char *help_x86_ctx_misc_report =
 	"      cycles of the interval.\n"
 	"\n";
 
+static char *help_x86_ctx_mc_report =
+	"The mc (memory controller) report file shows some relevant statistics related to\n"
+	"memory controller at specific intervals.\n"
+	"The following fields are shown in each record:\n"
+	"\n"
+	"  <cycle>\n"
+	"      Current simulation cycle. The increment between this value and the value\n"
+	"      shown in the next record is the interval specified in the context\n"
+	"      configuration file.\n"
+	"\n"
+	"  <inst>\n"
+	"      Number of non-speculative instructions executed in the current interval.\n"
+	"\n"
+	"  <total_time_mc>\n"
+	"      Global time that a request spends in mem controller observed so far.\n"
+	"      This value is equal to the total time spended in mc in the current \n"
+	"      interval divided by total acceses to mc in the current interval.\n"
+	"\n";
 
 static struct str_map_t x86_ctx_status_map =
 {
@@ -833,7 +852,7 @@ void x86_ctx_ipc_report_schedule(struct x86_ctx_t *ctx)
 
 	/* Print header */
 	fprintf(f, "%s", help_x86_ctx_ipc_report);
-	fprintf(f, "%10s %8s %10s %10s %10s\n", "cycle", "inst", "ipc-glob", "ipc-int","total-time-mc");
+	fprintf(f, "%10s %8s %10s %10s\n", "cycle", "inst", "ipc-glob", "ipc-int");
 	for (i = 0; i < 43; i++)
 		fprintf(f, "-");
 	fprintf(f, "\n");
@@ -847,15 +866,16 @@ void x86_ctx_ipc_report_handler(int event, void *data)
 {
 	struct x86_ctx_ipc_report_stack_t *stack = data;
 	struct x86_ctx_t *ctx;
-	struct mem_controller_t * mem_controller=mem_system->mem_controller;
-	struct mod_t * mod;
+	
 	long long inst_count;
 	double ipc_interval;
 	double ipc_global;
-	double t_total_mc;
+	/*double t_total_mc;
+	struct mem_controller_t * mem_controller=mem_system->mem_controller;
+	struct mod_t * mod;
 	double t_total_mc_request=0;
 	long long total_accesses=0;
-	long long total_wait_in_mc =0;
+	long long total_wait_in_mc =0;*/
 
 	/* Get context. If it does not exist anymore, no more
 	 * events to schedule. */
@@ -868,7 +888,7 @@ void x86_ctx_ipc_report_handler(int event, void *data)
 
 
 	 /*Select main memory module and calcule stadistics*/
-        for (int i = 0; i < list_count(mem_system->mod_list); i++)
+        /*for (int i = 0; i < list_count(mem_system->mod_list); i++)
         {
                 mod = list_get(mem_system->mod_list, i);
                 if(mod->kind==mod_kind_main_memory)
@@ -879,20 +899,20 @@ void x86_ctx_ipc_report_handler(int event, void *data)
                 total_accesses+=mod->regs_channel[c].acceses;
                 total_wait_in_mc+=mod->regs_channel[c].t_wait_send_request;
         }
-	t_total_mc=mem_controller->t_wait+mem_controller->t_acces_main_memory+mem_controller->t_transfer;
+	t_total_mc=mem_controller->t_wait+mem_controller->t_acces_main_memory+mem_controller->t_transfer;*/
 
 	/* Dump new IPC */
 	assert(ctx->loader->ipc_report_interval);
 	inst_count = ctx->inst_count - stack->inst_count;
 	ipc_global = esim_cycle ? (double) ctx->inst_count / esim_cycle : 0.0;
 	ipc_interval = (double) inst_count / ctx->loader->ipc_report_interval;
-	t_total_mc_request=total_accesses-last_accesses ? (double)(t_total_mc-t_last_mc_total)/(total_accesses-last_accesses):0;
-	fprintf(ctx->loader->ipc_report_file, "%10lld %8lld %10.4f %10.4f %10.4f\n",
-		esim_cycle, inst_count, ipc_global, ipc_interval,t_total_mc_request);
+	//t_total_mc_request=total_accesses-last_accesses ? (double)(t_total_mc-t_last_mc_total)/(total_accesses-last_accesses):0;
+	fprintf(ctx->loader->ipc_report_file, "%10lld %8lld %10.4f %10.4f\n",
+		esim_cycle, inst_count, ipc_global, ipc_interval);
 
 	/*Update intermediate calcules*/
-	last_accesses=total_accesses;
-	t_last_mc_total=t_total_mc;
+	/*last_accesses=total_accesses;
+	t_last_mc_total=t_total_mc;*/
 
 	/* Schedule new event */
 	stack->inst_count = ctx->inst_count;
@@ -946,11 +966,7 @@ void x86_ctx_misc_report_handler(int event, void *data)
 	struct mod_t * mod;
 	long long inst_count;
 	int i;
-	//struct mem_controller_t * mem_controller = mem_system->mem_controller;
-	//double t_total_mc;
-	//double t_total_mc_request = 0;
-	//long long total_accesses = 0;
-	//long long total_wait_in_mc = 0;
+	
 
 	/* Get context. If it does not exist anymore, no more
 	 * events to schedule. */
@@ -1015,21 +1031,89 @@ void x86_ctx_misc_report_handler(int event, void *data)
 			mod->last_hits = mod->hits;
 		}
 	}
-	// t_total_mc = mem_controller->t_wait + mem_controller->t_acces_main_memory + mem_controller->t_transfer;
-
-
-	/* Dump new IPC */
-	/*t_total_mc_request = total_accesses - last_accesses ?
-		(double) (t_total_mc - t_last_mc_total) / (total_accesses - last_accesses) : 0.0;
-	fprintf(ctx->loader->misc_report_file, "%10lld %8lld %10.4f %10.4f %10.4f\n",
-		esim_cycle, inst_count, ipc_global, ipc_interval,t_total_mc_request);*/
-
-	/* Update intermediate calcules */
-	//last_accesses = total_accesses;
-	//t_last_mc_total = t_total_mc;
+	
 
 	/* Schedule new event */
 	assert(ctx->loader->ipc_report_interval);
 	stack->inst_count = ctx->inst_count;
 	esim_schedule_event(event, stack, ctx->loader->misc_report_interval);
+}
+
+
+
+/*
+ * MC report
+ */
+
+struct x86_ctx_mc_report_stack_t
+{
+	int pid;
+	long long inst_count;
+};
+
+void x86_ctx_mc_report_schedule(struct x86_ctx_t *ctx)
+{
+	struct x86_ctx_mc_report_stack_t *stack;
+	FILE *f = ctx->loader->mc_report_file;
+	int i;
+
+	/* Create new stack */
+	stack = calloc(1, sizeof(struct x86_ctx_mc_report_stack_t));
+	if (!stack)
+		fatal("%s: out of memory", __FUNCTION__);
+
+	/* Initialize */
+	assert(ctx->loader->mc_report_file);
+	assert(ctx->loader->mc_report_interval > 0);
+	stack->pid = ctx->pid;
+
+	/* Print header */
+	fprintf(f, "%s", help_x86_ctx_mc_report);
+	fprintf(f, "%10s %8s %10s\n", "cycle", "inst", "total_time_mc");
+	for (i = 0; i < 43; i++)
+		fprintf(f, "-");
+	fprintf(f, "\n");
+
+	/* Schedule first event */
+	esim_schedule_event(EV_X86_CTX_MC_REPORT, stack,
+		ctx->loader->mc_report_interval);
+}
+
+void x86_ctx_mc_report_handler(int event, void *data)
+{
+	struct x86_ctx_mc_report_stack_t *stack = data;
+	struct x86_ctx_t *ctx;
+	long long inst_count;
+	struct mem_controller_t * mem_controller = mem_system->mem_controller;
+	double t_total_mc;
+	
+
+	/* Get context. If it does not exist anymore, no more
+	 * events to schedule. */
+	ctx = x86_ctx_get(stack->pid);
+	if (!ctx || x86_ctx_get_status(ctx, x86_ctx_finished) || esim_finish)
+	{
+		free(stack);
+		return;
+	}
+
+
+	assert(mem_controller->accesses>=last_accesses);
+
+	t_total_mc=(mem_controller->accesses-last_accesses)>0 ? (double) (mem_controller->t_wait+mem_controller->t_acces_main_memory+mem_controller->t_transfer)/(mem_controller->accesses-last_accesses): 0;
+
+	/* Dump new MC stat */
+	assert(ctx->loader->mc_report_interval);
+	inst_count = ctx->inst_count - stack->inst_count;
+	fprintf(ctx->loader->mc_report_file, "%10lld %8lld %10.4f\n",esim_cycle, inst_count, t_total_mc);
+
+	/*Update intermediate calcules*/
+	last_accesses=mem_controller->accesses;
+	t_last_mc_total=t_total_mc;
+
+	/* Schedule new event */
+	stack->inst_count = ctx->inst_count;
+	esim_schedule_event(event, stack, ctx->loader->mc_report_interval);
+
+
 }
