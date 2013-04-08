@@ -1935,10 +1935,12 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:find_and_lock\"\n",
 			stack->id, mod->name);
 
+		assert(stack->request_dir);
+
 		/* Default return values */
 		ret->err = 0;
 
-		/* Retry if block is in write buffer */
+		/* If block is in write buffer and request dir is up down, retry. Else, wait. */
 		if (!stack->background)
 		{
 			struct write_buffer_block_t *block;
@@ -1966,8 +1968,21 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 					}
 					else
 						fatal("Unknown memory operation type");
-					ret->err = 1;
-					mod_stack_return(stack);
+
+					if(stack->request_dir == mod_request_up_down)
+					{
+						mem_debug("    %lld retry in wb due to stack %lld\n", stack->id, block->stack_id);
+						ret->err = 1;
+						mod_stack_return(stack);
+					}
+					else
+					{
+						mem_debug("    %lld wait in wb for stack %lld\n",
+							stack->id, block->stack_id);
+						mod_stack_wait_in_write_buffer(stack, block, EV_MOD_NMOESI_FIND_AND_LOCK);
+
+					}
+
 					return;
 				}
 			}
