@@ -2911,7 +2911,7 @@ void mod_handler_nmoesi_evict(int event, void *data)
 			stack->id, target_mod->name);
 
 		assert(!stack->stream_hit); //VVV
-		//assert(stack->state); //VVV
+		assert(stack->state); //VVV
 
 		/* Error locking block */
 		if (stack->err)

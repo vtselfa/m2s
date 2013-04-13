@@ -811,7 +811,7 @@ void mem_controller_count_successive_hits(struct linked_list_t * coalesced_stack
 		LINKED_LIST_FOR_EACH(coalesced_stacks)
 		{
 			stack_aux= linked_list_get(coalesced_stacks);
-			printf("%d == %d ", block_size*i+first_block,stack_aux->addr %  mem_controller->row_buffer_size );
+			//printf("%d == %d ", block_size*i+first_block,stack_aux->addr %  mem_controller->row_buffer_size );
 		
 			if(block_size*i+first_block==stack_aux->addr %  mem_controller->row_buffer_size)// succesive blocks
 			{
@@ -829,7 +829,7 @@ void mem_controller_count_successive_hits(struct linked_list_t * coalesced_stack
 		if(count>max)//is not a successive block , so we count the max number of consecutive accesses
 			max=count;
 		mem_controller->successive_hit[linked_list_count(coalesced_stacks)-1][max-1]++;
-		printf("  [%d,%d]\n", linked_list_count(coalesced_stacks),max);
+	//	printf("  [%d,%d]\n", linked_list_count(coalesced_stacks),max);
 	}
 	else
 		fatal("Error policy\n");
