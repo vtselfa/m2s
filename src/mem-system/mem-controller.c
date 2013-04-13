@@ -11,6 +11,7 @@
 #include "mem-system.h"
 #include <lib/util/linked-list.h>
 #include <lib/esim/esim.h>
+#include <lib/util/list.h>
 #include "mod-stack.h"///
 ////////////////////////
 
@@ -120,7 +121,7 @@ struct mem_controller_t *mem_controller_create(void){
 }
 
 
-void mem_controller_init_main_memory(struct mem_controller_t *mem_controller, int channels, int ranks, int banks, int t_send_request, int row_size, int cycles_proc_bus, enum policy_mc_queue_t policy, enum priority_t priority, long long size_queue,  long long threshold, int queue_per_bank){
+void mem_controller_init_main_memory(struct mem_controller_t *mem_controller, int channels, int ranks, int banks, int t_send_request, int row_size, int block_size,int cycles_proc_bus, enum policy_mc_queue_t policy, enum priority_t priority, long long size_queue,  long long threshold, int queue_per_bank){
 
 	mem_controller->num_queues=1;
 
@@ -133,7 +134,6 @@ void mem_controller_init_main_memory(struct mem_controller_t *mem_controller, in
 	mem_controller->row_buffer_size=row_size;
 	mem_controller->t_send_request=t_send_request;
 	mem_controller->cycles_proc_bus=cycles_proc_bus;
-	//////////////////////////////////////////////////
 	mem_controller->size_queue=size_queue;
 	mem_controller->policy_queues=policy;
 	mem_controller->threshold=threshold;
@@ -149,7 +149,11 @@ void mem_controller_init_main_memory(struct mem_controller_t *mem_controller, in
 		mem_controller->pref_queue[i]=mem_controller_queue_create();
 	}
 
-
+	//////////////////////////////////////////////////
+	mem_controller->burst_size=calloc(row_size/block_size,sizeof(int*));
+	mem_controller->successive_hit=calloc(row_size/block_size,sizeof(int*));
+	for(int i=0; i<row_size/block_size;i++)
+		mem_controller->successive_hit[i]=calloc(row_size/block_size,sizeof(int));
 	////////////////////////////////////////////////
 
 	/*mem_controller->row_in_buffer_banks = calloc(channels, sizeof(int **));
@@ -179,10 +183,10 @@ void mem_controller_init_main_memory(struct mem_controller_t *mem_controller, in
 void mem_controller_free(struct mem_controller_t *mem_controller){
 
 
+	struct mod_t * mod= list_get(mem_system->mod_list,0);
 
 
 	/* Free prefetch queue */
-	///////////////////////////////////////////////////
 	for(int i=0; i<mem_controller->num_queues;i++)
 		mem_controller_queue_free(mem_controller->pref_queue[i]);
 
@@ -194,7 +198,12 @@ void mem_controller_free(struct mem_controller_t *mem_controller){
 
 	free(mem_controller->normal_queue);
 	///////////////////////////////////////////////////////////
-
+	for(int i=0; i<mem_controller->row_buffer_size/mod->cache->block_size;i++)
+		free(mem_controller->successive_hit[i]);
+	free(mem_controller->successive_hit);
+	free(mem_controller->burst_size);
+	///////////////////////////////////////////////////
+	
 
 	free(mem_controller);
 
@@ -462,8 +471,9 @@ void mem_controller_update_requests_threshold(int cycles)
 	for(int i=0; i<mem_controller->num_queues;i++)
 	{
 		/*Decrease threshold of prefetch request 1 cycle */
-		linked_list_head(mem_controller->pref_queue[i]->queue);
-		while(!linked_list_is_end(mem_controller->pref_queue[i]->queue)){
+		linked_list_head(mem_controller->pref_queue[i]->queue );
+		while(!linked_list_is_end(mem_controller->pref_queue[i]->queue)&&
+		linked_list_current(mem_controller->pref_queue[i]->queue)<mem_system->mem_controller->size_queue){
 			stack=linked_list_get(mem_controller->pref_queue[i]->queue);
 			if((stack->threshold-cycles)>0)
 				stack->threshold-=cycles;
@@ -474,7 +484,8 @@ void mem_controller_update_requests_threshold(int cycles)
 
 		/*Decrease threshold of normal request 1 cycle */
 		linked_list_head(mem_controller->normal_queue[i]->queue);
-		while(!linked_list_is_end(mem_controller->normal_queue[i]->queue)){
+		while(!linked_list_is_end(mem_controller->normal_queue[i]->queue)&&
+		linked_list_current(mem_controller->normal_queue[i]->queue)<mem_system->mem_controller->size_queue){
 			stack=linked_list_get(mem_controller->normal_queue[i]->queue);
 			if((stack->threshold-cycles)>0)
 				stack->threshold-=cycles;
@@ -694,8 +705,7 @@ unsigned int mem_controller_min_block(struct mod_stack_t *stack)
 
 	first = stack->addr %  mem_controller->row_buffer_size;
 
-	linked_list_head(queue);
-	while(!linked_list_is_end(queue))
+	LINKED_LIST_FOR_EACH(queue)
 	{
 		stack_aux=linked_list_get(queue);
 		block=stack_aux->addr %  mem_controller->row_buffer_size;
@@ -703,8 +713,6 @@ unsigned int mem_controller_min_block(struct mod_stack_t *stack)
 
 		if(first>block)
 			first=block;
-
-		linked_list_next(queue);
 
 	}
 	assert(first+stack->mod->cache->block_size <= mem_controller->row_buffer_size);
@@ -727,8 +735,7 @@ unsigned int mem_controller_max_block(struct mod_stack_t *stack)
 
 	last = stack->addr %  mem_controller->row_buffer_size;
 
-	linked_list_head(queue);
-	while(!linked_list_is_end(queue))
+	LINKED_LIST_FOR_EACH(queue)
 	{
 		stack_aux=linked_list_get(queue);
 		block=stack_aux->addr %  mem_controller->row_buffer_size;
@@ -736,7 +743,6 @@ unsigned int mem_controller_max_block(struct mod_stack_t *stack)
 		if(last<block)
 			last=block;
 
-		linked_list_next(queue);
 	}
 	assert(last+stack->mod->cache->block_size <= mem_controller->row_buffer_size);
 	assert(last>=0);
@@ -758,8 +764,7 @@ int mem_controller_calcul_number_blocks_transfered(struct mod_stack_t *stack)
 
 	/*Initialize*/
 	first = last = stack->addr %  mem_controller->row_buffer_size;
-	linked_list_head(queue);
-	while(!linked_list_is_end(queue))
+	LINKED_LIST_FOR_EACH(queue)
 	{
 		stack_aux=linked_list_get(queue);
 		block=stack_aux->addr %  mem_controller->row_buffer_size;
@@ -770,14 +775,64 @@ int mem_controller_calcul_number_blocks_transfered(struct mod_stack_t *stack)
 		else if(last<block)
 			last=block;
 
-		linked_list_next(queue);
-
 	}
 	assert(last+stack->mod->cache->block_size <= mem_controller->row_buffer_size);
 	assert(first>=0 && last>=0);
 	assert((last-first) % stack->mod->cache->block_size==0);
 
 	return (last-first)/stack->mod->cache->block_size + 1;
+
+}
+
+
+void mem_controller_count_successive_hits(struct linked_list_t * coalesced_stacks)
+{
+
+	int count =0;
+	int max=1;
+	int block_size;
+	int i=0;
+	struct mod_stack_t * stack_aux, *stack;
+	struct mem_controller_t * mem_controller= mem_system->mem_controller;
+
+	linked_list_head(coalesced_stacks);
+	stack=linked_list_get(coalesced_stacks);
+	block_size=stack->mod->cache->block_size;
+	unsigned int first_block= stack->addr %  mem_controller->row_buffer_size;
+
+	mem_controller->burst_size[linked_list_count(coalesced_stacks)-1]++;
+
+	if(mem_controller->policy_queues==policy_coalesce_queue || mem_controller->policy_queues==policy_coalesce_delayed_request_queue)
+		mem_controller->successive_hit[linked_list_count(coalesced_stacks)-1][linked_list_count(coalesced_stacks)-1]++;
+
+	else if(mem_controller->policy_queues==policy_coalesce_useful_blocks_queue)
+	{
+	
+		LINKED_LIST_FOR_EACH(coalesced_stacks)
+		{
+			stack_aux= linked_list_get(coalesced_stacks);
+			printf("%d == %d ", block_size*i+first_block,stack_aux->addr %  mem_controller->row_buffer_size );
+		
+			if(block_size*i+first_block==stack_aux->addr %  mem_controller->row_buffer_size)// succesive blocks
+			{
+				count++;
+				i++;
+			}else{ 
+				if(count>max)//is not a successive block , so we count the max number of consecutive accesses
+					max=count;
+				first_block=stack_aux->addr %  mem_controller->row_buffer_size;
+				count=1;
+				i=1;
+			}
+
+		}
+		if(count>max)//is not a successive block , so we count the max number of consecutive accesses
+			max=count;
+		mem_controller->successive_hit[linked_list_count(coalesced_stacks)-1][max-1]++;
+		printf("  [%d,%d]\n", linked_list_count(coalesced_stacks),max);
+	}
+	else
+		fatal("Error policy\n");
 
 }
 

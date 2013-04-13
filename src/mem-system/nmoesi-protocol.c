@@ -2911,7 +2911,7 @@ void mod_handler_nmoesi_evict(int event, void *data)
 			stack->id, target_mod->name);
 
 		assert(!stack->stream_hit); //VVV
-		assert(stack->state); //VVV
+		//assert(stack->state); //VVV
 
 		/* Error locking block */
 		if (stack->err)
@@ -3846,13 +3846,11 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 
 			if(stack->coalesced_stacks!=NULL)
 			{
-				linked_list_head(stack->coalesced_stacks);
-				while(!linked_list_is_end(stack->coalesced_stacks))
+				LINKED_LIST_FOR_EACH(stack->coalesced_stacks)
 				{
 					stack_aux=linked_list_get(stack->coalesced_stacks);
 					if(stack_aux->prefetch) mem_controller->t_pref_transfer += t_trans;
 					else mem_controller->t_normal_transfer += t_trans;
-					linked_list_next(stack->coalesced_stacks);
 				}
 			}
 
@@ -3869,31 +3867,18 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 				while(!linked_list_is_end(coalesced_stacks))
 				{
 					stack_aux=linked_list_get(coalesced_stacks);
-
 					if(stack->addr % mem_controller->row_buffer_size < stack_aux->addr % mem_controller->row_buffer_size)
 					{
-						//linked_list_prev(coalesced_stacks);
 						linked_list_insert(coalesced_stacks,stack);
 						add=0;
 						break;
 					}
 					linked_list_next(coalesced_stacks);
 				}
-				if(add)
-				{
-					//linked_list_prev(coalesced_stacks);
-					linked_list_insert(coalesced_stacks,stack);
-				}
+				if(add)linked_list_insert(coalesced_stacks,stack);
 
-				/*linked_list_head(coalesced_stacks);
-				while(!linked_list_is_end(coalesced_stacks))
-				{
-					stack_aux=linked_list_get(coalesced_stacks);
-					printf("%d - ", stack_aux->addr %  mem_controller->row_buffer_size);
-					linked_list_next(coalesced_stacks);
-				}
-				printf("\n");
-				*/
+				mem_controller_count_successive_hits(coalesced_stacks);
+			
 				linked_list_head(coalesced_stacks);
 				new_stack=linked_list_get(coalesced_stacks);
 				linked_list_remove(coalesced_stacks);
@@ -3904,11 +3889,13 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 				new_stack->channel=stack->channel;
 				new_stack->row=stack->row;
 				esim_schedule_event(EV_MOD_NMOESI_REMOVE_MEMORY_CONTROLLER, new_stack, t_trans);
-
 				//linked_list_free(coalesced_stacks);
 				assert(new_stack->coalesced_stacks!=NULL && linked_list_count(new_stack->coalesced_stacks)>0);
 				return;
-			}
+			}else{
+				mem_controller->burst_size[0]++;
+				mem_controller->successive_hit[0][0]++;
+			}	
 
 			esim_schedule_event(EV_MOD_NMOESI_REMOVE_MEMORY_CONTROLLER, stack, t_trans);
 			return;
@@ -3934,8 +3921,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 			/*Coalesce request stadistics*/
 			if(stack->coalesced_stacks!=NULL)
 			{
-				linked_list_head(stack->coalesced_stacks);
-				while(!linked_list_is_end(stack->coalesced_stacks))
+				LINKED_LIST_FOR_EACH(stack->coalesced_stacks)
 				{
 					stack_aux=linked_list_get(stack->coalesced_stacks);
 					if(stack_aux->prefetch){
@@ -3945,7 +3931,6 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 						channel[stack->channel].t_normal_wait_transfer_request += 1;
 						mem_controller->t_normal_transfer += 1;
 					}
-					linked_list_next(stack->coalesced_stacks);
 				}
 			}
 		}

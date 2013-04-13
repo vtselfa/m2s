@@ -288,7 +288,8 @@ void main_memory_dump_report(char * main_mem_report_file_name)
 	long long total_acces=0;
 	long long total_normal_acces=0;
 	long long total_pref_acces=0;
-
+	long long total_bursts=0;
+	long long total_burst_accesses=0;
 
         /* Open file */
         f = file_open_for_write(main_mem_report_file_name);
@@ -332,6 +333,12 @@ void main_memory_dump_report(char * main_mem_report_file_name)
                 }
          }
 
+	for(int i=0; i<mem_controller->row_buffer_size/mod->cache->block_size;i++)
+	{
+		total_bursts+=mem_controller->burst_size[i];
+		total_burst_accesses+=mem_controller->burst_size[i]*(i+1);
+	}
+
  	fprintf(f, "[MAIN MEMORY]\n");
 	fprintf(f, "TotalTime = %f\n",mem_controller->accesses ? (double) (mem_controller->t_wait+mem_controller->t_acces_main_memory+mem_controller->t_transfer)/mem_controller->accesses:0.0);
         fprintf(f, "AvgTimeWaitMCQueue = %f\n",mem_controller->accesses ? (double) mem_controller->t_wait/mem_controller->accesses:0.0);
@@ -341,6 +348,7 @@ void main_memory_dump_report(char * main_mem_report_file_name)
 	fprintf(f,"TotalNonCoalescedAccessesMC = %lld\n", mem_controller->non_coalesced_accesses);
 	fprintf(f,"RequestsPerCoalesdedAcces = %f\n", mem_controller->non_coalesced_accesses ?(double)mem_controller->accesses/mem_controller->non_coalesced_accesses:0);
 	fprintf(f,"AccuracyTransferedBlocks = %f\n", mem_controller->blocks_transfered ? (double)mem_controller->useful_blocks_transfered/mem_controller->blocks_transfered:0);
+
 	fprintf(f,"\n");
 
 	/*Normal requests*/
@@ -359,6 +367,18 @@ void main_memory_dump_report(char * main_mem_report_file_name)
 	fprintf(f,"AvgTimePrefetchTransferFromMM = %f\n",mem_controller->pref_accesses?(double)mem_controller->t_pref_transfer/mem_controller->pref_accesses:0.0 );
 	fprintf(f,"TotalPrefetchAccessesMC = %lld\n", mem_controller->pref_accesses);
 
+	fprintf(f,"\n");
+	
+	for(int i=0; i<mem_controller->row_buffer_size/mod->cache->block_size;i++)
+		fprintf(f,"PercentAccessesBurst%dSize = %f\n",i+1,total_burst_accesses>0 ? (float)(mem_controller->burst_size[i]*(i+1))/total_burst_accesses: 0);
+	fprintf(f,"\n");		
+
+	for(int i=0; i<mem_controller->row_buffer_size/mod->cache->block_size;i++)
+	{
+		fprintf(f,"PercentTimesBurst%dSize = %f\n", i+1,total_bursts>0 ? (float)mem_controller->burst_size[i]/total_bursts: 0);
+		for(int j=0; j<=i;j++)
+			fprintf(f,"	PercentTimes%dSuccessiveHitsInBurst%d = %f\n", j+1,i+1, mem_controller->burst_size[i]>0 ? (float)mem_controller->successive_hit[i][j]/mem_controller->burst_size[i]: 0);
+	}
 	fprintf(f,"\n\n");
 
 

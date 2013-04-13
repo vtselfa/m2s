@@ -116,6 +116,9 @@ struct mem_controller_t
 
 	long long blocks_transfered;
 	long long useful_blocks_transfered;
+
+	int ** successive_hit; // inside a burst consecutive blocks
+	int * burst_size; //counter of coalesced requests
 };
 
 struct mem_controller_t * mem_controller_create(void);
@@ -124,7 +127,7 @@ void mem_controller_normal_queue_add(struct mod_stack_t * stack);
 void mem_controller_prefetch_queue_add(struct mod_stack_t * stack);
 int mem_controller_remove(struct mod_stack_t * stack, struct mem_controller_queue_t * queue);
 void mem_controller_init_main_memory(struct mem_controller_t *mem_controller, int channels, int ranks,
-	int banks, int t_send_request, int row_size, int cycles_proc_bus,  enum policy_mc_queue_t policy,
+	int banks, int t_send_request, int row_size, int block_size,int cycles_proc_bus,  enum policy_mc_queue_t policy,
 	enum priority_t priority, long long size_queue, long long cycles_wait_MCqueue, int queue_per_bank);
 void mem_controller_update_requests_threshold(int cycles);
 int mem_controller_queue_has_consumed_threshold(struct linked_list_t * queue);
@@ -137,6 +140,7 @@ unsigned int mem_controller_max_block(struct mod_stack_t *stack);
 unsigned int mem_controller_min_block(struct mod_stack_t *stack);
 int mem_controller_coalesce_acces_block(struct mod_stack_t * stack, struct linked_list_t *queue);
 void mem_controller_sort_by_block(struct mod_stack_t * stack);
+void mem_controller_count_successive_hits(struct linked_list_t * coalesced_stacks);
 
 ///////////////////////////////////////////////////////////////////////////
 /*Memory controller queue*/

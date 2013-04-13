@@ -979,7 +979,7 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config, char *
 	///////////////////////////////////////////////////
 	mod->regs_channel = regs_channel_create(channels, ranks, banks, bandwith, t_acces_bank_miss, t_acces_bank_hit );
 	mod->num_regs_channel = channels;
-	mem_controller_init_main_memory(mem_system->mem_controller, channels, ranks, banks, t_send_request, row_size, cycles_proc_bus, policy_type, prio_type, size_queue, threshold, queue_per_bank);
+	mem_controller_init_main_memory(mem_system->mem_controller, channels, ranks, banks, t_send_request, row_size, block_size, cycles_proc_bus, policy_type, prio_type, size_queue, threshold, queue_per_bank);
 	mem_system->mem_controller->enabled = enabled_mc;
 	///////////////////////////////////////////////////
 
