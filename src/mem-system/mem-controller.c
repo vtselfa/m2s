@@ -593,6 +593,96 @@ int mem_controller_coalesce_acces_between_blocks(struct mod_stack_t * stack, str
 
 }
 
+int mem_controller_coalesce_acces_block(struct mod_stack_t * stack, struct linked_list_t *queue)
+{
+
+	struct mod_stack_t * stack_aux;
+	int n_coal=0;
+
+	linked_list_head(queue);
+	while(!linked_list_is_end(queue)&&linked_list_current(queue)<mem_system->mem_controller->size_queue)
+	{
+		stack_aux=linked_list_get(queue);
+		
+		
+		/*Is the request demanding this block? */
+		if(stack_aux->addr==stack->addr)
+		{
+			/*Coalesce*/
+			mem_debug("   stack %lld coalesced with stack %lld\n", stack_aux->id, stack->id);
+			if(stack->coalesced_stacks==NULL)
+				stack->coalesced_stacks=linked_list_create();
+			linked_list_add(stack->coalesced_stacks, stack_aux);
+			linked_list_remove(queue);
+			n_coal++;
+		}else
+			linked_list_next(queue);
+
+	}
+
+	return n_coal;
+
+}
+
+
+
+void mem_controller_sort_by_block(struct mod_stack_t * stack)
+{
+
+	struct mod_stack_t * stack_aux, *stack_list;
+	struct linked_list_t * list=linked_list_create();
+	struct mem_controller_t * mem_controller=mem_system->mem_controller;
+	unsigned int block;
+	
+	
+	linked_list_head(stack->coalesced_stacks);
+	while(!linked_list_is_end(stack->coalesced_stacks))
+	{
+		stack_aux=linked_list_get(stack->coalesced_stacks);
+		block=stack_aux->addr %  mem_controller->row_buffer_size;
+		int add=1;
+
+		linked_list_head(list);
+		while(!linked_list_is_end(list))
+		{
+			stack_list=linked_list_get(list);
+			if(block < stack_list->addr %  mem_controller->row_buffer_size)
+			{
+				//linked_list_prev(list);
+				linked_list_insert(list,stack_aux);
+				linked_list_remove(stack->coalesced_stacks);
+				add=0;
+				break;
+			}
+			linked_list_next(list);
+		}
+		if(add)
+		{
+			//linked_list_prev(list);
+			linked_list_insert(list,stack_aux);
+			linked_list_remove(stack->coalesced_stacks);
+		}	
+	}
+	
+	/*TODO quitar cuando se vea que va bien*/
+	linked_list_head(list);
+	while(!linked_list_is_end(list))
+	{
+		stack_aux=linked_list_get(list);
+		printf("%d . ", stack_aux->addr %  mem_controller->row_buffer_size);
+		linked_list_next(list);
+	}
+	printf("\n");
+
+	linked_list_free(stack->coalesced_stacks);
+	stack->coalesced_stacks=list;
+
+	//linked_list_free(list);
+	assert(stack->coalesced_stacks!=NULL);
+	//assert( linked_list_count(stack->coalesced_stacks)>0);
+
+}
+
 unsigned int mem_controller_min_block(struct mod_stack_t *stack)
 {
 
