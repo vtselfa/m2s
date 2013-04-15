@@ -2151,13 +2151,13 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 				ret->port_locked = 0;
 				return;
 			}
-		}
 
-		/* Cache entry is locked. Record the transient tag so that a subsequent lookup
-		 * detects that the block is being brought.
-		 * Also, update LRU counters here. */
-		cache_set_transient_tag(mod->cache, stack->set, stack->way, stack->tag);
-		cache_access_block(mod->cache, stack->set, stack->way);
+			/* Cache entry is locked. Record the transient tag so that a subsequent lookup
+			* detects that the block is being brought.
+			* Also, update LRU counters here. */
+			cache_set_transient_tag(mod->cache, stack->set, stack->way, stack->tag);
+			cache_access_block(mod->cache, stack->set, stack->way);
+		}
 
 		if (!stack->hit && !stack->background && cache->prefetch_enabled == prefetch_streams)
 			esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK_PREF_STREAM, stack, 0);
@@ -3553,11 +3553,11 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 				if(mem_controller->coalesce!=policy_coalesce_disabled)
 				{
 					int n_coalesce;
-					
+
 					n_coalesce=mem_controller_coalesce_acces_row_buffer(new_stack, pref_queue->queue);
 					if (mem_controller_remove(new_stack,pref_queue)&&linked_list_count(pref_queue->queue) == size_queue -n_coalesce)
 						pref_queue->t_full += esim_cycle - pref_queue->instant_begin_full;
-				
+
 					n_coalesce=mem_controller_coalesce_acces_row_buffer(new_stack, normal_queue->queue);
 					if (mem_controller_remove(new_stack, normal_queue)&&linked_list_count(normal_queue->queue) == size_queue-n_coalesce)
 						normal_queue->t_full += esim_cycle - normal_queue->instant_begin_full;
@@ -3826,7 +3826,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 				num_blocks=1;
 			else{
 				/*Transfer all blocks that have coalesced*/
-				if(mem_controller->coalesce == policy_coalesce || mem_controller->coalesce == 			
+				if(mem_controller->coalesce == policy_coalesce || mem_controller->coalesce ==
 				policy_coalesce_delayed_request) //tranfer all blocks between min and max block
 					num_blocks=mem_controller_calcul_number_blocks_transfered(stack);
 				else
@@ -3877,7 +3877,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 				if(add)linked_list_insert(coalesced_stacks,stack);
 
 				mem_controller_count_successive_hits(coalesced_stacks);
-			
+
 				linked_list_head(coalesced_stacks);
 				new_stack=linked_list_get(coalesced_stacks);
 				linked_list_remove(coalesced_stacks);
@@ -3894,7 +3894,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 			}else{
 				mem_controller->burst_size[0]++;
 				mem_controller->successive_hit[0][0]++;
-			}	
+			}
 
 			esim_schedule_event(EV_MOD_NMOESI_REMOVE_MEMORY_CONTROLLER, stack, t_trans);
 			return;
@@ -3982,17 +3982,17 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 			and if the block is transfering*/
 			min_block=mem_controller_min_block(stack);
 			max_block=mem_controller_max_block(stack);
-			
+
 			n_coalesce=mem_controller_coalesce_acces_between_blocks(stack,mem_controller->pref_queue[q]->queue, min_block,max_block);
 			if (linked_list_count(mem_controller->pref_queue[q]->queue) == size_queue - n_coalesce &&n_coalesce>0)
 				mem_controller->pref_queue[q]->t_full += esim_cycle - mem_controller->pref_queue[q]->instant_begin_full;
-			
+
 			n_coalesce=mem_controller_coalesce_acces_between_blocks(stack,mem_controller->normal_queue[q]->queue, min_block,max_block);
 			if (linked_list_count(mem_controller->normal_queue[q]->queue) == size_queue - n_coalesce &&n_coalesce>0)
 				mem_controller->normal_queue[q]->t_full += esim_cycle - mem_controller->normal_queue[q]->instant_begin_full;
-			
-			
-			
+
+
+
 			/*Sort by block*/
 			mem_controller_sort_by_block(stack);
 
@@ -4011,7 +4011,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 			mem_controller->n_times_queue_examined += time; //se podria cambiar dividinto x esim al final
 			mem_controller->last_cycle = esim_cycle;
 
-			
+
 		}
 
 		/*Program the next arrival of a block coalesced*/
