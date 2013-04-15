@@ -121,7 +121,7 @@ struct mem_controller_t *mem_controller_create(void){
 }
 
 
-void mem_controller_init_main_memory(struct mem_controller_t *mem_controller, int channels, int ranks, int banks, int t_send_request, int row_size, int block_size,int cycles_proc_bus, enum policy_mc_queue_t policy, enum priority_t priority, long long size_queue,  long long threshold, int queue_per_bank){
+void mem_controller_init_main_memory(struct mem_controller_t *mem_controller, int channels, int ranks, int banks, int t_send_request, int row_size, int block_size,int cycles_proc_bus, enum policy_mc_queue_t policy, enum priority_t priority, long long size_queue,  long long threshold, int queue_per_bank, enum policy_coalesce_t coalesce){
 
 	mem_controller->num_queues=1;
 
@@ -140,7 +140,7 @@ void mem_controller_init_main_memory(struct mem_controller_t *mem_controller, in
 	mem_controller->priority_request_in_queue=priority;
 	mem_controller->queue_per_bank=queue_per_bank;
 	mem_controller->queue_round_robin=0;
-
+	mem_controller->coalesce= coalesce;
 	mem_controller->normal_queue=calloc(mem_controller->num_queues, sizeof(struct mem_controller_queue_t *));
 	mem_controller->pref_queue=calloc(mem_controller->num_queues, sizeof(struct mem_controller_queue_t *));
 	for(int i=0; i<mem_controller->num_queues;i++)
@@ -520,13 +520,14 @@ int mem_controller_stacks_prefQueues_count()
 
 
 
-void mem_controller_coalesce_acces_row_buffer( struct mod_stack_t * stack, struct linked_list_t * queue)
+int mem_controller_coalesce_acces_row_buffer( struct mod_stack_t * stack, struct linked_list_t * queue)
 {
 	struct mod_stack_t * stack_aux;
 	unsigned int num_ranks = mem_system->mem_controller->num_regs_rank ;
 	unsigned int num_banks = mem_system->mem_controller->num_regs_bank ;
 	unsigned int log2_row_size= log_base2( mem_system->mem_controller->row_buffer_size);
 	unsigned int num_channels = mem_system->mem_controller->num_regs_channel ;
+	int count =0;
 
 	linked_list_head(queue);
 	while(!linked_list_is_end(queue)&&linked_list_current(queue)<mem_system->mem_controller->size_queue)
@@ -550,6 +551,7 @@ void mem_controller_coalesce_acces_row_buffer( struct mod_stack_t * stack, struc
 			mem_debug("   stack %lld coalesced with stack %lld\n", stack_aux->id, stack->id);
 			if(stack->coalesced_stacks==NULL)
 				stack->coalesced_stacks=linked_list_create();
+			count++;
 			linked_list_add(stack->coalesced_stacks, stack_aux);
 			linked_list_remove(queue);
 		}else
@@ -557,6 +559,7 @@ void mem_controller_coalesce_acces_row_buffer( struct mod_stack_t * stack, struc
 
 	}
 
+	return count;
 }
 
 int mem_controller_coalesce_acces_between_blocks(struct mod_stack_t * stack, struct linked_list_t *queue, int block_min, int block_max)
@@ -802,10 +805,10 @@ void mem_controller_count_successive_hits(struct linked_list_t * coalesced_stack
 
 	mem_controller->burst_size[linked_list_count(coalesced_stacks)-1]++;
 
-	if(mem_controller->policy_queues==policy_coalesce_queue || mem_controller->policy_queues==policy_coalesce_delayed_request_queue)
+	if(mem_controller->coalesce==policy_coalesce || mem_controller->coalesce == policy_coalesce_delayed_request)
 		mem_controller->successive_hit[linked_list_count(coalesced_stacks)-1][linked_list_count(coalesced_stacks)-1]++;
 
-	else if(mem_controller->policy_queues==policy_coalesce_useful_blocks_queue)
+	else if(mem_controller->coalesce == policy_coalesce_useful_blocks)
 	{
 	
 		LINKED_LIST_FOR_EACH(coalesced_stacks)

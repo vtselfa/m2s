@@ -204,16 +204,17 @@ Ranks = 1
 Banks = 8
 Channels = 1
 CyclesSendRequest = 1
-CyclesRowBufferHit = 100
-CyclesRowBufferMiss = 300
+CyclesRowBufferHit = 60
+CyclesRowBufferMiss = 180
 Bandwith = 16
 CyclesProcByCyclesBus = 3
 Threshold= 100000
-PolicyMCQueues = CoalesceQueue
-PriorityMCQueues = Threshold-RowBufferHit-FCFS
+PolicyMCQueues = PrefetchNormalQueue
+Coalesce = CoalesceDelayedRequest
+PriorityMCQueues = Threshold-Normal-Prefetch
 QueuePerBank = 1
 SizeQueue = 128
-MemoryControllerEnabled = 1
+MemoryControllerEnabled = 0
 
 #
 # Nodes

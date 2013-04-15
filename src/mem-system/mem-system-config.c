@@ -814,9 +814,11 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config, char *
 	char *net_node_name;
 	char * policy;
 	char * priority;
+	char * coalesce;
 
 	enum policy_mc_queue_t policy_type;
 	enum priority_t prio_type;
+	enum policy_coalesce_t coalesce_type;
 
 
 	struct mod_t *mod;
@@ -843,7 +845,8 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config, char *
 	t_acces_bank_miss = config_read_int(config, section, "CyclesRowBufferMiss", 20);
 	bandwith = config_read_int(config, section, "Bandwith", 64);
 	cycles_proc_bus = config_read_int(config, section, "CyclesProcByCyclesBus", 4);
-	policy = config_read_string(config, section, "PolicyMCQueues", "FCFSOneQueue");
+	policy = config_read_string(config, section, "PolicyMCQueues", "PrefetchNormalQueue");
+	coalesce = config_read_string(config, section, "Coalesce", "Disabled");
 	priority = config_read_string(config, section, "PriorityMCQueues", "Threshold-Normal-Prefetch");
 	threshold = config_read_llint(config, section, "Threshold", 100000000000);
 	size_queue = config_read_llint(config, section, "SizeQueue", 100000000000);
@@ -904,34 +907,43 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config, char *
 		policy_type = policy_one_queue_FCFS;
 	else if (strcmp(policy, "PrefetchNormalQueue") == 0)
 		policy_type = policy_prefetch_normal_queues;
-	else if(strcmp(policy, "CoalesceQueue") == 0)
+	else
+		fatal("%s: %s:invalid value for variable 'PolicyMCQueues'.\n%s",
+			mem_config_file_name, mod_name, err_mem_config_note);
+
+
+	if(strcmp(coalesce, "Disabled") == 0)
 	{
-		policy_type = policy_coalesce_queue;
+		coalesce_type = policy_coalesce_disabled;
+	}
+	else if(strcmp(coalesce, "Coalesce") == 0)
+	{
+		coalesce_type = policy_coalesce;
 		if(!queue_per_bank)
 		{
 			warning(" Coalesced option is just compatible with a queue for each bank\n");
 			queue_per_bank=1;
 		}
 	}
-	else if(strcmp(policy, "CoalesceUsefulBlocksQueue") == 0)
+	else if(strcmp(coalesce, "CoalesceUsefulBlocks") == 0)
 	{
-		policy_type = policy_coalesce_useful_blocks_queue;
+		coalesce_type = policy_coalesce_useful_blocks;
 		if(!queue_per_bank)
 		{
 			warning(" Coalesced option is just compatible with a queue for each bank\n");
 			queue_per_bank=1;
 		}
-	}else if(strcmp(policy, "CoalesceDelayedRequestQueue") == 0)
+
+	}else if(strcmp(coalesce, "CoalesceDelayedRequest") == 0)
 	{
-		policy_type = policy_coalesce_delayed_request_queue;
+		coalesce_type = policy_coalesce_delayed_request;
 		if(!queue_per_bank)
 		{
 			warning(" Coalesced option is just compatible with a queue for each bank\n");
 			queue_per_bank=1;
 		}
-	
 	}else
-		fatal("%s: %s: invalid value for variable 'PolicyMCQueues'.\n%s",
+		fatal("%s: %s: invalid value for variable 'Coalesce'.\n%s",
 			mem_config_file_name, mod_name, err_mem_config_note);
 	if (size_queue <= 0)
 		fatal("%s: %s:invalid value for variable 'SizeQueue'.\n%s",
@@ -979,7 +991,7 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config, char *
 	///////////////////////////////////////////////////
 	mod->regs_channel = regs_channel_create(channels, ranks, banks, bandwith, t_acces_bank_hit, t_acces_bank_miss );
 	mod->num_regs_channel = channels;
-	mem_controller_init_main_memory(mem_system->mem_controller, channels, ranks, banks, t_send_request, row_size, block_size, cycles_proc_bus, policy_type, prio_type, size_queue, threshold, queue_per_bank);
+	mem_controller_init_main_memory(mem_system->mem_controller, channels, ranks, banks, t_send_request, row_size, block_size, cycles_proc_bus, policy_type, prio_type, size_queue, threshold, queue_per_bank, coalesce_type);
 	mem_system->mem_controller->enabled = enabled_mc;
 	///////////////////////////////////////////////////
 
