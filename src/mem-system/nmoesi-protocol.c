@@ -3941,7 +3941,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 	{
 		struct mod_stack_t * stack_aux;
 		int n_coalesce=0;
-		struct mem_controller_queue_t* normq_aux;
+		struct mem_controller_queue_t* normq_aux, *prefq_aux;
 		bank = mod->regs_channel[stack->channel].regs_rank[stack->rank].regs_bank;
 		int accesed = 0;
 		unsigned int log2_row_size= log_base2( mem_controller->row_buffer_size);
@@ -4001,12 +4001,18 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 			for (int i = 0; i < num_queues; i++)
 			{
 				normq_aux = mem_controller->normal_queue[i];
-				assert(linked_list_count(mem_controller->pref_queue[i]->queue)==0);
-
+				
 				if (linked_list_count(normq_aux->queue) < size_queue)
 					normq_aux->total_requests += linked_list_count(normq_aux->queue) * time;
 				else // queue full, add the limit
 					normq_aux->total_requests += size_queue * time;
+
+				prefq_aux = mem_controller->pref_queue[i];
+
+				if (linked_list_count(prefq_aux->queue) < size_queue)
+					prefq_aux->total_requests += linked_list_count(prefq_aux->queue) * time;
+				else // queue full, add the limit
+					prefq_aux->total_requests += size_queue * time;
 			}
 			mem_controller->n_times_queue_examined += time; //se podria cambiar dividinto x esim al final
 			mem_controller->last_cycle = esim_cycle;

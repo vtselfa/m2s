@@ -210,11 +210,11 @@ Bandwith = 16
 CyclesProcByCyclesBus = 3
 Threshold= 100000
 PolicyMCQueues = PrefetchNormalQueue
-Coalesce = CoalesceDelayedRequest
+Coalesce = CoalesceUsefulBlocks
 PriorityMCQueues = Threshold-Normal-Prefetch
 QueuePerBank = 1
 SizeQueue = 128
-MemoryControllerEnabled = 0
+MemoryControllerEnabled = 1
 
 #
 # Nodes
