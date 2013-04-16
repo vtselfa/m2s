@@ -275,6 +275,7 @@ struct x86_core_t
 	long long num_branch_uinst;
 	long long num_mispred_branch_uinst;
 	long long dispatch_stall_cycles_rob_mem;
+	long long last_dispatch_stall_cycles_rob_mem; // interval report
 	long long dispatch_stall_cycles_rob;
 	long long dispatch_stall_cycles_iq;
 	long long dispatch_stall_cycles_lsq;
