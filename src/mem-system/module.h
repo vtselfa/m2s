@@ -231,6 +231,7 @@ struct mod_t
 	long long no_retry_write_hits;
 	long long no_retry_nc_writes;
 	long long no_retry_nc_write_hits;
+	long long no_retry_stream_hits;
 
 	/* Prefetch */
 	long long programmed_prefetches;
@@ -239,9 +240,13 @@ struct mod_t
 	long long canceled_prefetches;
 	long long useful_prefetches;
 	long long last_useful_prefetches;
+	long long effective_useful_prefetches; /* Useful prefetches with less delay hit cicles than 1/3 of the delay of accesing MM */
+	long long last_effective_useful_prefetches;
 
 	long long prefetch_retries;
 
+	long long stream_hits;
+	long long last_stream_hits;
 	long long delayed_hits; /* Hit on a block being brougth by a prefetch */
 	long long last_delayed_hits;
 	long long delayed_hit_cycles; /* Cicles lost due delayed hits */

@@ -1154,6 +1154,8 @@ static void mem_config_read_modules(struct config_t *config)
 
 		/* Add module */
 		list_add(mem_system->mod_list, mod);
+		if (mod->kind == mod_kind_main_memory)
+			list_add(mem_system->mm_mod_list, mod); /* Add to list of main memory modules */
 		mem_debug("\t%s\n", mod_name);
 	}
 

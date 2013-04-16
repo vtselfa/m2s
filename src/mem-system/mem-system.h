@@ -46,6 +46,7 @@ struct mem_system_t
 {
 	/* List of modules and networks */
 	struct list_t *mod_list;
+	struct list_t *mm_mod_list; /* Main memory modules */
 	struct list_t *net_list;
 
 	 ///////////////////////////////////////

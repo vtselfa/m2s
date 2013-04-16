@@ -866,7 +866,7 @@ void x86_ctx_ipc_report_handler(int event, void *data)
 {
 	struct x86_ctx_ipc_report_stack_t *stack = data;
 	struct x86_ctx_t *ctx;
-	
+
 	long long inst_count;
 	double ipc_interval;
 	double ipc_global;
@@ -947,9 +947,9 @@ void x86_ctx_misc_report_schedule(struct x86_ctx_t *ctx)
 
 	/* Print header */
 	fprintf(f, "%s", help_x86_ctx_misc_report);
-	fprintf(f, "%10s %8s %8s %10s %s %s %s %s\n", "cycle", "inst", "module",
+	fprintf(f, "%10s %8s %8s %10s %s %s %s %s %s %s\n", "cycle", "inst", "module",
 		"completed-prefetches-int", "prefetch-accuracy-int", "delayed-hits-int",
-		"delayed-hit-avg-lost-cycles-int", "misses");
+		"delayed-hit-avg-lost-cycles-int", "misses-int", "stream-hits-int", "effective-prefetch-accuracy-int");
 	for (i = 0; i < 43; i++)
 		fprintf(f, "-");
 	fprintf(f, "\n");
@@ -966,7 +966,6 @@ void x86_ctx_misc_report_handler(int event, void *data)
 	struct mod_t * mod;
 	long long inst_count;
 	int i;
-	
 
 	/* Get context. If it does not exist anymore, no more
 	 * events to schedule. */
@@ -986,11 +985,7 @@ void x86_ctx_misc_report_handler(int event, void *data)
 		/* Main memory */
 		if(mod->kind == mod_kind_main_memory)
 		{
-			/*for(int c = 0; c < mod->num_regs_channel; c++)
-			{
-				total_accesses += mod->regs_channel[c].acceses;
-				total_wait_in_mc += mod->regs_channel[c].t_wait_send_request;
-			}*/
+			/* Nothing for now */
 		}
 
 		/* Cache */
@@ -1018,10 +1013,20 @@ void x86_ctx_misc_report_handler(int event, void *data)
 			long long hits_int = mod->hits - mod->last_hits;
 			long long misses_int = accesses_int - hits_int;
 
+			/* Stream hits */
+			long long stream_hits_int = mod->stream_hits - mod->last_stream_hits;
+
+			/* Effective prefetch accuracy */
+			long long effective_useful_prefetches_int = mod->effective_useful_prefetches -
+				mod->last_effective_useful_prefetches;
+			double effective_prefetch_accuracy_int = completed_prefetches_int ?
+				(double) effective_useful_prefetches_int / completed_prefetches_int : 0.0;
+			effective_prefetch_accuracy_int = effective_prefetch_accuracy_int > 1 ? 1 : effective_prefetch_accuracy_int; /* May be slightly greather than 1 due bad timing with cycles */
+
 			/* Dump stats */
-			fprintf(ctx->loader->misc_report_file, "%10lld %8lld %8s %8lld %10.4f %8lld %10.4f %8lld\n",
+			fprintf(ctx->loader->misc_report_file, "%10lld %8lld %8s %8lld %10.4f %8lld %10.4f %8lld %8lld %10.4f\n",
 				esim_cycle, inst_count, mod->name, completed_prefetches_int, prefetch_accuracy_int,
-				delayed_hits_int, delayed_hit_avg_lost_cycles_int, misses_int);
+				delayed_hits_int, delayed_hit_avg_lost_cycles_int, misses_int, stream_hits_int, effective_prefetch_accuracy_int);
 
 			mod->last_delayed_hits = mod->delayed_hits;
 			mod->last_delayed_hit_cycles = mod->delayed_hit_cycles;
@@ -1029,9 +1034,10 @@ void x86_ctx_misc_report_handler(int event, void *data)
 			mod->last_completed_prefetches = mod->completed_prefetches;
 			mod->last_accesses = mod->accesses;
 			mod->last_hits = mod->hits;
+			mod->last_stream_hits = mod->stream_hits;
+			mod->last_effective_useful_prefetches = mod->effective_useful_prefetches;
 		}
 	}
-	
 
 	/* Schedule new event */
 	assert(ctx->loader->ipc_report_interval);
@@ -1086,7 +1092,7 @@ void x86_ctx_mc_report_handler(int event, void *data)
 	long long inst_count;
 	struct mem_controller_t * mem_controller = mem_system->mem_controller;
 	double t_total_mc;
-	
+
 
 	/* Get context. If it does not exist anymore, no more
 	 * events to schedule. */

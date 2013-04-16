@@ -66,6 +66,7 @@ void mem_system_init(void)
 	/* Create network and module list */
 	mem_system->net_list = list_create();
 	mem_system->mod_list = list_create();
+	mem_system->mm_mod_list = list_create();
 
 	//////////////////////////////////////////////////////////
         /*Create memory controller*/                            //
@@ -264,6 +265,7 @@ void mem_system_done(void)
 	for (i = 0; i < list_count(mem_system->mod_list); i++)
 		mod_free(list_get(mem_system->mod_list, i));
 	list_free(mem_system->mod_list);
+	list_free(mem_system->mm_mod_list);
 
 	/* Free networks */
 	for (i = 0; i < list_count(mem_system->net_list); i++)
@@ -368,10 +370,10 @@ void main_memory_dump_report(char * main_mem_report_file_name)
 	fprintf(f,"TotalPrefetchAccessesMC = %lld\n", mem_controller->pref_accesses);
 
 	fprintf(f,"\n");
-	
+
 	for(int i=0; i<mem_controller->row_buffer_size/mod->cache->block_size;i++)
 		fprintf(f,"PercentAccessesBurst%dSize = %f\n",i+1,total_burst_accesses>0 ? (float)(mem_controller->burst_size[i]*(i+1))/total_burst_accesses: 0);
-	fprintf(f,"\n");		
+	fprintf(f,"\n");
 
 	for(int i=0; i<mem_controller->row_buffer_size/mod->cache->block_size;i++)
 	{
