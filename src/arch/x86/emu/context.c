@@ -313,6 +313,11 @@ void x86_ctx_free(struct x86_ctx_t *ctx)
 	x86_emu_list_remove(x86_emu_list_context, ctx);
 	x86_ctx_debug("context %d freed\n", ctx->pid);
 
+	/* Free report stacks */
+	free(ctx->ipc_report_stack);
+	free(ctx->misc_report_stack);
+	free(ctx->mc_report_stack);
+
 	/* Free context */
 	free(ctx);
 }
@@ -883,10 +888,7 @@ void x86_ctx_ipc_report_handler(int event, void *data)
 	 * events to schedule. */
 	ctx = x86_ctx_get(stack->pid);
 	if (!ctx || x86_ctx_get_status(ctx, x86_ctx_finished) || esim_finish)
-	{
-		free(stack);
 		return;
-	}
 
 	/* Dump new IPC */
 	assert(ctx->loader->ipc_report_interval);
@@ -925,7 +927,7 @@ void x86_ctx_misc_report_schedule(struct x86_ctx_t *ctx)
 
 	/* Print header */
 	fprintf(f, "%s", help_x86_ctx_misc_report);
-	fprintf(f, "%10s %10s %8s %8s %10s %s %s %s %s %s %s\n", "cycle", "inst", "inst-int",
+	fprintf(f, "%10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s\n", "cycle", "inst", "inst-int",
 		"module", "completed-prefetches-int", "prefetch-accuracy-int", "delayed-hits-int",
 		"delayed-hit-avg-lost-cycles-int", "misses-int", "stream-hits-int", "effective-prefetch-accuracy-int, mpki-int");
 	for (i = 0; i < 43; i++)
@@ -952,10 +954,7 @@ void x86_ctx_misc_report_handler(int event, void *data)
 	 * events to schedule. */
 	ctx = x86_ctx_get(stack->pid);
 	if (!ctx || x86_ctx_get_status(ctx, x86_ctx_finished) || esim_finish)
-	{
-		free(stack);
 		return;
-	}
 
 	/* Compute statistics */
 	inst_count = ctx->inst_count - stack->inst_count;
@@ -1005,7 +1004,7 @@ void x86_ctx_misc_report_handler(int event, void *data)
 			effective_prefetch_accuracy_int = effective_prefetch_accuracy_int > 1 ? 1 : effective_prefetch_accuracy_int; /* May be slightly greather than 1 due bad timing with cycles */
 
 			/* MPKI */
-			double mpki_int = misses_int / inst_count / 1000.0;
+			double mpki_int = (double) misses_int / (inst_count / 1000.0);
 
 			/* Dump stats */
 			fprintf(ctx->loader->misc_report_file, "%10lld %10lld %8lld %8s %8lld %10.4f %8lld %10.4f %8lld %8lld %10.4f %10.4f\n",
@@ -1080,10 +1079,7 @@ void x86_ctx_mc_report_handler(int event, void *data)
 	 * events to schedule. */
 	ctx = x86_ctx_get(stack->pid);
 	if (!ctx || x86_ctx_get_status(ctx, x86_ctx_finished) || esim_finish)
-	{
-		free(stack);
 		return;
-	}
 
 	assert(mem_controller->accesses>=last_accesses);
 

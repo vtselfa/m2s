@@ -777,6 +777,12 @@ void x86_loader_load_from_ctx_config(struct config_t *config, char *section)
 	out = config_read_string(config, section, "Stdout", "");
 	ld->stdout_file = str_set(NULL, out);
 
+	/* Interval kind (instructions or cycles) */
+	interval_kind_str = config_read_string(config, section, "IntervalKind", "cycles");
+	ctx->loader->interval_kind = str_map_string_case(&interval_kind_map, interval_kind_str);
+	if(!ctx->loader->interval_kind)
+		fatal("%s: invalid value for 'IntervalKind'", config_file_name);
+
 	/* IPC report file */
 	ipc_report_file_name = config_read_string(config, section,
 			"IPCReport", "");
@@ -844,12 +850,6 @@ void x86_loader_load_from_ctx_config(struct config_t *config, char *section)
 			x86_ctx_mc_report_schedule(ctx);
 		}
 	}
-
-	/* Interval kind (instructions or cycles) */
-	interval_kind_str = config_read_string(config, section, "IntervalKind", "cycles");
-	ctx->loader->interval_kind = str_map_string_case(&interval_kind_map, interval_kind_str);
-	if(!ctx->loader->interval_kind)
-		fatal("%s: invalid value for 'IntervalKind'", config_file_name);
 
 	/* Load executable */
 	x86_loader_load_exe(ctx, exe);

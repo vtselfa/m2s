@@ -926,6 +926,9 @@ void mod_handler_nmoesi_load(int event, void *data)
 						mod->effective_useful_prefetches++;
 				}
 			}
+			else
+				mod->effective_useful_prefetches++;
+
 		}
 		else if (stack->stream_hit)
 		{
@@ -954,6 +957,8 @@ void mod_handler_nmoesi_load(int event, void *data)
 						mod->effective_useful_prefetches++;
 				}
 			}
+			else
+				mod->effective_useful_prefetches++;
 		}
 		else
 		{
@@ -1215,6 +1220,8 @@ void mod_handler_nmoesi_store(int event, void *data)
 						mod->effective_useful_prefetches++;
 				}
 			}
+			else
+				mod->effective_useful_prefetches++;
 		}
 
 		/* Continue */
@@ -1600,31 +1607,6 @@ void mod_handler_nmoesi_pref_find_and_lock(int event, void *data)
 						}
 					}
 				}
-			}
-		}
-
-		/* Statistics */
-		mod->accesses++;
-		if (stack->hit)
-			mod->hits++;
-		if (stack->read)
-		{
-			mod->reads++;
-			mod->effective_reads++;
-			stack->blocking ? mod->blocking_reads++ : mod->non_blocking_reads++;
-			if (stack->hit)
-				mod->read_hits++;
-		}
-		if (!stack->retry)
-		{
-			mod->no_retry_accesses++;
-			if (stack->hit)
-				mod->no_retry_hits++;
-			if (stack->read)
-			{
-				mod->no_retry_reads++;
-				if (stack->hit)
-					mod->no_retry_read_hits++;
 			}
 		}
 
@@ -2183,7 +2165,7 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 			}
 
 			/* This stack has been retried because the block it was looking for was locked in the stream and now has found the block in cache. Delayed hit statistics must be updated. */
-			if(stack->stream_retried)
+			if(stack->hit && stack->stream_retried)
 			{
 				assert(stack->stream_retried_cycle);
 				mod->delayed_hit_cycles += esim_cycle - stack->stream_retried_cycle;
@@ -2245,7 +2227,7 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 			if (!stack->retry)
 			{
 				mod->no_retry_stream_hits++;
-				mod->hits++;
+				mod->no_retry_hits++;
 			}
 
 			if (stack->request_dir == mod_request_up_down)
@@ -4808,6 +4790,18 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 
 			/* Statistics */
 			target_mod->useful_prefetches++;
+			if(stack->stream_retried_cycle)
+			{
+				int i;
+				LIST_FOR_EACH(mem_system->mm_mod_list, i)
+				{
+					struct mod_t *mm_mod = list_get(mem_system->mm_mod_list, i);
+					if (mod_serves_address(mm_mod, stack->addr) && stack->stream_retried_cycle - esim_cycle < mm_mod->latency / 3)
+						target_mod->effective_useful_prefetches++;
+				}
+			}
+			else
+				target_mod->effective_useful_prefetches++;
 		}
 
 		/* Move block from stream to cache */
@@ -4824,6 +4818,18 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 				sb->head = (sb->head + 1) % sb->num_slots; //HEAD
 			/* Statistics */
 			target_mod->useful_prefetches++;
+			if(stack->stream_retried_cycle)
+			{
+				int i;
+				LIST_FOR_EACH(mem_system->mm_mod_list, i)
+				{
+					struct mod_t *mm_mod = list_get(mem_system->mm_mod_list, i);
+					if (mod_serves_address(mm_mod, stack->addr) && stack->stream_retried_cycle - esim_cycle < mm_mod->latency / 3)
+						target_mod->effective_useful_prefetches++;
+				}
+			}
+			else
+				target_mod->effective_useful_prefetches++;
 		}
 
 		/* Write block coming from lower level to cache */
@@ -5775,6 +5781,18 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 
 			/* Statistics */
 			target_mod->useful_prefetches++;
+			if(stack->stream_retried_cycle)
+			{
+				int i;
+				LIST_FOR_EACH(mem_system->mm_mod_list, i)
+				{
+					struct mod_t *mm_mod = list_get(mem_system->mm_mod_list, i);
+					if (mod_serves_address(mm_mod, stack->addr) && stack->stream_retried_cycle - esim_cycle < mm_mod->latency / 3)
+						target_mod->effective_useful_prefetches++;
+				}
+			}
+			else
+				target_mod->effective_useful_prefetches++;
 		}
 
 		/* Remove block from stream */
@@ -5789,6 +5807,18 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 
 			/* Statistics */
 			target_mod->useful_prefetches++;
+			if(stack->stream_retried_cycle)
+			{
+				int i;
+				LIST_FOR_EACH(mem_system->mm_mod_list, i)
+				{
+					struct mod_t *mm_mod = list_get(mem_system->mm_mod_list, i);
+					if (mod_serves_address(mm_mod, stack->addr) && stack->stream_retried_cycle - esim_cycle < mm_mod->latency / 3)
+						target_mod->effective_useful_prefetches++;
+				}
+			}
+			else
+				target_mod->effective_useful_prefetches++;
 		}
 
 		/* Set states O/E/S/I->E */
