@@ -828,12 +828,6 @@ void x86_ctx_gen_proc_self_maps(struct x86_ctx_t *ctx, char *path)
  * IPC report
  */
 
-struct x86_ctx_ipc_report_stack_t
-{
-	int pid;
-	long long inst_count;
-};
-
 void x86_ctx_ipc_report_schedule(struct x86_ctx_t *ctx)
 {
 	struct x86_ctx_ipc_report_stack_t *stack;
@@ -923,20 +917,13 @@ void x86_ctx_ipc_report_handler(int event, void *data)
  * Misc report
  */
 
-struct x86_ctx_misc_report_stack_t
-{
-	int pid;
-	long long inst_count;
-};
-
 void x86_ctx_misc_report_schedule(struct x86_ctx_t *ctx)
 {
-	struct x86_ctx_misc_report_stack_t *stack;
 	FILE *f = ctx->loader->misc_report_file;
 	int i;
 
 	/* Create new stack */
-	stack = calloc(1, sizeof(struct x86_ctx_misc_report_stack_t));
+	ctx->misc_report_stack = calloc(1, sizeof(struct x86_ctx_misc_report_stack_t));
 	if (!stack)
 		fatal("%s: out of memory", __FUNCTION__);
 
@@ -949,15 +936,16 @@ void x86_ctx_misc_report_schedule(struct x86_ctx_t *ctx)
 	fprintf(f, "%s", help_x86_ctx_misc_report);
 	fprintf(f, "%10s %8s %8s %10s %s %s %s %s %s %s\n", "cycle", "inst", "module",
 		"completed-prefetches-int", "prefetch-accuracy-int", "delayed-hits-int",
-		"delayed-hit-avg-lost-cycles-int", "misses-int", "stream-hits-int", "effective-prefetch-accuracy-int");
+		"delayed-hit-avg-lost-cycles-int", "misses-int", "stream-hits-int", "effective-prefetch-accuracy-int, mpki-int");
 	for (i = 0; i < 43; i++)
 		fprintf(f, "-");
 	fprintf(f, "\n");
 
 	/* Schedule first event */
-	esim_schedule_event(EV_X86_CTX_MISC_REPORT, stack,
-		ctx->loader->misc_report_interval);
+	if(ctx->loader->interval_kind == interval_kind_cycles)
+		esim_schedule_event(EV_X86_CTX_MISC_REPORT, stack, ctx->loader->misc_report_interval);
 }
+
 
 void x86_ctx_misc_report_handler(int event, void *data)
 {
@@ -1023,10 +1011,14 @@ void x86_ctx_misc_report_handler(int event, void *data)
 				(double) effective_useful_prefetches_int / completed_prefetches_int : 0.0;
 			effective_prefetch_accuracy_int = effective_prefetch_accuracy_int > 1 ? 1 : effective_prefetch_accuracy_int; /* May be slightly greather than 1 due bad timing with cycles */
 
+			/* MPKI */
+			double mpki_int = misses_int / inst_count / 1000.0;
+
 			/* Dump stats */
-			fprintf(ctx->loader->misc_report_file, "%10lld %8lld %8s %8lld %10.4f %8lld %10.4f %8lld %8lld %10.4f\n",
+			fprintf(ctx->loader->misc_report_file, "%10lld %8lld %8s %8lld %10.4f %8lld %10.4f %8lld %8lld %10.4f %10.4f\n",
 				esim_cycle, inst_count, mod->name, completed_prefetches_int, prefetch_accuracy_int,
-				delayed_hits_int, delayed_hit_avg_lost_cycles_int, misses_int, stream_hits_int, effective_prefetch_accuracy_int);
+				delayed_hits_int, delayed_hit_avg_lost_cycles_int, misses_int, stream_hits_int,
+				effective_prefetch_accuracy_int, mpki_int);
 
 			mod->last_delayed_hits = mod->delayed_hits;
 			mod->last_delayed_hit_cycles = mod->delayed_hit_cycles;
@@ -1042,7 +1034,9 @@ void x86_ctx_misc_report_handler(int event, void *data)
 	/* Schedule new event */
 	assert(ctx->loader->ipc_report_interval);
 	stack->inst_count = ctx->inst_count;
-	esim_schedule_event(event, stack, ctx->loader->misc_report_interval);
+
+	if(ctx->loader->interval_kind == interval_kind_cycles)
+		esim_schedule_event(event, stack, ctx->loader->misc_report_interval);
 }
 
 
@@ -1050,12 +1044,6 @@ void x86_ctx_misc_report_handler(int event, void *data)
 /*
  * MC report
  */
-
-struct x86_ctx_mc_report_stack_t
-{
-	int pid;
-	long long inst_count;
-};
 
 void x86_ctx_mc_report_schedule(struct x86_ctx_t *ctx)
 {

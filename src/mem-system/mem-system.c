@@ -633,6 +633,8 @@ void mem_system_dump_report()
 		fprintf(f, "DelayedHitAvgLostCycles = %.4g\n", mod->delayed_hits_cycles_counted? mod->delayed_hit_cycles / (double) mod->delayed_hits_cycles_counted : 0.0);
 		fprintf(f, "\n");
 
+		fprintf(f, "StreamHits = %lld\n", mod->stream_hits);
+
 		fprintf(f, "PrefetchHits (rw)(up_down) = %lld\n", mod->up_down_hits);
 		fprintf(f, "PrefetchHeadHits (rw)(up_down) = %lld\n", mod->up_down_head_hits);
 		fprintf(f, "PrefetchHits(r)(down_up) = %lld\n", mod->down_up_read_hits);

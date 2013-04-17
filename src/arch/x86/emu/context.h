@@ -40,6 +40,12 @@ int t_last_mc_total; // last total time that a request lasts in memory controlle
 int last_accesses; // last amount of requests which have accessed to main mem
 
 
+struct x86_ctx_report_stack_t
+{
+	int pid;
+	long long inst_count;
+};
+
 struct x86_ctx_t
 {
 	/* Context properties */
@@ -145,6 +151,10 @@ struct x86_ctx_t
 	struct x86_signal_mask_table_t *signal_mask_table;
 	struct x86_signal_handler_table_t *signal_handler_table;
 
+	/* Report stacks */
+	struct x86_ctx_report_stack_t *ipc_report_stack;
+	struct x86_ctx_report_stack_t *mc_report_stack;
+	struct x86_ctx_report_stack_t *misc_report_stack;
 
 	/* Statistics */
 

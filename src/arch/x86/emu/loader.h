@@ -22,6 +22,14 @@
 
 #include <lib/util/config.h>
 
+extern struct str_map_t interval_kind_map;
+
+enum interval_kind_t
+{
+	interval_kind_invalid = 0,
+	interval_kind_instructions,
+	interval_kind_cycles
+};
 
 struct x86_loader_t
 {
@@ -50,6 +58,8 @@ struct x86_loader_t
 	FILE *mc_report_file;
 	int mc_report_interval;
 
+	/* Tells if interval is in cycles or in instructions */
+	enum interval_kind_t interval_kind;
 
 	/* Stack */
 	unsigned int stack_base;

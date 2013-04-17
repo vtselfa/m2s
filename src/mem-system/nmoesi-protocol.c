@@ -2241,8 +2241,12 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 
 			/* Statistics */
 			mod->stream_hits++;
+			mod->hits++;
 			if (!stack->retry)
+			{
 				mod->no_retry_stream_hits++;
+				mod->hits++;
+			}
 
 			if (stack->request_dir == mod_request_up_down)
 			{

@@ -74,7 +74,7 @@ static int x86_cpu_can_commit_thread(int core, int thread)
 			uop->ready = 1;
 		return uop->ready;
 	}
-	
+
 	/* Instructions other than stores must be completed. */
 	return uop->completed;
 }
@@ -96,16 +96,16 @@ static void x86_cpu_commit_thread(int core, int thread, int quant)
 		assert(uop->core == core);
 		assert(uop->thread == thread);
 		assert(!recover);
-		
+
 		/* Mispredicted branch */
 		if (x86_cpu_recover_kind == x86_cpu_recover_kind_commit &&
 			(uop->flags & X86_UINST_CTRL) && uop->neip != uop->pred_neip)
 			recover = 1;
-	
+
 		/* Free physical registers */
 		assert(!uop->specmode);
 		x86_reg_file_commit(uop);
-		
+
 		/* Branches update branch predictor and btb */
 		if (uop->flags & X86_UINST_CTRL)
 		{
@@ -117,7 +117,7 @@ static void x86_cpu_commit_thread(int core, int thread, int quant)
 		/* Trace cache */
 		if (x86_trace_cache_present)
 			x86_trace_cache_new_uop(X86_THREAD.trace_cache, uop);
-			
+
 		/* Statistics */
 		X86_THREAD.last_commit_cycle = x86_cpu->cycle;
 		X86_THREAD.num_committed_uinst_array[uop->uinst->opcode]++;
@@ -125,6 +125,13 @@ static void x86_cpu_commit_thread(int core, int thread, int quant)
 		x86_cpu->num_committed_uinst_array[uop->uinst->opcode]++;
 		x86_cpu->num_committed_uinst++;
 		ctx->inst_count++;
+
+		if(ctx->loader->interval_kind == interval_kind_instructions)
+		{
+			if(ctx->inst_count % ctx->loader->misc_report_interval)
+
+		}
+
 		if (uop->fetch_trace_cache)
 			X86_THREAD.trace_cache->committed++;
 		if (!uop->mop_index)
@@ -196,19 +203,19 @@ static void x86_cpu_commit_core(int core)
 				pass--;
 		}
 		break;
-	
+
 	case x86_cpu_commit_kind_timeslice:
-	
+
 		/* look for a not empty VB */
 		new = (X86_CORE.commit_current + 1) % x86_cpu_num_threads;
 		while (new != X86_CORE.commit_current && !x86_cpu_can_commit_thread(core, new))
 			new = (new + 1) % x86_cpu_num_threads;
-		
+
 		/* commit new thread */
 		X86_CORE.commit_current = new;
 		x86_cpu_commit_thread(core, new, x86_cpu_commit_width);
 		break;
-	
+
 	}
 }
 
