@@ -39,7 +39,6 @@ typedef void (*x86_ctx_wakeup_callback_func_t)(struct x86_ctx_t *ctx, void *data
 int t_last_mc_total; // last total time that a request lasts in memory controller
 int last_accesses; // last amount of requests which have accessed to main mem
 
-
 struct x86_ctx_report_stack_t
 {
 	int pid;

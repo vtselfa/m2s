@@ -847,8 +847,8 @@ void x86_loader_load_from_ctx_config(struct config_t *config, char *section)
 
 	/* Interval kind (instructions or cycles) */
 	interval_kind_str = config_read_string(config, section, "IntervalKind", "cycles");
-	interval_kind = str_map_string_case(&interval_kind_map, interval_kind_str);
-	if(!interval_kind)
+	ctx->loader->interval_kind = str_map_string_case(&interval_kind_map, interval_kind_str);
+	if(!ctx->loader->interval_kind)
 		fatal("%s: invalid value for 'IntervalKind'", config_file_name);
 
 	/* Load executable */

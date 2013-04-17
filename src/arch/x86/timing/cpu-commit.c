@@ -20,6 +20,7 @@
 #include <assert.h>
 
 #include <arch/x86/emu/context.h>
+#include <arch/x86/emu/loader.h>
 #include <lib/esim/esim.h>
 #include <lib/esim/trace.h>
 #include <lib/util/debug.h>
@@ -128,8 +129,12 @@ static void x86_cpu_commit_thread(int core, int thread, int quant)
 
 		if(ctx->loader->interval_kind == interval_kind_instructions)
 		{
-			if(ctx->inst_count % ctx->loader->misc_report_interval)
-
+			if(ctx->inst_count % ctx->loader->ipc_report_interval == 0)
+				x86_ctx_ipc_report_handler(EV_X86_CTX_IPC_REPORT, ctx->ipc_report_stack);
+			if(ctx->inst_count % ctx->loader->misc_report_interval == 0)
+				x86_ctx_misc_report_handler(EV_X86_CTX_MISC_REPORT, ctx->misc_report_stack);
+			if(ctx->inst_count % ctx->loader->mc_report_interval == 0)
+				x86_ctx_mc_report_handler(EV_X86_CTX_MC_REPORT, ctx->mc_report_stack);
 		}
 
 		if (uop->fetch_trace_cache)
