@@ -30,19 +30,20 @@ extern int x86_ctx_debug_category;
 extern int EV_X86_CTX_IPC_REPORT;
 extern int EV_X86_CTX_MISC_REPORT;
 extern int EV_X86_CTX_MC_REPORT;
+extern int EV_X86_CTX_CPU_REPORT;
 
 struct x86_ctx_t;
 typedef int (*x86_ctx_can_wakeup_callback_func_t)(struct x86_ctx_t *ctx, void *data);
 typedef void (*x86_ctx_wakeup_callback_func_t)(struct x86_ctx_t *ctx, void *data);
 
-/* TODO: Moure açò a un camp de la stack */
-int t_last_mc_total; // last total time that a request lasts in memory controller
-int last_accesses; // last amount of requests which have accessed to main mem
 
 struct x86_ctx_report_stack_t
 {
 	int pid;
 	long long inst_count;
+	long long last_cycle;
+	long long last_accesses;
+	long long last_t_mc_total;
 };
 
 struct x86_ctx_t
@@ -154,6 +155,7 @@ struct x86_ctx_t
 	struct x86_ctx_report_stack_t *ipc_report_stack;
 	struct x86_ctx_report_stack_t *mc_report_stack;
 	struct x86_ctx_report_stack_t *misc_report_stack;
+	struct x86_ctx_report_stack_t *cpu_report_stack;
 
 	/* Statistics */
 
@@ -231,6 +233,9 @@ void x86_ctx_misc_report_handler(int event, void *data);
 
 void x86_ctx_mc_report_schedule(struct x86_ctx_t *ctx);
 void x86_ctx_mc_report_handler(int event, void *data);
+
+void x86_ctx_cpu_report_schedule(struct x86_ctx_t *ctx);
+void x86_ctx_cpu_report_handler(int event, void *data);
 
 #endif
 

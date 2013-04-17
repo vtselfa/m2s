@@ -97,6 +97,10 @@ static char *err_x86_ctx_mc_report =
 	"\tThe mc report file has been specified for a context, but the\n"
 	"\tfunctional simulation does not track cycles. Please use option\n"
 	"\t'--cpu-sim detailed' in the command line to activate misc reports.\n";
+static char *err_x86_ctx_cpu_report =
+	"\tThe cpu report file has been specified for a context, but the\n"
+	"\tfunctional simulation does not track cycles. Please use option\n"
+	"\t'--cpu-sim detailed' in the command line to activate misc reports.\n";
 
 static struct str_map_t elf_section_flags_map =
 {
@@ -728,6 +732,7 @@ void x86_loader_load_from_ctx_config(struct config_t *config, char *section)
 	char *ipc_report_file_name;
 	char *misc_report_file_name;
 	char *mc_report_file_name;
+	char *cpu_report_file_name;
 	char *config_file_name;
 	char *interval_kind_str;
 
@@ -848,6 +853,28 @@ void x86_loader_load_from_ctx_config(struct config_t *config, char *section)
 				fatal("%s: invalid value for 'MCReportInterval'",
 						config_file_name);
 			x86_ctx_mc_report_schedule(ctx);
+		}
+	}
+
+	/* CPU stats report file*/
+	cpu_report_file_name = config_read_string(config, section,"CPUReport", "");
+	ld->cpu_report_interval = config_read_int(config, section,
+			"CPUReportInterval", ld->ipc_report_interval); /* By default, same as IPC */
+	if (*cpu_report_file_name)
+	{
+		if (x86_emu_kind == x86_emu_kind_functional)
+			warning("%s: [%s]: value for 'CPUReport' ignored.\n%s",
+				config_file_name, section, err_x86_ctx_cpu_report);
+		else
+		{
+			ld->cpu_report_file = file_open_for_write(cpu_report_file_name);
+			if (!ld->cpu_report_file)
+				fatal("%s: cannot open mc report file",
+						cpu_report_file_name);
+			if (ld->cpu_report_interval < 1)
+				fatal("%s: invalid value for 'CPUReportInterval'",
+						config_file_name);
+			x86_ctx_cpu_report_schedule(ctx);
 		}
 	}
 
