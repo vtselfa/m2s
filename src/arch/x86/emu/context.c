@@ -1090,7 +1090,7 @@ void x86_ctx_mc_report_schedule(struct x86_ctx_t *ctx)
 
 	/* Print header */
 	fprintf(f, "%s", help_x86_ctx_mc_report);
-	fprintf(f, "%10s %8s %10s\n", "cycle", "inst", "total_time_mc");
+	fprintf(f, "%10s %8s %10s %10s\n", "cycle", "inst", "total_time_mc","accesses");
 	for (i = 0; i < 43; i++)
 		fprintf(f, "-");
 	fprintf(f, "\n");
@@ -1125,7 +1125,7 @@ void x86_ctx_mc_report_handler(int event, void *data)
 	/* Dump new MC stat */
 	assert(ctx->loader->mc_report_interval);
 	inst_count = ctx->inst_count - stack->inst_count;
-	fprintf(ctx->loader->mc_report_file, "%10lld %8lld %10.4f\n",esim_cycle, inst_count, t_total_mc);
+	fprintf(ctx->loader->mc_report_file, "%10lld %8lld %10.4f %10lld\n",esim_cycle, inst_count, t_total_mc,mem_controller->accesses-stack->last_accesses );
 
 	/*Update intermediate calcules*/
 	stack->last_accesses=mem_controller->accesses;
