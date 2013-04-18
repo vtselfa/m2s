@@ -141,8 +141,8 @@ static char *help_x86_ctx_cpu_report =
 	"  <inst-int>\n"
 	"      Number of non-speculative instructions executed in the current interval.\n"
 	"\n"
-	"  <%_stalled_dued_mem_inst>\n"
-	"      Percent of stalled cycles dued to a memory instruction, which stops the ROB\n"
+	"  <%_stalled_due_mem_inst>\n"
+	"      Percent of stalled cycles due to a memory instruction, which stops the ROB\n"
 	"\n";
 
 
@@ -1151,7 +1151,7 @@ void x86_ctx_mc_report_handler(int event, void *data)
 void x86_ctx_cpu_report_schedule(struct x86_ctx_t *ctx)
 {
 	struct x86_ctx_report_stack_t *stack;
-	FILE *f = ctx->loader->mc_report_file;
+	FILE *f = ctx->loader->cpu_report_file;
 	int i;
 
 	/* Create new stack */
@@ -1174,8 +1174,8 @@ void x86_ctx_cpu_report_schedule(struct x86_ctx_t *ctx)
 	ctx->cpu_report_stack = stack;
 
 	/* Schedule first event */
-	esim_schedule_event(EV_X86_CTX_CPU_REPORT, stack,
-		ctx->loader->cpu_report_interval);
+	if(ctx->loader->interval_kind == interval_kind_cycles)
+		esim_schedule_event(EV_X86_CTX_CPU_REPORT, stack, ctx->loader->cpu_report_interval);
 }
 
 
@@ -1196,7 +1196,7 @@ void x86_ctx_cpu_report_handler(int event, void *data)
 	X86_CORE_FOR_EACH
 	{
 		cycles_stalled = esim_cycle - stack->last_cycle > 0 ? (double)
-			(X86_CORE.dispatch_stall_cycles_rob_mem - X86_CORE.last_dispatch_stall_cycles_rob_mem) /
+			100 * (X86_CORE.dispatch_stall_cycles_rob_mem - X86_CORE.last_dispatch_stall_cycles_rob_mem) /
 			(esim_cycle - stack->last_cycle) : 0.0;
 
 		/* Dump new MC stat */
