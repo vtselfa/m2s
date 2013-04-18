@@ -145,7 +145,7 @@ struct mod_stack_t
 	int blocking : 1;
 	int writeback : 1;
 	int eviction : 1;
-	int retry : 1;
+	int retry;
 	int coalesced : 1;
 	int port_locked : 1;
 	/* Pref flags */

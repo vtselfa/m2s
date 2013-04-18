@@ -780,7 +780,7 @@ void mod_handler_nmoesi_load(int event, void *data)
 			mod->read_retries++;
 			retry_lat = mod_get_retry_latency(mod);
 			mem_debug("    lock error, retrying in %d cycles\n", retry_lat);
-			stack->retry = 1;
+			stack->retry |= 1 << mod->level;
 			esim_schedule_event(EV_MOD_NMOESI_LOAD_LOCK, stack, retry_lat);
 			return;
 		}
@@ -860,6 +860,7 @@ void mod_handler_nmoesi_load(int event, void *data)
 			EV_MOD_NMOESI_LOAD_MISS, stack, stack->core, stack->thread, stack->prefetch);
 		new_stack->peer = mod_stack_set_peer(mod, stack->state);
 		new_stack->target_mod = mod_get_low_mod(mod, stack->tag);
+		new_stack->retry = stack->retry; //VVV
 		new_stack->stream_retried = stack->stream_retried;
 		new_stack->stream_retried_cycle = stack->stream_retried_cycle;
 		new_stack->request_dir = mod_request_up_down;
@@ -884,7 +885,7 @@ void mod_handler_nmoesi_load(int event, void *data)
 			retry_lat = mod_get_retry_latency(mod);
 			dir_entry_unlock(mod->dir, stack->set, stack->way);
 			mem_debug("    lock error, retrying in %d cycles\n", retry_lat);
-			stack->retry = 1;
+			stack->retry |= 1 << mod->level;
 			esim_schedule_event(EV_MOD_NMOESI_LOAD_LOCK, stack, retry_lat);
 			return;
 		}
@@ -922,7 +923,7 @@ void mod_handler_nmoesi_load(int event, void *data)
 				LIST_FOR_EACH(mem_system->mm_mod_list, i)
 				{
 					struct mod_t *mm_mod = list_get(mem_system->mm_mod_list, i);
-					if (mod_serves_address(mm_mod, stack->addr) && stack->stream_retried_cycle - esim_cycle < mm_mod->latency / 3)
+					if (mod_serves_address(mm_mod, stack->addr) && esim_cycle - stack->stream_retried_cycle < mm_mod->latency / 3)
 						mod->effective_useful_prefetches++;
 				}
 			}
@@ -953,7 +954,7 @@ void mod_handler_nmoesi_load(int event, void *data)
 				LIST_FOR_EACH(mem_system->mm_mod_list, i)
 				{
 					struct mod_t *mm_mod = list_get(mem_system->mm_mod_list, i);
-					if (mod_serves_address(mm_mod, stack->addr) && stack->stream_retried_cycle - esim_cycle < mm_mod->latency / 3)
+					if (mod_serves_address(mm_mod, stack->addr) && esim_cycle - stack->stream_retried_cycle < mm_mod->latency / 3)
 						mod->effective_useful_prefetches++;
 				}
 			}
@@ -1134,7 +1135,7 @@ void mod_handler_nmoesi_store(int event, void *data)
 			mod->write_retries++;
 			retry_lat = mod_get_retry_latency(mod);
 			mem_debug("    lock error, retrying in %d cycles\n", retry_lat);
-			stack->retry = 1;
+			stack->retry |= 1 << mod->level;
 			esim_schedule_event(EV_MOD_NMOESI_STORE_LOCK, stack, retry_lat);
 			return;
 		}
@@ -1157,6 +1158,7 @@ void mod_handler_nmoesi_store(int event, void *data)
 			EV_MOD_NMOESI_STORE_UNLOCK, stack, stack->core, stack->thread, stack->prefetch);
 		new_stack->peer = mod_stack_set_peer(mod, stack->state);
 		new_stack->target_mod = mod_get_low_mod(mod, stack->tag);
+		new_stack->retry = stack->err; //VVV
 		new_stack->stream_retried = stack->stream_retried;
 		new_stack->stream_retried_cycle = stack->stream_retried_cycle;
 		new_stack->request_dir = mod_request_up_down;
@@ -1184,7 +1186,7 @@ void mod_handler_nmoesi_store(int event, void *data)
 			retry_lat = mod_get_retry_latency(mod);
 			dir_entry_unlock(mod->dir, stack->set, stack->way);
 			mem_debug("    lock error, retrying in %d cycles\n", retry_lat);
-			stack->retry = 1;
+			stack->retry |= 1 << mod->level;
 			esim_schedule_event(EV_MOD_NMOESI_STORE_LOCK, stack, retry_lat);
 			return;
 		}
@@ -1216,7 +1218,7 @@ void mod_handler_nmoesi_store(int event, void *data)
 				LIST_FOR_EACH(mem_system->mm_mod_list, i)
 				{
 					struct mod_t *mm_mod = list_get(mem_system->mm_mod_list, i);
-					if (mod_serves_address(mm_mod, stack->addr) && stack->stream_retried_cycle - esim_cycle < mm_mod->latency / 3)
+					if (mod_serves_address(mm_mod, stack->addr) && esim_cycle - stack->stream_retried_cycle < mm_mod->latency / 3)
 						mod->effective_useful_prefetches++;
 				}
 			}
@@ -2086,7 +2088,7 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 			fatal("Unknown memory operation type");
 		}
 
-		if (!stack->retry)
+		if (!(stack->retry & (1 << mod->level)))
 		{
 			mod->no_retry_accesses++;
 			if (stack->hit)
@@ -2224,7 +2226,7 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 			/* Statistics */
 			mod->stream_hits++;
 			mod->hits++;
-			if (!stack->retry)
+			if (!(stack->retry & (1 << mod->level)))
 			{
 				mod->no_retry_stream_hits++;
 				mod->no_retry_hits++;
@@ -4030,7 +4032,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 			for (int i = 0; i < num_queues; i++)
 			{
 				normq_aux = mem_controller->normal_queue[i];
-				
+
 				if (linked_list_count(normq_aux->queue) < size_queue)
 					normq_aux->total_requests += linked_list_count(normq_aux->queue) * time;
 				else // queue full, add the limit
@@ -4528,7 +4530,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			EV_MOD_NMOESI_READ_REQUEST_ACTION, stack, stack->core, stack->thread, stack->prefetch);
 		new_stack->blocking = stack->request_dir == mod_request_down_up;
 		new_stack->read = 1;
-		new_stack->retry = 0;
+		new_stack->retry = stack->retry; //VVV
 		new_stack->background = stack->background; /* Per si hi ha fallada (err=-1) en la eviction */
 		new_stack->stream_retried = stack->stream_retried;
 		new_stack->stream_retried_cycle = stack->stream_retried_cycle;
@@ -4604,6 +4606,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			}
 
 			ret->err = 1;
+			ret->retry |= 1 << target_mod->level;
 			ret->stream_retried = stack->stream_retried;
 			ret->stream_retried_cycle = stack->stream_retried_cycle;
 			mod_stack_set_reply(ret, reply_ack_error);
@@ -4734,6 +4737,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 				EV_MOD_NMOESI_READ_REQUEST_UPDOWN_MISS, stack, stack->core, stack->thread, stack->prefetch);
 			/* Peer is NULL since we keep going up-down */
 			new_stack->target_mod = mod_get_low_mod(target_mod, stack->tag);
+			new_stack->retry = stack->retry; //VVV
 			new_stack->stream_retried = stack->stream_retried;
 			new_stack->stream_retried_cycle = stack->stream_retried_cycle;
 			new_stack->request_dir = mod_request_up_down;
@@ -4764,6 +4768,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 				mod_access_finish(target_mod, stack);
 
 			ret->err = 1;
+			ret->retry |= 1 << target_mod->level;
 			ret->stream_retried = stack->stream_retried;
 			ret->stream_retried_cycle = stack->stream_retried_cycle;
 			mod_stack_set_reply(ret, reply_ack_error);
@@ -4802,7 +4807,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 				LIST_FOR_EACH(mem_system->mm_mod_list, i)
 				{
 					struct mod_t *mm_mod = list_get(mem_system->mm_mod_list, i);
-					if (mod_serves_address(mm_mod, stack->addr) && stack->stream_retried_cycle - esim_cycle < mm_mod->latency / 3)
+					if (mod_serves_address(mm_mod, stack->addr) && esim_cycle - stack->stream_retried_cycle < mm_mod->latency / 3)
 						target_mod->effective_useful_prefetches++;
 				}
 			}
@@ -4830,7 +4835,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 				LIST_FOR_EACH(mem_system->mm_mod_list, i)
 				{
 					struct mod_t *mm_mod = list_get(mem_system->mm_mod_list, i);
-					if (mod_serves_address(mm_mod, stack->addr) && stack->stream_retried_cycle - esim_cycle < mm_mod->latency / 3)
+					if (mod_serves_address(mm_mod, stack->addr) && esim_cycle - stack->stream_retried_cycle < mm_mod->latency / 3)
 						target_mod->effective_useful_prefetches++;
 				}
 			}
@@ -5488,7 +5493,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			EV_MOD_NMOESI_WRITE_REQUEST_ACTION, stack, stack->core, stack->thread, stack->prefetch);
 		new_stack->blocking = stack->request_dir == mod_request_down_up;
 		new_stack->write = 1;
-		new_stack->retry = 0;
+		new_stack->retry = stack->retry; //VVV
 		new_stack->background = stack->background;
 		new_stack->stream_retried = stack->stream_retried;
 		new_stack->stream_retried_cycle = stack->stream_retried_cycle;
@@ -5564,6 +5569,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			}
 
 			ret->err = 1;
+			ret->retry |= 1 << target_mod->level;
 			ret->stream_retried = stack->stream_retried;
 			ret->stream_retried_cycle = stack->stream_retried_cycle;
 			stack->reply_size = 8;
@@ -5679,6 +5685,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 				EV_MOD_NMOESI_WRITE_REQUEST_UPDOWN_FINISH, stack, stack->core, stack->thread, stack->prefetch);
 			new_stack->peer = mod_stack_set_peer(mod, stack->state);
 			new_stack->target_mod = mod_get_low_mod(target_mod, stack->tag);
+			new_stack->retry = stack->retry; //VVV
 			new_stack->stream_retried = stack->stream_retried;
 			new_stack->stream_retried_cycle = stack->stream_retried_cycle;
 			new_stack->request_dir = mod_request_up_down;
@@ -5740,6 +5747,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 				mod_access_finish(target_mod, stack);
 
 			ret->err = 1;
+			ret->retry |= 1 << target_mod->level;
 			ret->stream_retried = stack->stream_retried;
 			ret->stream_retried_cycle = stack->stream_retried_cycle;
 			mod_stack_set_reply(ret, reply_ack_error);
@@ -5793,7 +5801,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 				LIST_FOR_EACH(mem_system->mm_mod_list, i)
 				{
 					struct mod_t *mm_mod = list_get(mem_system->mm_mod_list, i);
-					if (mod_serves_address(mm_mod, stack->addr) && stack->stream_retried_cycle - esim_cycle < mm_mod->latency / 3)
+					if (mod_serves_address(mm_mod, stack->addr) && esim_cycle - stack->stream_retried_cycle < mm_mod->latency / 3)
 						target_mod->effective_useful_prefetches++;
 				}
 			}
@@ -5819,7 +5827,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 				LIST_FOR_EACH(mem_system->mm_mod_list, i)
 				{
 					struct mod_t *mm_mod = list_get(mem_system->mm_mod_list, i);
-					if (mod_serves_address(mm_mod, stack->addr) && stack->stream_retried_cycle - esim_cycle < mm_mod->latency / 3)
+					if (mod_serves_address(mm_mod, stack->addr) && esim_cycle - stack->stream_retried_cycle < mm_mod->latency / 3)
 						target_mod->effective_useful_prefetches++;
 				}
 			}
