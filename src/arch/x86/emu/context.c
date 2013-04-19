@@ -959,7 +959,7 @@ void x86_ctx_misc_report_schedule(struct x86_ctx_t *ctx)
 	fprintf(f, "%s", help_x86_ctx_misc_report);
 	fprintf(f, "%10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s\n", "cycle", "inst", "inst-int",
 		"module", "completed-prefetches-int", "prefetch-accuracy-int", "delayed-hits-int",
-		"delayed-hit-avg-lost-cycles-int", "misses-int", "stream-hits-int", "effective-prefetch-accuracy-int", "mpki-int", "pseudocoalesce-int");
+		"delayed-hit-avg-lost-cycles-int", "misses-int", "stream-hits-int", "effective-prefetch-accuracy-int", "mpki-int", "pseudocoverage-int");
 	for (i = 0; i < 43; i++)
 		fprintf(f, "-");
 	fprintf(f, "\n");
@@ -1090,7 +1090,7 @@ void x86_ctx_mc_report_schedule(struct x86_ctx_t *ctx)
 
 	/* Print header */
 	fprintf(f, "%s", help_x86_ctx_mc_report);
-	fprintf(f, "%10s %10s %8s %10s %10s\n", "cycle", "inst", "inst-int", "total_time_mc", "accesses");
+	fprintf(f, "%10s %10s %8s %10s %10s\n", "cycle", "inst", "inst-int", "total-time-mc", "accesses");
 	for (i = 0; i < 43; i++)
 		fprintf(f, "-");
 	fprintf(f, "\n");
