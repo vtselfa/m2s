@@ -1090,8 +1090,8 @@ void x86_ctx_mc_report_schedule(struct x86_ctx_t *ctx)
 
 	/* Print header */
 	fprintf(f, "%s", help_x86_ctx_mc_report);
-	fprintf(f, "%10s %10s %8s %10s %10s\n", "cycle", "inst", "inst-int", "total-time-mc", "accesses");
-	for (i = 0; i < 43; i++)
+	fprintf(f, "%10s %10s %8s %10s %10s %10s %10s\n", "cycle", "inst", "inst-int", "total-time-mc","normal-total-time-mc","pref-total-time-mc", "accesses");
+	for (i = 0; i < 63; i++)
 		fprintf(f, "-");
 	fprintf(f, "\n");
 
@@ -1110,6 +1110,8 @@ void x86_ctx_mc_report_handler(int event, void *data)
 	long long inst_count;
 	struct mem_controller_t * mem_controller = mem_system->mem_controller;
 	double t_total_mc;
+	double t_pref_total_mc;
+	double t_normal_total_mc;
 
 	/* Get context. If it does not exist anymore, no more
 	 * events to schedule. */
@@ -1119,6 +1121,16 @@ void x86_ctx_mc_report_handler(int event, void *data)
 
 	assert(mem_controller->accesses >= stack->last_accesses);
 
+	t_pref_total_mc = (mem_controller->pref_accesses - stack->last_pref_accesses) > 0 ?
+		(double) (mem_controller->t_pref_wait + mem_controller->t_pref_acces_main_memory +
+		mem_controller->t_pref_transfer - stack->last_t_pref_mc_total) /
+		(mem_controller->pref_accesses - stack->last_pref_accesses) : 0.0;
+
+	t_normal_total_mc = (mem_controller->normal_accesses - stack->last_normal_accesses) > 0 ?
+		(double) (mem_controller->t_normal_wait + mem_controller->t_normal_acces_main_memory +
+		mem_controller->t_normal_transfer - stack->last_t_normal_mc_total) /
+		(mem_controller->normal_accesses - stack->last_normal_accesses) : 0.0;
+
 	t_total_mc = (mem_controller->accesses - stack->last_accesses) > 0 ?
 		(double) (mem_controller->t_wait + mem_controller->t_acces_main_memory +
 		mem_controller->t_transfer - stack->last_t_mc_total) /
@@ -1127,13 +1139,21 @@ void x86_ctx_mc_report_handler(int event, void *data)
 	/* Dump new MC stat */
 	assert(ctx->loader->mc_report_interval);
 	inst_count = ctx->inst_count - stack->inst_count;
-	fprintf(ctx->loader->mc_report_file, "%10lld %10lld %8lld %10.4f %10lld\n", esim_cycle, ctx->inst_count, inst_count, t_total_mc, mem_controller->accesses - stack->last_accesses);
+	fprintf(ctx->loader->mc_report_file, "%10lld %10lld %8lld %10.4f %10.4f %10.4f %10lld\n", esim_cycle, ctx->inst_count, inst_count, t_total_mc,t_normal_total_mc, t_pref_total_mc, mem_controller->accesses - stack->last_accesses);
 
 	/* Update intermediate results */
 	stack->last_accesses = mem_controller->accesses;
+	stack->last_pref_accesses = mem_controller->pref_accesses;
+	stack->last_normal_accesses = mem_controller->normal_accesses;
 	stack->last_t_mc_total = mem_controller->t_wait +
 		mem_controller->t_acces_main_memory +
 		mem_controller->t_transfer;
+	stack->last_t_pref_mc_total=mem_controller->t_pref_wait +
+		mem_controller->t_pref_acces_main_memory +
+		mem_controller->t_pref_transfer;
+	stack->last_t_normal_mc_total=mem_controller->t_normal_wait +
+		mem_controller->t_normal_acces_main_memory +
+		mem_controller->t_normal_transfer;
 
 	/* Schedule new event */
 	stack->inst_count = ctx->inst_count;
