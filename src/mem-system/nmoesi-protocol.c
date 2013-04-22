@@ -4490,24 +4490,12 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 		else
 			net_receive(target_mod->low_net, target_mod->low_net_node, stack->msg);
 
-		/*if (target_mod->kind == mod_kind_main_memory && mem_system->mem_controller->enabled)
-		{
-			new_stack = mod_stack_create(stack->id, target_mod, stack->addr,
-				EV_MOD_NMOESI_READ_REQUEST_REPLY, stack, stack->core, stack->thread, stack->prefetch);
-			new_stack->blocking = stack->request_dir == mod_request_down_up;
-			new_stack->read = 1;
-			new_stack->retry = 0;
-			new_stack->request_type = read_request;
-			esim_schedule_event(EV_MOD_NMOESI_INSERT_MEMORY_CONTROLLER, new_stack, 0);
-			return;
-		}*/
-
 		if (stack->request_dir == mod_request_up_down &&
 			target_mod->kind != mod_kind_main_memory &&
 			target_mod->cache->prefetch_enabled)
 		{
 			/* Add access to stride detector and record if there is a stride */
-			if (!stack->prefetch && !stack->stream_retried)
+			if (!stack->prefetch && !(stack->retry & (1 << target_mod->level)))
 				stack->stride = cache_detect_stride(target_mod->cache, stack->addr);
 
 			/* Record access */
@@ -5452,25 +5440,12 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 		else
 			net_receive(target_mod->low_net, target_mod->low_net_node, stack->msg);
 
-		/*if (target_mod->kind == mod_kind_main_memory && mem_system->mem_controller->enabled)
-		{
-			new_stack = mod_stack_create(stack->id, target_mod, stack->addr,
-				EV_MOD_NMOESI_WRITE_REQUEST_REPLY, stack, stack->core, stack->thread, stack->prefetch);
-			new_stack->blocking = stack->request_dir == mod_request_down_up;
-			new_stack->write = 1;
-			new_stack->retry = 0;
-			new_stack->request_dir = stack->request_dir;
-			new_stack->request_type = write_request;
-			esim_schedule_event(EV_MOD_NMOESI_INSERT_MEMORY_CONTROLLER, new_stack, 0);
-			return;
-		}*/
-
 		if (stack->request_dir == mod_request_up_down &&
 			target_mod->kind != mod_kind_main_memory &&
 			target_mod->cache->prefetch_enabled)
 		{
 			/* Add access to stride detector and record if there is a stride */
-			if(!stack->stream_retried)
+			if (!(stack->retry & (1 << target_mod->level)))
 				stack->stride = cache_detect_stride(target_mod->cache, stack->addr);
 
 			/* Record access */
