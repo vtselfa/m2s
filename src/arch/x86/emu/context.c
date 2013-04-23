@@ -957,9 +957,9 @@ void x86_ctx_misc_report_schedule(struct x86_ctx_t *ctx)
 
 	/* Print header */
 	fprintf(f, "%s", help_x86_ctx_misc_report);
-	fprintf(f, "%10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s\n", "cycle", "inst", "inst-int",
+	fprintf(f, "%10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s\n", "cycle", "inst", "inst-int",
 		"module", "completed-prefetches-int", "prefetch-accuracy-int", "delayed-hits-int",
-		"delayed-hit-avg-lost-cycles-int", "misses-int", "stream-hits-int", "effective-prefetch-accuracy-int", "mpki-int", "pseudocoverage-int");
+		"delayed-hit-avg-lost-cycles-int", "misses-int", "stream-hits-int", "effective-prefetch-accuracy-int", "mpki-int", "pseudocoverage-int", "prefetch-active-int");
 	for (i = 0; i < 43; i++)
 		fprintf(f, "-");
 	fprintf(f, "\n");
@@ -999,7 +999,7 @@ void x86_ctx_misc_report_handler(int event, void *data)
 		}
 
 		/* Cache */
-		else
+		else if(strcmp(mod->name, "l2-0") == 0) //TODO: Açò és una cutror...
 		{
 			/* Prefetch accuracy */
 			long long completed_prefetches_int = mod->completed_prefetches -
@@ -1040,11 +1040,20 @@ void x86_ctx_misc_report_handler(int event, void *data)
 			double pseudocoalesce_int = (misses_int + stream_hits_int) ?
 				(double) useful_prefetches_int / (misses_int + useful_prefetches_int) : 0.0;
 
+			/* Prefetch active */
+			if(mod->cache->pref_enabled)
+			{
+				if((double) misses_int / (misses_int + useful_prefetches_int) > 0.8)
+					mod->cache->pref_enabled = 0;
+			}
+			else if(mod->cache->prefetch_policy && misses_int > mod->last_misses_int * 1.1)
+				mod->cache->pref_enabled = 1;
+
 			/* Dump stats */
-			fprintf(ctx->loader->misc_report_file, "%10lld %10lld %8lld %8s %8lld %10.4f %8lld %10.4f %8lld %8lld %10.4f %10.4f %10.4f\n",
+			fprintf(ctx->loader->misc_report_file, "%10lld %10lld %8lld %8s %8lld %10.4f %8lld %10.4f %8lld %8lld %10.4f %10.4f %10.4f %d\n",
 				esim_cycle, ctx->inst_count, inst_count, mod->name, completed_prefetches_int, prefetch_accuracy_int,
 				delayed_hits_int, delayed_hit_avg_lost_cycles_int, misses_int, stream_hits_int,
-				effective_prefetch_accuracy_int, mpki_int, pseudocoalesce_int);
+				effective_prefetch_accuracy_int, mpki_int, pseudocoalesce_int, mod->cache->pref_enabled);
 
 			mod->last_delayed_hits = mod->delayed_hits;
 			mod->last_delayed_hit_cycles = mod->delayed_hit_cycles;
@@ -1054,6 +1063,7 @@ void x86_ctx_misc_report_handler(int event, void *data)
 			mod->last_hits = mod->hits;
 			mod->last_stream_hits = mod->stream_hits;
 			mod->last_effective_useful_prefetches = mod->effective_useful_prefetches;
+			mod->last_misses_int = misses_int;
 		}
 	}
 

@@ -258,11 +258,11 @@ long long mod_access(struct mod_t *mod, enum mod_access_kind_t access_kind,
 		}
 		else if (access_kind == mod_access_prefetch)
 		{
-			if(mod->cache->prefetch_enabled == prefetch_streams)
+			if(mod->cache->prefetch_policy == prefetch_policy_streams)
 				event = EV_MOD_PREF;
-			else if(mod->cache->prefetch_enabled == prefetch_obl)
+			else if(mod->cache->prefetch_policy == prefetch_policy_obl)
 				event = EV_MOD_NMOESI_PREF_OBL;
-			else if(mod->cache->prefetch_enabled == prefetch_obl_stride)
+			else if(mod->cache->prefetch_policy == prefetch_policy_obl_stride)
 				event = EV_MOD_NMOESI_PREF_OBL;
 			else
 				panic("%s: invalid prefetch policy", __FUNCTION__);
@@ -792,7 +792,7 @@ struct mod_stack_t *mod_can_coalesce(struct mod_t *mod,enum mod_access_kind_t ac
 	/* En el cas dels prefetch a L2+ no podem usar la id per saber
 	 * si ha arribat o no abans al mòdul, per tant no podem usar
 	 * la funció mod_in_flight_address. Es pot millorar. */
-	if ((!mod->cache->prefetch_enabled || mod->level == 1) && !mod_in_flight_address(mod, addr, older_than_stack))
+	if ((!mod->cache->prefetch_policy || mod->level == 1) && !mod_in_flight_address(mod, addr, older_than_stack))
 		return NULL;
 
 	/* Get youngest access older than 'older_than_stack' */

@@ -173,11 +173,11 @@ int must_enqueue_prefetch(struct mod_stack_t *stack)
 
 	/* L1 prefetch */
 	if (!stack->target_mod)
-		return stack->mod->cache->prefetch_enabled && !stack->background;
+		return stack->mod->cache->pref_enabled && !stack->background;
 
 	/* Deeper than L1 prefetch */
 	target_mod = stack->target_mod;
-	return target_mod->cache->prefetch_enabled && //El prefetch està habilitat
+	return target_mod->cache->pref_enabled && //El prefetch està habilitat
 		!stack->prefetch && //No estem en una cadena de prefetch
 		!stack->background && //La stack fast resumed ja haurà encuat el prefetch, si calia
 		target_mod->kind == mod_kind_cache && //És una cache
@@ -388,7 +388,7 @@ void enqueue_prefetch_obl(struct mod_stack_t *stack)
 	uop = x86_uop_create();
 	uop->uinst = x86_uinst_create();
 	uop->uinst->opcode = x86_uinst_prefetch;
-	if (mod->cache->prefetch_enabled == prefetch_obl_stride)
+	if (mod->cache->pref_enabled == prefetch_policy_obl_stride)
 		uop->phy_addr = stack->addr + stack->stride;
 	else
 		uop->phy_addr = stack->addr + mod->block_size;
@@ -687,7 +687,7 @@ void mod_handler_nmoesi_load(int event, void *data)
 		mod_access_start(mod, stack, mod_access_load);
 
 		/* Add access to stride detector and record if there is a stride */
-		if (cache->prefetch_enabled)
+		if (cache->prefetch_policy)
 			stack->stride = cache_detect_stride(mod->cache, stack->addr);
 
 		/* Coalesce access */
@@ -703,7 +703,7 @@ void mod_handler_nmoesi_load(int event, void *data)
 				mod->delayed_hits++;
 				/* Prefetch stream stacks leave block in prefetch buffer, not in cache, so first load to coalesce must bring block from stream to cache.
 				 * Next stacks must coalesce with the load, not with the prefetch. This is done in mod_coalesce(...). */
-				if(cache->prefetch_enabled == prefetch_streams)
+				if(cache->prefetch_policy == prefetch_policy_streams)
 				{
 					mod_stack_wait_in_stack(stack, master_stack, EV_MOD_NMOESI_LOAD_LOCK);
 					return;
@@ -789,21 +789,21 @@ void mod_handler_nmoesi_load(int event, void *data)
 		if (must_enqueue_prefetch(stack))
 		{
 			/* Enqueue OBL prefetch on miss */
-			if (cache->prefetch_enabled == prefetch_obl)
+			if (cache->prefetch_policy == prefetch_policy_obl)
 			{
 				if (!stack->state)
 					enqueue_prefetch_obl(stack);
 			}
 
 			/* Enqueue OBL prefetch with stride on miss */
-			else if (cache->prefetch_enabled == prefetch_obl_stride)
+			else if (cache->prefetch_policy == prefetch_policy_obl_stride)
 			{
 				if (stack->stride && !stack->state)
 					enqueue_prefetch_obl(stack);
 			}
 
 			/* Enqueue STREAM prefetch */
-			else if (cache->prefetch_enabled == prefetch_streams)
+			else if (cache->prefetch_policy == prefetch_policy_streams)
 			{
 				if (stack->stream_hit)
 				{
@@ -1058,7 +1058,7 @@ void mod_handler_nmoesi_store(int event, void *data)
 		mod_access_start(mod, stack, mod_access_store);
 
 		/* Add access to stride detector and record if there is a stride */
-		if (mod->cache->prefetch_enabled)
+		if (mod->cache->prefetch_policy)
 			stack->stride = cache_detect_stride(mod->cache, stack->addr);
 
 		/* Coalesce access */
@@ -2182,7 +2182,7 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 			cache_access_block(mod->cache, stack->set, stack->way);
 		}
 
-		if (!stack->hit && !stack->background && cache->prefetch_enabled == prefetch_streams)
+		if (!stack->hit && !stack->background && cache->prefetch_policy == prefetch_policy_streams)
 			esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK_PREF_STREAM, stack, 0);
 		else
 			esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK_ACTION, stack, mod->dir_latency); /* Access latency */
@@ -4492,7 +4492,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 
 		if (stack->request_dir == mod_request_up_down &&
 			target_mod->kind != mod_kind_main_memory &&
-			target_mod->cache->prefetch_enabled)
+			target_mod->cache->prefetch_policy)
 		{
 			/* Add access to stride detector and record if there is a stride */
 			if (!stack->prefetch && !(stack->retry & (1 << target_mod->level)))
@@ -4543,21 +4543,21 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 		{
 			struct cache_t *target_cache = stack->target_mod->cache;
 			/* Enqueue OBL prefetch on miss */
-			if (target_cache->prefetch_enabled == prefetch_obl)
+			if (target_cache->prefetch_policy == prefetch_policy_obl)
 			{
 				if (!stack->state)
 					enqueue_prefetch_obl(stack);
 			}
 
 			/* Enqueue OBL prefetch with stride on miss */
-			else if (target_cache->prefetch_enabled == prefetch_obl_stride)
+			else if (target_cache->prefetch_policy == prefetch_policy_obl_stride)
 			{
 				if (stack->stride && !stack->state)
 					enqueue_prefetch_obl(stack);
 			}
 
 			/* Enqueue STREAM prefetch */
-			else if (target_cache->prefetch_enabled == prefetch_streams)
+			else if (target_cache->prefetch_policy == prefetch_policy_streams)
 			{
 				if (stack->stream_hit)
 				{
@@ -4601,7 +4601,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			stack->reply_size = 8;
 
 			/* Delete access */
-			if (target_mod->cache->prefetch_enabled && target_mod->kind != mod_kind_main_memory)
+			if (target_mod->cache->prefetch_policy && target_mod->kind != mod_kind_main_memory)
 				mod_access_finish(target_mod, stack);
 
 			esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST_REPLY, stack, 0);
@@ -4752,7 +4752,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 				dir_pref_entry_unlock(target_mod->dir, stack->pref_stream, stack->pref_slot);
 
 			/* Delete access */
-			if (target_mod->cache->prefetch_enabled && target_mod->kind != mod_kind_main_memory)
+			if (target_mod->cache->prefetch_policy && target_mod->kind != mod_kind_main_memory)
 				mod_access_finish(target_mod, stack);
 
 			ret->err = 1;
@@ -4980,7 +4980,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 		}
 
 		/* Delete access */
-		if (target_mod->cache->prefetch_enabled && target_mod->kind != mod_kind_main_memory)
+		if (target_mod->cache->prefetch_policy && target_mod->kind != mod_kind_main_memory)
 			mod_access_finish(target_mod, stack);
 
 		if(!mem_controller->enabled)
@@ -5442,7 +5442,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 
 		if (stack->request_dir == mod_request_up_down &&
 			target_mod->kind != mod_kind_main_memory &&
-			target_mod->cache->prefetch_enabled)
+			target_mod->cache->prefetch_policy)
 		{
 			/* Add access to stride detector and record if there is a stride */
 			if (!(stack->retry & (1 << target_mod->level)))
@@ -5494,21 +5494,21 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			struct cache_t *target_cache = stack->target_mod->cache;
 
 			/* Enqueue OBL prefetch on miss */
-			if (target_cache->prefetch_enabled == prefetch_obl)
+			if (target_cache->prefetch_policy == prefetch_policy_obl)
 			{
 				if (!stack->state)
 					enqueue_prefetch_obl(stack);
 			}
 
 			/* Enqueue OBL prefetch with stride on miss */
-			else if (target_cache->prefetch_enabled == prefetch_obl_stride)
+			else if (target_cache->prefetch_policy == prefetch_policy_obl_stride)
 			{
 				if (stack->stride && !stack->state)
 					enqueue_prefetch_obl(stack);
 			}
 
 			/* Enqueue STREAM prefetch */
-			else if (target_cache->prefetch_enabled == prefetch_streams)
+			else if (target_cache->prefetch_policy == prefetch_policy_streams)
 			{
 				if (stack->stream_hit)
 				{
@@ -5550,7 +5550,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			stack->reply_size = 8;
 
 			/* Delete access */
-			if (target_mod->cache->prefetch_enabled && target_mod->kind != mod_kind_main_memory)
+			if (target_mod->cache->prefetch_policy && target_mod->kind != mod_kind_main_memory)
 				mod_access_finish(target_mod, stack);
 
 			esim_schedule_event(EV_MOD_NMOESI_WRITE_REQUEST_REPLY, stack, 0);
@@ -5563,7 +5563,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			assert(target_mod->kind != mod_kind_main_memory);
 
 			/* Delete access */
-			if (target_mod->cache->prefetch_enabled && target_mod->kind != mod_kind_main_memory)
+			if (target_mod->cache->prefetch_policy && target_mod->kind != mod_kind_main_memory)
 				mod_access_finish(target_mod, stack);
 
 			esim_schedule_event(EV_MOD_NMOESI_WRITE_REQUEST_REPLY, stack, target_mod->latency);
@@ -5718,7 +5718,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 				dir_pref_entry_unlock(target_mod->dir, stack->pref_stream, stack->pref_slot);
 
 			/* Delete access */
-			if (target_mod->cache->prefetch_enabled && target_mod->kind != mod_kind_main_memory)
+			if (target_mod->cache->prefetch_policy && target_mod->kind != mod_kind_main_memory)
 				mod_access_finish(target_mod, stack);
 
 			ret->err = 1;
@@ -5844,7 +5844,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 		}
 
 		/* Delete access */
-		if (target_mod->cache->prefetch_enabled && target_mod->kind != mod_kind_main_memory)
+		if (target_mod->cache->prefetch_policy && target_mod->kind != mod_kind_main_memory)
 			mod_access_finish(target_mod, stack);
 
 		int latency = stack->reply == reply_ack_data_sent_to_peer ? 0 : target_mod->latency;
