@@ -48,6 +48,9 @@ struct x86_ctx_report_stack_t
 	long long last_t_mc_total;
 	long long last_t_normal_mc_total;
 	long long last_t_pref_mc_total;
+	long long last_row_buffer_hits;
+	long long last_normal_row_buffer_hits;
+	long long last_pref_row_buffer_hits;
 };
 
 struct x86_ctx_t
