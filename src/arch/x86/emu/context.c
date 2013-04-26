@@ -1109,7 +1109,6 @@ void x86_ctx_mc_report_handler(int event, void *data)
 	struct x86_ctx_t *ctx;
 	long long inst_count;
 	struct mem_controller_t * mem_controller = mem_system->mem_controller;
-	struct mod_t* mod;
 	double t_total_mc;
 	double t_pref_total_mc;
 	double t_normal_total_mc;
@@ -1119,23 +1118,18 @@ void x86_ctx_mc_report_handler(int event, void *data)
 	long long row_buffer_hits;
 	long long normal_row_buffer_hits;
 	long long pref_row_buffer_hits;
-	int i;
+	
 	/* Get context. If it does not exist anymore, no more
 	 * events to schedule. */
 	ctx = x86_ctx_get(stack->pid);
 	if (!ctx || x86_ctx_get_status(ctx, x86_ctx_finished) || esim_finish)
 		return;
 
-	LIST_FOR_EACH(mem_system->mod_list, i){
-		mod = list_get(mem_system->mod_list, i);
-		/* Main memory */
-		if(mod->kind == mod_kind_main_memory)
-			break;
-	}	
-	for(int c=0; c<mod->num_regs_channel;c++){
-		row_buffer_hits+=mod->regs_channel[c].row_buffer_hits;
-		normal_row_buffer_hits+=mod->regs_channel[c].row_buffer_hits_normal;
-		pref_row_buffer_hits+=mod->regs_channel[c].row_buffer_hits_pref;
+		
+	for(int c=0; c<mem_controller->num_regs_channel;c++){
+		row_buffer_hits+=mem_controller->regs_channel[c].row_buffer_hits;
+		normal_row_buffer_hits+=mem_controller->regs_channel[c].row_buffer_hits_normal;
+		pref_row_buffer_hits+=mem_controller->regs_channel[c].row_buffer_hits_pref;
 	}
 	t_pref_total_mc = (mem_controller->pref_accesses - stack->last_pref_accesses) > 0 ?
 		(double) (mem_controller->t_pref_wait + mem_controller->t_pref_acces_main_memory +

@@ -3144,7 +3144,6 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 	struct mod_stack_t *stack = data;
 	struct mod_stack_t * new_stack;
 	struct mod_t *mod = stack->mod;
-	struct mod_t *mod_mm;
 	struct mod_stack_t *ret = stack->ret_stack;
 	struct reg_channel_t * channel;
 	struct reg_bank_t * bank;
@@ -3159,23 +3158,14 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 	int num_queues = mem_system->mem_controller->num_queues;
 	int queues_examined = 0;
 	int num_bank;
-	int dir_rank, dir_bank, dir_channel;
+	int dir_rank, dir_bank;
 	int num_banks = mem_controller->num_regs_bank;
 	int num_ranks = mem_controller->num_regs_rank;
-	int num_channels = mem_controller->num_regs_channel;
 	int time;
 
-	/* Select main memory module */
-	for (int i = 0; i < list_count(mem_system->mod_list); i++)
-	{
-		mod_mm = list_get(mem_system->mod_list, i);
-		if (mod_mm->kind == mod_kind_main_memory)
-		{
-			channel = mod_mm->regs_channel;
-			break;
-		}
-	}
-
+	
+	channel = mem_controller->regs_channel;
+		
 
 	if (event == EV_MOD_NMOESI_INSERT_MEMORY_CONTROLLER)
 	{
@@ -3445,11 +3435,11 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 			/* Depending of round robin priority, select apropiate bank to throw requests */
 			num_bank = mem_controller_get_bank_queue(queues_examined);
 			assert(num_bank >= 0 && num_bank < num_queues);
-			dir_channel = num_bank % num_channels;
-			assert(dir_channel >= 0 && dir_channel < num_channels);
-			dir_rank = (num_bank >> (log_base2(num_channels) + log_base2(num_banks))) % mem_controller->num_regs_rank;
+			//dir_channel = num_bank % num_channels;
+			//assert(dir_channel >= 0 && dir_channel < num_channels);
+			dir_rank = (num_bank >>  log_base2(num_banks)) % mem_controller->num_regs_rank;
 			assert(dir_rank >= 0 && dir_rank < num_ranks);
-			dir_bank = (num_bank >> log_base2(num_channels)) % mem_controller->num_regs_bank;
+			dir_bank = num_bank % mem_controller->num_regs_bank;
 			assert(dir_bank >= 0 && dir_bank < num_banks);
 
 			normal_queue = mem_controller->normal_queue[num_bank];
@@ -3542,7 +3532,8 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 			mem_debug("  %lld %lld 0x%x %s examine queue MC (row=%d bank=%d rank=%d channel=%d)\n",
 				esim_cycle, new_stack->id, new_stack->addr&~new_stack->mod->cache->block_mask,
 				new_stack->mod->name, new_stack->row, new_stack->bank, new_stack->rank, new_stack->channel);
-			assert(dir_bank == new_stack->bank && dir_channel == new_stack->channel && dir_rank == new_stack->rank);
+			assert(dir_bank == new_stack->bank);
+			assert( dir_rank == new_stack->rank);
 
 			/* We can serve the request */
 			if (can_acces_bank)
@@ -3694,14 +3685,14 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 
 		struct mod_stack_t * stack_aux;
 		int n_coalesce= stack->coalesced_stacks!=NULL ? linked_list_count(stack->coalesced_stacks): 0;
-		bank = mod->regs_channel[stack->channel].regs_rank[stack->rank].regs_bank;
+		bank = mem_controller->regs_channel[stack->channel].regs_rank[stack->rank].regs_bank;
 
 		mem_debug("  %lld %lld 0x%x %s acces bank\n", esim_cycle, stack->id, stack->addr & ~mod->cache->block_mask, mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:acces bank\"\n", stack->id, mod->name);
 
 
 		/* Free channel */
-		mod->regs_channel[stack->channel].state = channel_state_free;
+		mem_controller->regs_channel[stack->channel].state = channel_state_free;
 
 
 		/* Acces the bank. Is the row in the row buffer? */
@@ -3844,10 +3835,10 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:transfer from bank\"\n", stack->id, mod->name);
 
 		/* Calcul the cycles of proccesor for transfering one block*/
-		t_trans = mod->cache->block_size / (mod->regs_channel[stack->channel].bandwith * 2) * cycles_proc_by_bus; //2 because is DDR3
+		t_trans = mod->cache->block_size / (channel[stack->channel].bandwith * 2) * cycles_proc_by_bus; //2 because is DDR3
 
 
-		if (mod->regs_channel[stack->channel].state == channel_state_free)
+		if (channel[stack->channel].state == channel_state_free)
 		{
 			mem_debug("  %lld %lld 0x%x %s transfer from bank\n", esim_cycle, stack->id,stack->addr&~mod->cache->block_mask, mod->name);
 			/* Busy the channel */
@@ -3973,10 +3964,10 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 		struct mod_stack_t * stack_aux;
 		int n_coalesce=0;
 		struct mem_controller_queue_t* normq_aux, *prefq_aux;
-		bank = mod->regs_channel[stack->channel].regs_rank[stack->rank].regs_bank;
+		bank = channel[stack->channel].regs_rank[stack->rank].regs_bank;
 		int accesed = 0;
 		unsigned int log2_row_size= log_base2( mem_controller->row_buffer_size);
-		int t_trans=mod->cache->block_size/(mod->regs_channel[stack->channel].bandwith*2)*cycles_proc_by_bus;
+		int t_trans=mod->cache->block_size/(channel[stack->channel].bandwith*2)*cycles_proc_by_bus;
 		unsigned int min_block;
 		unsigned int max_block;
 		unsigned int current_block;
@@ -4007,7 +3998,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 		if(mem_controller->coalesce == policy_coalesce_delayed_request&& stack->coalesced_stacks!=NULL)
 		{
 			assert(mem_controller->queue_per_bank);
-			int q=stack->channel|((stack->addr>> log2_row_size) % (mem_controller->num_regs_bank*mem_controller->num_regs_rank));
+			int q=((stack->addr>> log2_row_size) % (mem_controller->num_regs_bank*mem_controller->num_regs_rank));
 
 			/*Check if any request in MC queue goes to the same row in the bank,
 			and if the block is transfering*/

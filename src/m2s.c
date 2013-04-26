@@ -1322,6 +1322,7 @@ void m2s_dump_summary(FILE *f)
 	float accuracy=0;
 	long long row_access_hits=0;
 	double total_accesses=0;
+	struct mem_controller_t * mem_controller=mem_system->mem_controller;
 	struct mod_t * mod;
 
 	/* No summary dumped if no simulation was run */
@@ -1346,16 +1347,15 @@ void m2s_dump_summary(FILE *f)
 		delayed_hit_total+=mod->delayed_hits;
 
 		/*Row buffer*/
-		if(mod->kind==mod_kind_main_memory)
-		{
-			for(int c=0; c<mod->num_regs_channel;c++)
-				for(int r=0; r<mod->regs_channel[c].num_regs_rank; r++)
-					for(int b=0; b<mod->regs_channel[c].regs_rank[r].num_regs_bank;b++)
-					{	row_access_hits+=mod->regs_channel[c].regs_rank[r].regs_bank[b].row_buffer_hits;
-						total_accesses+=mod->regs_channel[c].regs_rank[r].regs_bank[b].acceses;
-					}
-		}
+		
+		for(int c=0; c<mem_controller->num_regs_channel;c++)
+			for(int r=0; r<mem_controller->regs_channel[c].num_regs_rank; r++)
+				for(int b=0; b<mem_controller->regs_channel[c].regs_rank[r].num_regs_bank;b++)
+				{	row_access_hits+=mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].row_buffer_hits;
+					total_accesses+=mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].acceses;
+				}
 	}
+	
 
 	if(prefetch_total>0)
 		accuracy=(double)useful_prefetch_total/prefetch_total;

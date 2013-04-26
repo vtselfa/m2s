@@ -95,7 +95,7 @@ struct reg_rank_t* regs_rank_create( int num_ranks, int num_banks, int t_row_hit
 }
 
 
-struct reg_channel_t* regs_channel_create( int num_channels, int num_ranks, int num_banks, int bandwith, int t_row_miss, int t_row_hit ){
+struct reg_channel_t* regs_channel_create( int num_channels, int num_ranks, int num_banks, int bandwith, struct reg_rank_t* regs_rank ){
 
         struct reg_channel_t * channels;
         channels = calloc(num_channels, sizeof(struct reg_channel_t));
@@ -107,7 +107,7 @@ struct reg_channel_t* regs_channel_create( int num_channels, int num_ranks, int 
                 channels[i].state=channel_state_free;
                 channels[i].num_regs_rank=num_ranks;
                 channels[i].bandwith=bandwith;
-                channels[i].regs_rank= regs_rank_create(num_ranks, num_banks, t_row_miss, t_row_hit);
+                channels[i].regs_rank= regs_rank;
         }
 
         return channels;
@@ -200,8 +200,8 @@ void mod_free(struct mod_t *mod)
 		dir_free(mod->dir);
 
 	///////////////////////////////////////////
-        if(mod->regs_channel) // this module is main memory
-                reg_channel_free(mod->regs_channel, mod->num_regs_channel);
+        if(mod->regs_rank) // this module is main memory
+                reg_rank_free(mod->regs_rank, mod->num_regs_rank);
         //////////////////////////////////////////
 
 	free(mod->ports);

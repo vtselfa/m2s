@@ -94,6 +94,9 @@ struct mem_controller_t
 	/*ROW buffer*/
 	int row_buffer_size;
 
+	/*Channels*/
+	struct reg_channel_t * regs_channel;
+	
 	/*Relation between cycles bus of main memory and cycles of processor*/
 	int cycles_proc_bus;  // 1 cycle of bus= cycles_proc_bus cycles of proc
 
@@ -136,7 +139,7 @@ void mem_controller_prefetch_queue_add(struct mod_stack_t * stack);
 int mem_controller_remove(struct mod_stack_t * stack, struct mem_controller_queue_t * queue);
 void mem_controller_init_main_memory(struct mem_controller_t *mem_controller, int channels, int ranks,
 	int banks, int t_send_request, int row_size, int block_size,int cycles_proc_bus,  enum policy_mc_queue_t policy,
-	enum priority_t priority, long long size_queue, long long cycles_wait_MCqueue, int queue_per_bank, enum policy_coalesce_t coalesce);
+	enum priority_t priority, long long size_queue, long long cycles_wait_MCqueue, int queue_per_bank, enum policy_coalesce_t coalesce, struct reg_rank_t * regs_rank, int bandwith);
 void mem_controller_update_requests_threshold(int cycles);
 int mem_controller_queue_has_consumed_threshold(struct linked_list_t * queue);
 struct mod_stack_t* mem_controller_select_request(int queues_examined, enum priority_t select);

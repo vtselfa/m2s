@@ -50,21 +50,21 @@ int row_buffer_find_row(struct mod_t *mod, unsigned int addr, unsigned int *chan
 	PTR_ASSIGN(tag_ptr, tag);
 
 	/*Is the channel free?*/
-	if(mod->regs_channel[channel].state==channel_state_busy){
+	if(mem_controller->regs_channel[channel].state==channel_state_busy){
 
 		PTR_ASSIGN(state_ptr, channel_busy);
 		return 0;
 	}
 
 	/*Is the bank been acceded?*/
-	if(mod->regs_channel[channel].regs_rank[rank].regs_bank[bank].is_been_accesed){
+	if(mem_controller->regs_channel[channel].regs_rank[rank].regs_bank[bank].is_been_accesed){
 		PTR_ASSIGN(state_ptr, bank_accesed);
 		return 0;
 	}
 
 
 	/*Is the row inside the row buffer?*/
-	if(mod->regs_channel[channel].regs_rank[rank].regs_bank[bank].row_buffer!=row){
+	if(mem_controller->regs_channel[channel].regs_rank[rank].regs_bank[bank].row_buffer!=row){
 		PTR_ASSIGN(state_ptr, row_buffer_miss);
 		return 1;
 	}
@@ -121,12 +121,12 @@ struct mem_controller_t *mem_controller_create(void){
 }
 
 
-void mem_controller_init_main_memory(struct mem_controller_t *mem_controller, int channels, int ranks, int banks, int t_send_request, int row_size, int block_size,int cycles_proc_bus, enum policy_mc_queue_t policy, enum priority_t priority, long long size_queue,  long long threshold, int queue_per_bank, enum policy_coalesce_t coalesce){
+void mem_controller_init_main_memory(struct mem_controller_t *mem_controller, int channels, int ranks, int banks, int t_send_request, int row_size, int block_size,int cycles_proc_bus, enum policy_mc_queue_t policy, enum priority_t priority, long long size_queue,  long long threshold, int queue_per_bank, enum policy_coalesce_t coalesce, struct reg_rank_t *regs_rank, int bandwith){
 
 	mem_controller->num_queues=1;
 
 	if(queue_per_bank)
-		mem_controller->num_queues=banks*ranks*channels;
+		mem_controller->num_queues=ranks*banks;
 
 	mem_controller->num_regs_channel = channels;
 	mem_controller->num_regs_rank = ranks;
@@ -141,6 +141,7 @@ void mem_controller_init_main_memory(struct mem_controller_t *mem_controller, in
 	mem_controller->queue_per_bank=queue_per_bank;
 	mem_controller->queue_round_robin=0;
 	mem_controller->coalesce= coalesce;
+
 	mem_controller->normal_queue=calloc(mem_controller->num_queues, sizeof(struct mem_controller_queue_t *));
 	mem_controller->pref_queue=calloc(mem_controller->num_queues, sizeof(struct mem_controller_queue_t *));
 	for(int i=0; i<mem_controller->num_queues;i++)
@@ -154,7 +155,11 @@ void mem_controller_init_main_memory(struct mem_controller_t *mem_controller, in
 	mem_controller->successive_hit=calloc(row_size/block_size,sizeof(int*));
 	for(int i=0; i<row_size/block_size;i++)
 		mem_controller->successive_hit[i]=calloc(row_size/block_size,sizeof(int));
+
+	mem_controller->regs_channel=regs_channel_create(channels, ranks, banks, bandwith, regs_rank);
 	////////////////////////////////////////////////
+
+	
 
 	/*mem_controller->row_in_buffer_banks = calloc(channels, sizeof(int **));
 	if (!mem_controller->row_in_buffer_banks)
@@ -200,11 +205,12 @@ void mem_controller_free(struct mem_controller_t *mem_controller){
 	///////////////////////////////////////////////////////////
 	for(int i=0; i<mem_controller->row_buffer_size/mod->cache->block_size;i++)
 		free(mem_controller->successive_hit[i]);
+	
 	free(mem_controller->successive_hit);
 	free(mem_controller->burst_size);
 	///////////////////////////////////////////////////
 	
-
+	free(mem_controller->regs_channel);
 	free(mem_controller);
 
 
@@ -218,13 +224,13 @@ void mem_controller_normal_queue_add(struct mod_stack_t * stack){
 	struct mem_controller_t * mem_controller=mem_system->mem_controller;
 	//////////////////////////////////////////////////////////////////////////
 	unsigned int log2_row_size= log_base2( mem_controller->row_buffer_size);
-	unsigned int bank, channel, row_buffer;
-	row_buffer = stack->addr &  mem_controller->row_buffer_size;
-	channel=(row_buffer >>7 )%mem_controller->num_regs_channel;
+	unsigned int bank;
+	//row_buffer = stack->addr &  mem_controller->row_buffer_size;
+//	channel=(row_buffer >>7 )%mem_controller->num_regs_channel;
 
 
 	if(mem_controller->queue_per_bank)
-		bank = channel|((stack->addr >> log2_row_size) % (mem_controller->num_regs_bank*mem_controller->num_regs_rank));
+		bank = ((stack->addr >> log2_row_size) % (mem_controller->num_regs_bank*mem_controller->num_regs_rank));
 	else
 		bank=0;
 
@@ -232,6 +238,7 @@ void mem_controller_normal_queue_add(struct mod_stack_t * stack){
 	//printf("bank=%d  %d \n", bank,(stack->addr >> log2_row_size) %mem_controller->num_regs_bank);
 
 	stack->threshold =mem_controller->threshold;
+	
 	linked_list_tail(mem_controller->normal_queue[bank]->queue);
 	linked_list_add(mem_controller->normal_queue[bank]->queue, stack);
 	linked_list_head(mem_controller->normal_queue[bank]->queue);
@@ -251,14 +258,14 @@ void mem_controller_prefetch_queue_add(struct mod_stack_t * stack){
 
 	struct mem_controller_t * mem_controller=mem_system->mem_controller;
 	unsigned int log2_row_size= log_base2( mem_controller->row_buffer_size);
-	unsigned int bank, channel, row_buffer;
+	unsigned int bank;
 
-	row_buffer = stack->addr &  mem_controller->row_buffer_size;
-	channel=(row_buffer >>7 )%mem_controller->num_regs_channel;
+	//row_buffer = stack->addr &  mem_controller->row_buffer_size;
+	//channel=(row_buffer >>7 )%mem_controller->num_regs_channel;
 
 
 	if(mem_controller->queue_per_bank)
-		bank =channel|((stack->addr >> log2_row_size) % (mem_controller->num_regs_bank*mem_controller->num_regs_rank));
+		bank =((stack->addr >> log2_row_size) % (mem_controller->num_regs_bank*mem_controller->num_regs_rank));
 	else
 		bank=0;
 	//printf("bank pref=%d  %d \n", bank,(stack->addr >> log2_row_size) %mem_controller->num_regs_bank);
@@ -526,7 +533,6 @@ int mem_controller_coalesce_acces_row_buffer( struct mod_stack_t * stack, struct
 	unsigned int num_ranks = mem_system->mem_controller->num_regs_rank ;
 	unsigned int num_banks = mem_system->mem_controller->num_regs_bank ;
 	unsigned int log2_row_size= log_base2( mem_system->mem_controller->row_buffer_size);
-	unsigned int num_channels = mem_system->mem_controller->num_regs_channel ;
 	int count =0;
 
 	linked_list_head(queue);
@@ -535,14 +541,12 @@ int mem_controller_coalesce_acces_row_buffer( struct mod_stack_t * stack, struct
 		stack_aux=linked_list_get(queue);
 
 		/*This stack has its block in the same main mamory row than origin stack*/
-		unsigned int row_buffer = stack_aux->addr &  mem_system->mem_controller->row_buffer_size;
 		int row=(stack_aux->addr>>(log2_row_size+log_base2(num_banks)+log_base2(num_ranks)));
 		int rank = (stack_aux->addr >> (log2_row_size+ log_base2(num_banks))) % num_ranks;
 		int bank = (stack_aux->addr >> log2_row_size) % num_banks;
-		int channel=(row_buffer >>7 )%num_channels;
+		
 
-
-		assert(rank==stack->rank && bank==stack->bank && channel==stack->channel);
+		assert(rank==stack->rank && bank==stack->bank);
 
 
 		if(row==stack->row)
