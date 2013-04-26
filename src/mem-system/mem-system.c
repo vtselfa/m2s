@@ -68,10 +68,7 @@ void mem_system_init(void)
 	mem_system->mod_list = list_create();
 	mem_system->mm_mod_list = list_create();
 
-	//////////////////////////////////////////////////////////
-        /*Create memory controller*/                            //
-        mem_system->mem_controller=mem_controller_create();     //
-        //////////////////////////////////////////////////////////
+	
 
 
 	/* Event handler for memory hierarchy commands */
@@ -259,7 +256,9 @@ void mem_system_done(void)
 	
 	////////////////////////////////////////////////////
         /*Free memory controller*/                        //
-        mem_controller_free(mem_system->mem_controller);  //
+	for(int i=0; i< mem_system->num_mc;i++)
+        	mem_controller_free(mem_system->mem_controller[i]);
+	free(mem_system->mem_controller);
         ////////////////////////////////////////////////////
 
 	/* Free memory modules */
@@ -287,7 +286,8 @@ void main_memory_dump_report(char * main_mem_report_file_name)
 
         FILE *f;
         struct mod_t * mod;
-        struct mem_controller_t * mem_controller=mem_system->mem_controller;
+	/*TODO cambiasr per a varios mc*/
+        struct mem_controller_t * mem_controller=mem_system->mem_controller[0];
         double total_bank_parallelism=0;
         double total_rank_parallelism=0;
 	long long total_acces=0;

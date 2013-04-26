@@ -140,10 +140,10 @@ int mem_controller_remove(struct mod_stack_t * stack, struct mem_controller_queu
 void mem_controller_init_main_memory(struct mem_controller_t *mem_controller, int channels, int ranks,
 	int banks, int t_send_request, int row_size, int block_size,int cycles_proc_bus,  enum policy_mc_queue_t policy,
 	enum priority_t priority, long long size_queue, long long cycles_wait_MCqueue, int queue_per_bank, enum policy_coalesce_t coalesce, struct reg_rank_t * regs_rank, int bandwith);
-void mem_controller_update_requests_threshold(int cycles);
-int mem_controller_queue_has_consumed_threshold(struct linked_list_t * queue);
-struct mod_stack_t* mem_controller_select_request(int queues_examined, enum priority_t select);
-int mem_controller_queue_has_row_buffer_hit(struct linked_list_t * queue);
+void mem_controller_update_requests_threshold(int cycles,struct mem_controller_t * mem_controller);
+int mem_controller_queue_has_consumed_threshold(struct linked_list_t * queue, long long size);
+struct mod_stack_t* mem_controller_select_request(int queues_examined, enum priority_t select, struct mem_controller_t * mem_controller);
+//int mem_controller_queue_has_row_buffer_hit(struct linked_list_t * queue, long long size);
 
 /*Coalesce*/
 int mem_controller_calcul_number_blocks_transfered(struct mod_stack_t *stack);
@@ -156,16 +156,16 @@ void mem_controller_sort_by_block(struct mod_stack_t * stack);
 void mem_controller_count_successive_hits(struct linked_list_t * coalesced_stacks);
 
 /*Memory controller queue*/
-int mem_controller_stacks_normalQueues_count();
-int mem_controller_stacks_prefQueues_count();
+int mem_controller_stacks_normalQueues_count(struct mem_controller_t * mem_controller);
+int mem_controller_stacks_prefQueues_count(struct mem_controller_t * mem_controller);
 void mem_controller_queue_free(struct mem_controller_queue_t * mem_controller_queue);
 struct mem_controller_queue_t * mem_controller_queue_create(void);
-int mem_controller_get_bank_queue(int num_queue_examined);
+int mem_controller_get_bank_queue(int num_queue_examined, struct mem_controller_t * mem_controller);
 
 /////////////////////////////////////////////////////////////////////
 
 /*ROW BUFFER*/
-int row_buffer_find_row(struct mod_t *mod, unsigned int addr, unsigned int *channel_ptr,unsigned int *rank_ptr,
+int row_buffer_find_row(struct mem_controller_t * mem_controller, struct mod_t *mod, unsigned int addr, unsigned int *channel_ptr,unsigned int *rank_ptr,
 	unsigned int *bank_ptr, unsigned int *row_ptr, int * tag_ptr, int *state_ptr);
 
 #endif

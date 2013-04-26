@@ -788,6 +788,7 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config, char *
 {
 	char mod_name[MAX_STRING_SIZE];
 
+	int core;
 	int block_size;
 	int latency;
 	int num_ports;
@@ -804,7 +805,9 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config, char *
 	int cycles_proc_bus;
 	int queue_per_bank;
 	int enabled_mc;
-
+	int num_mc;
+	int total_core=0;
+	
 	long long threshold;
 	long long size_queue;
 
@@ -851,7 +854,11 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config, char *
 	threshold = config_read_llint(config, section, "Threshold", 100000000000);
 	size_queue = config_read_llint(config, section, "SizeQueue", 100000000000);
 	queue_per_bank = config_read_llint(config, section, "QueuePerBank", 0);
+	num_mc = config_read_int(config, section, "NumberMC", 1);
 	/////////////////////////////////////////////////////////////////////
+
+	X86_CORE_FOR_EACH
+		total_core++;
 
 	/* Check parameters */
 	if (block_size < 1 || (block_size & (block_size - 1)))
@@ -873,6 +880,9 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config, char *
 		fatal("%s: %s: invalid directory associativity.\n%s",
 			mem_config_file_name, mod_name, err_mem_config_note);
 	//////////////////////////////////////////////////////////////////////
+	if (num_mc < 1 || total_core/num_mc==0 )
+		fatal("%s: %s: invalid value (%d)for variable 'NumberMC'.\n%s",
+			mem_config_file_name, mod_name,num_mc, err_mem_config_note);
 	if (ranks < 1 || (ranks & (ranks - 1)))
 		fatal("%s: %s: ranks must be power of two.\n%s",
 			mem_config_file_name, mod_name, err_mem_config_note);
@@ -991,8 +1001,19 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config, char *
 	///////////////////////////////////////////////////
 	mod->regs_rank = regs_rank_create(ranks, banks, t_acces_bank_hit, t_acces_bank_miss );
 	mod->num_regs_rank = ranks;
-	mem_controller_init_main_memory(mem_system->mem_controller, channels, ranks, banks, t_send_request, row_size, block_size, cycles_proc_bus, policy_type, prio_type, size_queue, threshold, queue_per_bank, coalesce_type, mod->regs_rank, bandwith);
-	mem_system->mem_controller->enabled = enabled_mc;
+	
+        /*Create memory controller*/                            
+	mem_system->mem_controller=calloc(num_mc, sizeof(struct mem_controller_t *));
+	mem_system->num_mc=num_mc;
+       
+	for(int i=0; i<num_mc; i++)
+	{
+		mem_system->mem_controller[i]=mem_controller_create();
+		mem_controller_init_main_memory(mem_system->mem_controller[i], channels, ranks, banks, t_send_request, row_size, block_size, cycles_proc_bus, policy_type, prio_type, size_queue, threshold, queue_per_bank, coalesce_type, mod->regs_rank, bandwith);
+		mem_system->mem_controller[i]->enabled = enabled_mc;
+	}
+
+	
 	///////////////////////////////////////////////////
 
 

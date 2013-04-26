@@ -1108,7 +1108,8 @@ void x86_ctx_mc_report_handler(int event, void *data)
 	struct x86_ctx_report_stack_t *stack = data;
 	struct x86_ctx_t *ctx;
 	long long inst_count;
-	struct mem_controller_t * mem_controller = mem_system->mem_controller;
+	/*TODO cambiar per a varios controladors*/
+	struct mem_controller_t * mem_controller = mem_system->mem_controller[0];
 	double t_total_mc;
 	double t_pref_total_mc;
 	double t_normal_total_mc;

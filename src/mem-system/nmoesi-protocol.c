@@ -20,7 +20,6 @@
 #include <arch/x86/timing/uop.h>
 #include <arch/x86/timing/load-store-queue.h>
 #include <arch/x86/timing/x86-timing.h>
-
 #include <lib/esim/esim.h>
 #include <lib/esim/trace.h>
 #include <lib/util/debug.h>
@@ -2775,6 +2774,7 @@ void mod_handler_nmoesi_evict(int event, void *data)
 
 	struct mod_t *mod = stack->mod;
 	struct mod_t *target_mod = stack->target_mod;
+	struct mem_controller_t * mem_controller=mem_system->mem_controller[stack->core%mem_system->num_mc];
 
 	struct dir_t *dir;
 	struct dir_entry_t *dir_entry;
@@ -2922,7 +2922,7 @@ void mod_handler_nmoesi_evict(int event, void *data)
 			new_stack->write = 1;
 			new_stack->retry = 0;
 			new_stack->request_dir = mod_request_up_down;
-			if (target_mod->kind == mod_kind_main_memory && mem_system->mem_controller->enabled)
+			if (target_mod->kind == mod_kind_main_memory && mem_controller->enabled)
 				esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER, new_stack, 0);
 
 			else
@@ -3147,15 +3147,16 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 	struct mod_stack_t *ret = stack->ret_stack;
 	struct reg_channel_t * channel;
 	struct reg_bank_t * bank;
-	struct mem_controller_t * mem_controller = mem_system->mem_controller;
+
+	struct mem_controller_t * mem_controller = mem_system->mem_controller[stack->core% mem_system->num_mc];
 	struct mem_controller_queue_t * normal_queue;
 	struct mem_controller_queue_t * pref_queue;
 
-	int cycles_proc_by_bus = mem_system->mem_controller->cycles_proc_bus;
+	int cycles_proc_by_bus = mem_controller->cycles_proc_bus;
 	int t_trans;
 	int can_acces_bank;
 	int size_queue = mem_controller->size_queue;
-	int num_queues = mem_system->mem_controller->num_queues;
+	int num_queues = mem_controller->num_queues;
 	int queues_examined = 0;
 	int num_bank;
 	int dir_rank, dir_bank;
@@ -3236,7 +3237,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 			fatal("Invalid MC priroity policy of queues :%d\n", mem_controller->policy_queues);
 
 		/* Was the MC examining the queues to send the requests? */
-		if (mem_controller_stacks_normalQueues_count() + mem_controller_stacks_prefQueues_count() == 1) //this request is the only one in the queue
+		if (mem_controller_stacks_normalQueues_count(mem_controller) + mem_controller_stacks_prefQueues_count(mem_controller) == 1) //this request is the only one in the queue
 		{
 			/* Calcul when is the next cycle of bus */
 			int when = esim_cycle % mem_controller->cycles_proc_bus;
@@ -3247,7 +3248,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 			else mem_controller->t_pref_wait+=when;
 
 			/* X cycles less that ALL request have to wait before they throw */
-			mem_controller_update_requests_threshold(when);
+			mem_controller_update_requests_threshold(when, mem_controller);
 			if (mem_controller->queue_per_bank)
 				esim_schedule_event(EV_MOD_NMOESI_EXAMINE_QUEUE_REQUEST, stack, when);
 			else
@@ -3263,11 +3264,11 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 		struct linked_list_t * normal = mem_controller->normal_queue[0]->queue;
 		struct linked_list_t * pref = mem_controller->pref_queue[0]->queue;
 
-		new_stack = mem_controller_select_request(0, mem_controller->priority_request_in_queue);
+		new_stack = mem_controller_select_request(0, mem_controller->priority_request_in_queue,mem_controller);
 
 		while (new_stack != NULL)
 		{
-			can_acces_bank = row_buffer_find_row(new_stack->mod, new_stack->addr, &new_stack->channel, &new_stack->rank,
+			can_acces_bank = row_buffer_find_row(mem_controller,new_stack->mod, new_stack->addr, &new_stack->channel, &new_stack->rank,
 				&new_stack->bank, &new_stack->row, & new_stack->tag, &new_stack->state_main_memory);
 			mem_trace("mem.access name=\"A-%lld\" state=\"%s:examine queue MC\"\n", new_stack->id, new_stack->mod->name);
 			mem_debug("  %lld %lld 0x%x %s examine queue MC (row=%d bank=%d rank=%d channel=%d)\n", esim_cycle, new_stack->id,
@@ -3337,7 +3338,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 				/* Send the request to the bank */
 				esim_schedule_event(EV_MOD_NMOESI_ACCES_BANK, new_stack, mem_controller->t_send_request);
 			}
-			new_stack = mem_controller_select_request(0, mem_controller->priority_request_in_queue);
+			new_stack = mem_controller_select_request(0, mem_controller->priority_request_in_queue,mem_controller);
 		}
 
 		/* Stadistics */
@@ -3348,7 +3349,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 		while (!linked_list_is_end(normal) && linked_list_current(normal) < size_queue)
 		{
 			stack = linked_list_get(normal);
-			row_buffer_find_row(stack->mod, stack->addr,&stack->channel,&stack->rank,&stack->bank,NULL,NULL,NULL);
+			row_buffer_find_row(mem_controller, stack->mod, stack->addr,&stack->channel,&stack->rank,&stack->bank,NULL,NULL,NULL);
 			if ( channel[stack->channel].state == channel_state_busy)
 			{
 				channel[stack->channel].t_wait_channel_busy += cycles_proc_by_bus;
@@ -3394,7 +3395,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 		while (!linked_list_is_end(pref) && linked_list_current(pref) < size_queue)
 		{
 			stack = linked_list_get(pref);
-			row_buffer_find_row(stack->mod, stack->addr,&stack->channel,&stack->rank,&stack->bank,NULL,NULL,NULL);
+			row_buffer_find_row(mem_controller, stack->mod, stack->addr,&stack->channel,&stack->rank,&stack->bank,NULL,NULL,NULL);
 			if (channel[stack->channel].state == channel_state_busy)
 			{
 				mem_controller->t_wait+=cycles_proc_by_bus;
@@ -3418,9 +3419,9 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 		}
 
 		/* One cycle less (memory bus clock) that ALL request have to wait before they throw */
-		mem_controller_update_requests_threshold(1);
+		mem_controller_update_requests_threshold(1, mem_controller);
 
-		if ((mem_controller_stacks_normalQueues_count() + mem_controller_stacks_prefQueues_count()) > 0)
+		if ((mem_controller_stacks_normalQueues_count(mem_controller) + mem_controller_stacks_prefQueues_count(mem_controller)) > 0)
 			esim_schedule_event(EV_MOD_NMOESI_EXAMINE_ONLY_ONE_QUEUE_REQUEST, stack, cycles_proc_by_bus);
 
 		return;
@@ -3433,7 +3434,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 		while (queues_examined < num_queues)
 		{
 			/* Depending of round robin priority, select apropiate bank to throw requests */
-			num_bank = mem_controller_get_bank_queue(queues_examined);
+			num_bank = mem_controller_get_bank_queue(queues_examined, mem_controller);
 			assert(num_bank >= 0 && num_bank < num_queues);
 			//dir_channel = num_bank % num_channels;
 			//assert(dir_channel >= 0 && dir_channel < num_channels);
@@ -3445,7 +3446,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 			normal_queue = mem_controller->normal_queue[num_bank];
                         pref_queue = mem_controller->pref_queue[num_bank];
 
-			new_stack = mem_controller_select_request(num_bank, mem_controller->priority_request_in_queue);
+			new_stack = mem_controller_select_request(num_bank, mem_controller->priority_request_in_queue, mem_controller);
 			if (new_stack == NULL)
 			{
 				/* Next queue */
@@ -3456,7 +3457,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 	  			while (!linked_list_is_end(normal_queue->queue) && linked_list_current(normal_queue->queue) < size_queue)
 				{
 					stack = linked_list_get(normal_queue->queue);
-					row_buffer_find_row(stack->mod, stack->addr,&stack->channel,&stack->rank,&stack->bank,NULL,NULL,NULL);
+					row_buffer_find_row(mem_controller,stack->mod, stack->addr,&stack->channel,&stack->rank,&stack->bank,NULL,NULL,NULL);
 					if ( channel[stack->channel].state == channel_state_busy)
 					{
 						channel[stack->channel].t_wait_channel_busy += cycles_proc_by_bus;
@@ -3501,7 +3502,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 				while (!linked_list_is_end(pref_queue->queue) && linked_list_current(pref_queue->queue) < size_queue)
 				{
 					stack = linked_list_get(pref_queue->queue);
-					row_buffer_find_row(stack->mod, stack->addr,&stack->channel,&stack->rank,&stack->bank,NULL,NULL,NULL);
+					row_buffer_find_row(mem_controller,stack->mod, stack->addr,&stack->channel,&stack->rank,&stack->bank,NULL,NULL,NULL);
 					if ( channel[stack->channel].state == channel_state_busy)
 					{
 						mem_controller->t_wait+=cycles_proc_by_bus;
@@ -3526,7 +3527,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 				continue;
 			}
 
-			can_acces_bank = row_buffer_find_row(new_stack->mod, new_stack->addr, &new_stack->channel,
+			can_acces_bank = row_buffer_find_row(mem_controller,new_stack->mod, new_stack->addr, &new_stack->channel,
 				&new_stack->rank, &new_stack->bank, &new_stack->row, & new_stack->tag, &new_stack->state_main_memory);
 			mem_trace("mem.access name=\"A-%lld\" state=\"%s:examine queue MC\"\n", new_stack->id,new_stack->mod->name);
 			mem_debug("  %lld %lld 0x%x %s examine queue MC (row=%d bank=%d rank=%d channel=%d)\n",
@@ -3599,7 +3600,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 			while (!linked_list_is_end(normal_queue->queue) && linked_list_current(normal_queue->queue) < size_queue)
 			{
 				stack = linked_list_get(normal_queue->queue);
-				row_buffer_find_row(stack->mod, stack->addr,&stack->channel,&stack->rank,&stack->bank,NULL,NULL,NULL);
+				row_buffer_find_row(mem_controller,stack->mod, stack->addr,&stack->channel,&stack->rank,&stack->bank,NULL,NULL,NULL);
 				if ( channel[stack->channel].state == channel_state_busy)
 				{
 					mem_controller->t_wait+=cycles_proc_by_bus;
@@ -3644,7 +3645,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 			while (!linked_list_is_end(pref_queue->queue) && linked_list_current(pref_queue->queue) < size_queue)
 			{
 				stack = linked_list_get(pref_queue->queue);
-				row_buffer_find_row(stack->mod, stack->addr,&stack->channel,&stack->rank,&stack->bank,NULL,NULL,NULL);
+				row_buffer_find_row(mem_controller,stack->mod, stack->addr,&stack->channel,&stack->rank,&stack->bank,NULL,NULL,NULL);
 				if (channel[stack->channel].state == channel_state_busy)
 				{
 					mem_controller->t_wait+=cycles_proc_by_bus;
@@ -3672,9 +3673,9 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 		mem_controller->queue_round_robin = (mem_controller->queue_round_robin + 1) % num_queues;
 
 		/* One cycle less (memory bus clock )that ALL request have to wait before they throw */
-		mem_controller_update_requests_threshold(1);
+		mem_controller_update_requests_threshold(1, mem_controller);
 
-		if ((mem_controller_stacks_normalQueues_count() + mem_controller_stacks_prefQueues_count()) > 0)
+		if ((mem_controller_stacks_normalQueues_count(mem_controller) + mem_controller_stacks_prefQueues_count(mem_controller)) > 0)
 			esim_schedule_event(EV_MOD_NMOESI_EXAMINE_QUEUE_REQUEST, stack, cycles_proc_by_bus);
 
 		return;
@@ -4419,7 +4420,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 
 	struct mod_t *mod = stack->mod;
 	struct mod_t *target_mod = stack->target_mod;
-	struct mem_controller_t * mem_controller=mem_system->mem_controller;
+	struct mem_controller_t * mem_controller=mem_system->mem_controller[stack->core%mem_system->num_mc];
 
 	struct dir_t *dir;
 	struct dir_entry_t *dir_entry;
@@ -4527,7 +4528,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 		new_stack->stream_retried_cycle = stack->stream_retried_cycle;
 		new_stack->request_dir = stack->request_dir;
 		new_stack->request_type = read_request;
-		if (target_mod->kind == mod_kind_main_memory && mem_system->mem_controller->enabled)
+		if (target_mod->kind == mod_kind_main_memory && mem_controller->enabled)
 			esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER, new_stack, 0);
 		else
 			esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK, new_stack, 0);
@@ -5374,6 +5375,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 	struct mod_stack_t *ret = stack->ret_stack;
 	struct mod_stack_t *new_stack;
 
+	struct mem_controller_t * mem_controller=mem_system->mem_controller[stack->core%mem_system->num_mc];
 	struct mod_t *mod = stack->mod;
 	struct mod_t *target_mod = stack->target_mod;
 
@@ -5490,7 +5492,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 		new_stack->stream_retried_cycle = stack->stream_retried_cycle;
 		new_stack->request_dir = stack->request_dir;
 
-		if(target_mod->kind == mod_kind_main_memory && mem_system->mem_controller->enabled)
+		if(target_mod->kind == mod_kind_main_memory && mem_controller->enabled)
 			esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER, new_stack, 0);
 		else
 			esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK, new_stack, 0);
@@ -5695,7 +5697,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 	{
 		/*If it's memory controller and another module hasn't given the block,
 		we acces to main memory*/
-		if (target_mod->kind == mod_kind_main_memory && mem_system->mem_controller->enabled && stack->reply != reply_ack_data_sent_to_peer)
+		if (target_mod->kind == mod_kind_main_memory && mem_controller->enabled && stack->reply != reply_ack_data_sent_to_peer)
 		{
 			new_stack = mod_stack_create(stack->id, target_mod, stack->addr,
 				EV_MOD_NMOESI_WRITE_REQUEST_UPDOWN_FINISH_UPDATE_DIRECTORY, stack, stack->core, stack->thread, stack->prefetch);

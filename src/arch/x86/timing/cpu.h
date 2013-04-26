@@ -258,6 +258,7 @@ struct x86_core_t
 	int rob_head;
 	int rob_tail;
 
+	
 	/* Stages */
 	int fetch_current;  /* Currently fetching thread */
 	long long fetch_switch_when;  /* Cycle for last thread switch (for SwitchOnEvent) */
