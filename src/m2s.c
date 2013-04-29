@@ -1607,7 +1607,7 @@ int main(int argc, char **argv)
 	x86_loader_debug_category = debug_new_category(x86_loader_debug_file_name, 0);
 	x86_sys_debug_category = debug_new_category(x86_sys_debug_file_name, 0);
 	x86_ctx_debug_category = debug_new_category(ctx_debug_file_name, 0);
-	mem_debug_category = debug_new_category(mem_debug_file_name, 1000000000); /* MAX SIZE = 1GB */
+	mem_debug_category = debug_new_category(mem_debug_file_name, 5000000000); /* MAX SIZE = 5GB */
 	evg_opencl_debug_category = debug_new_category(evg_opencl_debug_file_name, 0);
 	evg_isa_debug_category = debug_new_category(evg_isa_debug_file_name, 0);
 	evg_stack_debug_category = debug_new_category(evg_stack_debug_file_name, 0);  /* GPU-REL */
