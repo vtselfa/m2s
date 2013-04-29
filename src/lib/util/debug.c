@@ -239,9 +239,9 @@ void __debug(int category, char *fmt, ...)
 	/* If there is a max size limit and file is bigger, truncate it */
 	if(c->max_size)
 	{
-		unsigned int size = ftell(c->f);
+		long long size = ftello(c->f);
 		if(size > c->max_size)
-			fseek(c->f, 0, SEEK_SET);
+			fseeko(c->f, 0, SEEK_SET);
 	}
 
 	/* Print spaces */

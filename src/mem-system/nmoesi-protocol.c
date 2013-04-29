@@ -5274,9 +5274,9 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 				/* Set block state */
 				if (stack->stream_hit)
 				{
-						struct stream_block_t * block = cache_get_pref_block(
-							target_mod->cache, stack->pref_stream, stack->pref_slot);
-						block->state = cache_block_shared;
+					struct stream_block_t * block = cache_get_pref_block(
+						target_mod->cache, stack->pref_stream, stack->pref_slot);
+					block->state = cache_block_shared;
 				}
 				else if(stack->state)
 				{
