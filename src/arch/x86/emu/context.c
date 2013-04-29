@@ -1050,7 +1050,7 @@ void x86_ctx_misc_report_handler(int event, void *data)
 				mod->cache->pref_enabled = 1;
 
 			/* Dump stats */
-			fprintf(ctx->loader->misc_report_file, "%10lld %10lld %8lld %8s %8lld %10.4f %8lld %10.4f %8lld %8lld %10.4f %10.4f %10.4f %d\n",
+			fprintf(ctx->loader->misc_report_file, "%10lld %10lld %8lld %8s %8lld %10.4f %8lld %10.4f %8lld %8lld %10.4f %10.4f %10.4f %u\n",
 				esim_cycle, ctx->inst_count, inst_count, mod->name, completed_prefetches_int, prefetch_accuracy_int,
 				delayed_hits_int, delayed_hit_avg_lost_cycles_int, misses_int, stream_hits_int,
 				effective_prefetch_accuracy_int, mpki_int, pseudocoalesce_int, mod->cache->pref_enabled);

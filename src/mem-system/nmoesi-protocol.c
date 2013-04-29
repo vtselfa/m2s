@@ -2128,9 +2128,6 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 
 		if (!stack->hit)
 		{
-			/////////////////////////////////////////////////////
-			mem_system->faults[mod->level]++;		/////
-			/////////////////////////////////////////////////////
 			if (stack->way < 0)
 				stack->way = cache_replace_block(mod->cache, stack->set);
 			cache_get_block(mod->cache, stack->set, stack->way, NULL, &stack->state);
@@ -5281,15 +5278,10 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 							target_mod->cache, stack->pref_stream, stack->pref_slot);
 						block->state = cache_block_shared;
 				}
-				else if(dir_entry_group_shared_or_owned(mod->dir, ret->set, ret->way))
-				{
-						cache_set_block(target_mod->cache, stack->set, stack->way,
-							stack->tag, cache_block_shared, stack->prefetch);
-				}
-				else
+				else if(stack->state)
 				{
 					cache_set_block(target_mod->cache, stack->set, stack->way,
-						stack->tag, cache_block_exclusive, stack->prefetch);
+						stack->tag, cache_block_shared, stack->prefetch);
 				}
 			}
 		}
