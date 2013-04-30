@@ -96,6 +96,9 @@ struct mod_t
 	struct reg_rank_t * regs_rank; // ranks which this channels connects with
 	int num_regs_rank;
 
+	/*Mem controller associated to mm*/
+	struct mem_controller_t * mem_controller;
+
 	/* Module level starting from entry points */
 	int level;
 

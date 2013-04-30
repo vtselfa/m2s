@@ -23,6 +23,7 @@
 #include <lib/util/debug.h>
 #include <lib/util/file.h>
 #include <lib/util/list.h>
+#include <lib/util/linked-list.h>
 #include <lib/util/string.h>
 #include <network/network.h>
 
@@ -67,6 +68,7 @@ void mem_system_init(void)
 	mem_system->net_list = list_create();
 	mem_system->mod_list = list_create();
 	mem_system->mm_mod_list = list_create();
+	mem_system->mem_controllers = linked_list_create();
 
 	
 
@@ -246,6 +248,7 @@ void mem_system_init(void)
 void mem_system_done(void)
 {
 	int i;
+	struct mem_controller_t * mem_controller;
 
 	/* Dump report */
 	mem_system_dump_report();
@@ -256,9 +259,14 @@ void mem_system_done(void)
 	
 	////////////////////////////////////////////////////
         /*Free memory controller*/                        //
-	for(int i=0; i< mem_system->num_mc;i++)
-        	mem_controller_free(mem_system->mem_controller[i]);
-	free(mem_system->mem_controller);
+	linked_list_head(mem_system->mem_controllers);
+	while(!linked_list_is_end(mem_system->mem_controllers))
+	{
+		mem_controller=linked_list_get(mem_system->mem_controllers);
+		mem_controller_free(mem_controller);
+		linked_list_remove(mem_system->mem_controllers);
+	}
+	free(mem_system->mem_controllers);
         ////////////////////////////////////////////////////
 
 	/* Free memory modules */
@@ -287,8 +295,9 @@ void main_memory_dump_report(char * main_mem_report_file_name)
         FILE *f;
         struct mod_t * mod;
 	/*TODO cambiasr per a varios mc*/
-        struct mem_controller_t * mem_controller=mem_system->mem_controller[0];
-        double total_bank_parallelism=0;
+	linked_list_head(mem_system->mem_controllers);
+	struct mem_controller_t * mem_controller = linked_list_get(mem_system->mem_controllers);
+	 double total_bank_parallelism=0;
         double total_rank_parallelism=0;
 	long long total_acces=0;
 	long long total_normal_acces=0;

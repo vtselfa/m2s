@@ -1109,16 +1109,17 @@ void x86_ctx_mc_report_handler(int event, void *data)
 	struct x86_ctx_t *ctx;
 	long long inst_count;
 	/*TODO cambiar per a varios controladors*/
-	struct mem_controller_t * mem_controller = mem_system->mem_controller[0];
+	linked_list_head(mem_system->mem_controllers);
+	struct mem_controller_t * mem_controller = linked_list_get(mem_system->mem_controllers);
 	double t_total_mc;
 	double t_pref_total_mc;
 	double t_normal_total_mc;
 	double rbh;
 	double pref_rbh;
 	double normal_rbh;
-	long long row_buffer_hits;
-	long long normal_row_buffer_hits;
-	long long pref_row_buffer_hits;
+	long long row_buffer_hits=0;
+	long long normal_row_buffer_hits=0;
+	long long pref_row_buffer_hits=0;
 	
 	/* Get context. If it does not exist anymore, no more
 	 * events to schedule. */
@@ -1147,9 +1148,10 @@ void x86_ctx_mc_report_handler(int event, void *data)
 		mem_controller->t_transfer - stack->last_t_mc_total) /
 		(mem_controller->accesses - stack->last_accesses) : 0.0;
 	
-	rbh= mem_controller->accesses-stack->last_accesses ?(double)( row_buffer_hits - stack->last_row_buffer_hits)/(mem_controller->accesses-stack->last_accesses): 0; 
-	normal_rbh= mem_controller->normal_accesses-stack->last_normal_accesses ?(double)(normal_row_buffer_hits - stack->last_normal_row_buffer_hits)/(mem_controller->normal_accesses-stack->last_normal_accesses): 0; 
-	pref_rbh= mem_controller->pref_accesses-stack->last_pref_accesses ?(double)( pref_row_buffer_hits - stack->last_pref_row_buffer_hits)/(mem_controller->pref_accesses-stack->last_pref_accesses): 0; 
+	rbh= (mem_controller->accesses-stack->last_accesses)>0 ?
+	     (double)( row_buffer_hits - stack->last_row_buffer_hits)/(mem_controller->accesses-stack->last_accesses): 0; 
+	normal_rbh=( mem_controller->normal_accesses-stack->last_normal_accesses)>0 ?(double)(normal_row_buffer_hits - stack->last_normal_row_buffer_hits)/(mem_controller->normal_accesses-stack->last_normal_accesses): 0; 
+	pref_rbh= (mem_controller->pref_accesses-stack->last_pref_accesses)>0 ?(double)( pref_row_buffer_hits - stack->last_pref_row_buffer_hits)/(mem_controller->pref_accesses-stack->last_pref_accesses): 0; 
 
 	/* Dump new MC stat */
 	assert(ctx->loader->mc_report_interval);

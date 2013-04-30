@@ -220,7 +220,7 @@ void mem_controller_normal_queue_add(struct mod_stack_t * stack){
 
 
 
-	struct mem_controller_t * mem_controller=mem_system->mem_controller[stack->core%mem_system->num_mc];
+	struct mem_controller_t * mem_controller=stack->mod->mem_controller;
 	//////////////////////////////////////////////////////////////////////////
 	unsigned int log2_row_size= log_base2( mem_controller->row_buffer_size);
 	unsigned int bank;
@@ -247,15 +247,14 @@ void mem_controller_normal_queue_add(struct mod_stack_t * stack){
          	mem_controller->normal_queue[bank]->instant_begin_full=esim_cycle;
 
  	mem_controller->normal_queue[bank]->total_insertions++;
-	////////////////////////////////////////////////////////////////
-
+	
 }
 
 
 void mem_controller_prefetch_queue_add(struct mod_stack_t * stack){
 
 
-	struct mem_controller_t * mem_controller=mem_system->mem_controller[stack->core%mem_system->num_mc];
+	struct mem_controller_t * mem_controller=stack->mod->mem_controller;
 	unsigned int log2_row_size= log_base2( mem_controller->row_buffer_size);
 	unsigned int bank;
 
@@ -528,7 +527,8 @@ int mem_controller_stacks_prefQueues_count(struct mem_controller_t * mem_control
 int mem_controller_coalesce_acces_row_buffer( struct mod_stack_t * stack, struct linked_list_t * queue)
 {
 	struct mod_stack_t * stack_aux;
-	struct mem_controller_t * mem_controller=mem_system->mem_controller[stack->core%mem_system->num_mc];
+	struct mem_controller_t * mem_controller=stack->mod->mem_controller;
+	
 	unsigned int num_ranks = mem_controller->num_regs_rank ;
 	unsigned int num_banks = mem_controller->num_regs_bank ;
 	unsigned int log2_row_size= log_base2( mem_controller->row_buffer_size);
@@ -569,7 +569,8 @@ int mem_controller_coalesce_acces_between_blocks(struct mod_stack_t * stack, str
 {
 
 	struct mod_stack_t * stack_aux;
-	struct mem_controller_t * mem_controller=mem_system->mem_controller[stack->core%mem_system->num_mc];
+	struct mem_controller_t * mem_controller=stack->mod->mem_controller;
+	
 	unsigned int num_ranks = mem_controller->num_regs_rank ;
 	unsigned int num_banks = mem_controller->num_regs_bank ;
 	unsigned int log2_row_size= log_base2( mem_controller->row_buffer_size);
@@ -616,8 +617,8 @@ int mem_controller_coalesce_acces_block(struct mod_stack_t * stack, struct linke
 
 	struct mod_stack_t * stack_aux;
 	int n_coal=0;
-	struct mem_controller_t * mem_controller=mem_system->mem_controller[stack->core%mem_system->num_mc];
-
+	struct mem_controller_t * mem_controller=stack->mod->mem_controller;
+	
 	linked_list_head(queue);
 	while(!linked_list_is_end(queue)&&linked_list_current(queue)<mem_controller->size_queue)
 	{
@@ -650,7 +651,8 @@ void mem_controller_sort_by_block(struct mod_stack_t * stack)
 
 	struct mod_stack_t * stack_aux, *stack_list;
 	struct linked_list_t * list=linked_list_create();
-	struct mem_controller_t * mem_controller=mem_system->mem_controller[stack->core%mem_system->num_mc];
+	struct mem_controller_t * mem_controller=stack->mod->mem_controller;
+	
 	unsigned int block;
 
 
@@ -707,7 +709,8 @@ unsigned int mem_controller_min_block(struct mod_stack_t *stack)
 
 	struct linked_list_t * queue=stack->coalesced_stacks;
 	struct mod_stack_t * stack_aux;
-	struct mem_controller_t * mem_controller=mem_system->mem_controller[stack->core%mem_system->num_mc];
+	struct mem_controller_t * mem_controller=stack->mod->mem_controller;
+	
 	unsigned int first;
 	unsigned int block;
 
@@ -737,7 +740,8 @@ unsigned int mem_controller_max_block(struct mod_stack_t *stack)
 
 	struct linked_list_t * queue=stack->coalesced_stacks;
 	struct mod_stack_t * stack_aux;
-	struct mem_controller_t * mem_controller=mem_system->mem_controller[stack->core%mem_system->num_mc];
+	struct mem_controller_t * mem_controller=stack->mod->mem_controller;
+	
 	unsigned int last;
 	unsigned int block;
 
@@ -765,7 +769,8 @@ int mem_controller_calcul_number_blocks_transfered(struct mod_stack_t *stack)
 
 	struct linked_list_t * queue=stack->coalesced_stacks;
 	struct mod_stack_t * stack_aux;
-	struct mem_controller_t * mem_controller=mem_system->mem_controller[stack->core%mem_system->num_mc];
+	struct mem_controller_t * mem_controller=stack->mod->mem_controller;
+	
 	unsigned int first;
 	unsigned int last;
 	unsigned int block;
@@ -805,7 +810,8 @@ void mem_controller_count_successive_hits(struct linked_list_t * coalesced_stack
 
 	linked_list_head(coalesced_stacks);
 	stack=linked_list_get(coalesced_stacks);
-	mem_controller=mem_system->mem_controller[stack->core%mem_system->num_mc];
+	mem_controller=stack->mod->mem_controller;
+	
 	block_size=stack->mod->cache->block_size;
 	unsigned int first_block= stack->addr %  mem_controller->row_buffer_size;
 

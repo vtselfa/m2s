@@ -51,7 +51,7 @@ struct mem_system_t
 
 	 ///////////////////////////////////////
         /*List of Memory controllers */
-        struct mem_controller_t**mem_controller;
+        struct linked_list_t *mem_controllers;
 	int num_mc;
 
         /* For statdistics (to show  MPKI) */

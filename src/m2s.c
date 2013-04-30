@@ -1323,7 +1323,8 @@ void m2s_dump_summary(FILE *f)
 	long long row_access_hits=0;
 	double total_accesses=0;
 	/*TODO fe rper a tots els mc*/
-	struct mem_controller_t * mem_controller=mem_system->mem_controller[0];
+	linked_list_head(mem_system->mem_controllers);
+	struct mem_controller_t * mem_controller = linked_list_get(mem_system->mem_controllers);
 	struct mod_t * mod;
 
 	/* No summary dumped if no simulation was run */

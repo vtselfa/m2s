@@ -2774,7 +2774,7 @@ void mod_handler_nmoesi_evict(int event, void *data)
 
 	struct mod_t *mod = stack->mod;
 	struct mod_t *target_mod = stack->target_mod;
-	struct mem_controller_t * mem_controller=mem_system->mem_controller[stack->core%mem_system->num_mc];
+	struct mem_controller_t * mem_controller;
 
 	struct dir_t *dir;
 	struct dir_entry_t *dir_entry;
@@ -2882,6 +2882,7 @@ void mod_handler_nmoesi_evict(int event, void *data)
 
 	if (event == EV_MOD_NMOESI_EVICT_RECEIVE)
 	{
+		mem_controller=target_mod->mem_controller;
 		mem_debug("  %lld %lld 0x%x %s evict receive\n", esim_cycle, stack->id,
 			stack->tag, target_mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:evict_receive\"\n",
@@ -3148,7 +3149,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 	struct reg_channel_t * channel;
 	struct reg_bank_t * bank;
 
-	struct mem_controller_t * mem_controller = mem_system->mem_controller[stack->core% mem_system->num_mc];
+	struct mem_controller_t * mem_controller = mod->mem_controller;
 	struct mem_controller_queue_t * normal_queue;
 	struct mem_controller_queue_t * pref_queue;
 
@@ -4120,7 +4121,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 		if (stack->request_type == read_request) // read request
 			stack->state = cache_block_exclusive;
 		else if (stack->request_type == write_request) //write request
-			stack->state = cache_block_modified;
+			stack->state = cache_block_exclusive;
 		else fatal("Invalid main memory acces\n");
 
 		stack->reply_size = 8;
@@ -4420,7 +4421,8 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 
 	struct mod_t *mod = stack->mod;
 	struct mod_t *target_mod = stack->target_mod;
-	struct mem_controller_t * mem_controller=mem_system->mem_controller[stack->core%mem_system->num_mc];
+	struct mem_controller_t * mem_controller;
+
 
 	struct dir_t *dir;
 	struct dir_entry_t *dir_entry;
@@ -4471,6 +4473,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 
 	if (event == EV_MOD_NMOESI_READ_REQUEST_RECEIVE)
 	{
+		
 		mem_debug("  %lld %lld 0x%x %s read request receive\n", esim_cycle, stack->id,
 			stack->addr, target_mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:read_request_receive\"\n",
@@ -4512,6 +4515,9 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 
 	if (event == EV_MOD_NMOESI_READ_REQUEST_LOCK)
 	{
+
+		mem_controller=stack->target_mod->mem_controller;
+
 		mem_debug("  %lld %lld 0x%x %s read request lock\n", esim_cycle, stack->id,
 			stack->addr, target_mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:read_request_lock\"\n",
@@ -4853,6 +4859,8 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 	if (event == EV_MOD_NMOESI_READ_REQUEST_UPDOWN_FINISH)
 	{
 
+		mem_controller=stack->target_mod->mem_controller;
+
 
 		/* Ensure that a reply was received */
 		assert(stack->reply);
@@ -4891,6 +4899,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 	{
 		int shared;
 		int latency;
+		mem_controller=stack->target_mod->mem_controller;
 
 
 		/* Trace */
@@ -4987,7 +4996,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 		if (target_mod->cache->prefetch_enabled && target_mod->kind != mod_kind_main_memory)
 			mod_access_finish(target_mod, stack);
 
-		if(!mem_controller->enabled)
+		if(target_mod->kind != mod_kind_main_memory ||(target_mod->kind == mod_kind_main_memory && !mem_controller->enabled))
 		{
 			latency = stack->reply == reply_ack_data_sent_to_peer ? 0 : target_mod->latency;
 			esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST_REPLY, stack, latency);
@@ -5375,7 +5384,8 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 	struct mod_stack_t *ret = stack->ret_stack;
 	struct mod_stack_t *new_stack;
 
-	struct mem_controller_t * mem_controller=mem_system->mem_controller[stack->core%mem_system->num_mc];
+	struct mem_controller_t * mem_controller;
+
 	struct mod_t *mod = stack->mod;
 	struct mod_t *target_mod = stack->target_mod;
 
@@ -5476,6 +5486,8 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 
 	if (event == EV_MOD_NMOESI_WRITE_REQUEST_LOCK)
 	{
+		mem_controller=stack->target_mod->mem_controller;
+
 		mem_debug("  %lld %lld 0x%x %s write request lock\n", esim_cycle, stack->id,
 			stack->addr, target_mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:write_request_lock\"\n",
@@ -5695,6 +5707,9 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 
 	if (event == EV_MOD_NMOESI_WRITE_REQUEST_UPDOWN_FINISH)
 	{
+
+		mem_controller=stack->target_mod->mem_controller;
+
 		/*If it's memory controller and another module hasn't given the block,
 		we acces to main memory*/
 		if (target_mod->kind == mod_kind_main_memory && mem_controller->enabled && stack->reply != reply_ack_data_sent_to_peer)
@@ -5717,6 +5732,9 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 	}
 	if (event == EV_MOD_NMOESI_WRITE_REQUEST_UPDOWN_FINISH_UPDATE_DIRECTORY)
 	{
+		
+		mem_controller=stack->target_mod->mem_controller;
+
 		mem_debug("  %lld %lld 0x%x %s write request updown finish\n", esim_cycle, stack->id,
 			stack->tag, target_mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:write_request_updown_finish\"\n",
@@ -5864,9 +5882,12 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 		/* Delete access */
 		if (target_mod->cache->prefetch_enabled && target_mod->kind != mod_kind_main_memory)
 			mod_access_finish(target_mod, stack);
+		if(target_mod->kind != mod_kind_main_memory ||(target_mod->kind == mod_kind_main_memory && !mem_controller->enabled)){
+			int latency = stack->reply == reply_ack_data_sent_to_peer ? 0 : target_mod->latency;
+			esim_schedule_event(EV_MOD_NMOESI_WRITE_REQUEST_REPLY, stack, latency);
+		}else
+			esim_schedule_event(EV_MOD_NMOESI_WRITE_REQUEST_REPLY, stack, 0);
 
-		int latency = stack->reply == reply_ack_data_sent_to_peer ? 0 : target_mod->latency;
-		esim_schedule_event(EV_MOD_NMOESI_WRITE_REQUEST_REPLY, stack, latency);
 		return;
 	}
 
