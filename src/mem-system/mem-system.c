@@ -359,13 +359,15 @@ void main_memory_dump_report(char * main_mem_report_file_name)
 
 	 	fprintf(f, "[MAIN-MEMORY-%s]\n",mod->name);
 		fprintf(f, "TotalTime = %f\n",mem_controller->accesses ? (double) (mem_controller->t_wait+
-				mem_controller->t_acces_main_memory+mem_controller->t_transfer)/mem_controller->accesses:0.0);
+				mem_controller->t_acces_main_memory+mem_controller->t_transfer+mem_controller->t_inside_net)/mem_controller->accesses:0.0);
 		fprintf(f, "AvgTimeWaitMCQueue = %f\n",mem_controller->accesses ? (double)
 				 mem_controller->t_wait/mem_controller->accesses:0.0);
 		fprintf(f, "AvgTimeAccesMM = %f\n",mem_controller->accesses ? (double) 
 				mem_controller->t_acces_main_memory/mem_controller->accesses :0.0);
 		fprintf(f, "AvgTimeTransferFromMM = %f\n",mem_controller->accesses?(double)
 				mem_controller->t_transfer/mem_controller->accesses:0.0 );
+		fprintf(f, "AvgTimeInsideNet = %f\n",mem_controller->accesses?(double)
+				mem_controller->t_inside_net/mem_controller->accesses:0.0 );
 		fprintf(f,"TotalAccessesMC = %lld\n", mem_controller->accesses);
 		fprintf(f,"TotalNonCoalescedAccessesMC = %lld\n", mem_controller->non_coalesced_accesses);
 		fprintf(f,"RequestsPerCoalesdedAcces = %f\n", mem_controller->non_coalesced_accesses ?(double)

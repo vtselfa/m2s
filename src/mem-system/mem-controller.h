@@ -119,6 +119,8 @@ struct mem_controller_t
 	long long t_pref_transfer;
 	long long t_normal_transfer;
 
+	long long t_inside_net;// time a request is travelling acroos the network
+
 	long long n_times_queue_examined; // times which queue is examined
 	long long accesses;
 	long long non_coalesced_accesses;

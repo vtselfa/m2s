@@ -4436,6 +4436,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			stack->addr, mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:read_request\"\n",
 			stack->id, mod->name);
+		mem_controller=target_mod->mem_controller;
 
 		/* Default return values */
 		ret->shared = 0;
@@ -4462,6 +4463,11 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			dst_node = target_mod->low_net_node;
 		}
 
+		
+		if (stack->request_dir == mod_request_up_down &&
+			target_mod->kind == mod_kind_main_memory && mem_controller->enabled)
+			stack->t_access_net=esim_cycle;
+		
 		/* Send message */
 		stack->msg = net_try_send_ev(net, src_node, dst_node, 8,
 			EV_MOD_NMOESI_READ_REQUEST_RECEIVE, stack, event, stack);
@@ -4865,6 +4871,9 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 		if(target_mod->kind==mod_kind_main_memory&&mem_controller->enabled &&
 		stack->reply != reply_ack_data_sent_to_peer)
 		{
+			assert(stack->t_access_net>=0);
+			mem_controller->t_inside_net+=esim_cycle-stack->t_access_net;
+			stack->t_access_net=-1;
 			new_stack = mod_stack_create(stack->id, target_mod, stack->addr,
 				EV_MOD_NMOESI_READ_REQUEST_UPDOWN_FINISH_UPDATE_DIRECTORY, stack, stack->core, stack->thread, stack->prefetch);
 			new_stack->blocking = stack->request_dir == mod_request_down_up;
@@ -4891,6 +4900,12 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 		mem_debug("  %lld %lld 0x%x %s read request updown finish update directory(fr=%d bg=%d S=%s)\n", esim_cycle, stack->id,stack->tag, target_mod->name, stack->fast_resume, stack->background, str_map_value(&cache_block_state_map, stack->state));
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:read_request_updown_finish_update_directory\"\n", stack->id, target_mod->name);
 
+		
+		if (stack->request_dir == mod_request_up_down &&
+		target_mod->kind == mod_kind_main_memory && mem_controller->enabled)
+			stack->t_access_net=esim_cycle;
+
+		
 		if(!stack->background)
 		{
 			/* If blocks were sent directly to the peer, the reply size would
@@ -5342,12 +5357,21 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 		mem_debug("  %lld %lld 0x%x %s read request finisn\n", esim_cycle, stack->id,stack->tag, mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:read_request_finish\"\n",
 			stack->id, mod->name);
+		mem_controller=target_mod->mem_controller;
 
 		/* Receive message */
 		if (stack->request_dir == mod_request_up_down)
 			net_receive(mod->low_net, mod->low_net_node, stack->msg);
 		else
 			net_receive(mod->high_net, mod->high_net_node, stack->msg);
+
+		if (stack->request_dir == mod_request_up_down &&
+		target_mod->kind == mod_kind_main_memory && mem_controller->enabled)
+		{
+			assert(stack->t_access_net>=0);
+			mem_controller->t_inside_net+=esim_cycle-stack->t_access_net;
+			stack->t_access_net=-1;
+		}
 
 		/* Return */
 		mod_stack_return(stack);
@@ -5384,6 +5408,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			stack->addr, mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:write_request\"\n",
 			stack->id, mod->name);
+		mem_controller=target_mod->mem_controller;
 
 		/* Default return values */
 		ret->err = 0;
@@ -5415,6 +5440,10 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			src_node = mod->high_net_node;
 			dst_node = target_mod->low_net_node;
 		}
+
+		if (stack->request_dir == mod_request_up_down &&
+			target_mod->kind == mod_kind_main_memory && mem_controller->enabled)
+			stack->t_access_net=esim_cycle;
 
 		/* Send message */
 		stack->msg = net_try_send_ev(net, src_node, dst_node, 8,
@@ -5681,6 +5710,9 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 		we acces to main memory*/
 		if (target_mod->kind == mod_kind_main_memory && mem_controller->enabled && stack->reply != reply_ack_data_sent_to_peer)
 		{
+			assert(stack->t_access_net>=0);
+			mem_controller->t_inside_net+=esim_cycle-stack->t_access_net;
+			stack->t_access_net=-1;
 			new_stack = mod_stack_create(stack->id, target_mod, stack->addr,
 				EV_MOD_NMOESI_WRITE_REQUEST_UPDOWN_FINISH_UPDATE_DIRECTORY, stack, stack->core, stack->thread, stack->prefetch);
 			new_stack->blocking = stack->request_dir == mod_request_down_up;
@@ -5855,6 +5887,10 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 		}else
 			esim_schedule_event(EV_MOD_NMOESI_WRITE_REQUEST_REPLY, stack, 0);
 
+		if (stack->request_dir == mod_request_up_down &&
+			target_mod->kind == mod_kind_main_memory && mem_controller->enabled)
+			stack->t_access_net=esim_cycle;
+
 		return;
 	}
 
@@ -5982,6 +6018,8 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			dst_node = mod->high_net_node;
 		}
 
+		
+
 		stack->msg = net_try_send_ev(net, src_node, dst_node, stack->reply_size,
 			EV_MOD_NMOESI_WRITE_REQUEST_FINISH, stack, event, stack);
 		return;
@@ -5993,6 +6031,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			stack->tag, mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:write_request_finish\"\n",
 			stack->id, mod->name);
+		mem_controller=target_mod->mem_controller;
 
 		/* Receive message */
 		if (stack->request_dir == mod_request_up_down)
@@ -6000,6 +6039,14 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 		else
 			net_receive(mod->high_net, mod->high_net_node, stack->msg);
 
+		if (stack->request_dir == mod_request_up_down &&
+			target_mod->kind == mod_kind_main_memory && mem_controller->enabled)
+		{
+			assert(stack->t_access_net>=0);
+			mem_controller->t_inside_net+=esim_cycle-stack->t_access_net;
+			stack->t_access_net=-1;
+
+		}
 		/* Return */
 		mod_stack_return(stack);
 		return;
