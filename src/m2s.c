@@ -1320,11 +1320,7 @@ void m2s_dump_summary(FILE *f)
 	long long prefetch_total=0;
 	long long delayed_hit_total=0;
 	float accuracy=0;
-	long long row_access_hits=0;
-	double total_accesses=0;
-	/*TODO fe rper a tots els mc*/
-	linked_list_head(mem_system->mem_controllers);
-	struct mem_controller_t * mem_controller = linked_list_get(mem_system->mem_controllers);
+
 	struct mod_t * mod;
 
 	/* No summary dumped if no simulation was run */
@@ -1348,28 +1344,18 @@ void m2s_dump_summary(FILE *f)
 		prefetch_total+=mod->completed_prefetches;
 		delayed_hit_total+=mod->delayed_hits;
 
-		/*Row buffer*/
 		
-		for(int c=0; c<mem_controller->num_regs_channel;c++)
-			for(int r=0; r<mem_controller->regs_channel[c].num_regs_rank; r++)
-				for(int b=0; b<mem_controller->regs_channel[c].regs_rank[r].num_regs_bank;b++)
-				{	row_access_hits+=mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].row_buffer_hits;
-					total_accesses+=mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].acceses;
-				}
 	}
 	
 
 	if(prefetch_total>0)
 		accuracy=(double)useful_prefetch_total/prefetch_total;
-	if(total_accesses>0)
-		total_accesses=(double) row_access_hits/total_accesses;
-
+	
 	/* General statistics */
 	fprintf(f, "[ General ]\n");
 	fprintf(f, "Time = %.2f\n", time_in_sec);
 	fprintf(f, "SimEnd = %s\n", str_map_value(&esim_finish_map, esim_finish));
-	////////////////////////////////////////////////////////////////////////////////////////////////////////////
-	fprintf(stderr, "GlobalRowBufferHitAccuracy = %.3f\n", total_accesses);					////
+	////////////////////////////////////////////////////////////////////////////////////////////////////////////					////
 	fprintf(stderr, "GlobalDelayedHits = %lld\n", delayed_hit_total);					////
 	fprintf(stderr, "GlobalUsefulPrefetches = %lld\n",useful_prefetch_total);				////
 	fprintf(stderr, "GlobalAccuracy = %f\n",accuracy);							////

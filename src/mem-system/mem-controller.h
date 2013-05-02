@@ -130,6 +130,17 @@ struct mem_controller_t
 
 	int ** successive_hit; // inside a burst consecutive blocks
 	int * burst_size; //counter of coalesced requests
+
+	/*Interval acumulative stadistics*/
+	long long last_accesses;
+	long long last_pref_accesses;
+	long long last_normal_accesses;
+	long long last_t_mc_total;
+	long long last_t_normal_mc_total;
+	long long last_t_pref_mc_total;
+	long long last_row_buffer_hits;
+	long long last_normal_row_buffer_hits;
+	long long last_pref_row_buffer_hits;
 };
 
 struct mem_controller_t * mem_controller_create(void);
