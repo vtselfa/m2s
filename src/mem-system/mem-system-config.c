@@ -690,15 +690,15 @@ static struct mod_t *mem_config_read_cache(struct config_t *config, char *sectio
 	mshr_size = config_read_int(config, buf, "MSHR", 16);
 	num_ports = config_read_int(config, buf, "Ports", 2);
 
-	prefetch_str = config_read_string(config, buf, "Prefetch", "disabled");
+	prefetch_str = config_read_string(config, buf, "Prefetch", "none");
 	prefetch = str_map_string_case(&prefetch_policy_map, prefetch_str);
-	if (!prefetch && strcasecmp(prefetch_str, "disabled"))
+	if (!prefetch && strcasecmp(prefetch_str, "none"))
 		fatal("%s: cache %s: %s: invalid prefetch. "
-			"Valid values are {disabled OBL OBL_stride streams}.\n%s",
+			"Valid values are {None OBL OBL_Stride Streams}.\n%s",
 			mem_config_file_name, mod_name,
 			prefetch_str, err_mem_config_note);
 
-	if (prefetch == prefetch_streams)
+	if (prefetch == prefetch_policy_streams)
 	{
 		config_var_enforce(config, buf, "PrefetchStreams");
 		config_var_enforce(config, buf, "PrefetchAggressivity");
@@ -777,7 +777,8 @@ static struct mod_t *mem_config_read_cache(struct config_t *config, char *sectio
 
 	/* Create cache */
 	mod->cache = cache_create(mod->name, num_sets, block_size, assoc, pref_streams, pref_aggr, policy);
-	mod->cache->prefetch_enabled = prefetch;
+	mod->cache->prefetch_policy = prefetch;
+	mod->cache->pref_enabled = prefetch ? 1 : 0; /* Prefetch enabled by default if a prefetch policy is set */
 
 	/* Return */
 	return mod;

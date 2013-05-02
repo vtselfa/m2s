@@ -200,6 +200,7 @@ struct mod_t
 	long long last_accesses;
 	long long hits;
 	long long last_hits;
+	long long last_misses_int; /* Misses in last interval */
 
 	long long hits_pref; /* Hits de stacks de prefetch en els moduls inferiors */
 

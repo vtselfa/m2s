@@ -35,10 +35,10 @@ enum cache_policy_t
 
 enum prefetch_policy_t
 {
-	prefetch_disabled = 0,
-	prefetch_obl,
-	prefetch_obl_stride,
-	prefetch_streams
+	prefetch_policy_none = 0,
+	prefetch_policy_obl,
+	prefetch_policy_obl_stride,
+	prefetch_policy_streams
 };
 
 enum cache_block_state_t
@@ -134,7 +134,9 @@ struct cache_t
 	int log_block_size;
 
 	/* Prefetching */
-	enum prefetch_policy_t prefetch_enabled;
+	enum prefetch_policy_t prefetch_policy;
+	int pref_enabled : 1;
+
 	struct {
 		unsigned int num_streams; 	/* Number of streams for prefetch */
 		unsigned int aggressivity; 	/* Number of blocks per stream */
