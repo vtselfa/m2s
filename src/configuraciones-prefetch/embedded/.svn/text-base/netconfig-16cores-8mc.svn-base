@@ -1,0 +1,843 @@
+[ Network.mesh ]
+  DefaultInputBufferSize = 128
+  DefaultOutputBufferSize = 128
+  DefaultBandwidth = 64
+
+;;;;;;;;;; NODES ;;;;;;;;;;
+
+[ Network.mesh.Node.n0 ]
+Type = EndNode
+
+[ Network.mesh.Node.n1 ]
+Type = EndNode
+
+[ Network.mesh.Node.n2 ]
+Type = EndNode
+
+[ Network.mesh.Node.n3 ]
+Type = EndNode
+
+[ Network.mesh.Node.n4 ]
+Type = EndNode
+
+[ Network.mesh.Node.n5 ]
+Type = EndNode
+
+[ Network.mesh.Node.n6 ]
+Type = EndNode
+
+[ Network.mesh.Node.n7 ]
+Type = EndNode
+
+[ Network.mesh.Node.n8 ]
+Type = EndNode
+
+[ Network.mesh.Node.n9 ]
+Type = EndNode
+
+[ Network.mesh.Node.n10 ]
+Type = EndNode
+
+[ Network.mesh.Node.n11 ]
+Type = EndNode
+
+[ Network.mesh.Node.n12 ]
+Type = EndNode
+
+[ Network.mesh.Node.n13 ]
+Type = EndNode
+
+[ Network.mesh.Node.n14 ]
+Type = EndNode
+
+[ Network.mesh.Node.n15 ]
+Type = EndNode
+
+[ Network.mesh.Node.n16 ]
+Type = EndNode
+
+;;;;;;;; SWITCHES ;;;;;;;;
+
+[ Network.mesh.Node.s0 ]
+Type = Switch
+
+[ Network.mesh.Node.s1 ]
+Type = Switch
+
+[ Network.mesh.Node.s2 ]
+Type = Switch
+
+[ Network.mesh.Node.s3 ]
+Type = Switch
+
+[ Network.mesh.Node.s4 ]
+Type = Switch
+
+[ Network.mesh.Node.s5 ]
+Type = Switch
+
+[ Network.mesh.Node.s6 ]
+Type = Switch
+
+[ Network.mesh.Node.s7 ]
+Type = Switch
+
+[ Network.mesh.Node.s8 ]
+Type = Switch
+
+[ Network.mesh.Node.s9 ]
+Type = Switch
+
+[ Network.mesh.Node.s10 ]
+Type = Switch
+
+[ Network.mesh.Node.s11 ]
+Type = Switch
+
+[ Network.mesh.Node.s12 ]
+Type = Switch
+
+[ Network.mesh.Node.s13 ]
+Type = Switch
+
+[ Network.mesh.Node.s14 ]
+Type = Switch
+
+[ Network.mesh.Node.s15 ]
+Type = Switch
+
+;;;;;;;; LINKS ;;;;;;;;
+
+[ Network.mesh.Link.s0s1 ]
+  Source = s0
+  Dest = s1
+  Type = Bidirectional
+
+[ Network.mesh.Link.s1s2 ]
+  Source = s1
+  Dest = s2
+  Type = Bidirectional
+
+[ Network.mesh.Link.s2s3 ]
+  Source = s2
+  Dest = s3
+  Type = Bidirectional
+
+[ Network.mesh.Link.s4s5 ]
+  Source = s4
+  Dest = s5
+  Type = Bidirectional
+
+[ Network.mesh.Link.s5s6 ]
+  Source = s5
+  Dest = s6
+  Type = Bidirectional
+
+[ Network.mesh.Link.s6s7 ]
+  Source = s6
+  Dest = s7
+  Type = Bidirectional
+
+[ Network.mesh.Link.s8s9 ]
+  Source = s8
+  Dest = s9
+  Type = Bidirectional
+
+[ Network.mesh.Link.s9s10 ]
+  Source = s9
+  Dest = s10
+  Type = Bidirectional
+
+[ Network.mesh.Link.s10s11 ]
+  Source = s10
+  Dest = s11
+  Type = Bidirectional
+
+[ Network.mesh.Link.s12s13 ]
+  Source = s12
+  Dest = s13
+  Type = Bidirectional
+
+[ Network.mesh.Link.s13s14 ]
+  Source = s13
+  Dest = s14
+  Type = Bidirectional
+
+[ Network.mesh.Link.s14s15 ]
+  Source = s14
+  Dest = s15
+  Type = Bidirectional
+
+[ Network.mesh.Link.s0s4 ]
+  Source = s0
+  Dest = s4
+  Type = Bidirectional
+
+[ Network.mesh.Link.s1s5 ]
+  Source = s1
+  Dest = s5
+  Type = Bidirectional
+
+[ Network.mesh.Link.s2s6 ]
+  Source = s2
+  Dest = s6
+  Type = Bidirectional
+
+[ Network.mesh.Link.s3s7 ]
+  Source = s3
+  Dest = s7
+  Type = Bidirectional
+
+[ Network.mesh.Link.s4s8 ]
+  Source = s4
+  Dest = s8
+  Type = Bidirectional
+
+[ Network.mesh.Link.s5s9 ]
+  Source = s5
+  Dest = s9
+  Type = Bidirectional
+
+[ Network.mesh.Link.s6s10 ]
+  Source = s6
+  Dest = s10
+  Type = Bidirectional
+
+[ Network.mesh.Link.s7s11 ]
+  Source = s7
+  Dest = s11
+  Type = Bidirectional
+
+[ Network.mesh.Link.s8s12 ]
+  Source = s8
+  Dest = s12
+  Type = Bidirectional
+
+[ Network.mesh.Link.s9s13 ]
+  Source = s9
+  Dest = s13
+  Type = Bidirectional
+
+[ Network.mesh.Link.s10s14 ]
+  Source = s10
+  Dest = s14
+  Type = Bidirectional
+
+[ Network.mesh.Link.s11s15 ]
+  Source = s11
+  Dest = s15
+  Type = Bidirectional
+
+[ Network.mesh.Link.n0s0 ]
+  Source = n0
+  Dest = s0
+  Type = Bidirectional
+
+[ Network.mesh.Link.n1s1 ]
+  Source = n1
+  Dest = s1
+  Type = Bidirectional
+
+[ Network.mesh.Link.n2s2 ]
+  Source = n2
+  Dest = s2
+  Type = Bidirectional
+
+[ Network.mesh.Link.n3s3 ]
+  Source = n3
+  Dest = s3
+  Type = Bidirectional
+
+[ Network.mesh.Link.n4s4 ]
+  Source = n4
+  Dest = s4
+  Type = Bidirectional
+
+[ Network.mesh.Link.n5s5 ]
+  Source = n5
+  Dest = s5
+  Type = Bidirectional
+
+[ Network.mesh.Link.n6s6 ]
+  Source = n6
+  Dest = s6
+  Type = Bidirectional
+
+[ Network.mesh.Link.n7s7 ]
+  Source = n7
+  Dest = s7
+  Type = Bidirectional
+
+[ Network.mesh.Link.n8s8 ]
+  Source = n8
+  Dest = s8
+  Type = Bidirectional
+
+[ Network.mesh.Link.n9s9 ]
+  Source = n9
+  Dest = s9
+  Type = Bidirectional
+
+[ Network.mesh.Link.n10s10 ]
+  Source = n10
+  Dest = s10
+  Type = Bidirectional
+
+[ Network.mesh.Link.n11s11 ]
+  Source = n11
+  Dest = s11
+  Type = Bidirectional
+
+[ Network.mesh.Link.n12s12 ]
+  Source = n12
+  Dest = s12
+  Type = Bidirectional
+
+[ Network.mesh.Link.n13s13 ]
+  Source = n13
+  Dest = s13
+  Type = Bidirectional
+
+[ Network.mesh.Link.n14s14 ]
+  Source = n14
+  Dest = s14
+  Type = Bidirectional
+
+[ Network.mesh.Link.n15s15 ]
+  Source = n15
+  Dest = s15
+  Type = Bidirectional
+
+[ Network.mesh.Link.n16s0 ]
+  Source = n16
+  Dest = s0
+  Type = Bidirectional
+
+[ Network.mesh.Routes ]
+n0.to.n1 = s0
+n0.to.n2 = s0
+n0.to.n3 = s0
+n0.to.n4 = s0
+n0.to.n5 = s0
+n0.to.n6 = s0
+n0.to.n7 = s0
+n0.to.n8 = s0
+n0.to.n9 = s0
+n0.to.n10 = s0
+n0.to.n11 = s0
+n0.to.n12 = s0
+n0.to.n13 = s0
+n0.to.n14 = s0
+n0.to.n15 = s0
+n0.to.n16 = s0
+n1.to.n0 = s1
+n1.to.n2 = s1
+n1.to.n3 = s1
+n1.to.n4 = s1
+n1.to.n5 = s1
+n1.to.n6 = s1
+n1.to.n7 = s1
+n1.to.n8 = s1
+n1.to.n9 = s1
+n1.to.n10 = s1
+n1.to.n11 = s1
+n1.to.n12 = s1
+n1.to.n13 = s1
+n1.to.n14 = s1
+n1.to.n15 = s1
+n1.to.n16 = s1
+n2.to.n0 = s2
+n2.to.n1 = s2
+n2.to.n3 = s2
+n2.to.n4 = s2
+n2.to.n5 = s2
+n2.to.n6 = s2
+n2.to.n7 = s2
+n2.to.n8 = s2
+n2.to.n9 = s2
+n2.to.n10 = s2
+n2.to.n11 = s2
+n2.to.n12 = s2
+n2.to.n13 = s2
+n2.to.n14 = s2
+n2.to.n15 = s2
+n2.to.n16 = s2
+n3.to.n0 = s3
+n3.to.n1 = s3
+n3.to.n2 = s3
+n3.to.n4 = s3
+n3.to.n5 = s3
+n3.to.n6 = s3
+n3.to.n7 = s3
+n3.to.n8 = s3
+n3.to.n9 = s3
+n3.to.n10 = s3
+n3.to.n11 = s3
+n3.to.n12 = s3
+n3.to.n13 = s3
+n3.to.n14 = s3
+n3.to.n15 = s3
+n3.to.n16 = s3
+n4.to.n0 = s4
+n4.to.n1 = s4
+n4.to.n2 = s4
+n4.to.n3 = s4
+n4.to.n5 = s4
+n4.to.n6 = s4
+n4.to.n7 = s4
+n4.to.n8 = s4
+n4.to.n9 = s4
+n4.to.n10 = s4
+n4.to.n11 = s4
+n4.to.n12 = s4
+n4.to.n13 = s4
+n4.to.n14 = s4
+n4.to.n15 = s4
+n4.to.n16 = s4
+n5.to.n0 = s5
+n5.to.n1 = s5
+n5.to.n2 = s5
+n5.to.n3 = s5
+n5.to.n4 = s5
+n5.to.n6 = s5
+n5.to.n7 = s5
+n5.to.n8 = s5
+n5.to.n9 = s5
+n5.to.n10 = s5
+n5.to.n11 = s5
+n5.to.n12 = s5
+n5.to.n13 = s5
+n5.to.n14 = s5
+n5.to.n15 = s5
+n5.to.n16 = s5
+n6.to.n0 = s6
+n6.to.n1 = s6
+n6.to.n2 = s6
+n6.to.n3 = s6
+n6.to.n4 = s6
+n6.to.n5 = s6
+n6.to.n7 = s6
+n6.to.n8 = s6
+n6.to.n9 = s6
+n6.to.n10 = s6
+n6.to.n11 = s6
+n6.to.n12 = s6
+n6.to.n13 = s6
+n6.to.n14 = s6
+n6.to.n15 = s6
+n6.to.n16 = s6
+n7.to.n0 = s7
+n7.to.n1 = s7
+n7.to.n2 = s7
+n7.to.n3 = s7
+n7.to.n4 = s7
+n7.to.n5 = s7
+n7.to.n6 = s7
+n7.to.n8 = s7
+n7.to.n9 = s7
+n7.to.n10 = s7
+n7.to.n11 = s7
+n7.to.n12 = s7
+n7.to.n13 = s7
+n7.to.n14 = s7
+n7.to.n15 = s7
+n7.to.n16 = s7
+n8.to.n0 = s8
+n8.to.n1 = s8
+n8.to.n2 = s8
+n8.to.n3 = s8
+n8.to.n4 = s8
+n8.to.n5 = s8
+n8.to.n6 = s8
+n8.to.n7 = s8
+n8.to.n9 = s8
+n8.to.n10 = s8
+n8.to.n11 = s8
+n8.to.n12 = s8
+n8.to.n13 = s8
+n8.to.n14 = s8
+n8.to.n15 = s8
+n8.to.n16 = s8
+n9.to.n0 = s9
+n9.to.n1 = s9
+n9.to.n2 = s9
+n9.to.n3 = s9
+n9.to.n4 = s9
+n9.to.n5 = s9
+n9.to.n6 = s9
+n9.to.n7 = s9
+n9.to.n8 = s9
+n9.to.n10 = s9
+n9.to.n11 = s9
+n9.to.n12 = s9
+n9.to.n13 = s9
+n9.to.n14 = s9
+n9.to.n15 = s9
+n9.to.n16 = s9
+n10.to.n0 = s10
+n10.to.n1 = s10
+n10.to.n2 = s10
+n10.to.n3 = s10
+n10.to.n4 = s10
+n10.to.n5 = s10
+n10.to.n6 = s10
+n10.to.n7 = s10
+n10.to.n8 = s10
+n10.to.n9 = s10
+n10.to.n11 = s10
+n10.to.n12 = s10
+n10.to.n13 = s10
+n10.to.n14 = s10
+n10.to.n15 = s10
+n10.to.n16 = s10
+n11.to.n0 = s11
+n11.to.n1 = s11
+n11.to.n2 = s11
+n11.to.n3 = s11
+n11.to.n4 = s11
+n11.to.n5 = s11
+n11.to.n6 = s11
+n11.to.n7 = s11
+n11.to.n8 = s11
+n11.to.n9 = s11
+n11.to.n10 = s11
+n11.to.n12 = s11
+n11.to.n13 = s11
+n11.to.n14 = s11
+n11.to.n15 = s11
+n11.to.n16 = s11
+n12.to.n0 = s12
+n12.to.n1 = s12
+n12.to.n2 = s12
+n12.to.n3 = s12
+n12.to.n4 = s12
+n12.to.n5 = s12
+n12.to.n6 = s12
+n12.to.n7 = s12
+n12.to.n8 = s12
+n12.to.n9 = s12
+n12.to.n10 = s12
+n12.to.n11 = s12
+n12.to.n13 = s12
+n12.to.n14 = s12
+n12.to.n15 = s12
+n12.to.n16 = s12
+n13.to.n0 = s13
+n13.to.n1 = s13
+n13.to.n2 = s13
+n13.to.n3 = s13
+n13.to.n4 = s13
+n13.to.n5 = s13
+n13.to.n6 = s13
+n13.to.n7 = s13
+n13.to.n8 = s13
+n13.to.n9 = s13
+n13.to.n10 = s13
+n13.to.n11 = s13
+n13.to.n12 = s13
+n13.to.n14 = s13
+n13.to.n15 = s13
+n13.to.n16 = s13
+n14.to.n0 = s14
+n14.to.n1 = s14
+n14.to.n2 = s14
+n14.to.n3 = s14
+n14.to.n4 = s14
+n14.to.n5 = s14
+n14.to.n6 = s14
+n14.to.n7 = s14
+n14.to.n8 = s14
+n14.to.n9 = s14
+n14.to.n10 = s14
+n14.to.n11 = s14
+n14.to.n12 = s14
+n14.to.n13 = s14
+n14.to.n15 = s14
+n14.to.n16 = s14
+n15.to.n0 = s15
+n15.to.n1 = s15
+n15.to.n2 = s15
+n15.to.n3 = s15
+n15.to.n4 = s15
+n15.to.n5 = s15
+n15.to.n6 = s15
+n15.to.n7 = s15
+n15.to.n8 = s15
+n15.to.n9 = s15
+n15.to.n10 = s15
+n15.to.n11 = s15
+n15.to.n12 = s15
+n15.to.n13 = s15
+n15.to.n14 = s15
+n15.to.n16 = s15
+n16.to.n0 = s0
+n16.to.n1 = s0
+n16.to.n2 = s0
+n16.to.n3 = s0
+n16.to.n4 = s0
+n16.to.n5 = s0
+n16.to.n6 = s0
+n16.to.n7 = s0
+n16.to.n8 = s0
+n16.to.n9 = s0
+n16.to.n10 = s0
+n16.to.n11 = s0
+n16.to.n12 = s0
+n16.to.n13 = s0
+n16.to.n14 = s0
+n16.to.n15 = s0
+s0.to.n1 = s1
+s0.to.n2 = s1
+s0.to.n3 = s1
+s0.to.n4 = s4
+s0.to.n5 = s1
+s0.to.n6 = s1
+s0.to.n7 = s1
+s0.to.n8 = s4
+s0.to.n9 = s1
+s0.to.n10 = s1
+s0.to.n11 = s1
+s0.to.n12 = s4
+s0.to.n13 = s1
+s0.to.n14 = s1
+s0.to.n15 = s1
+s1.to.n0 = s0
+s1.to.n2 = s2
+s1.to.n3 = s2
+s1.to.n4 = s0
+s1.to.n5 = s5
+s1.to.n6 = s2
+s1.to.n7 = s2
+s1.to.n8 = s0
+s1.to.n9 = s5
+s1.to.n10 = s2
+s1.to.n11 = s2
+s1.to.n12 = s0
+s1.to.n13 = s5
+s1.to.n14 = s2
+s1.to.n15 = s2
+s1.to.n16 = s0
+s2.to.n0 = s1
+s2.to.n1 = s1
+s2.to.n3 = s3
+s2.to.n4 = s1
+s2.to.n5 = s1
+s2.to.n6 = s6
+s2.to.n7 = s3
+s2.to.n8 = s1
+s2.to.n9 = s1
+s2.to.n10 = s6
+s2.to.n11 = s3
+s2.to.n12 = s1
+s2.to.n13 = s1
+s2.to.n14 = s6
+s2.to.n15 = s3
+s2.to.n16 = s1
+s3.to.n0 = s2
+s3.to.n1 = s2
+s3.to.n2 = s2
+s3.to.n4 = s2
+s3.to.n5 = s2
+s3.to.n6 = s2
+s3.to.n7 = s7
+s3.to.n8 = s2
+s3.to.n9 = s2
+s3.to.n10 = s2
+s3.to.n11 = s7
+s3.to.n12 = s2
+s3.to.n13 = s2
+s3.to.n14 = s2
+s3.to.n15 = s7
+s3.to.n16 = s2
+s4.to.n0 = s0
+s4.to.n1 = s5
+s4.to.n2 = s5
+s4.to.n3 = s5
+s4.to.n5 = s5
+s4.to.n6 = s5
+s4.to.n7 = s5
+s4.to.n8 = s8
+s4.to.n9 = s5
+s4.to.n10 = s5
+s4.to.n11 = s5
+s4.to.n12 = s8
+s4.to.n13 = s5
+s4.to.n14 = s5
+s4.to.n15 = s5
+s4.to.n16 = s0
+s5.to.n0 = s4
+s5.to.n1 = s1
+s5.to.n2 = s6
+s5.to.n3 = s6
+s5.to.n4 = s4
+s5.to.n6 = s6
+s5.to.n7 = s6
+s5.to.n8 = s4
+s5.to.n9 = s9
+s5.to.n10 = s6
+s5.to.n11 = s6
+s5.to.n12 = s4
+s5.to.n13 = s9
+s5.to.n14 = s6
+s5.to.n15 = s6
+s5.to.n16 = s4
+s6.to.n0 = s5
+s6.to.n1 = s5
+s6.to.n2 = s2
+s6.to.n3 = s7
+s6.to.n4 = s5
+s6.to.n5 = s5
+s6.to.n7 = s7
+s6.to.n8 = s5
+s6.to.n9 = s5
+s6.to.n10 = s10
+s6.to.n11 = s7
+s6.to.n12 = s5
+s6.to.n13 = s5
+s6.to.n14 = s10
+s6.to.n15 = s7
+s6.to.n16 = s5
+s7.to.n0 = s6
+s7.to.n1 = s6
+s7.to.n2 = s6
+s7.to.n3 = s3
+s7.to.n4 = s6
+s7.to.n5 = s6
+s7.to.n6 = s6
+s7.to.n8 = s6
+s7.to.n9 = s6
+s7.to.n10 = s6
+s7.to.n11 = s11
+s7.to.n12 = s6
+s7.to.n13 = s6
+s7.to.n14 = s6
+s7.to.n15 = s11
+s7.to.n16 = s6
+s8.to.n0 = s4
+s8.to.n1 = s9
+s8.to.n2 = s9
+s8.to.n3 = s9
+s8.to.n4 = s4
+s8.to.n5 = s9
+s8.to.n6 = s9
+s8.to.n7 = s9
+s8.to.n9 = s9
+s8.to.n10 = s9
+s8.to.n11 = s9
+s8.to.n12 = s12
+s8.to.n13 = s9
+s8.to.n14 = s9
+s8.to.n15 = s9
+s8.to.n16 = s4
+s9.to.n0 = s8
+s9.to.n1 = s5
+s9.to.n2 = s10
+s9.to.n3 = s10
+s9.to.n4 = s8
+s9.to.n5 = s5
+s9.to.n6 = s10
+s9.to.n7 = s10
+s9.to.n8 = s8
+s9.to.n10 = s10
+s9.to.n11 = s10
+s9.to.n12 = s8
+s9.to.n13 = s13
+s9.to.n14 = s10
+s9.to.n15 = s10
+s9.to.n16 = s8
+s10.to.n0 = s9
+s10.to.n1 = s9
+s10.to.n2 = s6
+s10.to.n3 = s11
+s10.to.n4 = s9
+s10.to.n5 = s9
+s10.to.n6 = s6
+s10.to.n7 = s11
+s10.to.n8 = s9
+s10.to.n9 = s9
+s10.to.n11 = s11
+s10.to.n12 = s9
+s10.to.n13 = s9
+s10.to.n14 = s14
+s10.to.n15 = s11
+s10.to.n16 = s9
+s11.to.n0 = s10
+s11.to.n1 = s10
+s11.to.n2 = s10
+s11.to.n3 = s7
+s11.to.n4 = s10
+s11.to.n5 = s10
+s11.to.n6 = s10
+s11.to.n7 = s7
+s11.to.n8 = s10
+s11.to.n9 = s10
+s11.to.n10 = s10
+s11.to.n12 = s10
+s11.to.n13 = s10
+s11.to.n14 = s10
+s11.to.n15 = s15
+s11.to.n16 = s10
+s12.to.n0 = s8
+s12.to.n1 = s13
+s12.to.n2 = s13
+s12.to.n3 = s13
+s12.to.n4 = s8
+s12.to.n5 = s13
+s12.to.n6 = s13
+s12.to.n7 = s13
+s12.to.n8 = s8
+s12.to.n9 = s13
+s12.to.n10 = s13
+s12.to.n11 = s13
+s12.to.n13 = s13
+s12.to.n14 = s13
+s12.to.n15 = s13
+s12.to.n16 = s8
+s13.to.n0 = s12
+s13.to.n1 = s9
+s13.to.n2 = s14
+s13.to.n3 = s14
+s13.to.n4 = s12
+s13.to.n5 = s9
+s13.to.n6 = s14
+s13.to.n7 = s14
+s13.to.n8 = s12
+s13.to.n9 = s9
+s13.to.n10 = s14
+s13.to.n11 = s14
+s13.to.n12 = s12
+s13.to.n14 = s14
+s13.to.n15 = s14
+s13.to.n16 = s12
+s14.to.n0 = s13
+s14.to.n1 = s13
+s14.to.n2 = s10
+s14.to.n3 = s15
+s14.to.n4 = s13
+s14.to.n5 = s13
+s14.to.n6 = s10
+s14.to.n7 = s15
+s14.to.n8 = s13
+s14.to.n9 = s13
+s14.to.n10 = s10
+s14.to.n11 = s15
+s14.to.n12 = s13
+s14.to.n13 = s13
+s14.to.n15 = s15
+s14.to.n16 = s13
+s15.to.n0 = s14
+s15.to.n1 = s14
+s15.to.n2 = s14
+s15.to.n3 = s11
+s15.to.n4 = s14
+s15.to.n5 = s14
+s15.to.n6 = s14
+s15.to.n7 = s11
+s15.to.n8 = s14
+s15.to.n9 = s14
+s15.to.n10 = s14
+s15.to.n11 = s11
+s15.to.n12 = s14
+s15.to.n13 = s14
+s15.to.n14 = s14
+s15.to.n16 = s14

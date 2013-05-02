@@ -1,0 +1,2460 @@
+[ CacheGeometry l1 ]
+Sets = 256
+Assoc = 2
+BlockSize = 64
+Latency = 1
+; Prefetch = 0
+
+[ CacheGeometry l2 ]
+Sets = 512
+Assoc = 16
+BlockSize = 64
+Latency = 10
+; Prefetch = 1
+
+#
+# Level 1 Caches
+#
+[ Module dl1-0 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-0
+LowModules = l2-0
+
+[ Module il1-0 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-0
+LowModules = l2-0
+
+[ Module dl1-1 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-1
+LowModules = l2-1
+
+[ Module il1-1 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-1
+LowModules = l2-1
+
+[ Module dl1-2 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-2
+LowModules = l2-2
+
+[ Module il1-2 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-2
+LowModules = l2-2
+
+[ Module dl1-3 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-3
+LowModules = l2-3
+
+[ Module il1-3 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-3
+LowModules = l2-3
+
+[ Module dl1-4 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-4
+LowModules = l2-4
+
+[ Module il1-4 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-4
+LowModules = l2-4
+
+[ Module dl1-5 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-5
+LowModules = l2-5
+
+[ Module il1-5 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-5
+LowModules = l2-5
+
+[ Module dl1-6 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-6
+LowModules = l2-6
+
+[ Module il1-6 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-6
+LowModules = l2-6
+
+[ Module dl1-7 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-7
+LowModules = l2-7
+
+[ Module il1-7 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-7
+LowModules = l2-7
+
+[ Module dl1-8 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-8
+LowModules = l2-8
+
+[ Module il1-8 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-8
+LowModules = l2-8
+
+[ Module dl1-9 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-9
+LowModules = l2-9
+
+[ Module il1-9 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-9
+LowModules = l2-9
+
+[ Module dl1-10 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-10
+LowModules = l2-10
+
+[ Module il1-10 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-10
+LowModules = l2-10
+
+[ Module dl1-11 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-11
+LowModules = l2-11
+
+[ Module il1-11 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-11
+LowModules = l2-11
+
+[ Module dl1-12 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-12
+LowModules = l2-12
+
+[ Module il1-12 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-12
+LowModules = l2-12
+
+[ Module dl1-13 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-13
+LowModules = l2-13
+
+[ Module il1-13 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-13
+LowModules = l2-13
+
+[ Module dl1-14 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-14
+LowModules = l2-14
+
+[ Module il1-14 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-14
+LowModules = l2-14
+
+[ Module dl1-15 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-15
+LowModules = l2-15
+
+[ Module il1-15 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-15
+LowModules = l2-15
+
+[ Module dl1-16 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-16
+LowModules = l2-16
+
+[ Module il1-16 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-16
+LowModules = l2-16
+
+[ Module dl1-17 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-17
+LowModules = l2-17
+
+[ Module il1-17 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-17
+LowModules = l2-17
+
+[ Module dl1-18 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-18
+LowModules = l2-18
+
+[ Module il1-18 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-18
+LowModules = l2-18
+
+[ Module dl1-19 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-19
+LowModules = l2-19
+
+[ Module il1-19 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-19
+LowModules = l2-19
+
+[ Module dl1-20 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-20
+LowModules = l2-20
+
+[ Module il1-20 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-20
+LowModules = l2-20
+
+[ Module dl1-21 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-21
+LowModules = l2-21
+
+[ Module il1-21 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-21
+LowModules = l2-21
+
+[ Module dl1-22 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-22
+LowModules = l2-22
+
+[ Module il1-22 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-22
+LowModules = l2-22
+
+[ Module dl1-23 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-23
+LowModules = l2-23
+
+[ Module il1-23 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-23
+LowModules = l2-23
+
+[ Module dl1-24 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-24
+LowModules = l2-24
+
+[ Module il1-24 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-24
+LowModules = l2-24
+
+[ Module dl1-25 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-25
+LowModules = l2-25
+
+[ Module il1-25 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-25
+LowModules = l2-25
+
+[ Module dl1-26 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-26
+LowModules = l2-26
+
+[ Module il1-26 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-26
+LowModules = l2-26
+
+[ Module dl1-27 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-27
+LowModules = l2-27
+
+[ Module il1-27 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-27
+LowModules = l2-27
+
+[ Module dl1-28 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-28
+LowModules = l2-28
+
+[ Module il1-28 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-28
+LowModules = l2-28
+
+[ Module dl1-29 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-29
+LowModules = l2-29
+
+[ Module il1-29 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-29
+LowModules = l2-29
+
+[ Module dl1-30 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-30
+LowModules = l2-30
+
+[ Module il1-30 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-30
+LowModules = l2-30
+
+[ Module dl1-31 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-31
+LowModules = l2-31
+
+[ Module il1-31 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-31
+LowModules = l2-31
+
+[ Module dl1-32 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-32
+LowModules = l2-32
+
+[ Module il1-32 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-32
+LowModules = l2-32
+
+[ Module dl1-33 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-33
+LowModules = l2-33
+
+[ Module il1-33 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-33
+LowModules = l2-33
+
+[ Module dl1-34 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-34
+LowModules = l2-34
+
+[ Module il1-34 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-34
+LowModules = l2-34
+
+[ Module dl1-35 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-35
+LowModules = l2-35
+
+[ Module il1-35 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-35
+LowModules = l2-35
+
+[ Module dl1-36 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-36
+LowModules = l2-36
+
+[ Module il1-36 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-36
+LowModules = l2-36
+
+[ Module dl1-37 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-37
+LowModules = l2-37
+
+[ Module il1-37 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-37
+LowModules = l2-37
+
+[ Module dl1-38 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-38
+LowModules = l2-38
+
+[ Module il1-38 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-38
+LowModules = l2-38
+
+[ Module dl1-39 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-39
+LowModules = l2-39
+
+[ Module il1-39 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-39
+LowModules = l2-39
+
+[ Module dl1-40 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-40
+LowModules = l2-40
+
+[ Module il1-40 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-40
+LowModules = l2-40
+
+[ Module dl1-41 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-41
+LowModules = l2-41
+
+[ Module il1-41 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-41
+LowModules = l2-41
+
+[ Module dl1-42 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-42
+LowModules = l2-42
+
+[ Module il1-42 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-42
+LowModules = l2-42
+
+[ Module dl1-43 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-43
+LowModules = l2-43
+
+[ Module il1-43 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-43
+LowModules = l2-43
+
+[ Module dl1-44 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-44
+LowModules = l2-44
+
+[ Module il1-44 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-44
+LowModules = l2-44
+
+[ Module dl1-45 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-45
+LowModules = l2-45
+
+[ Module il1-45 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-45
+LowModules = l2-45
+
+[ Module dl1-46 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-46
+LowModules = l2-46
+
+[ Module il1-46 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-46
+LowModules = l2-46
+
+[ Module dl1-47 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-47
+LowModules = l2-47
+
+[ Module il1-47 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-47
+LowModules = l2-47
+
+[ Module dl1-48 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-48
+LowModules = l2-48
+
+[ Module il1-48 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-48
+LowModules = l2-48
+
+[ Module dl1-49 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-49
+LowModules = l2-49
+
+[ Module il1-49 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-49
+LowModules = l2-49
+
+[ Module dl1-50 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-50
+LowModules = l2-50
+
+[ Module il1-50 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-50
+LowModules = l2-50
+
+[ Module dl1-51 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-51
+LowModules = l2-51
+
+[ Module il1-51 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-51
+LowModules = l2-51
+
+[ Module dl1-52 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-52
+LowModules = l2-52
+
+[ Module il1-52 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-52
+LowModules = l2-52
+
+[ Module dl1-53 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-53
+LowModules = l2-53
+
+[ Module il1-53 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-53
+LowModules = l2-53
+
+[ Module dl1-54 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-54
+LowModules = l2-54
+
+[ Module il1-54 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-54
+LowModules = l2-54
+
+[ Module dl1-55 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-55
+LowModules = l2-55
+
+[ Module il1-55 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-55
+LowModules = l2-55
+
+[ Module dl1-56 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-56
+LowModules = l2-56
+
+[ Module il1-56 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-56
+LowModules = l2-56
+
+[ Module dl1-57 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-57
+LowModules = l2-57
+
+[ Module il1-57 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-57
+LowModules = l2-57
+
+[ Module dl1-58 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-58
+LowModules = l2-58
+
+[ Module il1-58 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-58
+LowModules = l2-58
+
+[ Module dl1-59 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-59
+LowModules = l2-59
+
+[ Module il1-59 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-59
+LowModules = l2-59
+
+[ Module dl1-60 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-60
+LowModules = l2-60
+
+[ Module il1-60 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-60
+LowModules = l2-60
+
+[ Module dl1-61 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-61
+LowModules = l2-61
+
+[ Module il1-61 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-61
+LowModules = l2-61
+
+[ Module dl1-62 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-62
+LowModules = l2-62
+
+[ Module il1-62 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-62
+LowModules = l2-62
+
+[ Module dl1-63 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-63
+LowModules = l2-63
+
+[ Module il1-63 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-63
+LowModules = l2-63
+
+#
+# Level 2 Caches
+#
+[ Module l2-0 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-0
+LowNetwork = mesh
+LowNetworkNode = n0
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-1 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-1
+LowNetwork = mesh
+LowNetworkNode = n1
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-2 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-2
+LowNetwork = mesh
+LowNetworkNode = n2
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-3 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-3
+LowNetwork = mesh
+LowNetworkNode = n3
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-4 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-4
+LowNetwork = mesh
+LowNetworkNode = n4
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-5 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-5
+LowNetwork = mesh
+LowNetworkNode = n5
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-6 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-6
+LowNetwork = mesh
+LowNetworkNode = n6
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-7 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-7
+LowNetwork = mesh
+LowNetworkNode = n7
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-8 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-8
+LowNetwork = mesh
+LowNetworkNode = n8
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-9 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-9
+LowNetwork = mesh
+LowNetworkNode = n9
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-10 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-10
+LowNetwork = mesh
+LowNetworkNode = n10
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-11 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-11
+LowNetwork = mesh
+LowNetworkNode = n11
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-12 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-12
+LowNetwork = mesh
+LowNetworkNode = n12
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-13 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-13
+LowNetwork = mesh
+LowNetworkNode = n13
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-14 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-14
+LowNetwork = mesh
+LowNetworkNode = n14
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-15 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-15
+LowNetwork = mesh
+LowNetworkNode = n15
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-16 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-16
+LowNetwork = mesh
+LowNetworkNode = n16
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-17 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-17
+LowNetwork = mesh
+LowNetworkNode = n17
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-18 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-18
+LowNetwork = mesh
+LowNetworkNode = n18
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-19 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-19
+LowNetwork = mesh
+LowNetworkNode = n19
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-20 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-20
+LowNetwork = mesh
+LowNetworkNode = n20
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-21 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-21
+LowNetwork = mesh
+LowNetworkNode = n21
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-22 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-22
+LowNetwork = mesh
+LowNetworkNode = n22
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-23 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-23
+LowNetwork = mesh
+LowNetworkNode = n23
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-24 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-24
+LowNetwork = mesh
+LowNetworkNode = n24
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-25 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-25
+LowNetwork = mesh
+LowNetworkNode = n25
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-26 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-26
+LowNetwork = mesh
+LowNetworkNode = n26
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-27 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-27
+LowNetwork = mesh
+LowNetworkNode = n27
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-28 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-28
+LowNetwork = mesh
+LowNetworkNode = n28
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-29 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-29
+LowNetwork = mesh
+LowNetworkNode = n29
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-30 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-30
+LowNetwork = mesh
+LowNetworkNode = n30
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-31 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-31
+LowNetwork = mesh
+LowNetworkNode = n31
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-32 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-32
+LowNetwork = mesh
+LowNetworkNode = n32
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-33 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-33
+LowNetwork = mesh
+LowNetworkNode = n33
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-34 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-34
+LowNetwork = mesh
+LowNetworkNode = n34
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-35 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-35
+LowNetwork = mesh
+LowNetworkNode = n35
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-36 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-36
+LowNetwork = mesh
+LowNetworkNode = n36
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-37 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-37
+LowNetwork = mesh
+LowNetworkNode = n37
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-38 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-38
+LowNetwork = mesh
+LowNetworkNode = n38
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-39 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-39
+LowNetwork = mesh
+LowNetworkNode = n39
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-40 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-40
+LowNetwork = mesh
+LowNetworkNode = n40
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-41 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-41
+LowNetwork = mesh
+LowNetworkNode = n41
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-42 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-42
+LowNetwork = mesh
+LowNetworkNode = n42
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-43 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-43
+LowNetwork = mesh
+LowNetworkNode = n43
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-44 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-44
+LowNetwork = mesh
+LowNetworkNode = n44
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-45 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-45
+LowNetwork = mesh
+LowNetworkNode = n45
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-46 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-46
+LowNetwork = mesh
+LowNetworkNode = n46
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-47 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-47
+LowNetwork = mesh
+LowNetworkNode = n47
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-48 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-48
+LowNetwork = mesh
+LowNetworkNode = n48
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-49 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-49
+LowNetwork = mesh
+LowNetworkNode = n49
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-50 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-50
+LowNetwork = mesh
+LowNetworkNode = n50
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-51 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-51
+LowNetwork = mesh
+LowNetworkNode = n51
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-52 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-52
+LowNetwork = mesh
+LowNetworkNode = n52
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-53 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-53
+LowNetwork = mesh
+LowNetworkNode = n53
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-54 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-54
+LowNetwork = mesh
+LowNetworkNode = n54
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-55 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-55
+LowNetwork = mesh
+LowNetworkNode = n55
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-56 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-56
+LowNetwork = mesh
+LowNetworkNode = n56
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-57 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-57
+LowNetwork = mesh
+LowNetworkNode = n57
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-58 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-58
+LowNetwork = mesh
+LowNetworkNode = n58
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-59 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-59
+LowNetwork = mesh
+LowNetworkNode = n59
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-60 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-60
+LowNetwork = mesh
+LowNetworkNode = n60
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-61 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-61
+LowNetwork = mesh
+LowNetworkNode = n61
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-62 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-62
+LowNetwork = mesh
+LowNetworkNode = n62
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+[ Module l2-63 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-63
+LowNetwork = mesh
+LowNetworkNode = n63
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4 mod-mm-5 mod-mm-6 mod-mm-7 mod-mm-8 mod-mm-9 mod-mm-10 mod-mm-11 mod-mm-12 mod-mm-13 mod-mm-14 mod-mm-15 mod-mm-16
+
+#
+# Main memory
+#
+[ Module mod-mm-1 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n64
+Latency = 200
+BlockSize = 64
+Ranks = 1
+Banks = 4
+RowSize = 1024
+Channels = 2
+CyclesSendRequest = 1
+CyclesRowBufferHit = 33
+CyclesRowBufferMiss = 100
+Bandwith = 16
+CyclesProcByCyclesBus = 3
+Threshold= 100000
+PolicyMCQueues = PrefetchNormalQueue
+Coalesce = Disabled
+PriorityMCQueues = Threshold-RowBufferHit-FCFS
+QueuePerBank = 1
+SizeQueue = 128
+MemoryControllerEnabled = 1
+AddressRange = ADDR DIV 1024 MOD 16 EQ 0
+
+[ Module mod-mm-2 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n65
+Latency = 200
+BlockSize = 64
+Ranks = 1
+Banks = 4
+RowSize = 1024
+Channels = 2
+CyclesSendRequest = 1
+CyclesRowBufferHit = 33
+CyclesRowBufferMiss = 100
+Bandwith = 16
+CyclesProcByCyclesBus = 3
+Threshold= 100000
+PolicyMCQueues = PrefetchNormalQueue
+Coalesce = Disabled
+PriorityMCQueues = Threshold-RowBufferHit-FCFS
+QueuePerBank = 1
+SizeQueue = 128
+MemoryControllerEnabled = 1
+AddressRange = ADDR DIV 1024 MOD 16 EQ 1
+
+[ Module mod-mm-3 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n66
+Latency = 200
+BlockSize = 64
+Ranks = 1
+Banks = 4
+RowSize = 1024
+Channels = 2
+CyclesSendRequest = 1
+CyclesRowBufferHit = 33
+CyclesRowBufferMiss = 100
+Bandwith = 16
+CyclesProcByCyclesBus = 3
+Threshold= 100000
+PolicyMCQueues = PrefetchNormalQueue
+Coalesce = Disabled
+PriorityMCQueues = Threshold-RowBufferHit-FCFS
+QueuePerBank = 1
+SizeQueue = 128
+MemoryControllerEnabled = 1
+AddressRange = ADDR DIV 1024 MOD 16 EQ 2
+
+[ Module mod-mm-4 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n67
+Latency = 200
+BlockSize = 64
+Ranks = 1
+Banks = 4
+RowSize = 1024
+Channels = 2
+CyclesSendRequest = 1
+CyclesRowBufferHit = 33
+CyclesRowBufferMiss = 100
+Bandwith = 16
+CyclesProcByCyclesBus = 3
+Threshold= 100000
+PolicyMCQueues = PrefetchNormalQueue
+Coalesce = Disabled
+PriorityMCQueues = Threshold-RowBufferHit-FCFS
+QueuePerBank = 1
+SizeQueue = 128
+MemoryControllerEnabled = 1
+AddressRange = ADDR DIV 1024 MOD 16 EQ 3
+
+[ Module mod-mm-5 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n68
+Latency = 200
+BlockSize = 64
+Ranks = 1
+Banks = 4
+RowSize = 1024
+Channels = 2
+CyclesSendRequest = 1
+CyclesRowBufferHit = 33
+CyclesRowBufferMiss = 100
+Bandwith = 16
+CyclesProcByCyclesBus = 3
+Threshold= 100000
+PolicyMCQueues = PrefetchNormalQueue
+Coalesce = Disabled
+PriorityMCQueues = Threshold-RowBufferHit-FCFS
+QueuePerBank = 1
+SizeQueue = 128
+MemoryControllerEnabled = 1
+AddressRange = ADDR DIV 1024 MOD 16 EQ 4
+
+[ Module mod-mm-6 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n69
+Latency = 200
+BlockSize = 64
+Ranks = 1
+Banks = 4
+RowSize = 1024
+Channels = 2
+CyclesSendRequest = 1
+CyclesRowBufferHit = 33
+CyclesRowBufferMiss = 100
+Bandwith = 16
+CyclesProcByCyclesBus = 3
+Threshold= 100000
+PolicyMCQueues = PrefetchNormalQueue
+Coalesce = Disabled
+PriorityMCQueues = Threshold-RowBufferHit-FCFS
+QueuePerBank = 1
+SizeQueue = 128
+MemoryControllerEnabled = 1
+AddressRange = ADDR DIV 1024 MOD 16 EQ 5
+
+[ Module mod-mm-7 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n70
+Latency = 200
+BlockSize = 64
+Ranks = 1
+Banks = 4
+RowSize = 1024
+Channels = 2
+CyclesSendRequest = 1
+CyclesRowBufferHit = 33
+CyclesRowBufferMiss = 100
+Bandwith = 16
+CyclesProcByCyclesBus = 3
+Threshold= 100000
+PolicyMCQueues = PrefetchNormalQueue
+Coalesce = Disabled
+PriorityMCQueues = Threshold-RowBufferHit-FCFS
+QueuePerBank = 1
+SizeQueue = 128
+MemoryControllerEnabled = 1
+AddressRange = ADDR DIV 1024 MOD 16 EQ 6
+
+[ Module mod-mm-8 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n71
+Latency = 200
+BlockSize = 64
+Ranks = 1
+Banks = 4
+RowSize = 1024
+Channels = 2
+CyclesSendRequest = 1
+CyclesRowBufferHit = 33
+CyclesRowBufferMiss = 100
+Bandwith = 16
+CyclesProcByCyclesBus = 3
+Threshold= 100000
+PolicyMCQueues = PrefetchNormalQueue
+Coalesce = Disabled
+PriorityMCQueues = Threshold-RowBufferHit-FCFS
+QueuePerBank = 1
+SizeQueue = 128
+MemoryControllerEnabled = 1
+AddressRange = ADDR DIV 1024 MOD 16 EQ 7
+
+[ Module mod-mm-9 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n72
+Latency = 200
+BlockSize = 64
+Ranks = 1
+Banks = 4
+RowSize = 1024
+Channels = 2
+CyclesSendRequest = 1
+CyclesRowBufferHit = 33
+CyclesRowBufferMiss = 100
+Bandwith = 16
+CyclesProcByCyclesBus = 3
+Threshold= 100000
+PolicyMCQueues = PrefetchNormalQueue
+Coalesce = Disabled
+PriorityMCQueues = Threshold-RowBufferHit-FCFS
+QueuePerBank = 1
+SizeQueue = 128
+MemoryControllerEnabled = 1
+AddressRange = ADDR DIV 1024 MOD 16 EQ 8
+
+[ Module mod-mm-10 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n73
+Latency = 200
+BlockSize = 64
+Ranks = 1
+Banks = 4
+RowSize = 1024
+Channels = 2
+CyclesSendRequest = 1
+CyclesRowBufferHit = 33
+CyclesRowBufferMiss = 100
+Bandwith = 16
+CyclesProcByCyclesBus = 3
+Threshold= 100000
+PolicyMCQueues = PrefetchNormalQueue
+Coalesce = Disabled
+PriorityMCQueues = Threshold-RowBufferHit-FCFS
+QueuePerBank = 1
+SizeQueue = 128
+MemoryControllerEnabled = 1
+AddressRange = ADDR DIV 1024 MOD 16 EQ 9
+
+[ Module mod-mm-11 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n74
+Latency = 200
+BlockSize = 64
+Ranks = 1
+Banks = 4
+RowSize = 1024
+Channels = 2
+CyclesSendRequest = 1
+CyclesRowBufferHit = 33
+CyclesRowBufferMiss = 100
+Bandwith = 16
+CyclesProcByCyclesBus = 3
+Threshold= 100000
+PolicyMCQueues = PrefetchNormalQueue
+Coalesce = Disabled
+PriorityMCQueues = Threshold-RowBufferHit-FCFS
+QueuePerBank = 1
+SizeQueue = 128
+MemoryControllerEnabled = 1
+AddressRange = ADDR DIV 1024 MOD 16 EQ 10
+
+[ Module mod-mm-12 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n75
+Latency = 200
+BlockSize = 64
+Ranks = 1
+Banks = 4
+RowSize = 1024
+Channels = 2
+CyclesSendRequest = 1
+CyclesRowBufferHit = 33
+CyclesRowBufferMiss = 100
+Bandwith = 16
+CyclesProcByCyclesBus = 3
+Threshold= 100000
+PolicyMCQueues = PrefetchNormalQueue
+Coalesce = Disabled
+PriorityMCQueues = Threshold-RowBufferHit-FCFS
+QueuePerBank = 1
+SizeQueue = 128
+MemoryControllerEnabled = 1
+AddressRange = ADDR DIV 1024 MOD 16 EQ 11
+
+[ Module mod-mm-13 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n76
+Latency = 200
+BlockSize = 64
+Ranks = 1
+Banks = 4
+RowSize = 1024
+Channels = 2
+CyclesSendRequest = 1
+CyclesRowBufferHit = 33
+CyclesRowBufferMiss = 100
+Bandwith = 16
+CyclesProcByCyclesBus = 3
+Threshold= 100000
+PolicyMCQueues = PrefetchNormalQueue
+Coalesce = Disabled
+PriorityMCQueues = Threshold-RowBufferHit-FCFS
+QueuePerBank = 1
+SizeQueue = 128
+MemoryControllerEnabled = 1
+AddressRange = ADDR DIV 1024 MOD 16 EQ 12
+
+[ Module mod-mm-14 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n77
+Latency = 200
+BlockSize = 64
+Ranks = 1
+Banks = 4
+RowSize = 1024
+Channels = 2
+CyclesSendRequest = 1
+CyclesRowBufferHit = 33
+CyclesRowBufferMiss = 100
+Bandwith = 16
+CyclesProcByCyclesBus = 3
+Threshold= 100000
+PolicyMCQueues = PrefetchNormalQueue
+Coalesce = Disabled
+PriorityMCQueues = Threshold-RowBufferHit-FCFS
+QueuePerBank = 1
+SizeQueue = 128
+MemoryControllerEnabled = 1
+AddressRange = ADDR DIV 1024 MOD 16 EQ 13
+
+[ Module mod-mm-15 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n78
+Latency = 200
+BlockSize = 64
+Ranks = 1
+Banks = 4
+RowSize = 1024
+Channels = 2
+CyclesSendRequest = 1
+CyclesRowBufferHit = 33
+CyclesRowBufferMiss = 100
+Bandwith = 16
+CyclesProcByCyclesBus = 3
+Threshold= 100000
+PolicyMCQueues = PrefetchNormalQueue
+Coalesce = Disabled
+PriorityMCQueues = Threshold-RowBufferHit-FCFS
+QueuePerBank = 1
+SizeQueue = 128
+MemoryControllerEnabled = 1
+AddressRange = ADDR DIV 1024 MOD 16 EQ 14
+
+[ Module mod-mm-16 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n79
+Latency = 200
+BlockSize = 64
+Ranks = 1
+Banks = 4
+RowSize = 1024
+Channels = 2
+CyclesSendRequest = 1
+CyclesRowBufferHit = 33
+CyclesRowBufferMiss = 100
+Bandwith = 16
+CyclesProcByCyclesBus = 3
+Threshold= 100000
+PolicyMCQueues = PrefetchNormalQueue
+Coalesce = Disabled
+PriorityMCQueues = Threshold-RowBufferHit-FCFS
+QueuePerBank = 1
+SizeQueue = 128
+MemoryControllerEnabled = 1
+AddressRange = ADDR DIV 1024 MOD 16 EQ 15
+#
+# Nodes
+#
+[ Entry core-0 ]
+Type = CPU
+Core = 0
+Thread = 0
+InstModule = il1-0
+DataModule = dl1-0
+
+[ Entry core-1 ]
+Type = CPU
+Core = 1
+Thread = 0
+InstModule = il1-1
+DataModule = dl1-1
+
+[ Entry core-2 ]
+Type = CPU
+Core = 2
+Thread = 0
+InstModule = il1-2
+DataModule = dl1-2
+
+[ Entry core-3 ]
+Type = CPU
+Core = 3
+Thread = 0
+InstModule = il1-3
+DataModule = dl1-3
+
+[ Entry core-4 ]
+Type = CPU
+Core = 4
+Thread = 0
+InstModule = il1-4
+DataModule = dl1-4
+
+[ Entry core-5 ]
+Type = CPU
+Core = 5
+Thread = 0
+InstModule = il1-5
+DataModule = dl1-5
+
+[ Entry core-6 ]
+Type = CPU
+Core = 6
+Thread = 0
+InstModule = il1-6
+DataModule = dl1-6
+
+[ Entry core-7 ]
+Type = CPU
+Core = 7
+Thread = 0
+InstModule = il1-7
+DataModule = dl1-7
+
+[ Entry core-8 ]
+Type = CPU
+Core = 8
+Thread = 0
+InstModule = il1-8
+DataModule = dl1-8
+
+[ Entry core-9 ]
+Type = CPU
+Core = 9
+Thread = 0
+InstModule = il1-9
+DataModule = dl1-9
+
+[ Entry core-10 ]
+Type = CPU
+Core = 10
+Thread = 0
+InstModule = il1-10
+DataModule = dl1-10
+
+[ Entry core-11 ]
+Type = CPU
+Core = 11
+Thread = 0
+InstModule = il1-11
+DataModule = dl1-11
+
+[ Entry core-12 ]
+Type = CPU
+Core = 12
+Thread = 0
+InstModule = il1-12
+DataModule = dl1-12
+
+[ Entry core-13 ]
+Type = CPU
+Core = 13
+Thread = 0
+InstModule = il1-13
+DataModule = dl1-13
+
+[ Entry core-14 ]
+Type = CPU
+Core = 14
+Thread = 0
+InstModule = il1-14
+DataModule = dl1-14
+
+[ Entry core-15 ]
+Type = CPU
+Core = 15
+Thread = 0
+InstModule = il1-15
+DataModule = dl1-15
+
+[ Entry core-16 ]
+Type = CPU
+Core = 16
+Thread = 0
+InstModule = il1-16
+DataModule = dl1-16
+
+[ Entry core-17 ]
+Type = CPU
+Core = 17
+Thread = 0
+InstModule = il1-17
+DataModule = dl1-17
+
+[ Entry core-18 ]
+Type = CPU
+Core = 18
+Thread = 0
+InstModule = il1-18
+DataModule = dl1-18
+
+[ Entry core-19 ]
+Type = CPU
+Core = 19
+Thread = 0
+InstModule = il1-19
+DataModule = dl1-19
+
+[ Entry core-20 ]
+Type = CPU
+Core = 20
+Thread = 0
+InstModule = il1-20
+DataModule = dl1-20
+
+[ Entry core-21 ]
+Type = CPU
+Core = 21
+Thread = 0
+InstModule = il1-21
+DataModule = dl1-21
+
+[ Entry core-22 ]
+Type = CPU
+Core = 22
+Thread = 0
+InstModule = il1-22
+DataModule = dl1-22
+
+[ Entry core-23 ]
+Type = CPU
+Core = 23
+Thread = 0
+InstModule = il1-23
+DataModule = dl1-23
+
+[ Entry core-24 ]
+Type = CPU
+Core = 24
+Thread = 0
+InstModule = il1-24
+DataModule = dl1-24
+
+[ Entry core-25 ]
+Type = CPU
+Core = 25
+Thread = 0
+InstModule = il1-25
+DataModule = dl1-25
+
+[ Entry core-26 ]
+Type = CPU
+Core = 26
+Thread = 0
+InstModule = il1-26
+DataModule = dl1-26
+
+[ Entry core-27 ]
+Type = CPU
+Core = 27
+Thread = 0
+InstModule = il1-27
+DataModule = dl1-27
+
+[ Entry core-28 ]
+Type = CPU
+Core = 28
+Thread = 0
+InstModule = il1-28
+DataModule = dl1-28
+
+[ Entry core-29 ]
+Type = CPU
+Core = 29
+Thread = 0
+InstModule = il1-29
+DataModule = dl1-29
+
+[ Entry core-30 ]
+Type = CPU
+Core = 30
+Thread = 0
+InstModule = il1-30
+DataModule = dl1-30
+
+[ Entry core-31 ]
+Type = CPU
+Core = 31
+Thread = 0
+InstModule = il1-31
+DataModule = dl1-31
+
+[ Entry core-32 ]
+Type = CPU
+Core = 32
+Thread = 0
+InstModule = il1-32
+DataModule = dl1-32
+
+[ Entry core-33 ]
+Type = CPU
+Core = 33
+Thread = 0
+InstModule = il1-33
+DataModule = dl1-33
+
+[ Entry core-34 ]
+Type = CPU
+Core = 34
+Thread = 0
+InstModule = il1-34
+DataModule = dl1-34
+
+[ Entry core-35 ]
+Type = CPU
+Core = 35
+Thread = 0
+InstModule = il1-35
+DataModule = dl1-35
+
+[ Entry core-36 ]
+Type = CPU
+Core = 36
+Thread = 0
+InstModule = il1-36
+DataModule = dl1-36
+
+[ Entry core-37 ]
+Type = CPU
+Core = 37
+Thread = 0
+InstModule = il1-37
+DataModule = dl1-37
+
+[ Entry core-38 ]
+Type = CPU
+Core = 38
+Thread = 0
+InstModule = il1-38
+DataModule = dl1-38
+
+[ Entry core-39 ]
+Type = CPU
+Core = 39
+Thread = 0
+InstModule = il1-39
+DataModule = dl1-39
+
+[ Entry core-40 ]
+Type = CPU
+Core = 40
+Thread = 0
+InstModule = il1-40
+DataModule = dl1-40
+
+[ Entry core-41 ]
+Type = CPU
+Core = 41
+Thread = 0
+InstModule = il1-41
+DataModule = dl1-41
+
+[ Entry core-42 ]
+Type = CPU
+Core = 42
+Thread = 0
+InstModule = il1-42
+DataModule = dl1-42
+
+[ Entry core-43 ]
+Type = CPU
+Core = 43
+Thread = 0
+InstModule = il1-43
+DataModule = dl1-43
+
+[ Entry core-44 ]
+Type = CPU
+Core = 44
+Thread = 0
+InstModule = il1-44
+DataModule = dl1-44
+
+[ Entry core-45 ]
+Type = CPU
+Core = 45
+Thread = 0
+InstModule = il1-45
+DataModule = dl1-45
+
+[ Entry core-46 ]
+Type = CPU
+Core = 46
+Thread = 0
+InstModule = il1-46
+DataModule = dl1-46
+
+[ Entry core-47 ]
+Type = CPU
+Core = 47
+Thread = 0
+InstModule = il1-47
+DataModule = dl1-47
+
+[ Entry core-48 ]
+Type = CPU
+Core = 48
+Thread = 0
+InstModule = il1-48
+DataModule = dl1-48
+
+[ Entry core-49 ]
+Type = CPU
+Core = 49
+Thread = 0
+InstModule = il1-49
+DataModule = dl1-49
+
+[ Entry core-50 ]
+Type = CPU
+Core = 50
+Thread = 0
+InstModule = il1-50
+DataModule = dl1-50
+
+[ Entry core-51 ]
+Type = CPU
+Core = 51
+Thread = 0
+InstModule = il1-51
+DataModule = dl1-51
+
+[ Entry core-52 ]
+Type = CPU
+Core = 52
+Thread = 0
+InstModule = il1-52
+DataModule = dl1-52
+
+[ Entry core-53 ]
+Type = CPU
+Core = 53
+Thread = 0
+InstModule = il1-53
+DataModule = dl1-53
+
+[ Entry core-54 ]
+Type = CPU
+Core = 54
+Thread = 0
+InstModule = il1-54
+DataModule = dl1-54
+
+[ Entry core-55 ]
+Type = CPU
+Core = 55
+Thread = 0
+InstModule = il1-55
+DataModule = dl1-55
+
+[ Entry core-56 ]
+Type = CPU
+Core = 56
+Thread = 0
+InstModule = il1-56
+DataModule = dl1-56
+
+[ Entry core-57 ]
+Type = CPU
+Core = 57
+Thread = 0
+InstModule = il1-57
+DataModule = dl1-57
+
+[ Entry core-58 ]
+Type = CPU
+Core = 58
+Thread = 0
+InstModule = il1-58
+DataModule = dl1-58
+
+[ Entry core-59 ]
+Type = CPU
+Core = 59
+Thread = 0
+InstModule = il1-59
+DataModule = dl1-59
+
+[ Entry core-60 ]
+Type = CPU
+Core = 60
+Thread = 0
+InstModule = il1-60
+DataModule = dl1-60
+
+[ Entry core-61 ]
+Type = CPU
+Core = 61
+Thread = 0
+InstModule = il1-61
+DataModule = dl1-61
+
+[ Entry core-62 ]
+Type = CPU
+Core = 62
+Thread = 0
+InstModule = il1-62
+DataModule = dl1-62
+
+[ Entry core-63 ]
+Type = CPU
+Core = 63
+Thread = 0
+InstModule = il1-63
+DataModule = dl1-63
+
+#
+# Interconnects
+#
+[ Network net-0 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-1 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-2 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-3 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-4 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-5 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-6 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-7 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-8 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-9 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-10 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-11 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-12 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-13 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-14 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-15 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-16 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-17 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-18 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-19 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-20 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-21 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-22 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-23 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-24 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-25 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-26 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-27 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-28 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-29 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-30 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-31 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-32 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-33 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-34 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-35 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-36 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-37 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-38 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-39 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-40 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-41 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-42 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-43 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-44 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-45 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-46 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-47 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-48 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-49 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-50 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-51 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-52 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-53 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-54 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-55 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-56 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-57 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-58 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-59 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-60 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-61 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-62 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-63 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+

@@ -1,0 +1,234 @@
+;Report for channels, banks, ranks and row buffer
+;    AvgTimeAccesMM- Average time per access to acces to MM, depends of row buffer hit/miss and time to send a request 
+;    AvgTimeWaitMCQueue- Average time waiting per access to acces to main memory in mem controller queue 
+;    AvgTimeTransferFromMM- Average time per access to transfer a block from MM, including acces channel delay
+;    Conflicts - Total number of attempts to acces to bank when this bank is busy
+;    AvgTimeWaitRequestSend - Average Cycles per access waiting until channel and bank are free and request can be sent to MM
+;    AvgTimeWaitRequestTransfer - Average Cycles per access waiting until channel is free and block can be transfered from MM
+;    AvgTimeRequestTransfer - Average Cycles per access which is needed to transfer a block to MC from MM
+;    AvgTimeWaitBankBusy- Average time which the bank is being accessed and requests have to wait 
+;    AvgTimeWaitequestSendChannelBusy- Average time per access waiting until channel is free 
+;    RowBufferHitPercent- Percent of accesses which hit in row buffer bank 
+;    AvgNumRequest - Average number of requests inside a queue every cycle 
+;    TimeFullPercent - Percent of time which queue is full 
+
+
+[MAIN MEMORY]
+TotalTime = 0.000000
+AvgTimeWaitMCQueue = 0.000000
+AvgTimeAccesMM = 0.000000
+AvgTimeTransferFromMM = 0.000000
+TotalAccessesMC = 0
+TotalTimeNormal = 0.000000
+AvgTimeNormalWaitMCQueueN = 0.000000
+AvgTimeNormalAccesMM = 0.000000
+AvgTimeNormalTransferFromMM = 0.000000
+TotalNormalAccessesMC = 0
+TotalTimePrefetch = 0.000000
+AvgTimePrefetchWaitMCQueueN = 0.000000
+AvgTimePrefetchAccesMM = 0.000000
+AvgTimePrefetchTransferFromMM = 0.000000
+TotalPrefetchAccessesMC = 0
+
+
+[Channel 0]
+RowBufferHitPercent = 0.000000
+AvgTimeWaitRequestSend = 0.000000
+AvgTimeWaitRequestSendChannelBusy = 0.000000
+AvgTimeWaitRequestTransfer = 0.000000
+AvgTimeRequestTransfer = 0.000000
+
+NormalRowBufferHitPercent = 0.000000
+AvgTimeNormalWaitRequestSend = 0.000000
+AvgTimeNormalWaitRequestSendChannelBusy = 0.000000
+AvgTimeNormalWaitRequestTransfer = 0.000000
+PrefetchRowBufferHitPercent = 0.000000
+AvgTimePrefetchWaitRequestSend = 0.000000
+AvgTimePrefetchWaitRequestSendChannelBusy = 0.000000
+AvgTimePrefetchWaitRequestTransfer = 0.000000
+[Rank 0  (Channel 0)]
+RowBufferHitPercent = 0.000000
+NormalRowBufferHitPercent = 0.000000
+PrefetchRowBufferHitPercent = 0.000000
+ParallelismPercent = 0.000000
+
+[Bank 0  (Rank 0 Channel 0)]
+RowBufferHitPercent = 0.000000
+NormalRowBufferHitPercent = 0.000000
+PrefetchRowBufferHitPercent = 0.000000
+ParallelismPercent = 0.000000
+Conflicts = 0
+AvgTimeWaitBankBusy = 0.000000
+
+AvgTimeNormalWaitBankBusy = 0.000000
+
+AvgTimePrefetchWaitBankBusy = 0.000000
+
+[Bank 1  (Rank 0 Channel 0)]
+RowBufferHitPercent = 0.000000
+NormalRowBufferHitPercent = 0.000000
+PrefetchRowBufferHitPercent = 0.000000
+ParallelismPercent = 0.000000
+Conflicts = 0
+AvgTimeWaitBankBusy = 0.000000
+
+AvgTimeNormalWaitBankBusy = 0.000000
+
+AvgTimePrefetchWaitBankBusy = 0.000000
+
+[Bank 2  (Rank 0 Channel 0)]
+RowBufferHitPercent = 0.000000
+NormalRowBufferHitPercent = 0.000000
+PrefetchRowBufferHitPercent = 0.000000
+ParallelismPercent = 0.000000
+Conflicts = 0
+AvgTimeWaitBankBusy = 0.000000
+
+AvgTimeNormalWaitBankBusy = 0.000000
+
+AvgTimePrefetchWaitBankBusy = 0.000000
+
+[Bank 3  (Rank 0 Channel 0)]
+RowBufferHitPercent = 0.000000
+NormalRowBufferHitPercent = 0.000000
+PrefetchRowBufferHitPercent = 0.000000
+ParallelismPercent = 0.000000
+Conflicts = 0
+AvgTimeWaitBankBusy = 0.000000
+
+AvgTimeNormalWaitBankBusy = 0.000000
+
+AvgTimePrefetchWaitBankBusy = 0.000000
+
+[Bank 4  (Rank 0 Channel 0)]
+RowBufferHitPercent = 0.000000
+NormalRowBufferHitPercent = 0.000000
+PrefetchRowBufferHitPercent = 0.000000
+ParallelismPercent = 0.000000
+Conflicts = 0
+AvgTimeWaitBankBusy = 0.000000
+
+AvgTimeNormalWaitBankBusy = 0.000000
+
+AvgTimePrefetchWaitBankBusy = 0.000000
+
+[Bank 5  (Rank 0 Channel 0)]
+RowBufferHitPercent = 0.000000
+NormalRowBufferHitPercent = 0.000000
+PrefetchRowBufferHitPercent = 0.000000
+ParallelismPercent = 0.000000
+Conflicts = 0
+AvgTimeWaitBankBusy = 0.000000
+
+AvgTimeNormalWaitBankBusy = 0.000000
+
+AvgTimePrefetchWaitBankBusy = 0.000000
+
+[Bank 6  (Rank 0 Channel 0)]
+RowBufferHitPercent = 0.000000
+NormalRowBufferHitPercent = 0.000000
+PrefetchRowBufferHitPercent = 0.000000
+ParallelismPercent = 0.000000
+Conflicts = 0
+AvgTimeWaitBankBusy = 0.000000
+
+AvgTimeNormalWaitBankBusy = 0.000000
+
+AvgTimePrefetchWaitBankBusy = 0.000000
+
+[Bank 7  (Rank 0 Channel 0)]
+RowBufferHitPercent = 0.000000
+NormalRowBufferHitPercent = 0.000000
+PrefetchRowBufferHitPercent = 0.000000
+ParallelismPercent = 0.000000
+Conflicts = 0
+AvgTimeWaitBankBusy = 0.000000
+
+AvgTimeNormalWaitBankBusy = 0.000000
+
+AvgTimePrefetchWaitBankBusy = 0.000000
+
+
+[QUEUES MEMORY CONTROLLER]
+
+[Normal Queue 0]
+AvgNumRequests = 0.000000
+TimeFullPercent = 0.000000
+TimeResponse = 0.000000
+
+ [Prefetch Queue 0]
+AvgNumRequests = 0.000000
+TimeFullPercent = 0.000000
+TimeResponse = 0.000000
+
+ [Normal Queue 1]
+AvgNumRequests = 0.000000
+TimeFullPercent = 0.000000
+TimeResponse = 0.000000
+
+ [Prefetch Queue 1]
+AvgNumRequests = 0.000000
+TimeFullPercent = 0.000000
+TimeResponse = 0.000000
+
+ [Normal Queue 2]
+AvgNumRequests = 0.000000
+TimeFullPercent = 0.000000
+TimeResponse = 0.000000
+
+ [Prefetch Queue 2]
+AvgNumRequests = 0.000000
+TimeFullPercent = 0.000000
+TimeResponse = 0.000000
+
+ [Normal Queue 3]
+AvgNumRequests = 0.000000
+TimeFullPercent = 0.000000
+TimeResponse = 0.000000
+
+ [Prefetch Queue 3]
+AvgNumRequests = 0.000000
+TimeFullPercent = 0.000000
+TimeResponse = 0.000000
+
+ [Normal Queue 4]
+AvgNumRequests = 0.000000
+TimeFullPercent = 0.000000
+TimeResponse = 0.000000
+
+ [Prefetch Queue 4]
+AvgNumRequests = 0.000000
+TimeFullPercent = 0.000000
+TimeResponse = 0.000000
+
+ [Normal Queue 5]
+AvgNumRequests = 0.000000
+TimeFullPercent = 0.000000
+TimeResponse = 0.000000
+
+ [Prefetch Queue 5]
+AvgNumRequests = 0.000000
+TimeFullPercent = 0.000000
+TimeResponse = 0.000000
+
+ [Normal Queue 6]
+AvgNumRequests = 0.000000
+TimeFullPercent = 0.000000
+TimeResponse = 0.000000
+
+ [Prefetch Queue 6]
+AvgNumRequests = 0.000000
+TimeFullPercent = 0.000000
+TimeResponse = 0.000000
+
+ [Normal Queue 7]
+AvgNumRequests = 0.000000
+TimeFullPercent = 0.000000
+TimeResponse = 0.000000
+
+ [Prefetch Queue 7]
+AvgNumRequests = 0.000000
+TimeFullPercent = 0.000000
+TimeResponse = 0.000000
+
+ 

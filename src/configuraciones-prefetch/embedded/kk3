@@ -1,0 +1,4 @@
+[ Network.mesh.Link.n80s2 ]
+  Source = n80
+  Dest = s2
+  Type = Bidirectional

@@ -1,0 +1,310 @@
+Universe       = vanilla
+Executable     = ./m2s
++GPBatchJob                 = true
++LongRunningJob             = true
+Arguments = --x86-sim detailed --x86-report results/JSA/1cores_1mc_2ways_2channels_8B/ocean_cpu --net-report results/JSA/1cores_1mc_2ways_2channels_8B/ocean_net --mem-report results/JSA/1cores_1mc_2ways_2channels_8B/ocean_mem --net-report results/JSA/1cores_1mc_2ways_2channels_8B/ocean_net --mem-config configuraciones-prefetch/embedded/memconfig-1core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.1core.2ways --net-config configuraciones-prefetch/embedded/cpuconfig.1core.2ways benchmarks/splash2/ocean/ocean.i386 -n130 -p8 -e1e-07 -r20000 -t28800
+Error = results/JSA/1cores_1mc_2ways_2channels_8B/ocean_simul
+log = results/JSA/1cores_1mc_2ways_2channels_8B/ocean_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/1cores_1mc_2ways_2channels_8B/cholesky_cpu --net-report results/JSA/1cores_1mc_2ways_2channels_8B/cholesky_net --mem-report results/JSA/1cores_1mc_2ways_2channels_8B/cholesky_mem --net-report results/JSA/1cores_1mc_2ways_2channels_8B/cholesky_net --mem-config configuraciones-prefetch/embedded/memconfig-1core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.1core.2ways --net-config configuraciones-prefetch/embedded/netconfig-8B-1cores-1mc benchmarks/splash2/cholesky/cholesky.i386 -p8 -C65536
+Error = results/JSA/1cores_1mc_2ways_2channels_8B/cholesky_simul
+log = results/JSA/1cores_1mc_2ways_2channels_8B/cholesky_simul.log
+Input = benchmarks/splash2/cholesky/tk15.O
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/1cores_1mc_2ways_2channels_8B/fft_cpu --net-report results/JSA/1cores_1mc_2ways_2channels_8B/fft_net --mem-report results/JSA/1cores_1mc_2ways_2channels_8B/fft_mem --net-report results/JSA/1cores_1mc_2ways_2channels_8B/fft_net --mem-config configuraciones-prefetch/embeddedconfiguraciones-prefetch/embedded/memconfig-1core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.1core.2ways --net-config configuraciones-prefetch/embedded/cpuconfig.1core.2ways benchmarks/splash2/fft/fft.i386 -m16 -p8 -n1024 -l6 -s -t
+Error = results/JSA/1cores_1mc_2ways_2channels_8B/fft_simul
+log = results/JSA/1cores_1mc_2ways_2channels_8B/fft_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/1cores_1mc_2ways_2channels_8B/radix_cpu --net-report results/JSA/1cores_1mc_2ways_2channels_8B/radix_net --mem-report results/JSA/1cores_1mc_2ways_2channels_8B/radix_mem --net-report results/JSA/1cores_1mc_2ways_2channels_8B/radix_net --mem-config configuraciones-prefetch/embedded/memconfig-1core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.1core.2ways --net-config configuraciones-prefetch/embedded/netconfig-8B-1cores-1mc benchmarks/splash2/radix/radix.i386 -n524288 -p8
+Error = results/JSA/1cores_1mc_2ways_2channels_8B/radix_simul
+log = results/JSA/1cores_1mc_2ways_2channels_8B/radix_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/1cores_1mc_4ways_2channels_8B/ocean_cpu --net-report results/JSA/1cores_1mc_4ways_2channels_8B/ocean_net --mem-report results/JSA/1cores_1mc_4ways_2channels_8B/ocean_mem --net-report results/JSA/1cores_1mc_4ways_2channels_8B/ocean_net --mem-config configuraciones-prefetch/embedded/memconfig-1core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.1core.4ways --net-config configuraciones-prefetch/embedded/cpuconfig.1core.4ways benchmarks/splash2/ocean/ocean.i386 -n130 -p8 -e1e-07 -r20000 -t28800
+Error = results/JSA/1cores_1mc_4ways_2channels_8B/ocean_simul
+log = results/JSA/1cores_1mc_4ways_2channels_8B/ocean_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/1cores_1mc_4ways_2channels_8B/cholesky_cpu --net-report results/JSA/1cores_1mc_4ways_2channels_8B/cholesky_net --mem-report results/JSA/1cores_1mc_4ways_2channels_8B/cholesky_mem --net-report results/JSA/1cores_1mc_4ways_2channels_8B/cholesky_net --mem-config configuraciones-prefetch/embedded/memconfig-1core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.1core.4ways --net-config configuraciones-prefetch/embedded/netconfig-8B-1cores-1mc benchmarks/splash2/cholesky/cholesky.i386 -p8 -C65536
+Error = results/JSA/1cores_1mc_4ways_2channels_8B/cholesky_simul
+log = results/JSA/1cores_1mc_4ways_2channels_8B/cholesky_simul.log
+Input = benchmarks/splash2/cholesky/tk15.O
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/1cores_1mc_4ways_2channels_8B/fft_cpu --net-report results/JSA/1cores_1mc_4ways_2channels_8B/fft_net --mem-report results/JSA/1cores_1mc_4ways_2channels_8B/fft_mem --net-report results/JSA/1cores_1mc_4ways_2channels_8B/fft_net --mem-config configuraciones-prefetch/embeddedconfiguraciones-prefetch/embedded/memconfig-1core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.1core.4ways --net-config configuraciones-prefetch/embedded/cpuconfig.1core.4ways benchmarks/splash2/fft/fft.i386 -m16 -p8 -n1024 -l6 -s -t
+Error = results/JSA/1cores_1mc_4ways_2channels_8B/fft_simul
+log = results/JSA/1cores_1mc_4ways_2channels_8B/fft_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/1cores_1mc_4ways_2channels_8B/radix_cpu --net-report results/JSA/1cores_1mc_4ways_2channels_8B/radix_net --mem-report results/JSA/1cores_1mc_4ways_2channels_8B/radix_mem --net-report results/JSA/1cores_1mc_4ways_2channels_8B/radix_net --mem-config configuraciones-prefetch/embedded/memconfig-1core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.1core.4ways --net-config configuraciones-prefetch/embedded/netconfig-8B-1cores-1mc benchmarks/splash2/radix/radix.i386 -n524288 -p8
+Error = results/JSA/1cores_1mc_4ways_2channels_8B/radix_simul
+log = results/JSA/1cores_1mc_4ways_2channels_8B/radix_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/1cores_1mc_8ways_2channels_8B/ocean_cpu --net-report results/JSA/1cores_1mc_8ways_2channels_8B/ocean_net --mem-report results/JSA/1cores_1mc_8ways_2channels_8B/ocean_mem --net-report results/JSA/1cores_1mc_8ways_2channels_8B/ocean_net --mem-config configuraciones-prefetch/embedded/memconfig-1core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.1core.8ways --net-config configuraciones-prefetch/embedded/cpuconfig.1core.8ways benchmarks/splash2/ocean/ocean.i386 -n130 -p8 -e1e-07 -r20000 -t28800
+Error = results/JSA/1cores_1mc_8ways_2channels_8B/ocean_simul
+log = results/JSA/1cores_1mc_8ways_2channels_8B/ocean_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/1cores_1mc_8ways_2channels_8B/cholesky_cpu --net-report results/JSA/1cores_1mc_8ways_2channels_8B/cholesky_net --mem-report results/JSA/1cores_1mc_8ways_2channels_8B/cholesky_mem --net-report results/JSA/1cores_1mc_8ways_2channels_8B/cholesky_net --mem-config configuraciones-prefetch/embedded/memconfig-1core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.1core.8ways --net-config configuraciones-prefetch/embedded/netconfig-8B-1cores-1mc benchmarks/splash2/cholesky/cholesky.i386 -p8 -C65536
+Error = results/JSA/1cores_1mc_8ways_2channels_8B/cholesky_simul
+log = results/JSA/1cores_1mc_8ways_2channels_8B/cholesky_simul.log
+Input = benchmarks/splash2/cholesky/tk15.O
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/1cores_1mc_8ways_2channels_8B/fft_cpu --net-report results/JSA/1cores_1mc_8ways_2channels_8B/fft_net --mem-report results/JSA/1cores_1mc_8ways_2channels_8B/fft_mem --net-report results/JSA/1cores_1mc_8ways_2channels_8B/fft_net --mem-config configuraciones-prefetch/embeddedconfiguraciones-prefetch/embedded/memconfig-1core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.1core.8ways --net-config configuraciones-prefetch/embedded/cpuconfig.1core.8ways benchmarks/splash2/fft/fft.i386 -m16 -p8 -n1024 -l6 -s -t
+Error = results/JSA/1cores_1mc_8ways_2channels_8B/fft_simul
+log = results/JSA/1cores_1mc_8ways_2channels_8B/fft_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/1cores_1mc_8ways_2channels_8B/radix_cpu --net-report results/JSA/1cores_1mc_8ways_2channels_8B/radix_net --mem-report results/JSA/1cores_1mc_8ways_2channels_8B/radix_mem --net-report results/JSA/1cores_1mc_8ways_2channels_8B/radix_net --mem-config configuraciones-prefetch/embedded/memconfig-1core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.1core.8ways --net-config configuraciones-prefetch/embedded/netconfig-8B-1cores-1mc benchmarks/splash2/radix/radix.i386 -n524288 -p8
+Error = results/JSA/1cores_1mc_8ways_2channels_8B/radix_simul
+log = results/JSA/1cores_1mc_8ways_2channels_8B/radix_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/4cores_1mc_2ways_2channels_8B/ocean_cpu --net-report results/JSA/4cores_1mc_2ways_2channels_8B/ocean_net --mem-report results/JSA/4cores_1mc_2ways_2channels_8B/ocean_mem --net-report results/JSA/4cores_1mc_2ways_2channels_8B/ocean_net --mem-config configuraciones-prefetch/embedded/memconfig-4core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.4core.2ways --net-config configuraciones-prefetch/embedded/cpuconfig.4core.2ways benchmarks/splash2/ocean/ocean.i386 -n130 -p8 -e1e-07 -r20000 -t28800
+Error = results/JSA/4cores_1mc_2ways_2channels_8B/ocean_simul
+log = results/JSA/4cores_1mc_2ways_2channels_8B/ocean_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/4cores_1mc_2ways_2channels_8B/cholesky_cpu --net-report results/JSA/4cores_1mc_2ways_2channels_8B/cholesky_net --mem-report results/JSA/4cores_1mc_2ways_2channels_8B/cholesky_mem --net-report results/JSA/4cores_1mc_2ways_2channels_8B/cholesky_net --mem-config configuraciones-prefetch/embedded/memconfig-4core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.4core.2ways --net-config configuraciones-prefetch/embedded/netconfig-8B-4cores-1mc benchmarks/splash2/cholesky/cholesky.i386 -p8 -C65536
+Error = results/JSA/4cores_1mc_2ways_2channels_8B/cholesky_simul
+log = results/JSA/4cores_1mc_2ways_2channels_8B/cholesky_simul.log
+Input = benchmarks/splash2/cholesky/tk15.O
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/4cores_1mc_2ways_2channels_8B/fft_cpu --net-report results/JSA/4cores_1mc_2ways_2channels_8B/fft_net --mem-report results/JSA/4cores_1mc_2ways_2channels_8B/fft_mem --net-report results/JSA/4cores_1mc_2ways_2channels_8B/fft_net --mem-config configuraciones-prefetch/embeddedconfiguraciones-prefetch/embedded/memconfig-4core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.4core.2ways --net-config configuraciones-prefetch/embedded/cpuconfig.4core.2ways benchmarks/splash2/fft/fft.i386 -m16 -p8 -n1024 -l6 -s -t
+Error = results/JSA/4cores_1mc_2ways_2channels_8B/fft_simul
+log = results/JSA/4cores_1mc_2ways_2channels_8B/fft_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/4cores_1mc_2ways_2channels_8B/radix_cpu --net-report results/JSA/4cores_1mc_2ways_2channels_8B/radix_net --mem-report results/JSA/4cores_1mc_2ways_2channels_8B/radix_mem --net-report results/JSA/4cores_1mc_2ways_2channels_8B/radix_net --mem-config configuraciones-prefetch/embedded/memconfig-4core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.4core.2ways --net-config configuraciones-prefetch/embedded/netconfig-8B-4cores-1mc benchmarks/splash2/radix/radix.i386 -n524288 -p8
+Error = results/JSA/4cores_1mc_2ways_2channels_8B/radix_simul
+log = results/JSA/4cores_1mc_2ways_2channels_8B/radix_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/4cores_1mc_4ways_2channels_8B/ocean_cpu --net-report results/JSA/4cores_1mc_4ways_2channels_8B/ocean_net --mem-report results/JSA/4cores_1mc_4ways_2channels_8B/ocean_mem --net-report results/JSA/4cores_1mc_4ways_2channels_8B/ocean_net --mem-config configuraciones-prefetch/embedded/memconfig-4core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.4core.4ways --net-config configuraciones-prefetch/embedded/cpuconfig.4core.4ways benchmarks/splash2/ocean/ocean.i386 -n130 -p8 -e1e-07 -r20000 -t28800
+Error = results/JSA/4cores_1mc_4ways_2channels_8B/ocean_simul
+log = results/JSA/4cores_1mc_4ways_2channels_8B/ocean_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/4cores_1mc_4ways_2channels_8B/cholesky_cpu --net-report results/JSA/4cores_1mc_4ways_2channels_8B/cholesky_net --mem-report results/JSA/4cores_1mc_4ways_2channels_8B/cholesky_mem --net-report results/JSA/4cores_1mc_4ways_2channels_8B/cholesky_net --mem-config configuraciones-prefetch/embedded/memconfig-4core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.4core.4ways --net-config configuraciones-prefetch/embedded/netconfig-8B-4cores-1mc benchmarks/splash2/cholesky/cholesky.i386 -p8 -C65536
+Error = results/JSA/4cores_1mc_4ways_2channels_8B/cholesky_simul
+log = results/JSA/4cores_1mc_4ways_2channels_8B/cholesky_simul.log
+Input = benchmarks/splash2/cholesky/tk15.O
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/4cores_1mc_4ways_2channels_8B/fft_cpu --net-report results/JSA/4cores_1mc_4ways_2channels_8B/fft_net --mem-report results/JSA/4cores_1mc_4ways_2channels_8B/fft_mem --net-report results/JSA/4cores_1mc_4ways_2channels_8B/fft_net --mem-config configuraciones-prefetch/embeddedconfiguraciones-prefetch/embedded/memconfig-4core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.4core.4ways --net-config configuraciones-prefetch/embedded/cpuconfig.4core.4ways benchmarks/splash2/fft/fft.i386 -m16 -p8 -n1024 -l6 -s -t
+Error = results/JSA/4cores_1mc_4ways_2channels_8B/fft_simul
+log = results/JSA/4cores_1mc_4ways_2channels_8B/fft_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/4cores_1mc_4ways_2channels_8B/radix_cpu --net-report results/JSA/4cores_1mc_4ways_2channels_8B/radix_net --mem-report results/JSA/4cores_1mc_4ways_2channels_8B/radix_mem --net-report results/JSA/4cores_1mc_4ways_2channels_8B/radix_net --mem-config configuraciones-prefetch/embedded/memconfig-4core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.4core.4ways --net-config configuraciones-prefetch/embedded/netconfig-8B-4cores-1mc benchmarks/splash2/radix/radix.i386 -n524288 -p8
+Error = results/JSA/4cores_1mc_4ways_2channels_8B/radix_simul
+log = results/JSA/4cores_1mc_4ways_2channels_8B/radix_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/4cores_1mc_8ways_2channels_8B/ocean_cpu --net-report results/JSA/4cores_1mc_8ways_2channels_8B/ocean_net --mem-report results/JSA/4cores_1mc_8ways_2channels_8B/ocean_mem --net-report results/JSA/4cores_1mc_8ways_2channels_8B/ocean_net --mem-config configuraciones-prefetch/embedded/memconfig-4core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.4core.8ways --net-config configuraciones-prefetch/embedded/cpuconfig.4core.8ways benchmarks/splash2/ocean/ocean.i386 -n130 -p8 -e1e-07 -r20000 -t28800
+Error = results/JSA/4cores_1mc_8ways_2channels_8B/ocean_simul
+log = results/JSA/4cores_1mc_8ways_2channels_8B/ocean_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/4cores_1mc_8ways_2channels_8B/cholesky_cpu --net-report results/JSA/4cores_1mc_8ways_2channels_8B/cholesky_net --mem-report results/JSA/4cores_1mc_8ways_2channels_8B/cholesky_mem --net-report results/JSA/4cores_1mc_8ways_2channels_8B/cholesky_net --mem-config configuraciones-prefetch/embedded/memconfig-4core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.4core.8ways --net-config configuraciones-prefetch/embedded/netconfig-8B-4cores-1mc benchmarks/splash2/cholesky/cholesky.i386 -p8 -C65536
+Error = results/JSA/4cores_1mc_8ways_2channels_8B/cholesky_simul
+log = results/JSA/4cores_1mc_8ways_2channels_8B/cholesky_simul.log
+Input = benchmarks/splash2/cholesky/tk15.O
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/4cores_1mc_8ways_2channels_8B/fft_cpu --net-report results/JSA/4cores_1mc_8ways_2channels_8B/fft_net --mem-report results/JSA/4cores_1mc_8ways_2channels_8B/fft_mem --net-report results/JSA/4cores_1mc_8ways_2channels_8B/fft_net --mem-config configuraciones-prefetch/embeddedconfiguraciones-prefetch/embedded/memconfig-4core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.4core.8ways --net-config configuraciones-prefetch/embedded/cpuconfig.4core.8ways benchmarks/splash2/fft/fft.i386 -m16 -p8 -n1024 -l6 -s -t
+Error = results/JSA/4cores_1mc_8ways_2channels_8B/fft_simul
+log = results/JSA/4cores_1mc_8ways_2channels_8B/fft_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/4cores_1mc_8ways_2channels_8B/radix_cpu --net-report results/JSA/4cores_1mc_8ways_2channels_8B/radix_net --mem-report results/JSA/4cores_1mc_8ways_2channels_8B/radix_mem --net-report results/JSA/4cores_1mc_8ways_2channels_8B/radix_net --mem-config configuraciones-prefetch/embedded/memconfig-4core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.4core.8ways --net-config configuraciones-prefetch/embedded/netconfig-8B-4cores-1mc benchmarks/splash2/radix/radix.i386 -n524288 -p8
+Error = results/JSA/4cores_1mc_8ways_2channels_8B/radix_simul
+log = results/JSA/4cores_1mc_8ways_2channels_8B/radix_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/8cores_1mc_2ways_2channels_8B/ocean_cpu --net-report results/JSA/8cores_1mc_2ways_2channels_8B/ocean_net --mem-report results/JSA/8cores_1mc_2ways_2channels_8B/ocean_mem --net-report results/JSA/8cores_1mc_2ways_2channels_8B/ocean_net --mem-config configuraciones-prefetch/embedded/memconfig-8core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.8core.2ways --net-config configuraciones-prefetch/embedded/cpuconfig.8core.2ways benchmarks/splash2/ocean/ocean.i386 -n130 -p8 -e1e-07 -r20000 -t28800
+Error = results/JSA/8cores_1mc_2ways_2channels_8B/ocean_simul
+log = results/JSA/8cores_1mc_2ways_2channels_8B/ocean_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/8cores_1mc_2ways_2channels_8B/cholesky_cpu --net-report results/JSA/8cores_1mc_2ways_2channels_8B/cholesky_net --mem-report results/JSA/8cores_1mc_2ways_2channels_8B/cholesky_mem --net-report results/JSA/8cores_1mc_2ways_2channels_8B/cholesky_net --mem-config configuraciones-prefetch/embedded/memconfig-8core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.8core.2ways --net-config configuraciones-prefetch/embedded/netconfig-8B-8cores-1mc benchmarks/splash2/cholesky/cholesky.i386 -p8 -C65536
+Error = results/JSA/8cores_1mc_2ways_2channels_8B/cholesky_simul
+log = results/JSA/8cores_1mc_2ways_2channels_8B/cholesky_simul.log
+Input = benchmarks/splash2/cholesky/tk15.O
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/8cores_1mc_2ways_2channels_8B/fft_cpu --net-report results/JSA/8cores_1mc_2ways_2channels_8B/fft_net --mem-report results/JSA/8cores_1mc_2ways_2channels_8B/fft_mem --net-report results/JSA/8cores_1mc_2ways_2channels_8B/fft_net --mem-config configuraciones-prefetch/embeddedconfiguraciones-prefetch/embedded/memconfig-8core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.8core.2ways --net-config configuraciones-prefetch/embedded/cpuconfig.8core.2ways benchmarks/splash2/fft/fft.i386 -m16 -p8 -n1024 -l6 -s -t
+Error = results/JSA/8cores_1mc_2ways_2channels_8B/fft_simul
+log = results/JSA/8cores_1mc_2ways_2channels_8B/fft_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/8cores_1mc_2ways_2channels_8B/radix_cpu --net-report results/JSA/8cores_1mc_2ways_2channels_8B/radix_net --mem-report results/JSA/8cores_1mc_2ways_2channels_8B/radix_mem --net-report results/JSA/8cores_1mc_2ways_2channels_8B/radix_net --mem-config configuraciones-prefetch/embedded/memconfig-8core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.8core.2ways --net-config configuraciones-prefetch/embedded/netconfig-8B-8cores-1mc benchmarks/splash2/radix/radix.i386 -n524288 -p8
+Error = results/JSA/8cores_1mc_2ways_2channels_8B/radix_simul
+log = results/JSA/8cores_1mc_2ways_2channels_8B/radix_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/8cores_1mc_4ways_2channels_8B/ocean_cpu --net-report results/JSA/8cores_1mc_4ways_2channels_8B/ocean_net --mem-report results/JSA/8cores_1mc_4ways_2channels_8B/ocean_mem --net-report results/JSA/8cores_1mc_4ways_2channels_8B/ocean_net --mem-config configuraciones-prefetch/embedded/memconfig-8core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.8core.4ways --net-config configuraciones-prefetch/embedded/cpuconfig.8core.4ways benchmarks/splash2/ocean/ocean.i386 -n130 -p8 -e1e-07 -r20000 -t28800
+Error = results/JSA/8cores_1mc_4ways_2channels_8B/ocean_simul
+log = results/JSA/8cores_1mc_4ways_2channels_8B/ocean_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/8cores_1mc_4ways_2channels_8B/cholesky_cpu --net-report results/JSA/8cores_1mc_4ways_2channels_8B/cholesky_net --mem-report results/JSA/8cores_1mc_4ways_2channels_8B/cholesky_mem --net-report results/JSA/8cores_1mc_4ways_2channels_8B/cholesky_net --mem-config configuraciones-prefetch/embedded/memconfig-8core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.8core.4ways --net-config configuraciones-prefetch/embedded/netconfig-8B-8cores-1mc benchmarks/splash2/cholesky/cholesky.i386 -p8 -C65536
+Error = results/JSA/8cores_1mc_4ways_2channels_8B/cholesky_simul
+log = results/JSA/8cores_1mc_4ways_2channels_8B/cholesky_simul.log
+Input = benchmarks/splash2/cholesky/tk15.O
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/8cores_1mc_4ways_2channels_8B/fft_cpu --net-report results/JSA/8cores_1mc_4ways_2channels_8B/fft_net --mem-report results/JSA/8cores_1mc_4ways_2channels_8B/fft_mem --net-report results/JSA/8cores_1mc_4ways_2channels_8B/fft_net --mem-config configuraciones-prefetch/embeddedconfiguraciones-prefetch/embedded/memconfig-8core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.8core.4ways --net-config configuraciones-prefetch/embedded/cpuconfig.8core.4ways benchmarks/splash2/fft/fft.i386 -m16 -p8 -n1024 -l6 -s -t
+Error = results/JSA/8cores_1mc_4ways_2channels_8B/fft_simul
+log = results/JSA/8cores_1mc_4ways_2channels_8B/fft_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/8cores_1mc_4ways_2channels_8B/radix_cpu --net-report results/JSA/8cores_1mc_4ways_2channels_8B/radix_net --mem-report results/JSA/8cores_1mc_4ways_2channels_8B/radix_mem --net-report results/JSA/8cores_1mc_4ways_2channels_8B/radix_net --mem-config configuraciones-prefetch/embedded/memconfig-8core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.8core.4ways --net-config configuraciones-prefetch/embedded/netconfig-8B-8cores-1mc benchmarks/splash2/radix/radix.i386 -n524288 -p8
+Error = results/JSA/8cores_1mc_4ways_2channels_8B/radix_simul
+log = results/JSA/8cores_1mc_4ways_2channels_8B/radix_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/8cores_1mc_8ways_2channels_8B/ocean_cpu --net-report results/JSA/8cores_1mc_8ways_2channels_8B/ocean_net --mem-report results/JSA/8cores_1mc_8ways_2channels_8B/ocean_mem --net-report results/JSA/8cores_1mc_8ways_2channels_8B/ocean_net --mem-config configuraciones-prefetch/embedded/memconfig-8core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.8core.8ways --net-config configuraciones-prefetch/embedded/cpuconfig.8core.8ways benchmarks/splash2/ocean/ocean.i386 -n130 -p8 -e1e-07 -r20000 -t28800
+Error = results/JSA/8cores_1mc_8ways_2channels_8B/ocean_simul
+log = results/JSA/8cores_1mc_8ways_2channels_8B/ocean_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/8cores_1mc_8ways_2channels_8B/cholesky_cpu --net-report results/JSA/8cores_1mc_8ways_2channels_8B/cholesky_net --mem-report results/JSA/8cores_1mc_8ways_2channels_8B/cholesky_mem --net-report results/JSA/8cores_1mc_8ways_2channels_8B/cholesky_net --mem-config configuraciones-prefetch/embedded/memconfig-8core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.8core.8ways --net-config configuraciones-prefetch/embedded/netconfig-8B-8cores-1mc benchmarks/splash2/cholesky/cholesky.i386 -p8 -C65536
+Error = results/JSA/8cores_1mc_8ways_2channels_8B/cholesky_simul
+log = results/JSA/8cores_1mc_8ways_2channels_8B/cholesky_simul.log
+Input = benchmarks/splash2/cholesky/tk15.O
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/8cores_1mc_8ways_2channels_8B/fft_cpu --net-report results/JSA/8cores_1mc_8ways_2channels_8B/fft_net --mem-report results/JSA/8cores_1mc_8ways_2channels_8B/fft_mem --net-report results/JSA/8cores_1mc_8ways_2channels_8B/fft_net --mem-config configuraciones-prefetch/embeddedconfiguraciones-prefetch/embedded/memconfig-8core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.8core.8ways --net-config configuraciones-prefetch/embedded/cpuconfig.8core.8ways benchmarks/splash2/fft/fft.i386 -m16 -p8 -n1024 -l6 -s -t
+Error = results/JSA/8cores_1mc_8ways_2channels_8B/fft_simul
+log = results/JSA/8cores_1mc_8ways_2channels_8B/fft_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/8cores_1mc_8ways_2channels_8B/radix_cpu --net-report results/JSA/8cores_1mc_8ways_2channels_8B/radix_net --mem-report results/JSA/8cores_1mc_8ways_2channels_8B/radix_mem --net-report results/JSA/8cores_1mc_8ways_2channels_8B/radix_net --mem-config configuraciones-prefetch/embedded/memconfig-8core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.8core.8ways --net-config configuraciones-prefetch/embedded/netconfig-8B-8cores-1mc benchmarks/splash2/radix/radix.i386 -n524288 -p8
+Error = results/JSA/8cores_1mc_8ways_2channels_8B/radix_simul
+log = results/JSA/8cores_1mc_8ways_2channels_8B/radix_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/16cores_1mc_2ways_2channels_8B/ocean_cpu --net-report results/JSA/16cores_1mc_2ways_2channels_8B/ocean_net --mem-report results/JSA/16cores_1mc_2ways_2channels_8B/ocean_mem --net-report results/JSA/16cores_1mc_2ways_2channels_8B/ocean_net --mem-config configuraciones-prefetch/embedded/memconfig-16core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.16core.2ways --net-config configuraciones-prefetch/embedded/cpuconfig.16core.2ways benchmarks/splash2/ocean/ocean.i386 -n130 -p8 -e1e-07 -r20000 -t28800
+Error = results/JSA/16cores_1mc_2ways_2channels_8B/ocean_simul
+log = results/JSA/16cores_1mc_2ways_2channels_8B/ocean_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/16cores_1mc_2ways_2channels_8B/cholesky_cpu --net-report results/JSA/16cores_1mc_2ways_2channels_8B/cholesky_net --mem-report results/JSA/16cores_1mc_2ways_2channels_8B/cholesky_mem --net-report results/JSA/16cores_1mc_2ways_2channels_8B/cholesky_net --mem-config configuraciones-prefetch/embedded/memconfig-16core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.16core.2ways --net-config configuraciones-prefetch/embedded/netconfig-8B-16cores-1mc benchmarks/splash2/cholesky/cholesky.i386 -p8 -C65536
+Error = results/JSA/16cores_1mc_2ways_2channels_8B/cholesky_simul
+log = results/JSA/16cores_1mc_2ways_2channels_8B/cholesky_simul.log
+Input = benchmarks/splash2/cholesky/tk15.O
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/16cores_1mc_2ways_2channels_8B/fft_cpu --net-report results/JSA/16cores_1mc_2ways_2channels_8B/fft_net --mem-report results/JSA/16cores_1mc_2ways_2channels_8B/fft_mem --net-report results/JSA/16cores_1mc_2ways_2channels_8B/fft_net --mem-config configuraciones-prefetch/embeddedconfiguraciones-prefetch/embedded/memconfig-16core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.16core.2ways --net-config configuraciones-prefetch/embedded/cpuconfig.16core.2ways benchmarks/splash2/fft/fft.i386 -m16 -p8 -n1024 -l6 -s -t
+Error = results/JSA/16cores_1mc_2ways_2channels_8B/fft_simul
+log = results/JSA/16cores_1mc_2ways_2channels_8B/fft_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/16cores_1mc_2ways_2channels_8B/radix_cpu --net-report results/JSA/16cores_1mc_2ways_2channels_8B/radix_net --mem-report results/JSA/16cores_1mc_2ways_2channels_8B/radix_mem --net-report results/JSA/16cores_1mc_2ways_2channels_8B/radix_net --mem-config configuraciones-prefetch/embedded/memconfig-16core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.16core.2ways --net-config configuraciones-prefetch/embedded/netconfig-8B-16cores-1mc benchmarks/splash2/radix/radix.i386 -n524288 -p8
+Error = results/JSA/16cores_1mc_2ways_2channels_8B/radix_simul
+log = results/JSA/16cores_1mc_2ways_2channels_8B/radix_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/16cores_1mc_4ways_2channels_8B/ocean_cpu --net-report results/JSA/16cores_1mc_4ways_2channels_8B/ocean_net --mem-report results/JSA/16cores_1mc_4ways_2channels_8B/ocean_mem --net-report results/JSA/16cores_1mc_4ways_2channels_8B/ocean_net --mem-config configuraciones-prefetch/embedded/memconfig-16core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.16core.4ways --net-config configuraciones-prefetch/embedded/cpuconfig.16core.4ways benchmarks/splash2/ocean/ocean.i386 -n130 -p8 -e1e-07 -r20000 -t28800
+Error = results/JSA/16cores_1mc_4ways_2channels_8B/ocean_simul
+log = results/JSA/16cores_1mc_4ways_2channels_8B/ocean_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/16cores_1mc_4ways_2channels_8B/cholesky_cpu --net-report results/JSA/16cores_1mc_4ways_2channels_8B/cholesky_net --mem-report results/JSA/16cores_1mc_4ways_2channels_8B/cholesky_mem --net-report results/JSA/16cores_1mc_4ways_2channels_8B/cholesky_net --mem-config configuraciones-prefetch/embedded/memconfig-16core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.16core.4ways --net-config configuraciones-prefetch/embedded/netconfig-8B-16cores-1mc benchmarks/splash2/cholesky/cholesky.i386 -p8 -C65536
+Error = results/JSA/16cores_1mc_4ways_2channels_8B/cholesky_simul
+log = results/JSA/16cores_1mc_4ways_2channels_8B/cholesky_simul.log
+Input = benchmarks/splash2/cholesky/tk15.O
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/16cores_1mc_4ways_2channels_8B/fft_cpu --net-report results/JSA/16cores_1mc_4ways_2channels_8B/fft_net --mem-report results/JSA/16cores_1mc_4ways_2channels_8B/fft_mem --net-report results/JSA/16cores_1mc_4ways_2channels_8B/fft_net --mem-config configuraciones-prefetch/embeddedconfiguraciones-prefetch/embedded/memconfig-16core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.16core.4ways --net-config configuraciones-prefetch/embedded/cpuconfig.16core.4ways benchmarks/splash2/fft/fft.i386 -m16 -p8 -n1024 -l6 -s -t
+Error = results/JSA/16cores_1mc_4ways_2channels_8B/fft_simul
+log = results/JSA/16cores_1mc_4ways_2channels_8B/fft_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/16cores_1mc_4ways_2channels_8B/radix_cpu --net-report results/JSA/16cores_1mc_4ways_2channels_8B/radix_net --mem-report results/JSA/16cores_1mc_4ways_2channels_8B/radix_mem --net-report results/JSA/16cores_1mc_4ways_2channels_8B/radix_net --mem-config configuraciones-prefetch/embedded/memconfig-16core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.16core.4ways --net-config configuraciones-prefetch/embedded/netconfig-8B-16cores-1mc benchmarks/splash2/radix/radix.i386 -n524288 -p8
+Error = results/JSA/16cores_1mc_4ways_2channels_8B/radix_simul
+log = results/JSA/16cores_1mc_4ways_2channels_8B/radix_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/16cores_1mc_8ways_2channels_8B/ocean_cpu --net-report results/JSA/16cores_1mc_8ways_2channels_8B/ocean_net --mem-report results/JSA/16cores_1mc_8ways_2channels_8B/ocean_mem --net-report results/JSA/16cores_1mc_8ways_2channels_8B/ocean_net --mem-config configuraciones-prefetch/embedded/memconfig-16core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.16core.8ways --net-config configuraciones-prefetch/embedded/cpuconfig.16core.8ways benchmarks/splash2/ocean/ocean.i386 -n130 -p8 -e1e-07 -r20000 -t28800
+Error = results/JSA/16cores_1mc_8ways_2channels_8B/ocean_simul
+log = results/JSA/16cores_1mc_8ways_2channels_8B/ocean_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/16cores_1mc_8ways_2channels_8B/cholesky_cpu --net-report results/JSA/16cores_1mc_8ways_2channels_8B/cholesky_net --mem-report results/JSA/16cores_1mc_8ways_2channels_8B/cholesky_mem --net-report results/JSA/16cores_1mc_8ways_2channels_8B/cholesky_net --mem-config configuraciones-prefetch/embedded/memconfig-16core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.16core.8ways --net-config configuraciones-prefetch/embedded/netconfig-8B-16cores-1mc benchmarks/splash2/cholesky/cholesky.i386 -p8 -C65536
+Error = results/JSA/16cores_1mc_8ways_2channels_8B/cholesky_simul
+log = results/JSA/16cores_1mc_8ways_2channels_8B/cholesky_simul.log
+Input = benchmarks/splash2/cholesky/tk15.O
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/16cores_1mc_8ways_2channels_8B/fft_cpu --net-report results/JSA/16cores_1mc_8ways_2channels_8B/fft_net --mem-report results/JSA/16cores_1mc_8ways_2channels_8B/fft_mem --net-report results/JSA/16cores_1mc_8ways_2channels_8B/fft_net --mem-config configuraciones-prefetch/embeddedconfiguraciones-prefetch/embedded/memconfig-16core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.16core.8ways --net-config configuraciones-prefetch/embedded/cpuconfig.16core.8ways benchmarks/splash2/fft/fft.i386 -m16 -p8 -n1024 -l6 -s -t
+Error = results/JSA/16cores_1mc_8ways_2channels_8B/fft_simul
+log = results/JSA/16cores_1mc_8ways_2channels_8B/fft_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/16cores_1mc_8ways_2channels_8B/radix_cpu --net-report results/JSA/16cores_1mc_8ways_2channels_8B/radix_net --mem-report results/JSA/16cores_1mc_8ways_2channels_8B/radix_mem --net-report results/JSA/16cores_1mc_8ways_2channels_8B/radix_net --mem-config configuraciones-prefetch/embedded/memconfig-16core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.16core.8ways --net-config configuraciones-prefetch/embedded/netconfig-8B-16cores-1mc benchmarks/splash2/radix/radix.i386 -n524288 -p8
+Error = results/JSA/16cores_1mc_8ways_2channels_8B/radix_simul
+log = results/JSA/16cores_1mc_8ways_2channels_8B/radix_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/32cores_1mc_2ways_2channels_8B/ocean_cpu --net-report results/JSA/32cores_1mc_2ways_2channels_8B/ocean_net --mem-report results/JSA/32cores_1mc_2ways_2channels_8B/ocean_mem --net-report results/JSA/32cores_1mc_2ways_2channels_8B/ocean_net --mem-config configuraciones-prefetch/embedded/memconfig-32core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.32core.2ways --net-config configuraciones-prefetch/embedded/cpuconfig.32core.2ways benchmarks/splash2/ocean/ocean.i386 -n130 -p8 -e1e-07 -r20000 -t28800
+Error = results/JSA/32cores_1mc_2ways_2channels_8B/ocean_simul
+log = results/JSA/32cores_1mc_2ways_2channels_8B/ocean_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/32cores_1mc_2ways_2channels_8B/cholesky_cpu --net-report results/JSA/32cores_1mc_2ways_2channels_8B/cholesky_net --mem-report results/JSA/32cores_1mc_2ways_2channels_8B/cholesky_mem --net-report results/JSA/32cores_1mc_2ways_2channels_8B/cholesky_net --mem-config configuraciones-prefetch/embedded/memconfig-32core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.32core.2ways --net-config configuraciones-prefetch/embedded/netconfig-8B-32cores-1mc benchmarks/splash2/cholesky/cholesky.i386 -p8 -C65536
+Error = results/JSA/32cores_1mc_2ways_2channels_8B/cholesky_simul
+log = results/JSA/32cores_1mc_2ways_2channels_8B/cholesky_simul.log
+Input = benchmarks/splash2/cholesky/tk15.O
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/32cores_1mc_2ways_2channels_8B/fft_cpu --net-report results/JSA/32cores_1mc_2ways_2channels_8B/fft_net --mem-report results/JSA/32cores_1mc_2ways_2channels_8B/fft_mem --net-report results/JSA/32cores_1mc_2ways_2channels_8B/fft_net --mem-config configuraciones-prefetch/embeddedconfiguraciones-prefetch/embedded/memconfig-32core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.32core.2ways --net-config configuraciones-prefetch/embedded/cpuconfig.32core.2ways benchmarks/splash2/fft/fft.i386 -m16 -p8 -n1024 -l6 -s -t
+Error = results/JSA/32cores_1mc_2ways_2channels_8B/fft_simul
+log = results/JSA/32cores_1mc_2ways_2channels_8B/fft_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/32cores_1mc_2ways_2channels_8B/radix_cpu --net-report results/JSA/32cores_1mc_2ways_2channels_8B/radix_net --mem-report results/JSA/32cores_1mc_2ways_2channels_8B/radix_mem --net-report results/JSA/32cores_1mc_2ways_2channels_8B/radix_net --mem-config configuraciones-prefetch/embedded/memconfig-32core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.32core.2ways --net-config configuraciones-prefetch/embedded/netconfig-8B-32cores-1mc benchmarks/splash2/radix/radix.i386 -n524288 -p8
+Error = results/JSA/32cores_1mc_2ways_2channels_8B/radix_simul
+log = results/JSA/32cores_1mc_2ways_2channels_8B/radix_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/32cores_1mc_4ways_2channels_8B/ocean_cpu --net-report results/JSA/32cores_1mc_4ways_2channels_8B/ocean_net --mem-report results/JSA/32cores_1mc_4ways_2channels_8B/ocean_mem --net-report results/JSA/32cores_1mc_4ways_2channels_8B/ocean_net --mem-config configuraciones-prefetch/embedded/memconfig-32core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.32core.4ways --net-config configuraciones-prefetch/embedded/cpuconfig.32core.4ways benchmarks/splash2/ocean/ocean.i386 -n130 -p8 -e1e-07 -r20000 -t28800
+Error = results/JSA/32cores_1mc_4ways_2channels_8B/ocean_simul
+log = results/JSA/32cores_1mc_4ways_2channels_8B/ocean_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/32cores_1mc_4ways_2channels_8B/cholesky_cpu --net-report results/JSA/32cores_1mc_4ways_2channels_8B/cholesky_net --mem-report results/JSA/32cores_1mc_4ways_2channels_8B/cholesky_mem --net-report results/JSA/32cores_1mc_4ways_2channels_8B/cholesky_net --mem-config configuraciones-prefetch/embedded/memconfig-32core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.32core.4ways --net-config configuraciones-prefetch/embedded/netconfig-8B-32cores-1mc benchmarks/splash2/cholesky/cholesky.i386 -p8 -C65536
+Error = results/JSA/32cores_1mc_4ways_2channels_8B/cholesky_simul
+log = results/JSA/32cores_1mc_4ways_2channels_8B/cholesky_simul.log
+Input = benchmarks/splash2/cholesky/tk15.O
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/32cores_1mc_4ways_2channels_8B/fft_cpu --net-report results/JSA/32cores_1mc_4ways_2channels_8B/fft_net --mem-report results/JSA/32cores_1mc_4ways_2channels_8B/fft_mem --net-report results/JSA/32cores_1mc_4ways_2channels_8B/fft_net --mem-config configuraciones-prefetch/embeddedconfiguraciones-prefetch/embedded/memconfig-32core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.32core.4ways --net-config configuraciones-prefetch/embedded/cpuconfig.32core.4ways benchmarks/splash2/fft/fft.i386 -m16 -p8 -n1024 -l6 -s -t
+Error = results/JSA/32cores_1mc_4ways_2channels_8B/fft_simul
+log = results/JSA/32cores_1mc_4ways_2channels_8B/fft_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/32cores_1mc_4ways_2channels_8B/radix_cpu --net-report results/JSA/32cores_1mc_4ways_2channels_8B/radix_net --mem-report results/JSA/32cores_1mc_4ways_2channels_8B/radix_mem --net-report results/JSA/32cores_1mc_4ways_2channels_8B/radix_net --mem-config configuraciones-prefetch/embedded/memconfig-32core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.32core.4ways --net-config configuraciones-prefetch/embedded/netconfig-8B-32cores-1mc benchmarks/splash2/radix/radix.i386 -n524288 -p8
+Error = results/JSA/32cores_1mc_4ways_2channels_8B/radix_simul
+log = results/JSA/32cores_1mc_4ways_2channels_8B/radix_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/32cores_1mc_8ways_2channels_8B/ocean_cpu --net-report results/JSA/32cores_1mc_8ways_2channels_8B/ocean_net --mem-report results/JSA/32cores_1mc_8ways_2channels_8B/ocean_mem --net-report results/JSA/32cores_1mc_8ways_2channels_8B/ocean_net --mem-config configuraciones-prefetch/embedded/memconfig-32core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.32core.8ways --net-config configuraciones-prefetch/embedded/cpuconfig.32core.8ways benchmarks/splash2/ocean/ocean.i386 -n130 -p8 -e1e-07 -r20000 -t28800
+Error = results/JSA/32cores_1mc_8ways_2channels_8B/ocean_simul
+log = results/JSA/32cores_1mc_8ways_2channels_8B/ocean_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/32cores_1mc_8ways_2channels_8B/cholesky_cpu --net-report results/JSA/32cores_1mc_8ways_2channels_8B/cholesky_net --mem-report results/JSA/32cores_1mc_8ways_2channels_8B/cholesky_mem --net-report results/JSA/32cores_1mc_8ways_2channels_8B/cholesky_net --mem-config configuraciones-prefetch/embedded/memconfig-32core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.32core.8ways --net-config configuraciones-prefetch/embedded/netconfig-8B-32cores-1mc benchmarks/splash2/cholesky/cholesky.i386 -p8 -C65536
+Error = results/JSA/32cores_1mc_8ways_2channels_8B/cholesky_simul
+log = results/JSA/32cores_1mc_8ways_2channels_8B/cholesky_simul.log
+Input = benchmarks/splash2/cholesky/tk15.O
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/32cores_1mc_8ways_2channels_8B/fft_cpu --net-report results/JSA/32cores_1mc_8ways_2channels_8B/fft_net --mem-report results/JSA/32cores_1mc_8ways_2channels_8B/fft_mem --net-report results/JSA/32cores_1mc_8ways_2channels_8B/fft_net --mem-config configuraciones-prefetch/embeddedconfiguraciones-prefetch/embedded/memconfig-32core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.32core.8ways --net-config configuraciones-prefetch/embedded/cpuconfig.32core.8ways benchmarks/splash2/fft/fft.i386 -m16 -p8 -n1024 -l6 -s -t
+Error = results/JSA/32cores_1mc_8ways_2channels_8B/fft_simul
+log = results/JSA/32cores_1mc_8ways_2channels_8B/fft_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/32cores_1mc_8ways_2channels_8B/radix_cpu --net-report results/JSA/32cores_1mc_8ways_2channels_8B/radix_net --mem-report results/JSA/32cores_1mc_8ways_2channels_8B/radix_mem --net-report results/JSA/32cores_1mc_8ways_2channels_8B/radix_net --mem-config configuraciones-prefetch/embedded/memconfig-32core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.32core.8ways --net-config configuraciones-prefetch/embedded/netconfig-8B-32cores-1mc benchmarks/splash2/radix/radix.i386 -n524288 -p8
+Error = results/JSA/32cores_1mc_8ways_2channels_8B/radix_simul
+log = results/JSA/32cores_1mc_8ways_2channels_8B/radix_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/64cores_1mc_2ways_2channels_8B/ocean_cpu --net-report results/JSA/64cores_1mc_2ways_2channels_8B/ocean_net --mem-report results/JSA/64cores_1mc_2ways_2channels_8B/ocean_mem --net-report results/JSA/64cores_1mc_2ways_2channels_8B/ocean_net --mem-config configuraciones-prefetch/embedded/memconfig-64core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.64core.2ways --net-config configuraciones-prefetch/embedded/cpuconfig.64core.2ways benchmarks/splash2/ocean/ocean.i386 -n130 -p8 -e1e-07 -r20000 -t28800
+Error = results/JSA/64cores_1mc_2ways_2channels_8B/ocean_simul
+log = results/JSA/64cores_1mc_2ways_2channels_8B/ocean_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/64cores_1mc_2ways_2channels_8B/cholesky_cpu --net-report results/JSA/64cores_1mc_2ways_2channels_8B/cholesky_net --mem-report results/JSA/64cores_1mc_2ways_2channels_8B/cholesky_mem --net-report results/JSA/64cores_1mc_2ways_2channels_8B/cholesky_net --mem-config configuraciones-prefetch/embedded/memconfig-64core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.64core.2ways --net-config configuraciones-prefetch/embedded/netconfig-8B-64cores-1mc benchmarks/splash2/cholesky/cholesky.i386 -p8 -C65536
+Error = results/JSA/64cores_1mc_2ways_2channels_8B/cholesky_simul
+log = results/JSA/64cores_1mc_2ways_2channels_8B/cholesky_simul.log
+Input = benchmarks/splash2/cholesky/tk15.O
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/64cores_1mc_2ways_2channels_8B/fft_cpu --net-report results/JSA/64cores_1mc_2ways_2channels_8B/fft_net --mem-report results/JSA/64cores_1mc_2ways_2channels_8B/fft_mem --net-report results/JSA/64cores_1mc_2ways_2channels_8B/fft_net --mem-config configuraciones-prefetch/embeddedconfiguraciones-prefetch/embedded/memconfig-64core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.64core.2ways --net-config configuraciones-prefetch/embedded/cpuconfig.64core.2ways benchmarks/splash2/fft/fft.i386 -m16 -p8 -n1024 -l6 -s -t
+Error = results/JSA/64cores_1mc_2ways_2channels_8B/fft_simul
+log = results/JSA/64cores_1mc_2ways_2channels_8B/fft_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/64cores_1mc_2ways_2channels_8B/radix_cpu --net-report results/JSA/64cores_1mc_2ways_2channels_8B/radix_net --mem-report results/JSA/64cores_1mc_2ways_2channels_8B/radix_mem --net-report results/JSA/64cores_1mc_2ways_2channels_8B/radix_net --mem-config configuraciones-prefetch/embedded/memconfig-64core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.64core.2ways --net-config configuraciones-prefetch/embedded/netconfig-8B-64cores-1mc benchmarks/splash2/radix/radix.i386 -n524288 -p8
+Error = results/JSA/64cores_1mc_2ways_2channels_8B/radix_simul
+log = results/JSA/64cores_1mc_2ways_2channels_8B/radix_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/64cores_1mc_4ways_2channels_8B/ocean_cpu --net-report results/JSA/64cores_1mc_4ways_2channels_8B/ocean_net --mem-report results/JSA/64cores_1mc_4ways_2channels_8B/ocean_mem --net-report results/JSA/64cores_1mc_4ways_2channels_8B/ocean_net --mem-config configuraciones-prefetch/embedded/memconfig-64core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.64core.4ways --net-config configuraciones-prefetch/embedded/cpuconfig.64core.4ways benchmarks/splash2/ocean/ocean.i386 -n130 -p8 -e1e-07 -r20000 -t28800
+Error = results/JSA/64cores_1mc_4ways_2channels_8B/ocean_simul
+log = results/JSA/64cores_1mc_4ways_2channels_8B/ocean_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/64cores_1mc_4ways_2channels_8B/cholesky_cpu --net-report results/JSA/64cores_1mc_4ways_2channels_8B/cholesky_net --mem-report results/JSA/64cores_1mc_4ways_2channels_8B/cholesky_mem --net-report results/JSA/64cores_1mc_4ways_2channels_8B/cholesky_net --mem-config configuraciones-prefetch/embedded/memconfig-64core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.64core.4ways --net-config configuraciones-prefetch/embedded/netconfig-8B-64cores-1mc benchmarks/splash2/cholesky/cholesky.i386 -p8 -C65536
+Error = results/JSA/64cores_1mc_4ways_2channels_8B/cholesky_simul
+log = results/JSA/64cores_1mc_4ways_2channels_8B/cholesky_simul.log
+Input = benchmarks/splash2/cholesky/tk15.O
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/64cores_1mc_4ways_2channels_8B/fft_cpu --net-report results/JSA/64cores_1mc_4ways_2channels_8B/fft_net --mem-report results/JSA/64cores_1mc_4ways_2channels_8B/fft_mem --net-report results/JSA/64cores_1mc_4ways_2channels_8B/fft_net --mem-config configuraciones-prefetch/embeddedconfiguraciones-prefetch/embedded/memconfig-64core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.64core.4ways --net-config configuraciones-prefetch/embedded/cpuconfig.64core.4ways benchmarks/splash2/fft/fft.i386 -m16 -p8 -n1024 -l6 -s -t
+Error = results/JSA/64cores_1mc_4ways_2channels_8B/fft_simul
+log = results/JSA/64cores_1mc_4ways_2channels_8B/fft_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/64cores_1mc_4ways_2channels_8B/radix_cpu --net-report results/JSA/64cores_1mc_4ways_2channels_8B/radix_net --mem-report results/JSA/64cores_1mc_4ways_2channels_8B/radix_mem --net-report results/JSA/64cores_1mc_4ways_2channels_8B/radix_net --mem-config configuraciones-prefetch/embedded/memconfig-64core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.64core.4ways --net-config configuraciones-prefetch/embedded/netconfig-8B-64cores-1mc benchmarks/splash2/radix/radix.i386 -n524288 -p8
+Error = results/JSA/64cores_1mc_4ways_2channels_8B/radix_simul
+log = results/JSA/64cores_1mc_4ways_2channels_8B/radix_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/64cores_1mc_8ways_2channels_8B/ocean_cpu --net-report results/JSA/64cores_1mc_8ways_2channels_8B/ocean_net --mem-report results/JSA/64cores_1mc_8ways_2channels_8B/ocean_mem --net-report results/JSA/64cores_1mc_8ways_2channels_8B/ocean_net --mem-config configuraciones-prefetch/embedded/memconfig-64core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.64core.8ways --net-config configuraciones-prefetch/embedded/cpuconfig.64core.8ways benchmarks/splash2/ocean/ocean.i386 -n130 -p8 -e1e-07 -r20000 -t28800
+Error = results/JSA/64cores_1mc_8ways_2channels_8B/ocean_simul
+log = results/JSA/64cores_1mc_8ways_2channels_8B/ocean_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/64cores_1mc_8ways_2channels_8B/cholesky_cpu --net-report results/JSA/64cores_1mc_8ways_2channels_8B/cholesky_net --mem-report results/JSA/64cores_1mc_8ways_2channels_8B/cholesky_mem --net-report results/JSA/64cores_1mc_8ways_2channels_8B/cholesky_net --mem-config configuraciones-prefetch/embedded/memconfig-64core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.64core.8ways --net-config configuraciones-prefetch/embedded/netconfig-8B-64cores-1mc benchmarks/splash2/cholesky/cholesky.i386 -p8 -C65536
+Error = results/JSA/64cores_1mc_8ways_2channels_8B/cholesky_simul
+log = results/JSA/64cores_1mc_8ways_2channels_8B/cholesky_simul.log
+Input = benchmarks/splash2/cholesky/tk15.O
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/64cores_1mc_8ways_2channels_8B/fft_cpu --net-report results/JSA/64cores_1mc_8ways_2channels_8B/fft_net --mem-report results/JSA/64cores_1mc_8ways_2channels_8B/fft_mem --net-report results/JSA/64cores_1mc_8ways_2channels_8B/fft_net --mem-config configuraciones-prefetch/embeddedconfiguraciones-prefetch/embedded/memconfig-64core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.64core.8ways --net-config configuraciones-prefetch/embedded/cpuconfig.64core.8ways benchmarks/splash2/fft/fft.i386 -m16 -p8 -n1024 -l6 -s -t
+Error = results/JSA/64cores_1mc_8ways_2channels_8B/fft_simul
+log = results/JSA/64cores_1mc_8ways_2channels_8B/fft_simul.log
+Queue
+Arguments = --x86-sim detailed --x86-report results/JSA/64cores_1mc_8ways_2channels_8B/radix_cpu --net-report results/JSA/64cores_1mc_8ways_2channels_8B/radix_net --mem-report results/JSA/64cores_1mc_8ways_2channels_8B/radix_mem --net-report results/JSA/64cores_1mc_8ways_2channels_8B/radix_net --mem-config configuraciones-prefetch/embedded/memconfig-64core.32KB-L1-1mc-2c --x86-config configuraciones-prefetch/embedded/cpuconfig.64core.8ways --net-config configuraciones-prefetch/embedded/netconfig-8B-64cores-1mc benchmarks/splash2/radix/radix.i386 -n524288 -p8
+Error = results/JSA/64cores_1mc_8ways_2channels_8B/radix_simul
+log = results/JSA/64cores_1mc_8ways_2channels_8B/radix_simul.log
+Queue

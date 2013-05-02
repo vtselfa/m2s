@@ -1,0 +1,448 @@
+[ Module mod-mm-1 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n64
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 0
+[ Module mod-mm-2 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n65
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 1
+[ Module mod-mm-3 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n66
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 2
+[ Module mod-mm-4 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n67
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 3
+[ Module mod-mm-5 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n68
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 4
+[ Module mod-mm-6 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n69
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 5
+[ Module mod-mm-7 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n70
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 6
+[ Module mod-mm-8 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n71
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 7
+[ Module mod-mm-9 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n72
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 8
+[ Module mod-mm-10 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n73
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 9
+[ Module mod-mm-11 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n74
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 10
+[ Module mod-mm-12 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n75
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 11
+[ Module mod-mm-13 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n76
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 12
+[ Module mod-mm-14 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n77
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 13
+[ Module mod-mm-15 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n78
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 14
+[ Module mod-mm-16 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n79
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 15
+[ Module mod-mm-17 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n80
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 16
+[ Module mod-mm-18 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n81
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 17
+[ Module mod-mm-19 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n82
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 18
+[ Module mod-mm-20 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n83
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 19
+[ Module mod-mm-21 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n84
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 20
+[ Module mod-mm-22 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n85
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 21
+[ Module mod-mm-23 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n86
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 22
+[ Module mod-mm-24 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n87
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 23
+[ Module mod-mm-25 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n88
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 24
+[ Module mod-mm-26 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n89
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 25
+[ Module mod-mm-27 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n90
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 26
+[ Module mod-mm-28 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n91
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 27
+[ Module mod-mm-29 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n92
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 28
+[ Module mod-mm-30 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n93
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 29
+[ Module mod-mm-31 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n94
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 30
+[ Module mod-mm-32 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n95
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 31
+[ Module mod-mm-33 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n96
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 32
+[ Module mod-mm-34 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n97
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 33
+[ Module mod-mm-35 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n98
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 34
+[ Module mod-mm-36 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n99
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 35
+[ Module mod-mm-37 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n100
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 36
+[ Module mod-mm-38 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n101
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 37
+[ Module mod-mm-39 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n102
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 38
+[ Module mod-mm-40 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n103
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 39
+[ Module mod-mm-41 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n104
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 40
+[ Module mod-mm-42 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n105
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 41
+[ Module mod-mm-43 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n106
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 42
+[ Module mod-mm-44 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n107
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 43
+[ Module mod-mm-45 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n108
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 44
+[ Module mod-mm-46 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n109
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 45
+[ Module mod-mm-47 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n110
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 46
+[ Module mod-mm-48 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n111
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 47
+[ Module mod-mm-49 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n112
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 48
+[ Module mod-mm-50 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n113
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 49
+[ Module mod-mm-51 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n114
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 50
+[ Module mod-mm-52 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n115
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 51
+[ Module mod-mm-53 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n116
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 52
+[ Module mod-mm-54 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n117
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 53
+[ Module mod-mm-55 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n118
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 54
+[ Module mod-mm-56 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n119
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 55
+[ Module mod-mm-57 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n120
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 56
+[ Module mod-mm-58 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n121
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 57
+[ Module mod-mm-59 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n122
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 58
+[ Module mod-mm-60 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n123
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 59
+[ Module mod-mm-61 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n124
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 60
+[ Module mod-mm-62 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n125
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 61
+[ Module mod-mm-63 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n126
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 62
+[ Module mod-mm-64 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n127
+Latency = 200
+BlockSize = 64
+AddressRange = ADDR DIV 1024 MOD 64 EQ 63
