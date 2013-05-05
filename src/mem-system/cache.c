@@ -201,7 +201,7 @@ struct cache_t *cache_create(char *name, unsigned int num_sets, unsigned int blo
 	cache->wb.blocks = linked_list_create();
 
 	/* Stride detector */
-	cache->prefetch.stride_detector = linked_list_create();
+	cache->prefetch.stride_detector.camps = linked_list_create();
 
 	/* Create array of sets */
 	cache->sets = calloc(num_sets, sizeof(struct cache_set_t));
@@ -247,7 +247,7 @@ int cache_find_stream(struct cache_t *cache, unsigned int stream_tag){
 
 int cache_detect_stride(struct cache_t *cache, int addr)
 {
-	struct linked_list_t *sd = cache->prefetch.stride_detector;
+	struct linked_list_t *sd = cache->prefetch.stride_detector.camps;
 	struct stride_detector_camp_t *camp;
 	int tag = addr & ~cache->prefetch.stream_mask;
 	int stride;
@@ -263,6 +263,7 @@ int cache_detect_stride(struct cache_t *cache, int addr)
 				/* There is a stride and it matches */
 				linked_list_remove(sd);
 				free(camp);
+				cache->prefetch.stride_detector.strides_detected++; /* Statistics */
 				return stride;
 			}else{
 				/* There isn't a stride or it doesn't match */
@@ -297,7 +298,7 @@ int cache_detect_stride(struct cache_t *cache, int addr)
 void cache_free(struct cache_t *cache)
 {
 	int set, stream;
-	struct linked_list_t *sd = cache->prefetch.stride_detector;
+	struct linked_list_t *sd = cache->prefetch.stride_detector.camps;
 	struct stride_detector_camp_t *camp;
 	struct stream_buffer_t *sb;
 

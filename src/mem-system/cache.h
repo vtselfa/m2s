@@ -146,7 +146,13 @@ struct cache_t
 		struct stream_buffer_t *stream_head;
 		struct stream_buffer_t *stream_tail;
 
-		struct linked_list_t *stride_detector;
+
+		struct
+		{
+			struct linked_list_t *camps;
+			long long strides_detected;
+			long long last_strides_detected;
+		} stride_detector;
 	} prefetch;
 
 	struct cache_write_buffer wb;
