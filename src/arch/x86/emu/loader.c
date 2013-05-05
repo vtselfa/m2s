@@ -111,14 +111,6 @@ static struct str_map_t elf_section_flags_map =
 	}
 };
 
-struct str_map_t interval_kind_map =
-{
-	2, {
-		{ "cycles", interval_kind_cycles },
-		{ "instructions", interval_kind_instructions }
-	}
-};
-
 
 static void x86_loader_add_args_vector(struct x86_ctx_t *ctx, int argc, char **argv)
 {

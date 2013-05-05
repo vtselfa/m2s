@@ -24,6 +24,14 @@
 extern struct str_map_t cache_policy_map;
 extern struct str_map_t prefetch_policy_map;
 extern struct str_map_t cache_block_state_map;
+extern struct str_map_t interval_kind_map;
+
+enum interval_kind_t
+{
+	interval_kind_invalid = 0,
+	interval_kind_instructions,
+	interval_kind_cycles
+};
 
 enum cache_policy_t
 {

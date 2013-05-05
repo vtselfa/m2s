@@ -21,15 +21,9 @@
 #define ARCH_X86_EMU_LOADER_H
 
 #include <lib/util/config.h>
+#include <mem-system/cache.h>
 
 extern struct str_map_t interval_kind_map;
-
-enum interval_kind_t
-{
-	interval_kind_invalid = 0,
-	interval_kind_instructions,
-	interval_kind_cycles
-};
 
 struct x86_loader_t
 {

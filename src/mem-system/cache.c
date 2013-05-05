@@ -65,6 +65,15 @@ struct str_map_t prefetch_policy_map =
 	}
 };
 
+struct str_map_t interval_kind_map =
+{
+	2, {
+		{ "cycles", interval_kind_cycles },
+		{ "instructions", interval_kind_instructions }
+	}
+};
+
+
 
 
 
