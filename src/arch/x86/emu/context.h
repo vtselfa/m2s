@@ -42,12 +42,7 @@ struct x86_ctx_report_stack_t
 	int pid;
 	long long inst_count;
 	long long last_cycle;
-	long long last_accesses;
-	long long last_pref_accesses;
-	long long last_normal_accesses;
-	long long last_t_mc_total;
-	long long last_t_normal_mc_total;
-	long long last_t_pref_mc_total;
+
 };
 
 struct x86_ctx_t

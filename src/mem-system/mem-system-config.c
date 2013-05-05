@@ -818,6 +818,7 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config, char *
 {
 	char mod_name[MAX_STRING_SIZE];
 
+
 	int block_size;
 	int latency;
 	int num_ports;
@@ -834,6 +835,7 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config, char *
 	int cycles_proc_bus;
 	int queue_per_bank;
 	int enabled_mc;
+
 
 	long long threshold;
 	long long size_queue;
@@ -882,6 +884,7 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config, char *
 	size_queue = config_read_llint(config, section, "SizeQueue", 100000000000);
 	queue_per_bank = config_read_llint(config, section, "QueuePerBank", 0);
 	/////////////////////////////////////////////////////////////////////
+
 
 	/* Check parameters */
 	if (block_size < 1 || (block_size & (block_size - 1)))
@@ -1019,10 +1022,16 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config, char *
 
 	/*Create main memory*/
 	///////////////////////////////////////////////////
-	mod->regs_channel = regs_channel_create(channels, ranks, banks, bandwith, t_acces_bank_hit, t_acces_bank_miss );
-	mod->num_regs_channel = channels;
-	mem_controller_init_main_memory(mem_system->mem_controller, channels, ranks, banks, t_send_request, row_size, block_size, cycles_proc_bus, policy_type, prio_type, size_queue, threshold, queue_per_bank, coalesce_type);
-	mem_system->mem_controller->enabled = enabled_mc;
+	mod->regs_rank = regs_rank_create(ranks, banks, t_acces_bank_hit, t_acces_bank_miss );
+	mod->num_regs_rank = ranks;
+
+        /*Create memory controller*/
+	mod->mem_controller=mem_controller_create();
+	mem_controller_init_main_memory(mod->mem_controller, channels, ranks, banks, t_send_request, row_size, block_size, cycles_proc_bus, policy_type, prio_type, size_queue, threshold, queue_per_bank, coalesce_type, mod->regs_rank, bandwith);
+	mod->mem_controller->enabled = enabled_mc;
+	linked_list_add(mem_system->mem_controllers, mod->mem_controller);
+
+
 	///////////////////////////////////////////////////
 
 

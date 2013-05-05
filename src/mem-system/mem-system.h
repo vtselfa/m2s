@@ -50,8 +50,9 @@ struct mem_system_t
 	struct list_t *net_list;
 
 	 ///////////////////////////////////////
-        /*Memory controller */
-        struct mem_controller_t *mem_controller;
+        /*List of Memory controllers */
+        struct linked_list_t *mem_controllers;
+	int num_mc;
 
         /* For statdistics (to show  MPKI) */
         int min_level_cache;

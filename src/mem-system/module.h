@@ -118,8 +118,13 @@ struct mod_t
 	struct list_t *threads; /* List of (core, thread) tuples that can access this module */
 
 	/* Main memory module */
-	struct reg_channel_t * regs_channel;
-	int num_regs_channel;
+	//struct reg_channel_t * regs_channel;
+	//int num_regs_channel;
+	struct reg_rank_t * regs_rank; // ranks which this channels connects with
+	int num_regs_rank;
+
+	/*Mem controller associated to mm*/
+	struct mem_controller_t * mem_controller;
 
 	/* Module level starting from entry points */
 	int level;
@@ -408,8 +413,7 @@ enum acces_main_memory_state_t
 ////////////////////////// MAIN MEMORY  //////////////////////////
 struct reg_bank_t* regs_bank_create( int num_banks, int t_row_hit, int t_row_miss);
 struct reg_rank_t* regs_rank_create( int num_ranks, int num_banks, int t_row_buffer_miss, int t_row_buffer_hit);
-struct reg_channel_t* regs_channel_create( int num_channels, int num_ranks, int num_banks, int bandwith,
-                                        int t_row_buffer_miss, int t_row_buffer_hit);
+struct reg_channel_t* regs_channel_create( int num_channels, int num_ranks, int num_banks, int bandwith,struct reg_rank_t * regs_rank);
 void reg_channel_free(struct reg_channel_t * channels, int num_channels);
 void reg_rank_free(struct reg_rank_t * ranks, int num_ranks);
 void main_memory_dump_report(char * main_mem_report_file_name);////
