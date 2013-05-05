@@ -135,7 +135,7 @@ struct cache_t
 
 	/* Prefetching */
 	enum prefetch_policy_t prefetch_policy;
-	int pref_enabled : 1;
+	unsigned int pref_enabled : 1;
 
 	struct {
 		unsigned int num_streams; 	/* Number of streams for prefetch */
