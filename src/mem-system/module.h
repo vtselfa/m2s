@@ -22,6 +22,13 @@
 
 #include <stdio.h>
 
+extern int EV_CACHE_ADAPT_PREF;
+
+struct core_thread_tuple_t
+{
+	int core;
+	int thread;
+};
 
 /* Port */
 struct mod_port_t
@@ -76,6 +83,24 @@ enum mod_range_kind_t
 int misses_no_prefetch;
 /////////////////////////////////////
 
+struct mod_adapt_pref_stack_t
+{
+	struct mod_t *mod;
+	long long inst_count;
+	long long last_inst_count;
+	long long last_cycle;
+	long long last_useful_prefetches;
+	long long last_no_retry_accesses;
+	long long last_no_retry_hits;
+	long long last_cycles_stalled;
+	long long last_misses_int;
+	long long last_strides_detected;
+	long long last_cycle_pref_disabled;
+	double last_ipc_int;
+};
+
+
+
 #define MOD_ACCESS_HASH_TABLE_SIZE  17
 
 /* Memory module */
@@ -89,6 +114,8 @@ struct mod_t
 	int latency;
 	int dir_latency;
 	int mshr_size;
+
+	struct list_t *threads; /* List of (core, thread) tuples that can access this module */
 
 	/* Main memory module */
 	struct reg_channel_t * regs_channel;
@@ -189,6 +216,12 @@ struct mod_t
 	/* For coloring algorithm used to check collisions between CPU and GPU
 	 * memory hierarchies. Remove when fused. */
 	int color;
+
+	/* For constructing a list with all the modules with adaptative prefetch */
+	int visited;
+
+	/* Stack for activate/deactivate prefetch at intervals */
+	struct mod_adapt_pref_stack_t *adapt_pref_stack;
 
 	/* Statistics */
 	long long accesses;
@@ -424,6 +457,9 @@ void mod_coalesce(struct mod_t *mod, struct mod_stack_t *master_stack,
 /* Prefetch */
 int mod_find_pref_block(struct mod_t *mod, unsigned int addr, int *pref_stream_ptr, int* pref_slot_ptr);
 int mod_find_block_in_stream(struct mod_t *mod, unsigned int addr, int stream);
+
+void mod_adapt_pref_schedule(struct mod_t *mod);
+void mod_adapt_pref_handler(int event, void *data);
 
 #endif
 

@@ -22,8 +22,9 @@
 
 
 extern struct str_map_t cache_policy_map;
-extern struct str_map_t prefetch_policy_map;
 extern struct str_map_t cache_block_state_map;
+extern struct str_map_t prefetch_policy_map;
+extern struct str_map_t adapt_pref_policy_map;
 extern struct str_map_t interval_kind_map;
 
 enum interval_kind_t
@@ -47,6 +48,14 @@ enum prefetch_policy_t
 	prefetch_policy_obl,
 	prefetch_policy_obl_stride,
 	prefetch_policy_streams
+};
+
+enum adapt_pref_policy_t
+{
+	adapt_pref_policy_none = 0,
+	adapt_pref_policy_misses,
+	adapt_pref_policy_misses_enhanced,
+	adapt_pref_policy_pseudocoverage
 };
 
 enum cache_block_state_t
@@ -154,6 +163,9 @@ struct cache_t
 		struct stream_buffer_t *stream_head;
 		struct stream_buffer_t *stream_tail;
 
+		enum adapt_pref_policy_t adapt_policy; /* Adaptative policy used */
+		long long adapt_interval; /* Interval at wich the adaptative policy is aplied */
+		enum interval_kind_t adapt_interval_kind; /* Tells if the interval is in cycles or in instructions */
 
 		struct
 		{

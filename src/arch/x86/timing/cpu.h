@@ -176,6 +176,10 @@ struct x86_thread_t
 	struct mod_t *data_mod;  /* Entry for data */
 	struct mod_t *inst_mod;  /* Entry for instructions */
 
+	/* List of modules with adaptative prefetch reachables from this thread
+	 * which status must be updated at a fixed instruction interval */
+	struct list_t *adapt_pref_modules;
+
 	/* Cycle in which last micro-instruction committed */
 	long long last_commit_cycle;
 

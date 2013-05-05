@@ -71,6 +71,8 @@ void mem_system_init(void)
 	/* Create memory controller */
 	mem_system->mem_controller = mem_controller_create();
 
+	/* Event for adaptative prefetch */
+	EV_CACHE_ADAPT_PREF = esim_register_event_with_name(mod_adapt_pref_handler, "mod_adapt_pref");
 
 	/* Event handler for memory hierarchy commands */
 	EV_MEM_SYSTEM_COMMAND = esim_register_event_with_name(mem_system_command_handler, "mem_system_command");

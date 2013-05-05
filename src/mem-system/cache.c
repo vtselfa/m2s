@@ -65,6 +65,16 @@ struct str_map_t prefetch_policy_map =
 	}
 };
 
+struct str_map_t adapt_pref_policy_map =
+{
+	4, {
+		{ "None", adapt_pref_policy_none },
+		{ "Misses", adapt_pref_policy_misses },
+		{ "Misses_Enhanced", adapt_pref_policy_misses_enhanced },
+		{ "Misses_Pseudocoverage", adapt_pref_policy_pseudocoverage }
+	}
+};
+
 struct str_map_t interval_kind_map =
 {
 	2, {

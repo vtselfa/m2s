@@ -26,6 +26,7 @@
 #include <lib/util/config.h>
 #include <lib/util/debug.h>
 #include <lib/util/file.h>
+#include <lib/util/list.h>
 #include <lib/util/timer.h>
 #include <mem-system/memory.h>
 #include <mem-system/mmu.h>
@@ -870,6 +871,7 @@ static void x86_cpu_dump_report(void)
 
 static void x86_cpu_thread_init(int core, int thread)
 {
+	X86_THREAD.adapt_pref_modules = list_create();
 }
 
 
@@ -942,6 +944,7 @@ void x86_cpu_init()
 void x86_cpu_done()
 {
 	int core;
+	int thread;
 
 	/* Dump CPU report */
 	x86_cpu_dump_report();
@@ -961,6 +964,8 @@ void x86_cpu_done()
 	x86_trace_cache_done();
 	x86_reg_file_done();
 	x86_fu_done();
+	X86_CORE_FOR_EACH X86_THREAD_FOR_EACH
+		list_free(X86_THREAD.adapt_pref_modules);
 
 	/* Free processor */
 	X86_CORE_FOR_EACH
