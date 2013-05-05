@@ -297,7 +297,7 @@ static void x86_cpu_config_check(void)
 	if (!err && x86_config_file_name[0])
 		fatal("%s: cannot load CPU configuration file", x86_config_file_name);
 
-	
+
 	/* General configuration */
 
 	section = "General";
@@ -373,7 +373,7 @@ static void x86_cpu_config_check(void)
 	x86_trace_cache_branch_max = config_read_int(config, section, "BranchMax", 3);
 	x86_trace_cache_queue_size = config_read_int(config, section, "QueueSize", 32);
 
-	
+
 	/* Functional Units */
 
 	section = "FunctionalUnits";
@@ -668,14 +668,14 @@ static void x86_cpu_dump_report(void)
 	f = file_open_for_write(x86_cpu_report_file_name);
 	if (!f)
 		return;
-	
+
 	/* Get CPU timer value */
 	now = m2s_timer_get_value(x86_emu->timer);
 
 	/* Dump CPU configuration */
 	fprintf(f, ";\n; CPU Configuration\n;\n\n");
 	x86_cpu_config_dump(f);
-	
+
 	/* Report for the complete processor */
 	fprintf(f, ";\n; Simulation Statistics\n;\n\n");
 	fprintf(f, "; Global statistics\n");
@@ -711,7 +711,7 @@ static void x86_cpu_dump_report(void)
 	fprintf(f, "Commit.PredAcc = %.4g\n", x86_cpu->num_branch_uinst ?
 		(double) (x86_cpu->num_branch_uinst - x86_cpu->num_mispred_branch_uinst) / x86_cpu->num_branch_uinst : 0.0);
 	fprintf(f, "\n");
-	
+
 	/* Report for each core */
 	X86_CORE_FOR_EACH
 	{
@@ -974,7 +974,7 @@ void x86_cpu_dump(FILE *f)
 {
 	int core;
 	int thread;
-	
+
 	/* General information */
 	fprintf(f, "\n");
 	fprintf(f, "sim.last_dump  %lld  # Cycle of last dump\n", x86_cpu->last_dump);
@@ -986,7 +986,7 @@ void x86_cpu_dump(FILE *f)
 	X86_CORE_FOR_EACH
 	{
 		fprintf(f, "Core %d:\n", core);
-		
+
 		fprintf(f, "eventq:\n");
 		x86_uop_linked_list_dump(X86_CORE.event_queue, f);
 		fprintf(f, "rob:\n");
@@ -995,7 +995,7 @@ void x86_cpu_dump(FILE *f)
 		X86_THREAD_FOR_EACH
 		{
 			fprintf(f, "Thread %d:\n", thread);
-			
+
 			fprintf(f, "fetch queue:\n");
 			x86_uop_list_dump(X86_THREAD.fetch_queue, f);
 			fprintf(f, "uop queue:\n");
@@ -1014,7 +1014,7 @@ void x86_cpu_dump(FILE *f)
 				fprintf(f, "mapped context: %d\n", X86_THREAD.ctx->pid);
 				x86_ctx_dump(X86_THREAD.ctx, f);
 			}
-			
+
 			fprintf(f, "\n");
 		}
 	}
@@ -1193,7 +1193,7 @@ void x86_cpu_run_fast_forward(void)
  * The function returns FALSE if there is no more simulation to perform. */
 int x86_cpu_run(void)
 {
-  
+
 	/* Stop if no context is running */
 	if (x86_emu->finished_list_count >= x86_emu->context_list_count)
 		return 0;

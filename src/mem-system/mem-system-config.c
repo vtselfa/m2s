@@ -740,8 +740,6 @@ static struct mod_t *mem_config_read_cache(struct config_t *config, char *sectio
 		fatal("%s: cache %s: invalid value for variable 'Ports'.\n%s",
 			mem_config_file_name, mod_name, err_mem_config_note);
 
-
-
 	/* Create module */
 	mod = mod_create(mod_name, mod_kind_cache, num_ports,
 		block_size, latency);
@@ -752,12 +750,6 @@ static struct mod_t *mem_config_read_cache(struct config_t *config, char *sectio
 	mod->dir_num_sets = num_sets;
 	mod->dir_size = num_sets * assoc;
 	mod->dir_latency = dir_latency;
-	//////////////////////////////////////////////////////////////////////////////////////////////////////////
-	/*  Checks if option  is correct   */                                                                   //
-	if (prefetch && misses_no_prefetch == 1)                                                     //
-		fatal("option '--misses_no_prefetch-write' musnt'n be used with some prefetched enabled");      //
-	//////////////////////////////////////////////////////////////////////////////////////////////////////////
-
 
 	/* High network */
 	net_name = config_read_string(config, section, "HighNetwork", "");

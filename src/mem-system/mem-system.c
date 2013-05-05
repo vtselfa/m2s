@@ -68,10 +68,8 @@ void mem_system_init(void)
 	mem_system->mod_list = list_create();
 	mem_system->mm_mod_list = list_create();
 
-	//////////////////////////////////////////////////////////
-        /*Create memory controller*/                            //
-        mem_system->mem_controller=mem_controller_create();     //
-        //////////////////////////////////////////////////////////
+	/* Create memory controller */
+	mem_system->mem_controller = mem_controller_create();
 
 
 	/* Event handler for memory hierarchy commands */
@@ -79,7 +77,6 @@ void mem_system_init(void)
 	EV_MEM_SYSTEM_END_COMMAND = esim_register_event_with_name(mem_system_end_command_handler, "mem_system_end_command");
 
 	/* NMOESI memory event-driven simulation */
-
 	EV_MOD_NMOESI_LOAD = esim_register_event_with_name(mod_handler_nmoesi_load, "mod_nmoesi_load");
 	EV_MOD_NMOESI_LOAD_LOCK = esim_register_event_with_name(mod_handler_nmoesi_load, "mod_nmoesi_load_lock");
 	EV_MOD_NMOESI_LOAD_ACTION = esim_register_event_with_name(mod_handler_nmoesi_load, "mod_nmoesi_load_action");

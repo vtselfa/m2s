@@ -37,7 +37,6 @@
 #include "loader.h"
 #include "regs.h"
 
-
 int x86_loader_debug_category;
 
 char *x86_loader_help =

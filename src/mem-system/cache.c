@@ -261,7 +261,6 @@ int cache_detect_stride(struct cache_t *cache, int addr)
 	int tag = addr & ~cache->prefetch.stream_mask;
 	int stride;
 	const int table_max_size = 128;
-	//addr = addr & ~cache->block_mask;
 	LINKED_LIST_FOR_EACH(sd){
 		/* Search through the table looking for a stream tag match */
 		camp = linked_list_get(sd);

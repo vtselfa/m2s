@@ -199,10 +199,8 @@ void mod_free(struct mod_t *mod)
 	if (mod->dir)
 		dir_free(mod->dir);
 
-	///////////////////////////////////////////
-        if(mod->regs_channel) // this module is main memory
-                reg_channel_free(mod->regs_channel, mod->num_regs_channel);
-        //////////////////////////////////////////
+	if(mod->regs_channel) /* This module is main memory */
+		reg_channel_free(mod->regs_channel, mod->num_regs_channel);
 
 	free(mod->ports);
 	free(mod->name);
