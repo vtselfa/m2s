@@ -42,7 +42,7 @@ struct x86_ctx_report_stack_t
 	int pid;
 	long long inst_count;
 	long long last_cycle;
-	
+
 };
 
 struct x86_ctx_t

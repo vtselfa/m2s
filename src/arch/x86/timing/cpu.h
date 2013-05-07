@@ -176,6 +176,10 @@ struct x86_thread_t
 	struct mod_t *data_mod;  /* Entry for data */
 	struct mod_t *inst_mod;  /* Entry for instructions */
 
+	/* List of modules with adaptative prefetch reachables from this thread
+	 * which status must be updated at a fixed instruction interval */
+	struct list_t *adapt_pref_modules;
+
 	/* Cycle in which last micro-instruction committed */
 	long long last_commit_cycle;
 
@@ -187,7 +191,7 @@ struct x86_thread_t
 	long long num_squashed_uinst;
 	long long num_branch_uinst;
 	long long num_mispred_branch_uinst;
-	
+
 	/* Statistics for structures */
 	long long rob_occupancy;
 	long long rob_full;
@@ -258,7 +262,6 @@ struct x86_core_t
 	int rob_head;
 	int rob_tail;
 
-	
 	/* Stages */
 	int fetch_current;  /* Currently fetching thread */
 	long long fetch_switch_when;  /* Cycle for last thread switch (for SwitchOnEvent) */
@@ -282,7 +285,7 @@ struct x86_core_t
 	long long dispatch_stall_cycles_lsq;
 	long long dispatch_stall_cycles_uop_queue;
 	long long dispatch_stall_cycles_rename;
-	
+
 	/* Statistics for shared structures */
 	long long rob_occupancy;
 	long long rob_full;
@@ -310,7 +313,7 @@ struct x86_core_t
 	long long reg_file_fp_full;
 	long long reg_file_fp_reads;
 	long long reg_file_fp_writes;
-	
+
 	long long reg_file_xmm_occupancy;
 	long long reg_file_xmm_full;
 	long long reg_file_xmm_reads;
@@ -334,7 +337,7 @@ struct x86_cpu_t
 	/* Context allocations */
 	long long ctx_alloc_oldest;  /* Time when oldest context was allocated */
 	int ctx_dealloc_signals;  /* Sent deallocation signals */
-	
+
 	/* List containing uops that need to report an 'end_inst' trace event */
 	struct linked_list_t *uop_trace_list;
 

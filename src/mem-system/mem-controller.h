@@ -96,7 +96,7 @@ struct mem_controller_t
 
 	/*Channels*/
 	struct reg_channel_t * regs_channel;
-	
+
 	/*Relation between cycles bus of main memory and cycles of processor*/
 	int cycles_proc_bus;  // 1 cycle of bus= cycles_proc_bus cycles of proc
 

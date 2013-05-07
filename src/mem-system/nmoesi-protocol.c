@@ -3162,9 +3162,9 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 	int num_ranks = mem_controller->num_regs_rank;
 	int time;
 
-	
+
 	channel = mem_controller->regs_channel;
-		
+
 
 	if (event == EV_MOD_NMOESI_INSERT_MEMORY_CONTROLLER)
 	{
@@ -4463,11 +4463,11 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			dst_node = target_mod->low_net_node;
 		}
 
-		
+
 		if (stack->request_dir == mod_request_up_down &&
 			target_mod->kind == mod_kind_main_memory && mem_controller->enabled)
 			stack->t_access_net=esim_cycle;
-		
+
 		/* Send message */
 		stack->msg = net_try_send_ev(net, src_node, dst_node, 8,
 			EV_MOD_NMOESI_READ_REQUEST_RECEIVE, stack, event, stack);
@@ -4476,7 +4476,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 
 	if (event == EV_MOD_NMOESI_READ_REQUEST_RECEIVE)
 	{
-		
+
 		mem_debug("  %lld %lld 0x%x %s read request receive\n", esim_cycle, stack->id,
 			stack->addr, target_mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:read_request_receive\"\n",
@@ -4900,12 +4900,12 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 		mem_debug("  %lld %lld 0x%x %s read request updown finish update directory(fr=%d bg=%d S=%s)\n", esim_cycle, stack->id,stack->tag, target_mod->name, stack->fast_resume, stack->background, str_map_value(&cache_block_state_map, stack->state));
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:read_request_updown_finish_update_directory\"\n", stack->id, target_mod->name);
 
-		
+
 		if (stack->request_dir == mod_request_up_down &&
 		target_mod->kind == mod_kind_main_memory && mem_controller->enabled)
 			stack->t_access_net=esim_cycle;
 
-		
+
 		if(!stack->background)
 		{
 			/* If blocks were sent directly to the peer, the reply size would
@@ -5731,7 +5731,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 	}
 	if (event == EV_MOD_NMOESI_WRITE_REQUEST_UPDOWN_FINISH_UPDATE_DIRECTORY)
 	{
-		
+
 		mem_controller=stack->target_mod->mem_controller;
 
 		mem_debug("  %lld %lld 0x%x %s write request updown finish\n", esim_cycle, stack->id,
@@ -6017,8 +6017,6 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			src_node = target_mod->low_net_node;
 			dst_node = mod->high_net_node;
 		}
-
-		
 
 		stack->msg = net_try_send_ev(net, src_node, dst_node, stack->reply_size,
 			EV_MOD_NMOESI_WRITE_REQUEST_FINISH, stack, event, stack);

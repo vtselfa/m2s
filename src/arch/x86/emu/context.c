@@ -957,9 +957,7 @@ void x86_ctx_misc_report_schedule(struct x86_ctx_t *ctx)
 
 	/* Print header */
 	fprintf(f, "%s", help_x86_ctx_misc_report);
-	fprintf(f, "%10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s\n", "cycle", "inst", "inst-int",
-		"module", "completed-prefetches-int", "prefetch-accuracy-int", "delayed-hits-int",
-		"delayed-hit-avg-lost-cycles-int", "misses-int", "stream-hits-int", "effective-prefetch-accuracy-int", "mpki-int", "pseudocoverage-int", "prefetch-active-int");
+	fprintf(f, "%10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s\n", "cycle", "inst", "inst-int", "module", "completed-prefetches-int", "prefetch-accuracy-int", "delayed-hits-int", "delayed-hit-avg-lost-cycles-int", "misses-int", "stream-hits-int", "effective-prefetch-accuracy-int", "mpki-int", "pseudocoverage-int", "prefetch-active-int","strides-detected-int");
 	for (i = 0; i < 43; i++)
 		fprintf(f, "-");
 	fprintf(f, "\n");
@@ -999,7 +997,7 @@ void x86_ctx_misc_report_handler(int event, void *data)
 		}
 
 		/* Cache */
-		else if(strcmp(mod->name, "l2-0") == 0) //TODO: Açò és una cutror...
+		else if(strcmp(mod->name, "l2-0") == 0 || strcmp(mod->name, "l2-1") == 0) //TODO: Açò és una cutror...
 		{
 			/* Prefetch accuracy */
 			long long completed_prefetches_int = mod->completed_prefetches -
@@ -1019,12 +1017,12 @@ void x86_ctx_misc_report_handler(int event, void *data)
 				(double) delayed_hit_cycles_int / delayed_hits_int : 0.0;
 
 			/* Cache misses */
-			long long accesses_int = mod->accesses - mod->last_accesses;
-			long long hits_int = mod->hits - mod->last_hits;
+			long long accesses_int = mod->no_retry_accesses - mod->last_accesses;
+			long long hits_int = mod->no_retry_hits - mod->last_hits;
 			long long misses_int = accesses_int - hits_int;
 
 			/* Stream hits */
-			long long stream_hits_int = mod->stream_hits - mod->last_stream_hits;
+			long long stream_hits_int = mod->no_retry_stream_hits - mod->last_stream_hits;
 
 			/* Effective prefetch accuracy */
 			long long effective_useful_prefetches_int = mod->effective_useful_prefetches -
@@ -1036,34 +1034,30 @@ void x86_ctx_misc_report_handler(int event, void *data)
 			/* MPKI */
 			double mpki_int = (double) misses_int / (inst_count / 1000.0);
 
-			/* Pseudocoalesce */
-			double pseudocoalesce_int = (misses_int + stream_hits_int) ?
+			/* Pseudocoverage */
+			double pseudocoverage_int = (misses_int + useful_prefetches_int) ?
 				(double) useful_prefetches_int / (misses_int + useful_prefetches_int) : 0.0;
 
-			/* Prefetch active */
-			if(mod->cache->pref_enabled)
-			{
-				if((double) misses_int / (misses_int + useful_prefetches_int) > 0.8)
-					mod->cache->pref_enabled = 0;
-			}
-			else if(mod->cache->prefetch_policy && misses_int > mod->last_misses_int * 1.1)
-				mod->cache->pref_enabled = 1;
+			/* Detected strides */
+			long long detected_streams_int = mod->cache->prefetch.stride_detector.strides_detected - mod->cache->prefetch.stride_detector.last_strides_detected;
 
 			/* Dump stats */
-			fprintf(ctx->loader->misc_report_file, "%10lld %10lld %8lld %8s %8lld %10.4f %8lld %10.4f %8lld %8lld %10.4f %10.4f %10.4f %u\n",
+			fprintf(ctx->loader->misc_report_file, "%10lld %10lld %8lld %8s %8lld %10.4f %8lld %10.4f %8lld %8lld %10.4f %10.4f %10.4f %8u %8lld\n",
 				esim_cycle, ctx->inst_count, inst_count, mod->name, completed_prefetches_int, prefetch_accuracy_int,
 				delayed_hits_int, delayed_hit_avg_lost_cycles_int, misses_int, stream_hits_int,
-				effective_prefetch_accuracy_int, mpki_int, pseudocoalesce_int, mod->cache->pref_enabled);
+				effective_prefetch_accuracy_int, mpki_int, pseudocoverage_int, mod->cache->pref_enabled, detected_streams_int);
 
 			mod->last_delayed_hits = mod->delayed_hits;
 			mod->last_delayed_hit_cycles = mod->delayed_hit_cycles;
 			mod->last_useful_prefetches = mod->useful_prefetches;
 			mod->last_completed_prefetches = mod->completed_prefetches;
-			mod->last_accesses = mod->accesses;
-			mod->last_hits = mod->hits;
-			mod->last_stream_hits = mod->stream_hits;
+			mod->last_accesses = mod->no_retry_accesses;
+			mod->last_hits = mod->no_retry_hits;
+			mod->last_stream_hits = mod->no_retry_stream_hits;
 			mod->last_effective_useful_prefetches = mod->effective_useful_prefetches;
 			mod->last_misses_int = misses_int;
+			mod->cache->prefetch.stride_detector.last_strides_detected =
+				mod->cache->prefetch.stride_detector.strides_detected;
 		}
 	}
 
@@ -1130,19 +1124,17 @@ void x86_ctx_mc_report_handler(int event, void *data)
 	long long normal_row_buffer_hits=0;
 	long long pref_row_buffer_hits=0;
 	int i=0;
-	
+
 	/* Get context. If it does not exist anymore, no more
 	 * events to schedule. */
 	ctx = x86_ctx_get(stack->pid);
 	if (!ctx || x86_ctx_get_status(ctx, x86_ctx_finished) || esim_finish)
 		return;
 
-	linked_list_head(mem_system->mem_controllers);
-
-	while(!linked_list_is_end(mem_system->mem_controllers))
+	LINKED_LIST_FOR_EACH(mem_system->mem_controllers)
 	{
 		mem_controller = linked_list_get(mem_system->mem_controllers);
-	
+
 		for(int c=0; c<mem_controller->num_regs_channel;c++)
 		{
 			row_buffer_hits+=mem_controller->regs_channel[c].row_buffer_hits;
@@ -1151,7 +1143,7 @@ void x86_ctx_mc_report_handler(int event, void *data)
 			pref_row_buffer_hits+=
 				mem_controller->regs_channel[c].row_buffer_hits_pref;
 		}
-		t_pref_total_mc=(mem_controller->pref_accesses- 
+		t_pref_total_mc=(mem_controller->pref_accesses-
 			mem_controller->last_pref_accesses)>0?(double)(mem_controller->t_pref_wait
 			+mem_controller->t_pref_transfer+mem_controller->t_pref_acces_main_memory-
 			mem_controller->last_t_pref_mc_total)/(mem_controller->pref_accesses -
@@ -1168,31 +1160,31 @@ void x86_ctx_mc_report_handler(int event, void *data)
 			(double)(mem_controller->t_wait + mem_controller->t_acces_main_memory +
 			mem_controller->t_transfer - mem_controller->last_t_mc_total) /
 			(mem_controller->accesses - mem_controller->last_accesses) : 0.0;
-	
+
 		rbh= (mem_controller->accesses-mem_controller->accesses)>0 ?(double)
 			(row_buffer_hits - mem_controller->last_row_buffer_hits)/
-			(mem_controller->accesses-mem_controller->last_accesses): 0; 
+			(mem_controller->accesses-mem_controller->last_accesses): 0;
 
 		normal_rbh=(mem_controller->normal_accesses-mem_controller->last_normal_accesses)
 			>0?(double)(normal_row_buffer_hits-
 			mem_controller->last_normal_row_buffer_hits)/
-			(mem_controller->normal_accesses-mem_controller->last_normal_accesses):0; 
+			(mem_controller->normal_accesses-mem_controller->last_normal_accesses):0;
 
 		pref_rbh= (mem_controller->pref_accesses-mem_controller->last_pref_accesses)>0 ?
 			(double)(pref_row_buffer_hits -mem_controller->last_pref_row_buffer_hits)/
-			(mem_controller->pref_accesses-mem_controller->last_pref_accesses): 0; 
+			(mem_controller->pref_accesses-mem_controller->last_pref_accesses): 0;
 
 		/* Dump new MC stat */
 		assert(ctx->loader->mc_report_interval);
 		inst_count = ctx->inst_count - stack->inst_count;
-		fprintf(ctx->loader->mc_report_file, 
-		"%10lld %10lld %8lld %10.4f %10.4f %10.4f %10.4f %10.4f %10.4f %10lld %10lld %10lld %d\n", 
-			esim_cycle, ctx->inst_count, inst_count, t_total_mc,t_normal_total_mc, 
+		fprintf(ctx->loader->mc_report_file,
+		"%10lld %10lld %8lld %10.4f %10.4f %10.4f %10.4f %10.4f %10.4f %10lld %10lld %10lld %d\n",
+			esim_cycle, ctx->inst_count, inst_count, t_total_mc,t_normal_total_mc,
 			t_pref_total_mc,rbh, normal_rbh, pref_rbh, mem_controller->accesses -
 			mem_controller->last_accesses,mem_controller->normal_accesses-
 			mem_controller->last_normal_accesses, mem_controller->pref_accesses -
 			mem_controller->last_pref_accesses, i);
-	
+
 		/* Update intermediate results */
 		mem_controller->last_accesses = mem_controller->accesses;
 		mem_controller->last_pref_accesses = mem_controller->pref_accesses;

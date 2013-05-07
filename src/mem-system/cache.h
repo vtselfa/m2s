@@ -22,8 +22,17 @@
 
 
 extern struct str_map_t cache_policy_map;
-extern struct str_map_t prefetch_policy_map;
 extern struct str_map_t cache_block_state_map;
+extern struct str_map_t prefetch_policy_map;
+extern struct str_map_t adapt_pref_policy_map;
+extern struct str_map_t interval_kind_map;
+
+enum interval_kind_t
+{
+	interval_kind_invalid = 0,
+	interval_kind_instructions,
+	interval_kind_cycles
+};
 
 enum cache_policy_t
 {
@@ -39,6 +48,14 @@ enum prefetch_policy_t
 	prefetch_policy_obl,
 	prefetch_policy_obl_stride,
 	prefetch_policy_streams
+};
+
+enum adapt_pref_policy_t
+{
+	adapt_pref_policy_none = 0,
+	adapt_pref_policy_misses,
+	adapt_pref_policy_misses_enhanced,
+	adapt_pref_policy_pseudocoverage
 };
 
 enum cache_block_state_t
@@ -135,7 +152,7 @@ struct cache_t
 
 	/* Prefetching */
 	enum prefetch_policy_t prefetch_policy;
-	int pref_enabled : 1;
+	unsigned int pref_enabled : 1;
 
 	struct {
 		unsigned int num_streams; 	/* Number of streams for prefetch */
@@ -146,7 +163,16 @@ struct cache_t
 		struct stream_buffer_t *stream_head;
 		struct stream_buffer_t *stream_tail;
 
-		struct linked_list_t *stride_detector;
+		enum adapt_pref_policy_t adapt_policy; /* Adaptative policy used */
+		long long adapt_interval; /* Interval at wich the adaptative policy is aplied */
+		enum interval_kind_t adapt_interval_kind; /* Tells if the interval is in cycles or in instructions */
+
+		struct
+		{
+			struct linked_list_t *camps;
+			long long strides_detected;
+			long long last_strides_detected;
+		} stride_detector;
 	} prefetch;
 
 	struct cache_write_buffer wb;

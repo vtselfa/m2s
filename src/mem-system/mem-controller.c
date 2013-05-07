@@ -19,7 +19,7 @@ int row_buffer_find_row(struct mem_controller_t * mem_controller, struct mod_t *
 	unsigned int *rank_ptr, unsigned int *bank_ptr, unsigned int *row_ptr,  int * tag_ptr, int *state_ptr)
 {
 	//struct cache_t *cache = mod->cache;
-	
+
 	unsigned int channel;
 	unsigned int rank;
 	unsigned int bank;
@@ -158,7 +158,7 @@ void mem_controller_init_main_memory(struct mem_controller_t *mem_controller, in
 	mem_controller->regs_channel=regs_channel_create(channels, ranks, banks, bandwith, regs_rank);
 	////////////////////////////////////////////////
 
-	
+
 
 	/*mem_controller->row_in_buffer_banks = calloc(channels, sizeof(int **));
 	if (!mem_controller->row_in_buffer_banks)
@@ -204,11 +204,11 @@ void mem_controller_free(struct mem_controller_t *mem_controller){
 	///////////////////////////////////////////////////////////
 	for(int i=0; i<mem_controller->row_buffer_size/mod->cache->block_size;i++)
 		free(mem_controller->successive_hit[i]);
-	
+
 	free(mem_controller->successive_hit);
 	free(mem_controller->burst_size);
 	///////////////////////////////////////////////////
-	
+
 	free(mem_controller->regs_channel);
 	free(mem_controller);
 
@@ -237,7 +237,7 @@ void mem_controller_normal_queue_add(struct mod_stack_t * stack){
 	//printf("bank=%d  %d \n", bank,(stack->addr >> log2_row_size) %mem_controller->num_regs_bank);
 
 	stack->threshold =mem_controller->threshold;
-	
+
 	linked_list_tail(mem_controller->normal_queue[bank]->queue);
 	linked_list_add(mem_controller->normal_queue[bank]->queue, stack);
 	linked_list_head(mem_controller->normal_queue[bank]->queue);
@@ -247,7 +247,7 @@ void mem_controller_normal_queue_add(struct mod_stack_t * stack){
          	mem_controller->normal_queue[bank]->instant_begin_full=esim_cycle;
 
  	mem_controller->normal_queue[bank]->total_insertions++;
-	
+
 }
 
 
@@ -306,7 +306,7 @@ int mem_controller_remove(struct mod_stack_t * stack, struct mem_controller_queu
 
 int mem_controller_get_bank_queue(int num_queue_examined,struct mem_controller_t * mem_controller )
 {
-	
+
 	int pos=(mem_controller->queue_round_robin+num_queue_examined)%mem_controller->num_queues;
 	assert(pos>=0);
 	assert(pos<mem_controller->num_queues);
@@ -318,7 +318,7 @@ int mem_controller_get_bank_queue(int num_queue_examined,struct mem_controller_t
 struct mod_stack_t * mem_controller_select_request(int n_queues_examined, enum priority_t priority, struct mem_controller_t * mem_controller)
 {
 
-	
+
 	int can_acces_bank;
 	int size_queue=mem_controller->size_queue;
 
@@ -528,7 +528,7 @@ int mem_controller_coalesce_acces_row_buffer( struct mod_stack_t * stack, struct
 {
 	struct mod_stack_t * stack_aux;
 	struct mem_controller_t * mem_controller=stack->mod->mem_controller;
-	
+
 	unsigned int num_ranks = mem_controller->num_regs_rank ;
 	unsigned int num_banks = mem_controller->num_regs_bank ;
 	unsigned int log2_row_size= log_base2( mem_controller->row_buffer_size);
@@ -543,7 +543,7 @@ int mem_controller_coalesce_acces_row_buffer( struct mod_stack_t * stack, struct
 		int row=(stack_aux->addr>>(log2_row_size+log_base2(num_banks)+log_base2(num_ranks)));
 		int rank = (stack_aux->addr >> (log2_row_size+ log_base2(num_banks))) % num_ranks;
 		int bank = (stack_aux->addr >> log2_row_size) % num_banks;
-		
+
 
 		assert(rank==stack->rank && bank==stack->bank);
 
@@ -570,7 +570,7 @@ int mem_controller_coalesce_acces_between_blocks(struct mod_stack_t * stack, str
 
 	struct mod_stack_t * stack_aux;
 	struct mem_controller_t * mem_controller=stack->mod->mem_controller;
-	
+
 	unsigned int num_ranks = mem_controller->num_regs_rank ;
 	unsigned int num_banks = mem_controller->num_regs_bank ;
 	unsigned int log2_row_size= log_base2( mem_controller->row_buffer_size);
@@ -618,7 +618,7 @@ int mem_controller_coalesce_acces_block(struct mod_stack_t * stack, struct linke
 	struct mod_stack_t * stack_aux;
 	int n_coal=0;
 	struct mem_controller_t * mem_controller=stack->mod->mem_controller;
-	
+
 	linked_list_head(queue);
 	while(!linked_list_is_end(queue)&&linked_list_current(queue)<mem_controller->size_queue)
 	{
@@ -652,7 +652,7 @@ void mem_controller_sort_by_block(struct mod_stack_t * stack)
 	struct mod_stack_t * stack_aux, *stack_list;
 	struct linked_list_t * list=linked_list_create();
 	struct mem_controller_t * mem_controller=stack->mod->mem_controller;
-	
+
 	unsigned int block;
 
 
@@ -710,7 +710,7 @@ unsigned int mem_controller_min_block(struct mod_stack_t *stack)
 	struct linked_list_t * queue=stack->coalesced_stacks;
 	struct mod_stack_t * stack_aux;
 	struct mem_controller_t * mem_controller=stack->mod->mem_controller;
-	
+
 	unsigned int first;
 	unsigned int block;
 
@@ -741,7 +741,7 @@ unsigned int mem_controller_max_block(struct mod_stack_t *stack)
 	struct linked_list_t * queue=stack->coalesced_stacks;
 	struct mod_stack_t * stack_aux;
 	struct mem_controller_t * mem_controller=stack->mod->mem_controller;
-	
+
 	unsigned int last;
 	unsigned int block;
 
@@ -770,7 +770,7 @@ int mem_controller_calcul_number_blocks_transfered(struct mod_stack_t *stack)
 	struct linked_list_t * queue=stack->coalesced_stacks;
 	struct mod_stack_t * stack_aux;
 	struct mem_controller_t * mem_controller=stack->mod->mem_controller;
-	
+
 	unsigned int first;
 	unsigned int last;
 	unsigned int block;
@@ -811,7 +811,7 @@ void mem_controller_count_successive_hits(struct linked_list_t * coalesced_stack
 	linked_list_head(coalesced_stacks);
 	stack=linked_list_get(coalesced_stacks);
 	mem_controller=stack->mod->mem_controller;
-	
+
 	block_size=stack->mod->cache->block_size;
 	unsigned int first_block= stack->addr %  mem_controller->row_buffer_size;
 
@@ -822,17 +822,17 @@ void mem_controller_count_successive_hits(struct linked_list_t * coalesced_stack
 
 	else if(mem_controller->coalesce == policy_coalesce_useful_blocks)
 	{
-	
+
 		LINKED_LIST_FOR_EACH(coalesced_stacks)
 		{
 			stack_aux= linked_list_get(coalesced_stacks);
 			//printf("%d == %d ", block_size*i+first_block,stack_aux->addr %  mem_controller->row_buffer_size );
-		
+
 			if(block_size*i+first_block==stack_aux->addr %  mem_controller->row_buffer_size)// succesive blocks
 			{
 				count++;
 				i++;
-			}else{ 
+			}else{
 				if(count>max)//is not a successive block , so we count the max number of consecutive accesses
 					max=count;
 				first_block=stack_aux->addr %  mem_controller->row_buffer_size;

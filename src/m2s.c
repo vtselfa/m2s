@@ -1344,13 +1344,13 @@ void m2s_dump_summary(FILE *f)
 		prefetch_total+=mod->completed_prefetches;
 		delayed_hit_total+=mod->delayed_hits;
 
-		
+
 	}
-	
+
 
 	if(prefetch_total>0)
 		accuracy=(double)useful_prefetch_total/prefetch_total;
-	
+
 	/* General statistics */
 	fprintf(f, "[ General ]\n");
 	fprintf(f, "Time = %.2f\n", time_in_sec);

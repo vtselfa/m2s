@@ -70,15 +70,11 @@ void mem_system_init(void)
 	mem_system->mm_mod_list = list_create();
 	mem_system->mem_controllers = linked_list_create();
 
-	
-
-
 	/* Event handler for memory hierarchy commands */
 	EV_MEM_SYSTEM_COMMAND = esim_register_event_with_name(mem_system_command_handler, "mem_system_command");
 	EV_MEM_SYSTEM_END_COMMAND = esim_register_event_with_name(mem_system_end_command_handler, "mem_system_end_command");
 
 	/* NMOESI memory event-driven simulation */
-
 	EV_MOD_NMOESI_LOAD = esim_register_event_with_name(mod_handler_nmoesi_load, "mod_nmoesi_load");
 	EV_MOD_NMOESI_LOAD_LOCK = esim_register_event_with_name(mod_handler_nmoesi_load, "mod_nmoesi_load_lock");
 	EV_MOD_NMOESI_LOAD_ACTION = esim_register_event_with_name(mod_handler_nmoesi_load, "mod_nmoesi_load_action");
@@ -256,7 +252,6 @@ void mem_system_done(void)
 	/* Finalize MMU */
 	mmu_done();
 
-	
 	////////////////////////////////////////////////////
         /*Free memory controller*/                        //
 	linked_list_head(mem_system->mem_controllers);
@@ -274,8 +269,6 @@ void mem_system_done(void)
 		mod_free(list_get(mem_system->mod_list, i));
 	list_free(mem_system->mod_list);
 	list_free(mem_system->mm_mod_list);
-
-	
 
 	/* Free networks */
 	for (i = 0; i < list_count(mem_system->net_list); i++)
@@ -310,8 +303,6 @@ void main_memory_dump_report(char * main_mem_report_file_name)
         if (!f)
                 return;
 
-   
-
         /* Intro */
         fprintf(f, ";Report for channels, banks, ranks and row buffer\n");
         fprintf(f, ";    AvgTimeAccesMM- Average time per access to acces to MM, depends of row buffer hit/miss and time to send a request \n");
@@ -337,7 +328,7 @@ void main_memory_dump_report(char * main_mem_report_file_name)
                         continue;
 
 		mem_controller=mod->mem_controller;
-        
+
 		for(int c=0; c<mem_controller->num_regs_channel;c++)
 		 {
 		        total_acces+=mem_controller->regs_channel[c].acceses;
@@ -362,7 +353,7 @@ void main_memory_dump_report(char * main_mem_report_file_name)
 				mem_controller->t_acces_main_memory+mem_controller->t_transfer+mem_controller->t_inside_net)/mem_controller->accesses:0.0);
 		fprintf(f, "AvgTimeWaitMCQueue = %f\n",mem_controller->accesses ? (double)
 				 mem_controller->t_wait/mem_controller->accesses:0.0);
-		fprintf(f, "AvgTimeAccesMM = %f\n",mem_controller->accesses ? (double) 
+		fprintf(f, "AvgTimeAccesMM = %f\n",mem_controller->accesses ? (double)
 				mem_controller->t_acces_main_memory/mem_controller->accesses :0.0);
 		fprintf(f, "AvgTimeTransferFromMM = %f\n",mem_controller->accesses?(double)
 				mem_controller->t_transfer/mem_controller->accesses:0.0 );
@@ -380,9 +371,9 @@ void main_memory_dump_report(char * main_mem_report_file_name)
 		/*Normal requests*/
 		fprintf(f, "TotalTimeNormal = %f\n",mem_controller->normal_accesses ? (double) (mem_controller->t_normal_wait+
 			mem_controller->t_normal_acces_main_memory+mem_controller->t_normal_transfer)/mem_controller->normal_accesses:0.0);
-		fprintf(f, "AvgTimeNormalWaitMCQueueN = %f\n",mem_controller->normal_accesses ? (double) 
+		fprintf(f, "AvgTimeNormalWaitMCQueueN = %f\n",mem_controller->normal_accesses ? (double)
 			mem_controller->t_normal_wait/mem_controller->normal_accesses:0.0);
-		fprintf(f, "AvgTimeNormalAccesMM = %f\n",mem_controller->normal_accesses ? (double) 
+		fprintf(f, "AvgTimeNormalAccesMM = %f\n",mem_controller->normal_accesses ? (double)
 			mem_controller->t_normal_acces_main_memory/mem_controller->normal_accesses :0.0);
 		fprintf(f,"AvgTimeNormalTransferFromMM = %f\n",mem_controller->normal_accesses?(double)
 			mem_controller->t_normal_transfer/mem_controller->normal_accesses:0.0 );
@@ -393,9 +384,9 @@ void main_memory_dump_report(char * main_mem_report_file_name)
 		/*Prefetch requests*/
 		fprintf(f, "TotalTimePrefetch = %f\n",mem_controller->pref_accesses ? (double) (mem_controller->t_pref_wait+
 			mem_controller->t_pref_acces_main_memory+mem_controller->t_pref_transfer)/mem_controller->pref_accesses:0.0);
-		fprintf(f, "AvgTimePrefetchWaitMCQueueN = %f\n",mem_controller->pref_accesses ? (double) 
+		fprintf(f, "AvgTimePrefetchWaitMCQueueN = %f\n",mem_controller->pref_accesses ? (double)
 			mem_controller->t_pref_wait/mem_controller->pref_accesses:0.0);
-		fprintf(f, "AvgTimePrefetchAccesMM = %f\n",mem_controller->pref_accesses?(double) 
+		fprintf(f, "AvgTimePrefetchAccesMM = %f\n",mem_controller->pref_accesses?(double)
 			mem_controller->t_pref_acces_main_memory/mem_controller->pref_accesses :0.0);
 		fprintf(f,"AvgTimePrefetchTransferFromMM = %f\n",mem_controller->pref_accesses?(double)
 			mem_controller->t_pref_transfer/mem_controller->pref_accesses:0.0 );
@@ -501,7 +492,7 @@ void main_memory_dump_report(char * main_mem_report_file_name)
 						mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].parallelism/
 						total_bank_parallelism:0);
 		                        fprintf(f, "Conflicts = %lld\n",mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].conflicts);
-		                        fprintf(f, "AvgTimeWaitBankBusy = %f\n", 
+		                        fprintf(f, "AvgTimeWaitBankBusy = %f\n",
 						mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].acceses ?
 						(double)mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].t_wait/
 		                                mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].acceses:0.0);
@@ -545,7 +536,7 @@ void main_memory_dump_report(char * main_mem_report_file_name)
 		        fprintf(f, "TimeFullPercent = %f\n", esim_cycle ? (double)mem_controller->pref_queue[i]->t_full/esim_cycle:0.0);
 			avg_req=mem_controller->n_times_queue_examined ? (double)
 				mem_controller->pref_queue[i]->total_requests/mem_controller->n_times_queue_examined:0.0;
-		        fprintf(f, "TimeResponse = %f\n\n ", normal->total_insertions ? (double) 
+		        fprintf(f, "TimeResponse = %f\n\n ", normal->total_insertions ? (double)
 				(avg_req*esim_cycle)/normal->total_insertions :0.0);
 		}
 		fprintf(f, "\n\n\n");

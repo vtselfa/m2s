@@ -200,12 +200,12 @@ HighNetwork = mesh
 HighNetworkNode = n8
 Latency = 200
 BlockSize = 64
-Ranks = 2
+Ranks = 1
 Banks = 8
-Channels = 2
+Channels = 1
 CyclesSendRequest = 1
-CyclesRowBufferHit = 60
-CyclesRowBufferMiss = 180
+CyclesRowBufferHit = 180
+CyclesRowBufferMiss = 60
 Bandwith = 16
 CyclesProcByCyclesBus = 3
 Threshold= 100000
@@ -215,7 +215,6 @@ PriorityMCQueues = Threshold-Normal-Prefetch
 QueuePerBank = 1
 SizeQueue = 128
 MemoryControllerEnabled = 1
-
 
 #
 # Nodes

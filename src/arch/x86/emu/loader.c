@@ -37,7 +37,6 @@
 #include "loader.h"
 #include "regs.h"
 
-
 int x86_loader_debug_category;
 
 char *x86_loader_help =
@@ -108,14 +107,6 @@ static struct str_map_t elf_section_flags_map =
 		{ "SHF_WRITE", 1 },
 		{ "SHF_ALLOC", 2 },
 		{ "SHF_EXECINSTR", 4 }
-	}
-};
-
-struct str_map_t interval_kind_map =
-{
-	2, {
-		{ "cycles", interval_kind_cycles },
-		{ "instructions", interval_kind_instructions }
 	}
 };
 

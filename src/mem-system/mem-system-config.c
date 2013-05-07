@@ -656,6 +656,13 @@ static struct mod_t *mem_config_read_cache(struct config_t *config, char *sectio
 	int pref_streams = 0;
 	int pref_aggr = 0;
 
+	char *adapt_pref_policy_str;
+	enum adapt_pref_policy_t adapt_pref_policy = adapt_pref_policy_none;
+
+	char *adapt_pref_interval_kind_str;
+	enum interval_kind_t adapt_pref_interval_kind;
+	long long adapt_pref_interval;
+
 	char *policy_str;
 	enum cache_policy_t policy;
 
@@ -710,6 +717,29 @@ static struct mod_t *mem_config_read_cache(struct config_t *config, char *sectio
 		if (pref_streams < 0)
 			fatal("%s: cache %s: invalid value for variable 'PrefetchStreams'.\n%s",
 				mem_config_file_name, mod_name, err_mem_config_note);
+
+		/* Apdaptative policy */
+		adapt_pref_policy_str = config_read_string(config, buf, "AdaptPrefPolicy", "none");
+		adapt_pref_policy = str_map_string_case(&adapt_pref_policy_map, adapt_pref_policy_str);
+		if (!adapt_pref_policy && strcasecmp(adapt_pref_policy_str, "none"))
+		fatal("%s: cache %s: %s: invalid adaptative prefetch policy. "
+			"Valid values are {None Misses Misses_Enhanced}.\n%s",
+			mem_config_file_name, mod_name,
+			adapt_pref_policy_str, err_mem_config_note);
+		if (adapt_pref_policy)
+		{
+			/* Read interval duration */
+			adapt_pref_interval = config_read_llint(config, buf, "AdaptPrefInterval", 500000);
+
+			/* Interval kind (instructions or cycles) */
+			adapt_pref_interval_kind_str = config_read_string(config, buf, "AdaptPrefIntervalKind", "cycles");
+			adapt_pref_interval_kind = str_map_string_case(&interval_kind_map, adapt_pref_interval_kind_str);
+			if(!adapt_pref_interval_kind)
+				fatal("%s: cache %s: %s: invalid adaptative prefetch interval kind. "
+					"Valid values are {Cycles Instructions}.\n%s",
+					mem_config_file_name, mod_name,
+					adapt_pref_policy_str, err_mem_config_note);
+		}
 	}
 
 	/* Checks */
@@ -740,8 +770,6 @@ static struct mod_t *mem_config_read_cache(struct config_t *config, char *sectio
 		fatal("%s: cache %s: invalid value for variable 'Ports'.\n%s",
 			mem_config_file_name, mod_name, err_mem_config_note);
 
-
-
 	/* Create module */
 	mod = mod_create(mod_name, mod_kind_cache, num_ports,
 		block_size, latency);
@@ -752,12 +780,6 @@ static struct mod_t *mem_config_read_cache(struct config_t *config, char *sectio
 	mod->dir_num_sets = num_sets;
 	mod->dir_size = num_sets * assoc;
 	mod->dir_latency = dir_latency;
-	//////////////////////////////////////////////////////////////////////////////////////////////////////////
-	/*  Checks if option  is correct   */                                                                   //
-	if (prefetch && misses_no_prefetch == 1)                                                     //
-		fatal("option '--misses_no_prefetch-write' musnt'n be used with some prefetched enabled");      //
-	//////////////////////////////////////////////////////////////////////////////////////////////////////////
-
 
 	/* High network */
 	net_name = config_read_string(config, section, "HighNetwork", "");
@@ -778,7 +800,14 @@ static struct mod_t *mem_config_read_cache(struct config_t *config, char *sectio
 	/* Create cache */
 	mod->cache = cache_create(mod->name, num_sets, block_size, assoc, pref_streams, pref_aggr, policy);
 	mod->cache->prefetch_policy = prefetch;
+	mod->cache->prefetch.adapt_policy = adapt_pref_policy;
+	mod->cache->prefetch.adapt_interval = adapt_pref_interval;
+	mod->cache->prefetch.adapt_interval_kind = adapt_pref_interval_kind;
 	mod->cache->pref_enabled = prefetch ? 1 : 0; /* Prefetch enabled by default if a prefetch policy is set */
+
+	/* Schedule adaptative prefetch */
+	if(adapt_pref_policy)
+		mod_adapt_pref_schedule(mod);
 
 	/* Return */
 	return mod;
@@ -806,8 +835,8 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config, char *
 	int cycles_proc_bus;
 	int queue_per_bank;
 	int enabled_mc;
-	
-	
+
+
 	long long threshold;
 	long long size_queue;
 
@@ -856,7 +885,7 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config, char *
 	queue_per_bank = config_read_llint(config, section, "QueuePerBank", 0);
 	/////////////////////////////////////////////////////////////////////
 
-	
+
 	/* Check parameters */
 	if (block_size < 1 || (block_size & (block_size - 1)))
 		fatal("%s: %s: block size must be power of two.\n%s",
@@ -995,14 +1024,14 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config, char *
 	///////////////////////////////////////////////////
 	mod->regs_rank = regs_rank_create(ranks, banks, t_acces_bank_hit, t_acces_bank_miss );
 	mod->num_regs_rank = ranks;
-	
-        /*Create memory controller*/                            
+
+        /*Create memory controller*/
 	mod->mem_controller=mem_controller_create();
 	mem_controller_init_main_memory(mod->mem_controller, channels, ranks, banks, t_send_request, row_size, block_size, cycles_proc_bus, policy_type, prio_type, size_queue, threshold, queue_per_bank, coalesce_type, mod->regs_rank, bandwith);
 	mod->mem_controller->enabled = enabled_mc;
 	linked_list_add(mem_system->mem_controllers, mod->mem_controller);
 
-	
+
 	///////////////////////////////////////////////////
 
 
@@ -2125,6 +2154,40 @@ static void mem_config_read_commands(struct config_t *config)
 }
 
 
+/* Constructs for a given core thread pair a list with all the reachable mods with adaptative prefetch. It also constructs in each module a list of (core, thread) tuples from wich it's reachable. */
+static void mem_config_fill_adapt_pref_lists(int core, int thread, struct mod_t *mod)
+{
+	struct mod_t *low_mod;
+	struct core_thread_tuple_t *tuple;
+
+	if(mod->visited)
+		return;
+	mod->visited = 1;
+
+	/* Add (core, thread) to the mod's list */
+	tuple = calloc(1, sizeof(struct core_thread_tuple_t));
+	if(!tuple)
+		fatal("%s: out of memory", __FUNCTION__);
+	tuple->core = core;
+	tuple->thread = thread;
+	list_add(mod->threads, tuple);
+
+	/* Add mod to the list of mods with adapt pref enabled */
+	if(mod->cache->prefetch.adapt_policy)
+	{
+		assert(mod->cache->prefetch_policy);
+		list_add(X86_THREAD.adapt_pref_modules, mod);
+	}
+	/* Explore lower modules */
+	for (linked_list_head(mod->low_mod_list); !linked_list_is_end(mod->low_mod_list);
+		linked_list_next(mod->low_mod_list))
+	{
+		low_mod = linked_list_get(mod->low_mod_list);
+		mem_config_fill_adapt_pref_lists(core, thread, low_mod);
+	}
+}
+
+
 
 
 /*
@@ -2134,6 +2197,8 @@ static void mem_config_read_commands(struct config_t *config)
 void mem_system_config_read(void)
 {
 	struct config_t *config;
+	int core;
+	int thread;
 
 	/* Load memory system configuration file */
 	config = config_create(mem_config_file_name);
@@ -2190,6 +2255,12 @@ void mem_system_config_read(void)
 
 	/* Compute cache levels relative to the CPU/GPU entry points */
 	mem_config_calculate_mod_levels();
+
+	X86_CORE_FOR_EACH X86_THREAD_FOR_EACH
+	{
+		mem_config_fill_adapt_pref_lists(core, thread, X86_THREAD.data_mod);
+		mem_config_fill_adapt_pref_lists(core, thread, X86_THREAD.inst_mod);
+	}
 
 	/* Dump configuration to trace file */
 	mem_config_trace();

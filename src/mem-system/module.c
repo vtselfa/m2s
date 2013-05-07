@@ -19,11 +19,13 @@
 #include <assert.h>
 #include <stdlib.h>
 
+#include <arch/x86/timing/cpu.h>
 #include <arch/x86/timing/uop.h>
 #include <lib/esim/esim.h>
 #include <lib/mhandle/mhandle.h>
 #include <lib/util/debug.h>
 #include <lib/util/linked-list.h>
+#include <lib/util/list.h>
 #include <lib/util/misc.h>
 #include <lib/util/string.h>
 
@@ -47,6 +49,7 @@ struct str_map_t mod_access_kind_map =
 };
 
 
+int EV_CACHE_ADAPT_PREF;
 
 
 /*
@@ -164,6 +167,7 @@ struct mod_t *mod_create(char *name, enum mod_kind_t kind, int num_ports,
 	mod->low_mod_list = linked_list_create();
 	mod->high_mod_list = linked_list_create();
 	mod->pq = linked_list_create();
+	mod->threads = list_create();
 
 	/* Block size */
 	mod->block_size = block_size;
@@ -182,17 +186,25 @@ void mod_free(struct mod_t *mod)
 	linked_list_free(mod->high_mod_list);
 
 	/* Free L2 prefetch queue */
-	struct linked_list_t *pq = mod->pq;
-	linked_list_head(pq);
-	while (linked_list_count(pq))
+	linked_list_head(mod->pq);
+	while (linked_list_count(mod->pq))
 	{
 		/* Free all the uops and pref_groups associated (if any)
 		 * remaining in the queue */
-		struct x86_uop_t * uop = linked_list_get(pq);
-		linked_list_remove(pq);
+		struct x86_uop_t * uop = linked_list_get(mod->pq);
+		linked_list_remove(mod->pq);
 		x86_uop_free_if_not_queued(uop);
 	}
 	linked_list_free(mod->pq);
+
+	/* Free the queue containing the threads that can access this module */
+	list_head(mod->threads);
+	while (list_count(mod->threads))
+	{
+		struct core_thread_tuple_t *tuple = list_pop(mod->threads);
+		free(tuple);
+	}
+	list_free(mod->threads);
 
 	if (mod->cache)
 		cache_free(mod->cache);
@@ -204,6 +216,7 @@ void mod_free(struct mod_t *mod)
                 reg_rank_free(mod->regs_rank, mod->num_regs_rank);
         //////////////////////////////////////////
 
+	free(mod->adapt_pref_stack);
 	free(mod->ports);
 	free(mod->name);
 	free(mod);
@@ -956,4 +969,157 @@ void mod_coalesce(struct mod_t *mod, struct mod_stack_t *master_stack,
 
 	/* Record in-flight coalesced access in module */
 	mod->access_list_coalesced_count++;
+}
+
+
+void mod_adapt_pref_schedule(struct mod_t *mod)
+{
+	struct mod_adapt_pref_stack_t *stack;
+	struct cache_t *cache = mod->cache;
+
+	/* Create new stack */
+	stack = calloc(1, sizeof(struct mod_adapt_pref_stack_t));
+	if (!stack)
+		fatal("%s: out of memory", __FUNCTION__);
+	stack->mod = mod;
+	mod->adapt_pref_stack = stack;
+
+	if (cache->prefetch.adapt_interval_kind == interval_kind_cycles)
+	{
+		/* Schedule first event */
+		assert(mod->cache->prefetch.adapt_interval);
+		esim_schedule_event(EV_CACHE_ADAPT_PREF, stack, mod->cache->prefetch.adapt_interval);
+	}
+}
+
+
+void mod_adapt_pref_handler(int event, void *data)
+{
+	struct mod_adapt_pref_stack_t *stack = data;
+	struct mod_t *mod = stack->mod;
+	struct cache_t *cache = mod->cache;
+	struct core_thread_tuple_t *tuple;
+	int i;
+
+	/* If simulation has ended, no more
+	 * events to schedule. */
+	if (esim_finish)
+		return;
+
+	/* Useful prefetches */
+	long long useful_prefetches_int = mod->useful_prefetches -
+		stack->last_useful_prefetches;
+
+	/* Cache misses */
+	long long accesses_int = mod->no_retry_accesses - stack->last_no_retry_accesses;
+	long long hits_int = mod->no_retry_hits - stack->last_no_retry_hits;
+	long long misses_int = accesses_int - hits_int;
+
+	/* Pseudocoverage */
+	double pseudocoverage_int = (misses_int + useful_prefetches_int) ?
+		(double) useful_prefetches_int / (misses_int + useful_prefetches_int) : 0.0;
+
+	/* ROB % stalled cicles due a memory instruction */
+	long long cycles_stalled;
+	long long cycles_stalled_int;
+	{
+		int cores = 0;
+		int *cores_presence_vector = calloc(x86_cpu_num_cores, sizeof(int));
+		LIST_FOR_EACH(mod->threads, i)
+		{
+			tuple = (struct core_thread_tuple_t *) list_get(mod->threads, i);
+			if(!cores_presence_vector[tuple->core])
+			{
+				cycles_stalled += x86_cpu->core[tuple->core].dispatch_stall_cycles_rob_mem;
+				cores_presence_vector[tuple->core] = 1;
+				cores++;
+			}
+		}
+		free(cores_presence_vector);
+		cycles_stalled /= cores;
+		cycles_stalled_int = cycles_stalled - stack->last_cycles_stalled;
+	}
+	double percentage_cycles_stalled = esim_cycle - stack->last_cycle > 0 ? (double)
+		100 * cycles_stalled_int / (esim_cycle - stack->last_cycle) : 0.0;
+
+	/* Mean IPC for all the contexts accessing this module */
+	double ipc_int = (double) (stack->inst_count - stack->last_inst_count) /
+		(esim_cycle - stack->last_cycle);
+
+	/* Strides detected */
+	long long strides_detected_int = cache->prefetch.stride_detector.strides_detected -
+		stack->last_strides_detected;
+
+	/* Disable prefetch */
+	if(mod->cache->pref_enabled)
+	{
+		switch(mod->cache->prefetch.adapt_policy)
+		{
+			case adapt_pref_policy_none:
+				break;
+
+			case adapt_pref_policy_misses:
+			case adapt_pref_policy_misses_enhanced:
+				if((double) misses_int / (misses_int + useful_prefetches_int) > 0.8)
+					mod->cache->pref_enabled = 0;
+				break;
+
+			case adapt_pref_policy_pseudocoverage:
+				if(pseudocoverage_int < 0.2)
+					mod->cache->pref_enabled = 0;
+				break;
+
+			default:
+				fatal("Invalid adaptative prefetch policy");
+				break;
+		}
+		if(!mod->cache->pref_enabled)
+			stack->last_cycle_pref_disabled = esim_cycle;
+	}
+
+	/* Enable prefetch */
+	else
+	{
+		switch(mod->cache->prefetch.adapt_policy)
+		{
+			case adapt_pref_policy_none:
+				break;
+
+			case adapt_pref_policy_misses:
+				if (misses_int > stack->last_misses_int * 1.1)
+					mod->cache->pref_enabled = 1;
+
+			break;
+
+			case adapt_pref_policy_misses_enhanced:
+				if ((misses_int > stack->last_misses_int * 1.1) ||
+					(percentage_cycles_stalled > 0.4 && strides_detected_int > 1500) ||
+					(stack->last_cycle_pref_disabled == stack->last_cycle && ipc_int < 0.9 * stack->last_ipc_int))
+				{
+					mod->cache->pref_enabled = 1;
+				}
+				break;
+
+			default:
+				fatal("Invalid adaptative prefetch policy");
+				break;
+		}
+	}
+
+	stack->last_cycle = esim_cycle;
+	stack->last_cycles_stalled = cycles_stalled;
+	stack->last_useful_prefetches = mod->useful_prefetches;
+	stack->last_no_retry_accesses = mod->no_retry_accesses;
+	stack->last_no_retry_hits = mod->no_retry_hits;
+	stack->last_misses_int = misses_int;
+	stack->last_strides_detected = cache->prefetch.stride_detector.strides_detected;
+	stack->last_inst_count = stack->inst_count;
+	stack->last_ipc_int = ipc_int;
+
+	if (cache->prefetch.adapt_interval_kind == interval_kind_cycles)
+	{
+		/* Schedule new event */
+		assert(mod->cache->prefetch.adapt_interval);
+		esim_schedule_event(event, stack, mod->cache->prefetch.adapt_interval);
+	}
 }
