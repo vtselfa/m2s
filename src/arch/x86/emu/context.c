@@ -1137,9 +1137,7 @@ void x86_ctx_mc_report_handler(int event, void *data)
 	if (!ctx || x86_ctx_get_status(ctx, x86_ctx_finished) || esim_finish)
 		return;
 
-	linked_list_head(mem_system->mem_controllers);
-
-	while(!linked_list_is_end(mem_system->mem_controllers))
+	LINKED_LIST_FOR_EACH(mem_system->mem_controllers)
 	{
 		mem_controller = linked_list_get(mem_system->mem_controllers);
 	
