@@ -42,7 +42,6 @@ struct x86_ctx_report_stack_t
 	int pid;
 	long long inst_count;
 	long long last_cycle;
-
 };
 
 struct x86_ctx_t
@@ -51,6 +50,9 @@ struct x86_ctx_t
 	int status;
 	int pid;  /* Context ID */
 	int address_space_index;  /* Virtual memory address space index */
+
+	/* Core prefered for this context being executed in */
+	int core_affinity;
 
 	/* Parent context */
 	struct x86_ctx_t *parent;
