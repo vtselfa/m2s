@@ -2885,6 +2885,17 @@ void mod_handler_nmoesi_evict(int event, void *data)
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:evict_receive\"\n",
 			stack->id, target_mod->name);
 
+		mem_controller=stack->target_mod->mem_controller;
+
+
+		/*Is mem controller queue busy?*/
+		if(target_mod->kind==mod_kind_main_memory && mod_request_up_down && 
+		mem_controller_get_size_queue(stack)>= mem_controller->size_queue)
+		{
+			esim_schedule_event(EV_MOD_NMOESI_EVICT_RECEIVE, stack, 1);
+			return;
+		}
+
 		/* Receive message */
 		net_receive(target_mod->high_net, target_mod->high_net_node, stack->msg);
 
@@ -3320,12 +3331,12 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 					normal_queue->total_requests += size_queue * time;
 				mem_controller->last_cycle=esim_cycle;
 				mem_controller->n_times_queue_examined += time; //se podria cambiar dividinto x esim al final
-				mem_controller->t_acces_main_memory += mem_controller->t_send_request;
+				mem_controller->t_acces_main_memory += mem_controller->t_send_request*cycles_proc_by_bus;
 
 				if(new_stack->prefetch)
-					mem_controller->t_pref_acces_main_memory += mem_controller->t_send_request;
+					mem_controller->t_pref_acces_main_memory += mem_controller->t_send_request*cycles_proc_by_bus;
 				else
-					mem_controller->t_normal_acces_main_memory += mem_controller->t_send_request;
+					mem_controller->t_normal_acces_main_memory += mem_controller->t_send_request*cycles_proc_by_bus;
 
 				/* Delete the request in the MC queue */
 				if (mem_controller_remove(new_stack, normal_queue)&&linked_list_count(normal_queue->queue) == size_queue - 1)
@@ -3334,7 +3345,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 					pref_queue->t_full += esim_cycle - pref_queue->instant_begin_full;
 
 				/* Send the request to the bank */
-				esim_schedule_event(EV_MOD_NMOESI_ACCES_BANK, new_stack, mem_controller->t_send_request);
+				esim_schedule_event(EV_MOD_NMOESI_ACCES_BANK, new_stack, mem_controller->t_send_request*cycles_proc_by_bus);
 			}
 			new_stack = mem_controller_select_request(0, mem_controller->priority_request_in_queue,mem_controller);
 		}
@@ -3586,8 +3597,16 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 
 				}
 
+				mem_controller->t_acces_main_memory += mem_controller->t_send_request*cycles_proc_by_bus;
+
+				if(new_stack->prefetch)
+					mem_controller->t_pref_acces_main_memory += mem_controller->t_send_request*cycles_proc_by_bus;
+				else
+					mem_controller->t_normal_acces_main_memory += mem_controller->t_send_request*cycles_proc_by_bus;
+
+
 				/* Send the request to the bank */
-				esim_schedule_event(EV_MOD_NMOESI_ACCES_BANK, new_stack, mem_controller->t_send_request);
+				esim_schedule_event(EV_MOD_NMOESI_ACCES_BANK, new_stack, mem_controller->t_send_request* cycles_proc_by_bus);
 			}
 
 			/* Next queue */
@@ -4481,7 +4500,16 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			stack->addr, target_mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:read_request_receive\"\n",
 			stack->id, target_mod->name);
+		mem_controller=stack->target_mod->mem_controller;
 
+
+		/*Is mem controller queue busy?*/
+		if(target_mod->kind==mod_kind_main_memory && mod_request_up_down && 
+		mem_controller_get_size_queue(stack)>= mem_controller->size_queue)
+		{
+			esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST_RECEIVE, stack, 1);
+			return;
+		}
 		/* Receive message */
 		if (stack->request_dir == mod_request_up_down)
 			net_receive(target_mod->high_net, target_mod->high_net_node, stack->msg);
@@ -5458,6 +5486,16 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:write_request_receive\"\n",
 			stack->id, target_mod->name);
 
+		mem_controller=stack->target_mod->mem_controller;
+
+
+		/*Is mem controller queue busy?*/
+		if(target_mod->kind==mod_kind_main_memory && mod_request_up_down && 
+		mem_controller_get_size_queue(stack)>= mem_controller->size_queue)
+		{
+			esim_schedule_event(EV_MOD_NMOESI_WRITE_REQUEST_RECEIVE, stack, 1);
+			return;
+		}
 		/* Receive message */
 		if (stack->request_dir == mod_request_up_down)
 			net_receive(target_mod->high_net, target_mod->high_net_node, stack->msg);
