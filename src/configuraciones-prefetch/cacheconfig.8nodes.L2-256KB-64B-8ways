@@ -215,6 +215,7 @@ PriorityMCQueues = Threshold-Normal-Prefetch
 QueuePerBank = 1
 SizeQueue = 128
 MemoryControllerEnabled = 1
+PhotonicNet = 1
 
 #
 # Nodes

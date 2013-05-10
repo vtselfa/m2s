@@ -78,6 +78,9 @@ struct mem_controller_t
 	struct mem_controller_queue_t **pref_queue;
 	struct mem_controller_queue_t **normal_queue;
 
+	/*Photonic tecnology used in channels */
+	int photonic_net;
+
 	/*Number of stacks you can put inside*/
 	int size_queue;
 

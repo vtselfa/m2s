@@ -3311,7 +3311,9 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 				else{/* MISS */}
 
 				/* Reserve the acces */
-				channel[new_stack->channel].state = channel_state_busy;
+				if(!mem_controller->photonic_net) //if we use a photonic net, it can tranfer in full directions
+					channel[new_stack->channel].state = channel_state_busy;
+				
 				channel[new_stack->channel].regs_rank[new_stack->rank].regs_bank[new_stack->bank].is_been_accesed = 1;
 				channel[new_stack->channel].regs_rank[new_stack->rank].is_been_accesed = 1;
 
@@ -3550,7 +3552,8 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 			{
 
 				/* Reserve the acces */
-				channel[new_stack->channel].state = channel_state_busy;
+				if(!mem_controller->photonic_net) //if we use a photonic net, it can tranfer in full directions
+					channel[new_stack->channel].state = channel_state_busy;
 				channel[new_stack->channel].regs_rank[new_stack->rank].regs_bank[new_stack->bank].is_been_accesed = 1;
 				channel[new_stack->channel].regs_rank[new_stack->rank].is_been_accesed = 1;
 
@@ -3853,14 +3856,18 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:transfer from bank\"\n", stack->id, mod->name);
 
 		/* Calcul the cycles of proccesor for transfering one block*/
-		t_trans = mod->cache->block_size / (channel[stack->channel].bandwith * 2) * cycles_proc_by_bus; //2 because is DDR3
+		if(mem_controller->photonic_net)
+			t_trans=1;
+		else
+			t_trans = mod->cache->block_size / (channel[stack->channel].bandwith * 2) * cycles_proc_by_bus; //2 because is DDR3
 
 
 		if (channel[stack->channel].state == channel_state_free)
 		{
 			mem_debug("  %lld %lld 0x%x %s transfer from bank\n", esim_cycle, stack->id,stack->addr&~mod->cache->block_mask, mod->name);
 			/* Busy the channel */
-			channel[stack->channel].state = channel_state_busy;
+			if(!mem_controller->photonic_net) //if we use a photonic net, it can tranfer in full directions
+				channel[stack->channel].state = channel_state_busy;
 
 			if(mem_controller->coalesce== policy_coalesce_disabled || stack->coalesced_stacks==NULL)
 				num_blocks=1;
@@ -3985,13 +3992,19 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 		bank = channel[stack->channel].regs_rank[stack->rank].regs_bank;
 		int accesed = 0;
 		unsigned int log2_row_size= log_base2( mem_controller->row_buffer_size);
-		int t_trans=mod->cache->block_size/(channel[stack->channel].bandwith*2)*cycles_proc_by_bus;
+		int t_trans;
 		unsigned int min_block;
 		unsigned int max_block;
 		unsigned int current_block;
 
 		mem_debug("  %lld %lld 0x%x %s remove request in MC\n ",esim_cycle,stack->id, stack->addr&~mod->cache->block_mask,mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:remove request in MC\"\n", stack->id, mod->name);
+
+		if(mem_controller->photonic_net) // all blocks arrive at the same tiem
+			t_trans=0;
+		else
+			t_trans=mod->cache->block_size/(channel[stack->channel].bandwith*2)*cycles_proc_by_bus;
+			
 
 		/*Free when all coalesced request have arrived*/
 		if(stack->coalesced_stacks==NULL || linked_list_count(stack->coalesced_stacks)==0)
