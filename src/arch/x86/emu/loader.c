@@ -21,6 +21,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 
+#include <arch/x86/timing/cpu.h>
 #include <lib/mhandle/mhandle.h>
 #include <lib/util/debug.h>
 #include <lib/util/elf-format.h>
@@ -772,6 +773,11 @@ void x86_loader_load_from_ctx_config(struct config_t *config, char *section)
 	/* Standard output */
 	out = config_read_string(config, section, "Stdout", "");
 	ld->stdout_file = str_set(NULL, out);
+
+	/* Core affinity */
+	ctx->core_affinity = config_read_int(config, section, "CoreAffinity", -1);
+	if(ctx->core_affinity < -1 || ctx->core_affinity > x86_cpu_num_cores)
+		fatal("%s: invalid value for 'CoreAffinity'", config_file_name);
 
 	/* Interval kind (instructions or cycles) */
 	interval_kind_str = config_read_string(config, section, "IntervalKind", "cycles");

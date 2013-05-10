@@ -55,12 +55,21 @@ static int x86_cpu_context_to_cpu(struct x86_ctx_t *ctx)
 	/* No free node */
 	if (x86_emu->alloc_list_count == x86_cpu_num_cores * x86_cpu_num_threads)
 		return -1;
-	
+
 	/* Try to allocate previous node, if the contexts has ever been
 	 * allocated before. */
 	if (ctx->alloc_when && !x86_cpu->core[ctx->alloc_core].thread[ctx->alloc_thread].ctx)
 		return ctx->alloc_core * x86_cpu_num_threads + ctx->alloc_thread;
-	
+
+	/* Try an allocation based on core affinity */
+	if(ctx->core_affinity != -1)
+	{
+		core = ctx->core_affinity;
+		for (thread = 0; thread < x86_cpu_num_threads; thread++)
+			if (!X86_THREAD.ctx)
+				return core * x86_cpu_num_threads + thread;
+	}
+
 	/* Find a node that has not been used before. This is useful in case
 	 * a context was suspended and tries to allocate later the same node. */
 	free_cpu = -1;
@@ -124,7 +133,7 @@ void x86_cpu_unmap_context(int core, int thread)
 
 	x86_ctx_debug("cycle %lld: ctx %d evicted from c%dt%d\n",
 		x86_cpu->cycle, ctx->pid, core, thread);
-	
+
 	/* Trace */
 	x86_trace("x86.unmap_ctx ctx=%d core=%d thread=%d\n",
 		ctx->pid, core, thread);
@@ -162,7 +171,7 @@ void x86_cpu_unmap_context_signal(struct x86_ctx_t *ctx)
 		x86_cpu->cycle, ctx->pid, core, thread);
 	if (x86_cpu_pipeline_empty(core, thread))
 		x86_cpu_unmap_context(core, thread);
-		
+
 }
 
 
@@ -173,12 +182,12 @@ void x86_cpu_static_schedule()
 
 	x86_ctx_debug("cycle %lld: static scheduler called\n",
 		x86_cpu->cycle);
-	
+
 	/* If there is no new unallocated context, exit. */
 	assert(x86_emu->alloc_list_count <= x86_emu->context_list_count);
 	if (x86_emu->alloc_list_count == x86_emu->context_list_count)
 		return;
-	
+
 	/* Allocate all unallocated contexts. */
 	for (ctx = x86_emu->context_list_head; ctx; ctx = ctx->context_list_next)
 	{
@@ -206,7 +215,7 @@ void x86_cpu_dynamic_schedule()
 
 	x86_ctx_debug("cycle %lld: scheduler called\n",
 		x86_cpu->cycle);
-	
+
 	/* Evict non-running contexts */
 	for (ctx = x86_emu->alloc_list_head; ctx; ctx = ctx->alloc_list_next)
 		if (!ctx->dealloc_signal && !x86_ctx_get_status(ctx, x86_ctx_running))
@@ -233,7 +242,7 @@ void x86_cpu_dynamic_schedule()
 		if (found_ctx)
 			x86_cpu_unmap_context_signal(found_ctx);
 	}
-	
+
 	/* Allocate running contexts */
 	while (x86_emu->alloc_list_count < x86_emu->running_list_count && x86_emu->alloc_list_count < x86_cpu_num_cores * x86_cpu_num_threads)
 	{
