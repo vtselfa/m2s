@@ -33,6 +33,7 @@
 #include "cache.h"
 #include "directory.h"
 #include "mem-system.h"
+#include "mmu.h"
 #include "mod-stack.h"
 
 
@@ -189,20 +190,28 @@ void enqueue_prefetch_group(int core, int thread, struct mod_t *mod, unsigned in
 	struct cache_t *cache = mod->cache;
 	struct stream_buffer_t *sb;
 	struct x86_uop_t * uop;
+	unsigned int mmu_page_tag;
+	unsigned int prev_address;
 	int num_prefetches = cache->prefetch.aggressivity;
 	int stream;
+	int dead = 0; /* Address over/underflow or mem page changed */
+	int eos = 0; /* End of stream */
 	int i;
 
-	assert(stride);
-
-	/* Select stream
-	 * If there is already a stream with the same tag, replace it
-	 * else, replace the last recently used one.
-	 * */
+	/* If there is a stream with the same tag, replace it. If not, replace the last recently used one. */
 	stream = cache_find_stream(cache, base_addr & ~cache->prefetch.stream_mask);
-	if (stream == -1) /* stream_tag not found */
+	if (stream == -1) /* Stream tag not found */
 		stream = cache_select_stream(cache);
 	sb = &cache->prefetch.streams[stream];
+
+	prev_address = base_addr - stride;
+	mmu_page_tag = prev_address & ~mmu_page_mask;
+
+	/* Assertions */
+	assert(stride); /* Valid stride */
+	assert(mmu_page_tag == (base_addr & ~mmu_page_mask)); /* No end of page */
+	assert(stride > 0 || (prev_address + stride) < prev_address); /* No underflow */
+	assert(stride < 0 || (prev_address + stride) > prev_address); /* No overflow */
 
 	/* Not enqueue prefetch if there are pending prefetches */
 	if (sb->pending_prefetches)
@@ -225,24 +234,44 @@ void enqueue_prefetch_group(int core, int thread, struct mod_t *mod, unsigned in
 	sb->pending_prefetches += num_prefetches;
 	sb->cycle = esim_cycle;
 
-	sb->next_address = base_addr;
 	/* Insert prefetches */
+	sb->next_address = base_addr;
 	for (i = 0; i < num_prefetches; i++)
 	{
+		unsigned int phy_addr = sb->next_address;
+		int invalidating = 0;
+
+		if(dead || eos)
+		{
+			phy_addr = sb->stream_transcient_tag;
+			invalidating = 1;
+		}
+		else
+		{
+			prev_address = sb->next_address;
+			sb->next_address += stride;
+
+			/* End of page */
+			if(mmu_page_tag != (sb->next_address & ~mmu_page_mask))
+				dead = 1;
+
+			/* Underflow */
+			else if(stride < 0 && (prev_address + stride) > prev_address)
+				dead = 1;
+
+			/* Overflow */
+			else if(stride > 0 && (prev_address + stride) < prev_address)
+				dead = 1;
+
+			/* End of stream */
+			else if (sb->stream_transcient_tag != (sb->next_address & ~cache->prefetch.stream_mask))
+				eos = 1;
+		}
+
 		uop = x86_uop_create();
 		uop->uinst = x86_uinst_create();
 		uop->uinst->opcode = x86_uinst_prefetch;
-		uop->phy_addr = base_addr + i * stride;
-
-		/* If we reach the end of the stream, AKA the stream_tag changes, insert invalidations */
-		if (sb->stream_transcient_tag != (uop->phy_addr & ~cache->prefetch.stream_mask))
-		{
-			uop->pref.invalidating = 1;
-			uop->phy_addr = sb->stream_transcient_tag;
-		}
-		else
-			sb->next_address = sb->next_address + stride;
-
+		uop->phy_addr = phy_addr;
 		uop->core = core;
 		uop->thread = thread;
 		uop->flags = X86_UINST_MEM;
@@ -250,6 +279,7 @@ void enqueue_prefetch_group(int core, int thread, struct mod_t *mod, unsigned in
 		uop->pref.mod = mod;
 		uop->pref.dest_stream = stream;
 		uop->pref.dest_slot = (sb->head + i) % sb->num_slots; //HEAD
+		uop->pref.invalidating = invalidating;
 
 		if (mod->level == 1)
 			x86_pq_insert(uop);
@@ -263,11 +293,11 @@ void enqueue_prefetch_group(int core, int thread, struct mod_t *mod, unsigned in
 	/* Reset tail */
 	sb->tail = sb->head; //TAIL
 
-	/* Reset dead bit */
-	sb->dead = 0;
-
 	/* Statistics */
 	mod->group_prefetches++;
+
+	/* Set dead flag */
+	sb->dead = dead;
 }
 
 
@@ -286,15 +316,19 @@ void enqueue_prefetch_on_miss(struct mod_stack_t *stack)
 		mod = stack->target_mod;
 
 	/* Underflow */
-	if(stack->stride < 0 && (stack->addr - stack->stride) > stack->addr) return;
+	if(stack->stride < 0 && (stack->addr + stack->stride) > stack->addr) return;
 
 	/* Overflow */
 	if(stack->stride > 0 && (stack->addr + stack->stride) < stack->addr) return;
+
+	/* End of page */
+	if((stack->addr & ~mmu_page_mask) != ((stack->addr + stack->stride) & ~mmu_page_mask)) return;
 
 	enqueue_prefetch_group(stack->core, stack->thread, mod, stack->addr + stack->stride, stack->stride);
 
 	return;
 }
+
 
 void enqueue_prefetch_on_hit(struct mod_stack_t *stack)
 {
@@ -302,6 +336,8 @@ void enqueue_prefetch_on_hit(struct mod_stack_t *stack)
 	struct cache_t *cache;
 	struct x86_uop_t *uop;
 	struct stream_buffer_t *sb;
+	unsigned int prev_address;
+	unsigned int mmu_page_tag;
 
 	/* L1 prefetch */
 	if (!stack->target_mod)
@@ -312,32 +348,31 @@ void enqueue_prefetch_on_hit(struct mod_stack_t *stack)
 		mod = stack->target_mod;
 
 	cache = mod->cache;
-	sb = &mod->cache->prefetch.streams[stack->pref_stream];
+	sb = &cache->prefetch.streams[stack->pref_stream];
 
-	/* Statistics */
-	mod->single_prefetches++;
+	/* Next address of this stream is out of page, over/underflowed or has a different stream tag */
+	if(sb->dead)
+		return;
+
+	prev_address = sb->next_address - sb->stride;
+	mmu_page_tag = prev_address & ~mmu_page_mask;
+
+	/* Assertions */
+	assert(sb->stride); /* Valid stride */
+	assert(mmu_page_tag == (sb->next_address & ~mmu_page_mask)); /* End of page */
+	assert(sb->stride > 0 || (prev_address + sb->stride) < prev_address); /* Underflow */
+	assert(sb->stride < 0 || (prev_address + sb->stride) > prev_address); /* Overflow */
 
 	/* Enqueue a new prefetch group if next_address is not in the stream anymore */
 	if (sb->stream_transcient_tag != (sb->next_address & ~cache->prefetch.stream_mask))
 	{
-		/* Only do this the first time */
-		if(sb->dead)
-			return;
-		else
-			sb->dead = 1;
-
-		/* We have to test if next_address has suffered an over/underflow */
-		/* Underflow */
-		if(sb->stride < 0 && (sb->next_address + sb->stride) < sb->next_address)
-			return;
-
-		/* Overflow */
-		if(sb->stride > 0 && (sb->next_address - sb->stride) > sb->next_address)
-			return;
-
+		sb->dead = 1; /* Only do this the first time */
 		enqueue_prefetch_group(stack->core, stack->thread, mod, sb->next_address, sb->stride);
 		return;
 	}
+
+	/* Statistics */
+	mod->single_prefetches++;
 
 	mem_debug("    Enqueued single prefetch at addr=0x%x to stream=%d with stride=0x%x(%d)\n",
 		sb->next_address + sb->stride, sb->stream, sb->stride, sb->stride);
@@ -346,7 +381,6 @@ void enqueue_prefetch_on_hit(struct mod_stack_t *stack)
 	uop->uinst = x86_uinst_create();
 	uop->uinst->opcode = x86_uinst_prefetch;
 	uop->phy_addr = sb->next_address;
-	sb->next_address += sb->stride; /* Next address to fetch */
 	uop->core = stack->core;
 	uop->thread = stack->thread;
 	uop->flags = X86_UINST_MEM;
@@ -369,7 +403,24 @@ void enqueue_prefetch_on_hit(struct mod_stack_t *stack)
 	/* Add a pending prefetch */
 	sb->pending_prefetches++;
 	sb->cycle = esim_cycle;
+
+	/* Increment next address */
+	prev_address = sb->next_address;
+	sb->next_address = sb->next_address + sb->stride;
+
+	/* End of page */
+	if(mmu_page_tag != (sb->next_address & ~mmu_page_mask))
+		sb->dead = 1;
+
+	/* Underflow */
+	else if(sb->stride < 0 && (prev_address + sb->stride) > prev_address)
+		sb->dead = 1;
+
+	/* Overflow */
+	else if(sb->stride > 0 && (prev_address + sb->stride) < prev_address)
+		sb->dead = 1;
 }
+
 
 void enqueue_prefetch_obl(struct mod_stack_t *stack)
 {
