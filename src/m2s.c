@@ -653,6 +653,14 @@ static void m2s_read_command_line(int *argc_ptr, char **argv)
 			continue;
 		}
 
+		/* Minimum number of instructions per context */
+		if (!strcmp(argv[argi], "--x86-min-inst-per-ctx"))
+		{
+			m2s_need_argument(argc, argv, argi);
+			x86_emu_min_inst_per_ctx = atoll(argv[++argi]);
+			continue;
+		}
+
 		/* File name to save checkpoint */
 		if (!strcmp(argv[argi], "--x86-save-checkpoint"))
 		{
@@ -1525,7 +1533,7 @@ void m2s_loop(void)
 
 		/* If neither functional or timing simulation was performed for any architecture,
 		 * it means that all guest contexts finished execution - simulation can end. */
-		if (!emu_running && !timing_running)
+		if (!esim_finish && !emu_running && !timing_running)
 			esim_finish = esim_finish_ctx;
 
 		/* Count loop iterations, and check for limit in simulation time only every

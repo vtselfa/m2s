@@ -47,6 +47,7 @@
 
 /* Configuration parameters */
 long long x86_emu_max_inst = 0;
+long long x86_emu_min_inst_per_ctx = 0;
 long long x86_emu_max_cycles = 0;
 char x86_emu_last_inst_bytes[20];
 int x86_emu_last_inst_size = 0;
@@ -877,6 +878,16 @@ int x86_emu_run(void)
 	/* Stop if maximum number of cycles exceeded */
 	if (x86_emu_max_cycles && esim_cycle >= x86_emu_max_cycles)
 		esim_finish = esim_finish_x86_max_cycles;
+
+	/* Stop if minimum number of instructions has been exceeded by all contexts */
+	if(x86_emu_min_inst_per_ctx)
+	{
+		for (ctx = x86_emu->running_list_head; ctx; ctx = ctx->running_list_next)
+			if(ctx->inst_count < x86_emu_min_inst_per_ctx)
+				break;
+		if(!ctx)
+			esim_finish = esim_finish_x86_min_inst_per_ctx;
+	}
 
 	/* Stop if any previous reason met */
 	if (esim_finish)

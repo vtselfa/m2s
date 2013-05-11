@@ -1198,6 +1198,7 @@ void x86_cpu_run_fast_forward(void)
  * The function returns FALSE if there is no more simulation to perform. */
 int x86_cpu_run(void)
 {
+	struct x86_ctx_t *ctx;
 
 	/* Stop if no context is running */
 	if (x86_emu->finished_list_count >= x86_emu->context_list_count)
@@ -1214,6 +1215,16 @@ int x86_cpu_run(void)
 	/* Stop if maximum number of cycles exceeded */
 	if (x86_emu_max_cycles && x86_cpu->cycle >= x86_emu_max_cycles)
 		esim_finish = esim_finish_x86_max_cycles;
+
+	/* Stop if minimum number of instructions has been exceeded by all contexts */
+	if(x86_emu_min_inst_per_ctx)
+	{
+		for (ctx = x86_emu->running_list_head; ctx; ctx = ctx->running_list_next)
+			if(ctx->inst_count < x86_emu_min_inst_per_ctx)
+				break;
+		if(!ctx)
+			esim_finish = esim_finish_x86_min_inst_per_ctx;
+	}
 
 	/* Stop if any previous reason met */
 	if (esim_finish)

@@ -68,11 +68,12 @@ volatile enum esim_finish_t esim_finish = esim_finish_none;
 
 struct str_map_t esim_finish_map =
 {
-	19, {
+	20, {
 		{ "ContextsFinished", esim_finish_ctx },
 
 		{ "x86LastInst", esim_finish_x86_last_inst },
 		{ "x86MaxInst", esim_finish_x86_max_inst },
+		{ "x86MinInstPerCtx", esim_finish_x86_min_inst_per_ctx },
 		{ "x86MaxCycles", esim_finish_x86_max_cycles },
 
 		{ "ArmMaxInst", esim_finish_arm_max_inst },
@@ -192,11 +193,11 @@ struct esim_event_t *esim_event_create(int id, void *data)
 	event = calloc(1, sizeof(struct esim_event_t));
 	if (!event)
 		fatal("%s: out of memory", __FUNCTION__);
-	
+
 	/* Initialize */
 	event->id = id;
 	event->data = data;
-	
+
 	/* Return */
 	return event;
 }
@@ -385,13 +386,13 @@ int esim_register_event_with_name(esim_event_handler_t handler, char *name)
 void esim_schedule_event(int id, void *data, int after)
 {
 	struct esim_event_t *event;
-	
+
 	long long when = esim_cycle + after;
 
 	/* Schedule locked? */
 	if (esim_lock_schedule)
 		return;
-	
+
 	/* Integrity */
 	if (id < 0 || id >= list_count(esim_event_info_list))
 		panic("%s: unknown event", __FUNCTION__);
@@ -399,11 +400,11 @@ void esim_schedule_event(int id, void *data, int after)
 		panic("%s: event scheduled in the past", __FUNCTION__);
 	if (!id)
 		panic("%s: invalid event (forgot call to 'esim_register_event'?)", __FUNCTION__);
-	
+
 	/* If this is an empty event, ignore it */
 	if (id == ESIM_EV_NONE)
 		return;
-	
+
 	/* Create event and insert in heap */
 	event = esim_event_create(id, data);
 	heap_insert(esim_event_heap, when, event);
@@ -445,11 +446,11 @@ void esim_schedule_end_event(int id, void *data)
 void esim_execute_event(int id, void *data)
 {
 	struct esim_event_info_t *event_info;
-	
+
 	/* Schedule locked */
 	if (esim_lock_schedule)
 		return;
-		
+
 	/* Integrity */
 	if (id < 0 || id >= list_count(esim_event_info_list))
 		panic("%s: unkown event", __FUNCTION__);
@@ -457,7 +458,7 @@ void esim_execute_event(int id, void *data)
 		panic("%s: invalid event (forgot to call to 'esim_register_event'?)", __FUNCTION__);
 	if (id == ESIM_EV_NONE)
 		return;
-	
+
 	/* Execute event handler */
 	event_info = list_get(esim_event_info_list, id);
 	assert(event_info && event_info->handler);
@@ -472,7 +473,7 @@ void esim_process_events()
 
 	struct esim_event_t *event;
 	struct esim_event_info_t *event_info;
-	
+
 	/* Process events scheduled for this cycle */
 	while (1)
 	{
@@ -480,12 +481,12 @@ void esim_process_events()
 		when = heap_peek(esim_event_heap, (void **) &event);
 		if (heap_error(esim_event_heap))
 			break;
-		
+
 		/* Must process it? */
 		assert(when >= esim_cycle);
 		if (when != esim_cycle)
 			break;
-		
+
 		/* Process it */
 		heap_extract(esim_event_heap, NULL);
 		event_info = list_get(esim_event_info_list, event->id);
@@ -493,7 +494,7 @@ void esim_process_events()
 		event_info->handler(event->id, event->data);
 		esim_event_free(event);
 	}
-	
+
 	/* Next simulation cycle */
 	esim_cycle++;
 }
@@ -522,7 +523,7 @@ void esim_process_all_events(void)
 		event_info->handler(event->id, event->data);
 		esim_event_free(event);
 	}
-	
+
 	/* Drain heap again with new events */
 	esim_drain_heap();
 }
@@ -532,11 +533,11 @@ void esim_empty(void)
 {
 	struct esim_event_t *event;
 	struct esim_event_info_t *event_info;
-	
+
 	/* Lock event scheduling, so no event will be
 	 * inserted into the heap */
 	esim_lock_schedule = 1;
-	
+
 	/* Extract all elements from heap */
 	while (1)
 	{
@@ -544,14 +545,14 @@ void esim_empty(void)
 		heap_extract(esim_event_heap, (void **) &event);
 		if (heap_error(esim_event_heap))
 			break;
-		
+
 		/* Process it */
 		event_info = list_get(esim_event_info_list, event->id);
 		assert(event_info && event_info->handler);
 		event_info->handler(event->id, event->data);
 		esim_event_free(event);
 	}
-	
+
 	/* Unlock event scheduling */
 	esim_lock_schedule = 0;
 }
