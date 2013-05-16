@@ -1039,13 +1039,13 @@ void x86_ctx_misc_report_handler(int event, void *data)
 				(double) useful_prefetches_int / (misses_int + useful_prefetches_int) : 0.0;
 
 			/* Detected strides */
-			long long detected_streams_int = mod->cache->prefetch.stride_detector.strides_detected - mod->cache->prefetch.stride_detector.last_strides_detected;
+			long long detected_strides_int = mod->cache->prefetch.stride_detector.strides_detected - mod->cache->prefetch.stride_detector.last_strides_detected;
 
 			/* Dump stats */
 			fprintf(ctx->loader->misc_report_file, "%10lld %10lld %8lld %8s %8lld %10.4f %8lld %10.4f %8lld %8lld %10.4f %10.4f %10.4f %8u %8lld\n",
 				esim_cycle, ctx->inst_count, inst_count, mod->name, completed_prefetches_int, prefetch_accuracy_int,
 				delayed_hits_int, delayed_hit_avg_lost_cycles_int, misses_int, stream_hits_int,
-				effective_prefetch_accuracy_int, mpki_int, pseudocoverage_int, mod->cache->pref_enabled, detected_streams_int);
+				effective_prefetch_accuracy_int, mpki_int, pseudocoverage_int, mod->cache->pref_enabled, detected_strides_int);
 
 			mod->last_delayed_hits = mod->delayed_hits;
 			mod->last_delayed_hit_cycles = mod->delayed_hit_cycles;

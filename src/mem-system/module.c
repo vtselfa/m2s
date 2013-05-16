@@ -1093,7 +1093,7 @@ void mod_adapt_pref_handler(int event, void *data)
 
 			case adapt_pref_policy_misses_enhanced:
 				if ((misses_int > stack->last_misses_int * 1.1) ||
-					(percentage_cycles_stalled > 0.4 && strides_detected_int > 1500) ||
+					(percentage_cycles_stalled > 0.4 && strides_detected_int > 250) ||
 					(stack->last_cycle_pref_disabled == stack->last_cycle && ipc_int < 0.9 * stack->last_ipc_int))
 				{
 					mod->cache->pref_enabled = 1;
