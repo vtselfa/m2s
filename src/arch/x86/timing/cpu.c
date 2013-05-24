@@ -1189,8 +1189,7 @@ void x86_cpu_run_fast_forward(void)
 
 	/* Output warning if simulation finished during fast-forward execution. */
 	if (esim_finish)
-		warning("x86 fast-forwarding finished simulation.\n%s",
-				x86_cpu_err_fast_forward);
+		warning("x86 fast-forwarding finished simulation.\n%s", x86_cpu_err_fast_forward);
 }
 
 
@@ -1206,7 +1205,11 @@ int x86_cpu_run(void)
 
 	/* Fast-forward simulation */
 	if (x86_cpu_fast_forward_count && x86_emu->inst_count < x86_cpu_fast_forward_count)
+	{
+		x86_emu_max_inst += x86_cpu_fast_forward_count;
 		x86_cpu_run_fast_forward();
+		x86_emu_max_inst -= x86_cpu_fast_forward_count;
+	}
 
 	/* Stop if maximum number of CPU instructions exceeded */
 	if (x86_emu_max_inst && x86_cpu->num_committed_uinst >= x86_emu_max_inst)
