@@ -35,4 +35,7 @@ benchmarks
 *.ghc
 *.orig
 .clang_complete
-
+INSTALL
+depcomp
+install-sh
+missing
