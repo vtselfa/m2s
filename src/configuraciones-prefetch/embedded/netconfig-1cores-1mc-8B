@@ -1,0 +1,38 @@
+[ Network.mesh ]
+  DefaultInputBufferSize = 128
+  DefaultOutputBufferSize = 128
+  DefaultBandwidth = 8
+
+;;;;;;;;;; NODES ;;;;;;;;;;
+
+[ Network.mesh.Node.n0 ]
+Type = EndNode
+
+
+;;;;;;;; SWITCHES ;;;;;;;;
+
+[ Network.mesh.Node.s0 ]
+Type = Switch
+
+
+;;;;;;;;;; LINKS ;;;;;;;;;;
+
+
+
+[ Network.mesh.Link.n0s0 ]
+  Source = n0
+  Dest = s0
+  Type = Bidirectional
+
+
+[ Network.mesh.Link.n1s0 ]
+  Source = n1
+  Dest = s0
+  Type = Bidirectional
+
+
+[ Network.mesh.Routes ]
+  
+  n0.to.n1 = s0
+
+  

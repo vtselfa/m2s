@@ -835,6 +835,7 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config, char *
 	int cycles_proc_bus;
 	int queue_per_bank;
 	int enabled_mc;
+	int photonic;
 
 
 	long long threshold;
@@ -883,6 +884,7 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config, char *
 	threshold = config_read_llint(config, section, "Threshold", 100000000000);
 	size_queue = config_read_llint(config, section, "SizeQueue", 100000000000);
 	queue_per_bank = config_read_llint(config, section, "QueuePerBank", 0);
+	photonic = config_read_llint(config, section, "PhotonicNet", 0);
 	/////////////////////////////////////////////////////////////////////
 
 
@@ -944,6 +946,9 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config, char *
 		fatal("%s: %s:invalid value for variable 'PolicyMCQueues'.\n%s",
 			mem_config_file_name, mod_name, err_mem_config_note);
 
+	if(photonic<0 || photonic>1)
+		fatal("%s: %s:invalid value for variable 'PhotonicNet'.\n%s",
+			mem_config_file_name, mod_name, err_mem_config_note);
 
 	if(strcmp(coalesce, "Disabled") == 0)
 	{
@@ -1028,6 +1033,7 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config, char *
         /*Create memory controller*/
 	mod->mem_controller=mem_controller_create();
 	mem_controller_init_main_memory(mod->mem_controller, channels, ranks, banks, t_send_request, row_size, block_size, cycles_proc_bus, policy_type, prio_type, size_queue, threshold, queue_per_bank, coalesce_type, mod->regs_rank, bandwith);
+	mod->mem_controller->photonic_net=photonic;
 	mod->mem_controller->enabled = enabled_mc;
 	linked_list_add(mem_system->mem_controllers, mod->mem_controller);
 

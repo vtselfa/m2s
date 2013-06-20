@@ -2936,6 +2936,17 @@ void mod_handler_nmoesi_evict(int event, void *data)
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:evict_receive\"\n",
 			stack->id, target_mod->name);
 
+		mem_controller=stack->target_mod->mem_controller;
+
+
+		/*Is mem controller queue busy?*/
+		if(target_mod->kind==mod_kind_main_memory && mod_request_up_down && 
+		mem_controller_get_size_queue(stack)>= mem_controller->size_queue)
+		{
+			esim_schedule_event(EV_MOD_NMOESI_EVICT_RECEIVE, stack, 1);
+			return;
+		}
+
 		/* Receive message */
 		net_receive(target_mod->high_net, target_mod->high_net_node, stack->msg);
 
@@ -3351,7 +3362,9 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 				else{/* MISS */}
 
 				/* Reserve the acces */
-				channel[new_stack->channel].state = channel_state_busy;
+				if(!mem_controller->photonic_net) //if we use a photonic net, it can tranfer in full directions
+					channel[new_stack->channel].state = channel_state_busy;
+				
 				channel[new_stack->channel].regs_rank[new_stack->rank].regs_bank[new_stack->bank].is_been_accesed = 1;
 				channel[new_stack->channel].regs_rank[new_stack->rank].is_been_accesed = 1;
 
@@ -3371,12 +3384,12 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 					normal_queue->total_requests += size_queue * time;
 				mem_controller->last_cycle=esim_cycle;
 				mem_controller->n_times_queue_examined += time; //se podria cambiar dividinto x esim al final
-				mem_controller->t_acces_main_memory += mem_controller->t_send_request;
+				mem_controller->t_acces_main_memory += mem_controller->t_send_request*cycles_proc_by_bus;
 
 				if(new_stack->prefetch)
-					mem_controller->t_pref_acces_main_memory += mem_controller->t_send_request;
+					mem_controller->t_pref_acces_main_memory += mem_controller->t_send_request*cycles_proc_by_bus;
 				else
-					mem_controller->t_normal_acces_main_memory += mem_controller->t_send_request;
+					mem_controller->t_normal_acces_main_memory += mem_controller->t_send_request*cycles_proc_by_bus;
 
 				/* Delete the request in the MC queue */
 				if (mem_controller_remove(new_stack, normal_queue)&&linked_list_count(normal_queue->queue) == size_queue - 1)
@@ -3385,7 +3398,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 					pref_queue->t_full += esim_cycle - pref_queue->instant_begin_full;
 
 				/* Send the request to the bank */
-				esim_schedule_event(EV_MOD_NMOESI_ACCES_BANK, new_stack, mem_controller->t_send_request);
+				esim_schedule_event(EV_MOD_NMOESI_ACCES_BANK, new_stack, mem_controller->t_send_request*cycles_proc_by_bus);
 			}
 			new_stack = mem_controller_select_request(0, mem_controller->priority_request_in_queue,mem_controller);
 		}
@@ -3590,7 +3603,8 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 			{
 
 				/* Reserve the acces */
-				channel[new_stack->channel].state = channel_state_busy;
+				if(!mem_controller->photonic_net) //if we use a photonic net, it can tranfer in full directions
+					channel[new_stack->channel].state = channel_state_busy;
 				channel[new_stack->channel].regs_rank[new_stack->rank].regs_bank[new_stack->bank].is_been_accesed = 1;
 				channel[new_stack->channel].regs_rank[new_stack->rank].is_been_accesed = 1;
 
@@ -3637,8 +3651,16 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 
 				}
 
+				mem_controller->t_acces_main_memory += mem_controller->t_send_request*cycles_proc_by_bus;
+
+				if(new_stack->prefetch)
+					mem_controller->t_pref_acces_main_memory += mem_controller->t_send_request*cycles_proc_by_bus;
+				else
+					mem_controller->t_normal_acces_main_memory += mem_controller->t_send_request*cycles_proc_by_bus;
+
+
 				/* Send the request to the bank */
-				esim_schedule_event(EV_MOD_NMOESI_ACCES_BANK, new_stack, mem_controller->t_send_request);
+				esim_schedule_event(EV_MOD_NMOESI_ACCES_BANK, new_stack, mem_controller->t_send_request* cycles_proc_by_bus);
 			}
 
 			/* Next queue */
@@ -3885,14 +3907,18 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:transfer from bank\"\n", stack->id, mod->name);
 
 		/* Calcul the cycles of proccesor for transfering one block*/
-		t_trans = mod->cache->block_size / (channel[stack->channel].bandwith * 2) * cycles_proc_by_bus; //2 because is DDR3
+		if(mem_controller->photonic_net)
+			t_trans=1;
+		else
+			t_trans = mod->cache->block_size / (channel[stack->channel].bandwith * 2) * cycles_proc_by_bus; //2 because is DDR3
 
 
 		if (channel[stack->channel].state == channel_state_free)
 		{
 			mem_debug("  %lld %lld 0x%x %s transfer from bank\n", esim_cycle, stack->id,stack->addr&~mod->cache->block_mask, mod->name);
 			/* Busy the channel */
-			channel[stack->channel].state = channel_state_busy;
+			if(!mem_controller->photonic_net) //if we use a photonic net, it can tranfer in full directions
+				channel[stack->channel].state = channel_state_busy;
 
 			if(mem_controller->coalesce== policy_coalesce_disabled || stack->coalesced_stacks==NULL)
 				num_blocks=1;
@@ -4017,13 +4043,19 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 		bank = channel[stack->channel].regs_rank[stack->rank].regs_bank;
 		int accesed = 0;
 		unsigned int log2_row_size= log_base2( mem_controller->row_buffer_size);
-		int t_trans=mod->cache->block_size/(channel[stack->channel].bandwith*2)*cycles_proc_by_bus;
+		int t_trans;
 		unsigned int min_block;
 		unsigned int max_block;
 		unsigned int current_block;
 
 		mem_debug("  %lld %lld 0x%x %s remove request in MC\n ",esim_cycle,stack->id, stack->addr&~mod->cache->block_mask,mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:remove request in MC\"\n", stack->id, mod->name);
+
+		if(mem_controller->photonic_net) // all blocks arrive at the same tiem
+			t_trans=0;
+		else
+			t_trans=mod->cache->block_size/(channel[stack->channel].bandwith*2)*cycles_proc_by_bus;
+			
 
 		/*Free when all coalesced request have arrived*/
 		if(stack->coalesced_stacks==NULL || linked_list_count(stack->coalesced_stacks)==0)
@@ -4532,7 +4564,16 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			stack->addr, target_mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:read_request_receive\"\n",
 			stack->id, target_mod->name);
+		mem_controller=stack->target_mod->mem_controller;
 
+
+		/*Is mem controller queue busy?*/
+		if(target_mod->kind==mod_kind_main_memory && mod_request_up_down && 
+		mem_controller_get_size_queue(stack)>= mem_controller->size_queue)
+		{
+			esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST_RECEIVE, stack, 1);
+			return;
+		}
 		/* Receive message */
 		if (stack->request_dir == mod_request_up_down)
 			net_receive(target_mod->high_net, target_mod->high_net_node, stack->msg);
@@ -5509,6 +5550,16 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:write_request_receive\"\n",
 			stack->id, target_mod->name);
 
+		mem_controller=stack->target_mod->mem_controller;
+
+
+		/*Is mem controller queue busy?*/
+		if(target_mod->kind==mod_kind_main_memory && mod_request_up_down && 
+		mem_controller_get_size_queue(stack)>= mem_controller->size_queue)
+		{
+			esim_schedule_event(EV_MOD_NMOESI_WRITE_REQUEST_RECEIVE, stack, 1);
+			return;
+		}
 		/* Receive message */
 		if (stack->request_dir == mod_request_up_down)
 			net_receive(target_mod->high_net, target_mod->high_net_node, stack->msg);

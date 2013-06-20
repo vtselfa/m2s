@@ -1,0 +1,636 @@
+[ CacheGeometry l1 ]
+Sets = 256
+Assoc = 2
+BlockSize = 64
+Latency = 1
+; Prefetch = 0
+
+[ CacheGeometry l2 ]
+Sets = 512
+Assoc = 16
+BlockSize = 64
+Latency = 10
+; Prefetch = 1
+
+#
+# Level 1 Caches
+#
+[ Module dl1-0 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-0
+LowModules = l2-0
+
+[ Module il1-0 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-0
+LowModules = l2-0
+
+[ Module dl1-1 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-1
+LowModules = l2-1
+
+[ Module il1-1 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-1
+LowModules = l2-1
+
+[ Module dl1-2 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-2
+LowModules = l2-2
+
+[ Module il1-2 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-2
+LowModules = l2-2
+
+[ Module dl1-3 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-3
+LowModules = l2-3
+
+[ Module il1-3 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-3
+LowModules = l2-3
+
+[ Module dl1-4 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-4
+LowModules = l2-4
+
+[ Module il1-4 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-4
+LowModules = l2-4
+
+[ Module dl1-5 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-5
+LowModules = l2-5
+
+[ Module il1-5 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-5
+LowModules = l2-5
+
+[ Module dl1-6 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-6
+LowModules = l2-6
+
+[ Module il1-6 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-6
+LowModules = l2-6
+
+[ Module dl1-7 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-7
+LowModules = l2-7
+
+[ Module il1-7 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-7
+LowModules = l2-7
+
+[ Module dl1-8 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-8
+LowModules = l2-8
+
+[ Module il1-8 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-8
+LowModules = l2-8
+
+[ Module dl1-9 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-9
+LowModules = l2-9
+
+[ Module il1-9 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-9
+LowModules = l2-9
+
+[ Module dl1-10 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-10
+LowModules = l2-10
+
+[ Module il1-10 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-10
+LowModules = l2-10
+
+[ Module dl1-11 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-11
+LowModules = l2-11
+
+[ Module il1-11 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-11
+LowModules = l2-11
+
+[ Module dl1-12 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-12
+LowModules = l2-12
+
+[ Module il1-12 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-12
+LowModules = l2-12
+
+[ Module dl1-13 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-13
+LowModules = l2-13
+
+[ Module il1-13 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-13
+LowModules = l2-13
+
+[ Module dl1-14 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-14
+LowModules = l2-14
+
+[ Module il1-14 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-14
+LowModules = l2-14
+
+[ Module dl1-15 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-15
+LowModules = l2-15
+
+[ Module il1-15 ]
+Type = Cache
+Geometry = l1
+LowNetwork = net-15
+LowModules = l2-15
+
+#
+# Level 2 Caches
+#
+[ Module l2-0 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-0
+LowNetwork = mesh
+LowNetworkNode = n0
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4
+
+[ Module l2-1 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-1
+LowNetwork = mesh
+LowNetworkNode = n1
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4
+
+[ Module l2-2 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-2
+LowNetwork = mesh
+LowNetworkNode = n2
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4
+
+[ Module l2-3 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-3
+LowNetwork = mesh
+LowNetworkNode = n3
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4
+
+[ Module l2-4 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-4
+LowNetwork = mesh
+LowNetworkNode = n4
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4
+
+[ Module l2-5 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-5
+LowNetwork = mesh
+LowNetworkNode = n5
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4
+
+[ Module l2-6 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-6
+LowNetwork = mesh
+LowNetworkNode = n6
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4
+
+[ Module l2-7 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-7
+LowNetwork = mesh
+LowNetworkNode = n7
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4
+
+[ Module l2-8 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-8
+LowNetwork = mesh
+LowNetworkNode = n8
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4
+
+[ Module l2-9 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-9
+LowNetwork = mesh
+LowNetworkNode = n9
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4
+
+[ Module l2-10 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-10
+LowNetwork = mesh
+LowNetworkNode = n10
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4
+
+[ Module l2-11 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-11
+LowNetwork = mesh
+LowNetworkNode = n11
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4
+
+[ Module l2-12 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-12
+LowNetwork = mesh
+LowNetworkNode = n12
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4
+
+[ Module l2-13 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-13
+LowNetwork = mesh
+LowNetworkNode = n13
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4
+
+[ Module l2-14 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-14
+LowNetwork = mesh
+LowNetworkNode = n14
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4
+
+[ Module l2-15 ]
+Type = Cache
+Geometry = l2
+HighNetwork = net-15
+LowNetwork = mesh
+LowNetworkNode = n15
+LowModules = mod-mm-1 mod-mm-2 mod-mm-3 mod-mm-4
+
+#
+# Main memory
+#
+[ Module mod-mm-1 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n16
+Latency = 200
+BlockSize = 64
+Ranks = 1
+Banks = 4
+Channels = 2
+CyclesSendRequest = 1
+CyclesRowBufferHit = 33
+CyclesRowBufferMiss = 100
+Bandwith = 16
+CyclesProcByCyclesBus = 3
+Threshold= 100000
+PolicyMCQueues = PrefetchNormalQueue
+Coalesce = Disabled
+PriorityMCQueues = Threshold-RowBufferHit-FCFS
+QueuePerBank = 1
+SizeQueue = 128
+MemoryControllerEnabled = 1
+AddressRange = ADDR DIV 1024 MOD 4 EQ 0
+
+[ Module mod-mm-2 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n17
+Latency = 200
+BlockSize = 64
+Ranks = 1
+Banks = 4
+Channels = 2
+CyclesSendRequest = 1
+CyclesRowBufferHit = 33
+CyclesRowBufferMiss = 100
+Bandwith = 16
+CyclesProcByCyclesBus = 3
+Threshold= 100000
+PolicyMCQueues = PrefetchNormalQueue
+Coalesce = Disabled
+PriorityMCQueues = Threshold-RowBufferHit-FCFS
+QueuePerBank = 1
+SizeQueue = 128
+MemoryControllerEnabled = 1
+AddressRange = ADDR DIV 1024 MOD 4 EQ 1
+
+#
+# Main memory
+#
+[ Module mod-mm-3 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n18
+Latency = 200
+BlockSize = 64
+Ranks = 1
+Banks = 4
+Channels = 2
+CyclesSendRequest = 1
+CyclesRowBufferHit = 33
+CyclesRowBufferMiss = 100
+Bandwith = 16
+CyclesProcByCyclesBus = 3
+Threshold= 100000
+PolicyMCQueues = PrefetchNormalQueue
+Coalesce = Disabled
+PriorityMCQueues = Threshold-RowBufferHit-FCFS
+QueuePerBank = 1
+SizeQueue = 128
+MemoryControllerEnabled = 1
+AddressRange = ADDR DIV 1024 MOD 4 EQ 2
+
+[ Module mod-mm-4 ]
+Type = MainMemory
+HighNetwork = mesh
+HighNetworkNode = n19
+Latency = 200
+BlockSize = 64
+Ranks = 1
+Banks = 4
+Channels = 2
+CyclesSendRequest = 1
+CyclesRowBufferHit = 33
+CyclesRowBufferMiss = 100
+Bandwith = 16
+CyclesProcByCyclesBus = 3
+Threshold= 100000
+PolicyMCQueues = PrefetchNormalQueue
+Coalesce = Disabled
+PriorityMCQueues = Threshold-RowBufferHit-FCFS
+QueuePerBank = 1
+SizeQueue = 128
+MemoryControllerEnabled = 1
+AddressRange = ADDR DIV 1024 MOD 4 EQ 3
+
+#
+# Nodes
+#
+[ Entry core-0 ]
+Type = CPU
+Core = 0
+Thread = 0
+InstModule = il1-0
+DataModule = dl1-0
+
+[ Entry core-1 ]
+Type = CPU
+Core = 1
+Thread = 0
+InstModule = il1-1
+DataModule = dl1-1
+
+[ Entry core-2 ]
+Type = CPU
+Core = 2
+Thread = 0
+InstModule = il1-2
+DataModule = dl1-2
+
+[ Entry core-3 ]
+Type = CPU
+Core = 3
+Thread = 0
+InstModule = il1-3
+DataModule = dl1-3
+
+[ Entry core-4 ]
+Type = CPU
+Core = 4
+Thread = 0
+InstModule = il1-4
+DataModule = dl1-4
+
+[ Entry core-5 ]
+Type = CPU
+Core = 5
+Thread = 0
+InstModule = il1-5
+DataModule = dl1-5
+
+[ Entry core-6 ]
+Type = CPU
+Core = 6
+Thread = 0
+InstModule = il1-6
+DataModule = dl1-6
+
+[ Entry core-7 ]
+Type = CPU
+Core = 7
+Thread = 0
+InstModule = il1-7
+DataModule = dl1-7
+
+[ Entry core-8 ]
+Type = CPU
+Core = 8
+Thread = 0
+InstModule = il1-8
+DataModule = dl1-8
+
+[ Entry core-9 ]
+Type = CPU
+Core = 9
+Thread = 0
+InstModule = il1-9
+DataModule = dl1-9
+
+[ Entry core-10 ]
+Type = CPU
+Core = 10
+Thread = 0
+InstModule = il1-10
+DataModule = dl1-10
+
+[ Entry core-11 ]
+Type = CPU
+Core = 11
+Thread = 0
+InstModule = il1-11
+DataModule = dl1-11
+
+[ Entry core-12 ]
+Type = CPU
+Core = 12
+Thread = 0
+InstModule = il1-12
+DataModule = dl1-12
+
+[ Entry core-13 ]
+Type = CPU
+Core = 13
+Thread = 0
+InstModule = il1-13
+DataModule = dl1-13
+
+[ Entry core-14 ]
+Type = CPU
+Core = 14
+Thread = 0
+InstModule = il1-14
+DataModule = dl1-14
+
+[ Entry core-15 ]
+Type = CPU
+Core = 15
+Thread = 0
+InstModule = il1-15
+DataModule = dl1-15
+
+#
+# Interconnects
+#
+[ Network net-0 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-1 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-2 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-3 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-4 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-5 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-6 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-7 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-8 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-9 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-10 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-11 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-12 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-13 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-14 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+
+[ Network net-15 ]
+DefaultBandWidth = 128
+DefaultInputBufferSize = 512
+DefaultOutputBufferSize = 512
+

@@ -851,3 +851,27 @@ void mem_controller_count_successive_hits(struct linked_list_t * coalesced_stack
 
 }
 
+int mem_controller_get_size_queue(struct mod_stack_t* stack)
+{
+
+	struct mem_controller_t * mem_controller=stack->target_mod->mem_controller;
+
+	unsigned int bank;
+	int size;
+	unsigned int log2_row_size= log_base2( mem_controller->row_buffer_size);
+	
+	if(mem_controller->queue_per_bank)
+		bank = ((stack->addr >> log2_row_size) % (mem_controller->num_regs_bank*mem_controller->num_regs_rank));
+	else
+		bank=0;
+	if(!stack->prefetch)
+	 	size=linked_list_count(mem_controller->normal_queue[bank]->queue);
+	else
+		size= linked_list_count(mem_controller->pref_queue[bank]->queue);
+	
+
+	assert(size>=0 && size<=mem_controller->size_queue);
+	return size;
+
+}
+

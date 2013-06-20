@@ -78,6 +78,9 @@ struct mem_controller_t
 	struct mem_controller_queue_t **pref_queue;
 	struct mem_controller_queue_t **normal_queue;
 
+	/*Photonic tecnology used in channels */
+	int photonic_net;
+
 	/*Number of stacks you can put inside*/
 	int size_queue;
 
@@ -174,6 +177,8 @@ int mem_controller_stacks_prefQueues_count(struct mem_controller_t * mem_control
 void mem_controller_queue_free(struct mem_controller_queue_t * mem_controller_queue);
 struct mem_controller_queue_t * mem_controller_queue_create(void);
 int mem_controller_get_bank_queue(int num_queue_examined, struct mem_controller_t * mem_controller);
+int mem_controller_get_size_queue(struct mod_stack_t* stack);
+
 
 /////////////////////////////////////////////////////////////////////
 
