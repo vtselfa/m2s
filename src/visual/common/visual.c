@@ -18,7 +18,6 @@
  */
 
 #include <lib/util/misc.h>
-#include <lib/util/string.h>
 #include <visual/evergreen/gpu.h>
 #include <visual/evergreen/panel.h>
 #include <visual/memory/mem-system.h>
@@ -54,10 +53,20 @@ static void visual_destroy_event(GtkWidget *widget, gpointer data)
 
 static void visual_cycle_bar_refresh(void *user_data, long long cycle)
 {
+	/* Memory */
 	vi_mem_panel_refresh(vi_mem_panel);
-	vi_evg_panel_refresh(vi_evg_panel);
-	vi_si_panel_refresh(vi_si_panel);
-	vi_x86_panel_refresh(vi_x86_panel);
+
+	/* Evergreen */
+	if (vi_evg_gpu->active)
+		vi_evg_panel_refresh(vi_evg_panel);
+
+	/* Southern Islands */
+	if (vi_si_gpu->active)
+		vi_si_panel_refresh(vi_si_panel);
+
+	/* x86 */
+	if (vi_x86_cpu->active)
+		vi_x86_panel_refresh(vi_x86_panel);
 }
 
 
@@ -106,19 +115,28 @@ void visual_run(char *file_name)
 	gtk_box_pack_start(GTK_BOX(vbox), vi_cycle_bar_get_widget(), FALSE, FALSE, 0);
 
 	/* x86 panel */
-	vi_x86_panel = vi_x86_panel_create();
-	gtk_box_pack_start(GTK_BOX(vbox), vi_x86_panel_get_widget(vi_x86_panel),
-		FALSE, FALSE, 0);
+	if (vi_x86_cpu->active)
+	{
+		vi_x86_panel = vi_x86_panel_create();
+		gtk_box_pack_start(GTK_BOX(vbox), vi_x86_panel_get_widget(vi_x86_panel),
+				FALSE, FALSE, 0);
+	}
 
 	/* Evergreen panel */
-	vi_evg_panel = vi_evg_panel_create();
-	gtk_box_pack_start(GTK_BOX(vbox), vi_evg_panel_get_widget(vi_evg_panel),
-		FALSE, FALSE, 0);
+	if (vi_evg_gpu->active)
+	{
+		vi_evg_panel = vi_evg_panel_create();
+		gtk_box_pack_start(GTK_BOX(vbox), vi_evg_panel_get_widget(vi_evg_panel),
+				FALSE, FALSE, 0);
+	}
 
 	/* Southern Islands panel */
-	vi_si_panel = vi_si_panel_create();
-	gtk_box_pack_start(GTK_BOX(vbox), vi_si_panel_get_widget(vi_si_panel),
-		FALSE, FALSE, 0);
+	if (vi_si_gpu->active)
+	{
+		vi_si_panel = vi_si_panel_create();
+		gtk_box_pack_start(GTK_BOX(vbox), vi_si_panel_get_widget(vi_si_panel),
+				FALSE, FALSE, 0);
+	}
 
 	/* Memory system panel */
 	vi_mem_panel = vi_mem_panel_create();

@@ -17,6 +17,9 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#include <arch/common/arch.h>
+
+#include "context.h"
 #include "emu.h"
 #include "isa.h"
 #include "machine.h"
@@ -107,7 +110,7 @@ void x86_isa_fadd_m32_impl(struct x86_ctx_t *ctx)
 	__X86_ISA_FP_ASM_START__
 	asm volatile (
 		"fldt %2\n\t"
-		"fld %3\n\t"
+		"flds %3\n\t"
 		"faddp %%st(0), %%st(1)\n\t"
 		"fnstsw %%ax\n\t"
 		"fstpt %0\n\t"
@@ -593,7 +596,7 @@ void x86_isa_fdiv_m32_impl(struct x86_ctx_t *ctx)
 	__X86_ISA_FP_ASM_START__
 	asm volatile (
 		"fldt %2\n\t"
-		"fld %3\n\t"
+		"flds %3\n\t"
 		"fdivrp %%st(0), %%st(1)\n\t"
 		"fnstsw %%ax\n\t"
 		"fstpt %0\n\t"
@@ -719,7 +722,7 @@ void x86_isa_fdivr_m32_impl(struct x86_ctx_t *ctx)
 
 	__X86_ISA_FP_ASM_START__
 	asm volatile (
-		"fld %2\n\t"
+		"flds %2\n\t"
 		"fldt %3\n\t"
 		"fdivrp %%st(0), %%st(1)\n\t"
 		"fnstsw %%ax\n\t"
@@ -1194,21 +1197,14 @@ void x86_isa_fldcw_m16_impl(struct x86_ctx_t *ctx)
 	x86_isa_mem_read(ctx, addr, 2, &value);
 
 	/* Mask all floating-point exception on wrong path */
-	spec_mode = x86_ctx_get_status(ctx, x86_ctx_spec_mode);
+	spec_mode = x86_ctx_get_state(ctx, x86_ctx_spec_mode);
 	if (spec_mode)
 		value |= 0x3f;
 
 	/* Set value */
 	regs->fpu_ctrl = value;
 
-	__X86_ISA_FP_ASM_START__
-	asm volatile (
-		"fldcw %0\n\t"
-		:
-		: "m" (value)
-	);
-	__X86_ISA_FP_ASM_END__
-
+	/* Micro-instructions */
 	x86_uinst_new(ctx, x86_uinst_fp_move, x86_dep_mem16, 0, 0, x86_dep_fpcw, 0, 0, 0);
 }
 
@@ -1225,7 +1221,7 @@ void x86_isa_fmul_m32_impl(struct x86_ctx_t *ctx)
 	__X86_ISA_FP_ASM_START__
 	asm volatile (
 		"fldt %2\n\t"
-		"fld %3\n\t"
+		"flds %3\n\t"
 		"fmulp %%st(0), %%st(1)\n\t"
 		"fnstsw %%ax\n\t"
 		"fstpt %0\n\t"
@@ -1716,7 +1712,7 @@ void x86_isa_fsub_m32_impl(struct x86_ctx_t *ctx)
 	__X86_ISA_FP_ASM_START__
 	asm volatile (
 		"fldt %2\n\t"
-		"fld %3\n\t"
+		"flds %3\n\t"
 		"fsubrp %%st(0), %%st(1)\n\t"
 		"fnstsw %%ax\n\t"
 		"fstpt %0\n\t"
@@ -1842,7 +1838,7 @@ void x86_isa_fsubr_m32_impl(struct x86_ctx_t *ctx)
 
 	__X86_ISA_FP_ASM_START__
 	asm volatile (
-		"fld %2\n\t"
+		"flds %2\n\t"
 		"fldt %3\n\t"
 		"fsubrp %%st(0), %%st(1)\n\t"
 		"fnstsw %%ax\n\t"
@@ -1963,16 +1959,10 @@ void x86_isa_fstcw_m16_impl(struct x86_ctx_t *ctx)
 	struct x86_regs_t *regs = ctx->regs;
 	unsigned short value = regs->fpu_ctrl;
 
-	__X86_ISA_FP_ASM_START__
-	asm volatile (
-		"fnstcw %0\n\t"
-		:
-		: "m" (value)
-	);
-	__X86_ISA_FP_ASM_END__
-
+	/* Store value of FP control word */
 	x86_isa_mem_write(ctx, x86_isa_effective_address(ctx), 2, &value);
 
+	/* Micro-instructions */
 	x86_uinst_new(ctx, x86_uinst_fp_move, x86_dep_fpcw, 0, 0, x86_dep_mem32, 0, 0, 0);
 }
 
@@ -2064,7 +2054,7 @@ void x86_isa_fucompp_impl(struct x86_ctx_t *ctx)
 	x86_isa_pop_fpu(ctx, NULL);
 	x86_isa_pop_fpu(ctx, NULL);
 
-	x86_uinst_new(ctx, x86_uinst_fp_comp, x86_dep_st0, x86_dep_sti, 0, x86_dep_fpst, 0, 0, 0);
+	x86_uinst_new(ctx, x86_uinst_fp_comp, x86_dep_st0, x86_dep_st1, 0, x86_dep_fpst, 0, 0, 0);
 	x86_uinst_new(ctx, x86_uinst_fp_pop, 0, 0, 0, 0, 0, 0, 0);
 	x86_uinst_new(ctx, x86_uinst_fp_pop, 0, 0, 0, 0, 0, 0, 0);
 }

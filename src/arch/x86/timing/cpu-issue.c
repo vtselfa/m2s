@@ -19,11 +19,14 @@
 
 #include <assert.h>
 
+#include <arch/common/arch.h>
+#include <arch/x86/emu/emu.h>
 #include <lib/esim/trace.h>
 #include <lib/util/debug.h>
 #include <lib/util/linked-list.h>
 #include <mem-system/mmu.h>
 #include <mem-system/module.h>
+#include <mem-system/prefetch-history.h>
 
 #include "cpu.h"
 #include "event-queue.h"
@@ -31,126 +34,14 @@
 #include "inst-queue.h"
 #include "load-store-queue.h"
 #include "reg-file.h"
-
-static int x86_cpu_issue_pq(int core, int thread, int quant)
-{
-	struct linked_list_t *pq = X86_THREAD.pq;
-	struct x86_uop_t *uop;
-
-    /* Process pq */
-	linked_list_head(pq);
-	while (!linked_list_is_end(pq) && quant)
-	{
-		/* Get element from prefetch queue */
-		uop = linked_list_get(pq);
-		assert(uop->uinst->opcode == x86_uinst_prefetch);
-		uop->ready = 1;
-
-		/* Check that memory system is accessible */
-		if (!mod_can_access(uop->pref.mod, uop->phy_addr))
-		{
-			linked_list_next(pq);
-			continue;
-		}
-
-		/* Access memory system */
-		mod_access(uop->pref.mod, mod_access_prefetch, uop->phy_addr, NULL, X86_CORE.event_queue, uop, core, thread, 1);
-
-		/* Remove from pref queue */
-		x86_pq_remove(core, thread);
-
-		/* The cache system will place the prefectch at the head of the
-		 * event queue when it is ready. For now, mark "in_event_queue" to
-		 * prevent the uop from being freed. */
-		uop->in_event_queue = 1;
-		uop->issued = 1;
-		uop->issue_when = x86_cpu->cycle;
-
-		/* Instruction issued */
-		X86_CORE.num_issued_uinst_array[uop->uinst->opcode]++;
-		X86_CORE.lsq_reads++;
-		X86_CORE.reg_file_int_reads += uop->ph_int_idep_count;
-		X86_CORE.reg_file_fp_reads += uop->ph_fp_idep_count;
-		X86_THREAD.num_issued_uinst_array[uop->uinst->opcode]++;
-		X86_THREAD.lsq_reads++;
-		X86_THREAD.reg_file_int_reads += uop->ph_int_idep_count;
-		X86_THREAD.reg_file_fp_reads += uop->ph_fp_idep_count;
-		x86_cpu->num_issued_uinst_array[uop->uinst->opcode]++;
-		quant--;
-
-		/* MMU statistics */
-		if (*mmu_report_file_name)
-			mmu_access_page(uop->phy_addr, mmu_access_read);
-
-		/* Trace */
-		x86_trace("x86.inst id=%lld core=%d stg=\"i\"\n",
-			uop->id_in_core, uop->core);
-	}
-
-	return quant;
-}
-
-
-static int x86_cpu_issue_l2pq(int core, int thread, int quant)
-{
-	struct linked_list_t *l2mods = X86_THREAD.data_mod->low_mod_list;
-	struct x86_uop_t *uop;
-
-	/* Process all L2 modules below L1 */
-	linked_list_head(l2mods);
-	while (!linked_list_is_end(l2mods))
-	{
-		struct mod_t *l2mod = linked_list_get(l2mods);
-		struct linked_list_t *pq = l2mod->pq;
-
-		/* Process pq */
-		linked_list_head(pq);
-		while (!linked_list_is_end(pq))
-		{
-			/* Get element from prefetch queue */
-			uop = linked_list_get(pq);
-			assert(uop->uinst->opcode == x86_uinst_prefetch);
-			uop->ready = 1;
-
-			/* Check that memory system is accessible */
-			if (!mod_can_access(l2mod, uop->phy_addr))
-			{
-				linked_list_next(pq);
-				continue;
-			}
-
-			/* Access memory system */
-			mod_access(l2mod, mod_access_prefetch, uop->phy_addr,
-				NULL, X86_CORE.event_queue, uop, core, thread, 1);
-
-			/* Remove from prefetch queue */
-			linked_list_remove(pq);
-
-			/* The cache system will place the prefectch at the head of the
-			 * event queue when it is ready. For now, mark "in_event_queue" to
-			 * prevent the uop from being freed. */
-			uop->in_event_queue = 1;
-			uop->issued = 1;
-			uop->issue_when = x86_cpu->cycle;
-
-			//quant--;
-
-			/* MMU statistics */
-			if (*mmu_report_file_name)
-				mmu_access_page(uop->phy_addr, mmu_access_read);
-		}
-		linked_list_next(l2mods);
-	}
-
-	return quant;
-
-}
+#include "trace-cache.h"
 
 
 static int x86_cpu_issue_sq(int core, int thread, int quant)
 {
 	struct x86_uop_t *store;
 	struct linked_list_t *sq = X86_THREAD.sq;
+	struct mod_client_info_t *client_info;
 
 	/* Process SQ */
 	linked_list_head(sq);
@@ -171,18 +62,22 @@ static int x86_cpu_issue_sq(int core, int thread, int quant)
 		/* Remove store from store queue */
 		x86_sq_remove(core, thread);
 
+		/* create and fill the mod_client_info_t object */
+		client_info = mod_client_info_create(X86_THREAD.data_mod);
+		client_info->prefetcher_eip = store->eip;
+
 		/* Issue store */
 		mod_access(X86_THREAD.data_mod, mod_access_store,
-			store->phy_addr, NULL, X86_CORE.event_queue, store, core, thread, 0);
+		       store->phy_addr, NULL, X86_CORE.event_queue, store, client_info);
 
 		/* The cache system will place the store at the head of the
 		 * event queue when it is ready. For now, mark "in_event_queue" to
 		 * prevent the uop from being freed. */
 		store->in_event_queue = 1;
 		store->issued = 1;
-		store->issue_when = x86_cpu->cycle;
-
-		/* Instruction issued */
+		store->issue_when = arch_x86->cycle;
+	
+		/* Statistics */
 		X86_CORE.num_issued_uinst_array[store->uinst->opcode]++;
 		X86_CORE.lsq_reads++;
 		X86_CORE.reg_file_int_reads += store->ph_int_idep_count;
@@ -192,8 +87,12 @@ static int x86_cpu_issue_sq(int core, int thread, int quant)
 		X86_THREAD.reg_file_int_reads += store->ph_int_idep_count;
 		X86_THREAD.reg_file_fp_reads += store->ph_fp_idep_count;
 		x86_cpu->num_issued_uinst_array[store->uinst->opcode]++;
-		quant--;
+		if (store->trace_cache)
+			X86_THREAD.trace_cache->num_issued_uinst++;
 
+		/* One more instruction, update quantum. */
+		quant--;
+		
 		/* MMU statistics */
 		if (*mmu_report_file_name)
 			mmu_access_page(store->phy_addr, mmu_access_write);
@@ -206,6 +105,7 @@ static int x86_cpu_issue_lq(int core, int thread, int quant)
 {
 	struct linked_list_t *lq = X86_THREAD.lq;
 	struct x86_uop_t *load;
+	struct mod_client_info_t *client_info;
 
 	/* Process lq */
 	linked_list_head(lq);
@@ -231,18 +131,22 @@ static int x86_cpu_issue_lq(int core, int thread, int quant)
 		assert(load->uinst->opcode == x86_uinst_load);
 		x86_lq_remove(core, thread);
 
+		/* Create and fill the mod_client_info_t object */
+		client_info = mod_client_info_create(X86_THREAD.data_mod);
+		client_info->prefetcher_eip = load->eip;
+
 		/* Access memory system */
 		mod_access(X86_THREAD.data_mod, mod_access_load,
-			load->phy_addr, NULL, X86_CORE.event_queue, load, core, thread, 0);
+			load->phy_addr, NULL, X86_CORE.event_queue, load, client_info);
 
 		/* The cache system will place the load at the head of the
 		 * event queue when it is ready. For now, mark "in_event_queue" to
 		 * prevent the uop from being freed. */
 		load->in_event_queue = 1;
 		load->issued = 1;
-		load->issue_when = x86_cpu->cycle;
-
-		/* Instruction issued */
+		load->issue_when = arch_x86->cycle;
+	
+		/* Statistics */
 		X86_CORE.num_issued_uinst_array[load->uinst->opcode]++;
 		X86_CORE.lsq_reads++;
 		X86_CORE.reg_file_int_reads += load->ph_int_idep_count;
@@ -252,8 +156,12 @@ static int x86_cpu_issue_lq(int core, int thread, int quant)
 		X86_THREAD.reg_file_int_reads += load->ph_int_idep_count;
 		X86_THREAD.reg_file_fp_reads += load->ph_fp_idep_count;
 		x86_cpu->num_issued_uinst_array[load->uinst->opcode]++;
-		quant--;
+		if (load->trace_cache)
+			X86_THREAD.trace_cache->num_issued_uinst++;
 
+		/* One more instruction issued, update quantum. */
+		quant--;
+		
 		/* MMU statistics */
 		if (*mmu_report_file_name)
 			mmu_access_page(load->phy_addr, mmu_access_read);
@@ -262,10 +170,97 @@ static int x86_cpu_issue_lq(int core, int thread, int quant)
 		x86_trace("x86.inst id=%lld core=%d stg=\"i\"\n",
 			load->id_in_core, load->core);
 	}
-
+	
 	return quant;
 }
 
+static int x86_cpu_issue_preq(int core, int thread, int quant)
+{
+	struct linked_list_t *preq = X86_THREAD.preq;
+	struct x86_uop_t *prefetch;
+
+	/* Process preq */
+	linked_list_head(preq);
+	while (!linked_list_is_end(preq) && quant)
+	{
+		/* Get element from prefetch queue. If it is not ready, go to the next one */
+		prefetch = linked_list_get(preq);
+		if (!prefetch->ready && !x86_reg_file_ready(prefetch))
+		{
+			linked_list_next(preq);
+			continue;
+		}
+
+		/* 
+		 * Make sure its not been prefetched recently. This is just to avoid unnecessary
+		 * memory traffic. Even though the cache will realise a "hit" on redundant 
+		 * prefetches, its still helpful to avoid going to the memory (cache). 
+		 */
+		if (prefetch_history_is_redundant(X86_CORE.prefetch_history,
+				X86_THREAD.data_mod, prefetch->phy_addr))
+		{
+			/* Remove from queue. Do not prefetch. */
+			assert(prefetch->uinst->opcode == x86_uinst_prefetch);
+			x86_preq_remove(core, thread);
+			prefetch->completed = 1;
+			x86_uop_free_if_not_queued(prefetch);
+			continue;
+		}
+
+		prefetch->ready = 1;
+
+		/* Check that memory system is accessible */
+		if (!mod_can_access(X86_THREAD.data_mod, prefetch->phy_addr))
+		{
+			linked_list_next(preq);
+			continue;
+		}
+
+		/* Remove from prefetch queue */
+		assert(prefetch->uinst->opcode == x86_uinst_prefetch);
+		x86_preq_remove(core, thread);
+
+		/* Access memory system */
+		mod_access(X86_THREAD.data_mod, mod_access_prefetch,
+			prefetch->phy_addr, NULL, X86_CORE.event_queue, prefetch, NULL);
+
+		/* Record prefetched address */
+		prefetch_history_record(X86_CORE.prefetch_history, prefetch->phy_addr);
+
+		/* The cache system will place the prefetch at the head of the
+		 * event queue when it is ready. For now, mark "in_event_queue" to
+		 * prevent the uop from being freed. */
+		prefetch->in_event_queue = 1;
+		prefetch->issued = 1;
+		prefetch->issue_when = arch_x86->cycle;
+		
+		/* Statistics */
+		X86_CORE.num_issued_uinst_array[prefetch->uinst->opcode]++;
+		X86_CORE.lsq_reads++;
+		X86_CORE.reg_file_int_reads += prefetch->ph_int_idep_count;
+		X86_CORE.reg_file_fp_reads += prefetch->ph_fp_idep_count;
+		X86_THREAD.num_issued_uinst_array[prefetch->uinst->opcode]++;
+		X86_THREAD.lsq_reads++;
+		X86_THREAD.reg_file_int_reads += prefetch->ph_int_idep_count;
+		X86_THREAD.reg_file_fp_reads += prefetch->ph_fp_idep_count;
+		x86_cpu->num_issued_uinst_array[prefetch->uinst->opcode]++;
+		if (prefetch->trace_cache)
+			X86_THREAD.trace_cache->num_issued_uinst++;
+
+		/* One more instruction issued, update quantum. */
+		quant--;
+		
+		/* MMU statistics */
+		if (*mmu_report_file_name)
+			mmu_access_page(prefetch->phy_addr, mmu_access_read);
+
+		/* Trace */
+		x86_trace("x86.inst id=%lld core=%d stg=\"i\"\n",
+			prefetch->id_in_core, prefetch->core);
+	}
+	
+	return quant;
+}
 
 static int x86_cpu_issue_iq(int core, int thread, int quant)
 {
@@ -307,11 +302,11 @@ static int x86_cpu_issue_iq(int core, int thread, int quant)
 		assert(!uop->in_event_queue);
 		assert(lat > 0);
 		uop->issued = 1;
-		uop->issue_when = x86_cpu->cycle;
-		uop->when = x86_cpu->cycle + lat;
+		uop->issue_when = arch_x86->cycle;
+		uop->when = arch_x86->cycle + lat;
 		x86_event_queue_insert(X86_CORE.event_queue, uop);
 
-		/* Instruction issued */
+		/* Statistics */
 		X86_CORE.num_issued_uinst_array[uop->uinst->opcode]++;
 		X86_CORE.iq_reads++;
 		X86_CORE.reg_file_int_reads += uop->ph_int_idep_count;
@@ -321,6 +316,10 @@ static int x86_cpu_issue_iq(int core, int thread, int quant)
 		X86_THREAD.reg_file_int_reads += uop->ph_int_idep_count;
 		X86_THREAD.reg_file_fp_reads += uop->ph_fp_idep_count;
 		x86_cpu->num_issued_uinst_array[uop->uinst->opcode]++;
+		if (uop->trace_cache)
+			X86_THREAD.trace_cache->num_issued_uinst++;
+
+		/* One more instruction issued, update quantum. */
 		quant--;
 
 		/* Trace */
@@ -336,8 +335,7 @@ static int x86_cpu_issue_thread_lsq(int core, int thread, int quant)
 {
 	quant = x86_cpu_issue_lq(core, thread, quant);
 	quant = x86_cpu_issue_sq(core, thread, quant);
-	quant = x86_cpu_issue_pq(core, thread, quant);
-	quant = x86_cpu_issue_l2pq(core, thread, quant);
+	quant = x86_cpu_issue_preq(core, thread, quant);
 
 	return quant;
 }

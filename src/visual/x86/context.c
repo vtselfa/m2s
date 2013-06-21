@@ -18,7 +18,6 @@
  */
 
 #include <assert.h>
-#include <stdlib.h>
 
 #include <lib/mhandle/mhandle.h>
 #include <lib/util/debug.h>
@@ -35,12 +34,8 @@ struct vi_x86_context_t *vi_x86_context_create(char *name, int id, int parent_id
 {
 	struct vi_x86_context_t *context;
 
-	/* Allocate */
-	context = calloc(1, sizeof(struct vi_x86_context_t));
-	if (!context)
-		fatal("%s: out of memory", __FUNCTION__);
-
 	/* Initialize */
+	context = xcalloc(1, sizeof(struct vi_x86_context_t));
 	context->name = str_set(NULL, name);
 	context->id = id;
 	context->parent_id = parent_id;

@@ -17,15 +17,50 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#include <arch/arm/emu/emu.h>
+#include <arch/common/arch.h>
+#include <lib/esim/esim.h>
+#include <lib/util/misc.h>
+
 #include "cpu.h"
 
 
-/* Run one iteration of the arm timing simulation loop.
- * Return FALSE if there is no more simulation to perform. */
+/*
+ * Global Variables
+ */
+
+
+/* 
+ * Public Functions
+ */
+
+void arm_cpu_read_config(void)
+{
+}
+
+
+void arm_cpu_init(void)
+{
+}
+
+
+void arm_cpu_done(void)
+{
+}
+
+
+void arm_cpu_dump(FILE *f)
+{
+}
+
+
+/* Run one iteration of timing simulation. Return TRUE if the timing simulation
+ * is still running. */
 int arm_cpu_run(void)
 {
-	return 0;
+	return FALSE;
 }
+
 
 /* TODO: Implement the Arm cpu dump for the cycle accurate simulation */
 void arm_cpu_dump_summary(FILE *f)

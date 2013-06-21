@@ -89,9 +89,9 @@ struct cache_block_t
 	int tag;
 	int transient_tag;
 	int way;
+	int prefetched;
 
 	enum cache_block_state_t state;
-	int prefetched : 1;
 };
 
 struct cache_set_t
@@ -175,18 +175,20 @@ struct cache_t
 		} stride_detector;
 	} prefetch;
 
+	struct prefetcher_t *prefetcher;
+
 	struct cache_write_buffer wb;
 };
 
 struct cache_t *cache_create(char *name, unsigned int num_sets, unsigned int block_size,
-	unsigned int assoc, unsigned int num_streams, unsigned int pref_aggr, enum cache_policy_t policy);
+	unsigned int assoc, enum cache_policy_t policy);
 void cache_free(struct cache_t *cache);
 
 void cache_decode_address(struct cache_t *cache, unsigned int addr,
 	int *set_ptr, int *tag_ptr, unsigned int *offset_ptr);
 int cache_find_block(struct cache_t *cache, unsigned int addr, int *set_ptr, int *pway,
 	int *state_ptr);
-void cache_set_block(struct cache_t *cache, int set, int way, int tag, int state, unsigned int prefetched);
+void cache_set_block(struct cache_t *cache, int set, int way, int tag, int state);
 void cache_get_block(struct cache_t *cache, int set, int way, int *tag_ptr, int *state_ptr);
 
 void cache_access_block(struct cache_t *cache, int set, int way);

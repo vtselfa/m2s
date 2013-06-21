@@ -20,7 +20,6 @@
 #ifndef MEM_SYSTEM_DIRECTORY_H
 #define MEM_SYSTEM_DIRECTORY_H
 
-//#include "mod-stack.h"
 
 struct dir_lock_t
 {
@@ -36,7 +35,6 @@ struct dir_lock_t
 struct dir_entry_t
 {
 	int owner;  /* Node owning the block (-1 = No owner)*/
-	int num_stream_sharers;
 	int num_sharers;  /* Number of 1s in next field */
 	unsigned char sharer[0];  /* Bitmap of sharers (must be last field) */
 };
@@ -91,17 +89,8 @@ void dir_entry_unlock(struct dir_t *dir, int x, int y);
 
 
 /* Prefetch */
-void dir_entry_dump_stream_sharers(struct dir_t *dir, int x, int y, int z);
-void dir_entry_set_stream_sharer(struct dir_t *dir, int x, int y, int z, int node);
-void dir_entry_clear_stream_sharer(struct dir_t *dir, int x, int y, int z, int node);
-int dir_entry_is_stream_sharer(struct dir_t *dir, int x, int y, int z, int node);
-
 struct dir_lock_t *dir_pref_lock_get(struct dir_t *dir, int pref_stream, int pref_slot);
 int dir_pref_entry_lock(struct dir_t *dir, int pref_stream, int pref_slot, int event, struct mod_stack_t *stack);
 void dir_pref_entry_unlock(struct dir_t *dir, int pref_stream, int pref_slot);
-void dir_pref_entry_wake_up_all(struct dir_t *dir, int pref_stream, int pref_slot);
-
-
 
 #endif
-

@@ -22,7 +22,9 @@
 
 #include <arch/x86/emu/uinst.h>
 
-#include "uop.h"
+
+/* Forward types */
+struct x86_uop_t;
 
 
 /* Error debug */
@@ -47,7 +49,6 @@ extern int x86_cpu_num_cores;
 extern int x86_cpu_num_threads;
 
 extern int x86_cpu_context_quantum;
-extern int x86_cpu_context_switch;
 
 extern int x86_cpu_thread_quantum;
 extern int x86_cpu_thread_switch_penalty;
@@ -109,12 +110,13 @@ extern int x86_trace_category;
 
 
 /* Fast access macros */
-#define X86_CORE		(x86_cpu->core[core])
-#define X86_THREAD		(x86_cpu->core[core].thread[thread])
-#define X86_CORE_IDX(I)		(x86_cpu->core[(I)])
-#define X86_THREAD_IDX(I)	(x86_cpu->core[core].thread[(I)])
-#define X86_CORE_FOR_EACH	for (core = 0; core < x86_cpu_num_cores; core++)
-#define X86_THREAD_FOR_EACH	for (thread = 0; thread < x86_cpu_num_threads; thread++)
+#define X86_CORE  (x86_cpu->core[core])
+#define X86_THREAD  (x86_cpu->core[core].thread[thread])
+#define X86_CORE_IDX(x)  (x86_cpu->core[(x)])
+#define X86_THREAD_IDX(x)  (x86_cpu->core[core].thread[(x)])
+#define X86_CORE_THREAD_IDX(x, y)  (x86_cpu->core[(x)].thread[(y)])
+#define X86_CORE_FOR_EACH  for (core = 0; core < x86_cpu_num_cores; core++)
+#define X86_THREAD_FOR_EACH  for (thread = 0; thread < x86_cpu_num_threads; thread++)
 
 
 /* Dispatch stall reasons */
@@ -135,8 +137,15 @@ enum x86_dispatch_stall_t
 /* Thread */
 struct x86_thread_t
 {
-	struct x86_ctx_t *ctx;  /* allocated kernel context */
-	int last_alloc_pid;  /* pid of last allocated context */
+	/* Context currently running in this thread. This is a context present
+	 * in the thread's 'mapped' list. */
+	struct x86_ctx_t *ctx;
+
+	/* Double-linked list of mapped contexts */
+	struct x86_ctx_t *mapped_list_head;
+	struct x86_ctx_t *mapped_list_tail;
+	int mapped_list_count;
+	int mapped_list_max;
 
 	/* Reorder buffer */
 	int rob_count;
@@ -158,7 +167,7 @@ struct x86_thread_t
 	struct linked_list_t *iq;
 	struct linked_list_t *lq;
 	struct linked_list_t *sq;
-	struct linked_list_t *pq;
+	struct linked_list_t *preq;
 	struct x86_bpred_t *bpred;  /* branch predictor */
 	struct x86_trace_cache_t *trace_cache;  /* trace cache */
 	struct x86_reg_file_t *reg_file;  /* physical register file */
@@ -246,6 +255,7 @@ struct x86_core_t
 	/* Shared structures */
 	struct linked_list_t *event_queue;
 	struct x86_fu_t *fu;
+	struct prefetch_history_t *prefetch_history;
 
 	/* Per core counters */
 	long long uop_id_counter;  /* Counter for uop ID assignment */
@@ -278,13 +288,6 @@ struct x86_core_t
 	long long num_squashed_uinst;
 	long long num_branch_uinst;
 	long long num_mispred_branch_uinst;
-	long long dispatch_stall_cycles_rob_mem;
-	long long last_dispatch_stall_cycles_rob_mem; // interval report
-	long long dispatch_stall_cycles_rob;
-	long long dispatch_stall_cycles_iq;
-	long long dispatch_stall_cycles_lsq;
-	long long dispatch_stall_cycles_uop_queue;
-	long long dispatch_stall_cycles_rename;
 
 	/* Statistics for shared structures */
 	long long rob_occupancy;
@@ -327,17 +330,17 @@ struct x86_cpu_t
 	/* Array of cores */
 	struct x86_core_t *core;
 
-	/* Cycle counter */
-	long long cycle;
-
 	/* Some fields */
 	long long uop_id_counter;  /* Counter of uop ID assignment */
 	char *stage;  /* Name of currently simulated stage */
 
-	/* Context allocations */
-	long long ctx_alloc_oldest;  /* Time when oldest context was allocated */
-	int ctx_dealloc_signals;  /* Sent deallocation signals */
-
+	/* From all contexts in the 'alloc' list of 'x86_emu', minimum value
+	 * of variable 'ctx->alloc_cycle'. This value is used to decide whether
+	 * the scheduler should be called at all to check for any context whose
+	 * execution quantum has expired. These variables are updated by calling
+	 * 'x86_cpu_update_min_alloc_cycle' */
+	long long min_alloc_cycle;
+	
 	/* List containing uops that need to report an 'end_inst' trace event */
 	struct linked_list_t *uop_trace_list;
 
@@ -360,7 +363,14 @@ struct x86_cpu_t
 };
 
 
-/* Procedures and functions */
+
+
+/*
+ * Public Functions
+ */
+
+void x86_cpu_read_config(void);
+
 void x86_cpu_init(void);
 void x86_cpu_done(void);
 
@@ -370,10 +380,8 @@ void x86_cpu_dump_summary(FILE *f);
 void x86_cpu_update_occupancy_stats(void);
 
 int x86_cpu_pipeline_empty(int core, int thread);
-void x86_cpu_map_context(int core, int thread, struct x86_ctx_t *ctx);
-void x86_cpu_unmap_context(int core, int thread);
-void x86_cpu_static_schedule(void);
-void x86_cpu_dynamic_schedule(void);
+void x86_cpu_evict_context(int core, int thread);
+void x86_cpu_schedule(void);
 
 void x86_cpu_uop_trace_list_add(struct x86_uop_t *uop);
 void x86_cpu_uop_trace_list_empty(void);
@@ -390,4 +398,3 @@ void x86_cpu_recover(int core, int thread);
 int x86_cpu_run(void);
 
 #endif
-

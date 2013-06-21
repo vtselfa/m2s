@@ -18,8 +18,6 @@
  */
 
 
-#include <string.h>
-#include <stdlib.h>
 #include <assert.h>
 #include <sys/stat.h>
 
@@ -133,6 +131,19 @@ int elf_buffer_read(struct elf_buffer_t *buffer, void *ptr, int size)
 }
 
 
+/* Dump contents of buffer into file 'f'. The buffer is dumped at the current
+ * position of the file. */
+void elf_buffer_dump(struct elf_buffer_t *buffer, FILE *f)
+{
+	size_t size;
+
+	size = fwrite(buffer->ptr, 1, buffer->size, f);
+	if (size != buffer->size)
+		fatal("%s: couldn't dump buffer contents",
+			__FUNCTION__);
+}
+
+
 
 
 /*
@@ -144,12 +155,30 @@ static int elf_symbol_compare(const void *a, const void *b)
 {
 	const struct elf_symbol_t *symbol_a = a;
 	const struct elf_symbol_t *symbol_b = b;
+	int bind_a;
+	int bind_b;
+
 	if (symbol_a->value < symbol_b->value)
 		return -1;
 	else if (symbol_a->value > symbol_b->value)
 		return 1;
 	else
-		return strcmp(symbol_a->name, symbol_b->name);
+	{
+		/* Sort symbol with the same address as per their
+		 * ST_BIND field in st_info (bits 4 to 8) */
+		bind_a = (symbol_a->info >> 4) & 0xf;
+		bind_b = (symbol_b->info >> 4) & 0xf;
+
+		if (bind_a < bind_b)
+			return -1;
+		else if (bind_a > bind_b)
+			return 1;
+		else
+		{
+			/* Sort alphabetically */
+			return strcmp(symbol_a->name, symbol_b->name);
+		}
+	}
 }
 
 
@@ -177,7 +206,7 @@ static void elf_file_read_symbol_section(struct elf_file_t *elf_file, struct elf
 			continue;
 
 		/* Create symbol */
-		symbol = calloc(1, sizeof(struct elf_symbol_t));
+		symbol = xcalloc(1, sizeof(struct elf_symbol_t));
 		symbol->value = sym->st_value;
 		symbol->size = sym->st_size;
 		symbol->section = sym->st_shndx;
@@ -234,10 +263,12 @@ static void elf_file_read_symbol_table(struct elf_file_t *elf_file)
 }
 
 
-struct elf_symbol_t *elf_symbol_get_by_address(struct elf_file_t *elf_file, uint32_t addr, uint32_t *offset_ptr)
+struct elf_symbol_t *elf_symbol_get_by_address(struct elf_file_t *elf_file,
+	unsigned int addr, unsigned int *offset_ptr)
 {
 	int min, max, mid;
 	struct elf_symbol_t *symbol;
+	struct elf_symbol_t *prev_symbol;
 
 	/* Empty symbol table */
 	if (!list_count(elf_file->symbol_table))
@@ -264,10 +295,22 @@ struct elf_symbol_t *elf_symbol_get_by_address(struct elf_file_t *elf_file, uint
 		}
 	}
 
-	/* Go backwards to find appropriate symbol */
+	/* Invalid symbol */
 	symbol = list_get(elf_file->symbol_table, min);
 	if (!symbol->value)
 		return NULL;
+
+	/* Go backwards to find first symbol with that address */
+	for (;;)
+	{
+		min--;
+		prev_symbol = list_get(elf_file->symbol_table, min);
+		if (!prev_symbol || prev_symbol->value != symbol->value)
+			break;
+		symbol = prev_symbol;
+	}
+
+	/* Return the symbol and its address */
 	if (offset_ptr)
 		*offset_ptr = addr - symbol->value;
 	return symbol;
@@ -285,6 +328,30 @@ struct elf_symbol_t *elf_symbol_get_by_name(struct elf_file_t *elf_file, char *n
 			return symbol;
 	}
 	return NULL;
+}
+
+
+int elf_symbol_read_content(struct elf_file_t *elf_file, struct elf_symbol_t *symbol,
+		struct elf_buffer_t *elf_buffer)
+{
+	struct elf_section_t *section;
+
+	/* Initialize buffer */
+	assert(elf_buffer);
+	elf_buffer->ptr = NULL;
+	elf_buffer->size = 0;
+	elf_buffer->pos = 0;
+
+	/* Get section where the symbol is pointing */
+	section = list_get(elf_file->section_list, symbol->section);
+	if (!section || symbol->value + symbol->size > section->header->sh_size)
+		return 0;
+
+	/* Update buffer */
+	elf_buffer->ptr = section->buffer.ptr + symbol->value;
+	elf_buffer->size = symbol->size;
+	elf_buffer->pos = 0;
+	return 1;
 }
 
 
@@ -356,8 +423,6 @@ static void elf_file_read_section_headers(struct elf_file_t *elf_file)
 
 	/* Create section list */
 	elf_file->section_list = list_create();
-	if (!elf_file->section_list)
-		fatal("%s: out of memory", __FUNCTION__);
 
 	/* Check section size and number */
 	buffer = &elf_file->buffer;
@@ -371,7 +436,7 @@ static void elf_file_read_section_headers(struct elf_file_t *elf_file)
 	for (i = 0; i < elf_header->e_shnum; i++)
 	{
 		/* Allocate section */
-		section = calloc(1, sizeof(struct elf_section_t));
+		section = xcalloc(1, sizeof(struct elf_section_t));
 		section->header = elf_buffer_tell(buffer);
 
 		/* Advance buffer */
@@ -452,7 +517,7 @@ static void elf_file_read_program_headers(struct elf_file_t *elf_file)
 	for (i = 0; i < elf_header->e_phnum; i++)
 	{
 		/* Allocate program header */
-		program_header = calloc(1, sizeof(struct elf_program_header_t));
+		program_header = xcalloc(1, sizeof(struct elf_program_header_t));
 		program_header->header = elf_buffer_tell(buffer);
 
 		/* Advance buffer */
@@ -492,16 +557,10 @@ static struct elf_file_t *elf_file_create_from_allocated_buffer(void *buffer, in
 
 	/* Create buffer */
 	elf_debug("**\n** Loading ELF file\n** %s\n**\n\n", path);
-	elf_file = calloc(1, sizeof(struct elf_file_t));
-	if (!elf_file)
-		fatal("%s: out of memory", __FUNCTION__);
-
-	/* Duplicate path string */
-	elf_file->path = strdup(path ? path : "");
-	if (!elf_file->path)
-		fatal("%s: out of memory", __FUNCTION__);
+	elf_file = xcalloc(1, sizeof(struct elf_file_t));
 
 	/* Initialize buffer */
+	elf_file->path = xstrdup(path ? path : "");
 	elf_file->buffer.ptr = buffer;
 	elf_file->buffer.size = size;
 	elf_file->buffer.pos = 0;
@@ -524,9 +583,7 @@ struct elf_file_t *elf_file_create_from_buffer(void *ptr, int size, char *name)
 	void *ptr_copy;
 
 	/* Make a copy of the buffer */
-	ptr_copy = malloc(size);
-	if (!ptr_copy)
-		fatal("%s: out of memory", __FUNCTION__);
+	ptr_copy = xmalloc(size);
 	memcpy(ptr_copy, ptr, size);
 
 	/* Create ELF */
@@ -555,12 +612,8 @@ struct elf_file_t *elf_file_create_from_path(char *path)
 	if (!f)
 		fatal("'%s': cannot open file", path);
 
-	/* Allocate buffer */
-	buffer = malloc(size);
-	if (!buffer)
-		fatal("'%s': out of memory reading file", path);
-
 	/* Read file contents */
+	buffer = xmalloc(size);
 	count = fread(buffer, 1, size, f);
 	if (count != size)
 		fatal("'%s': error reading file contents", path);
@@ -612,6 +665,10 @@ void elf_file_read_header(char *path, Elf32_Ehdr *ehdr)
 	/* Read header */
 	count = fread(ehdr, sizeof(Elf32_Ehdr), 1, f);
 	if (count != 1)
+		fatal("%s: invalid ELF file", path);
+
+	/* Check that file is a valid ELF file */
+	if (strncmp((char *) ehdr->e_ident, ELFMAG, 4))
 		fatal("%s: invalid ELF file", path);
 
 	/* Check that ELF file is a 32-bit object */

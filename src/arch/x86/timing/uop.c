@@ -18,8 +18,8 @@
  */
 
 #include <lib/mhandle/mhandle.h>
-#include <lib/util/debug.h>
 #include <lib/util/list.h>
+#include <lib/util/linked-list.h>
 
 #include "reg-file.h"
 #include "uop.h"
@@ -32,12 +32,8 @@ struct x86_uop_t *x86_uop_create(void)
 {
 	struct x86_uop_t *uop;
 
-	/* Allocate */
-	uop = calloc(1, sizeof(struct x86_uop_t));
-	if (!uop)
-		fatal("%s: out of memory", __FUNCTION__);
-
 	/* Initialize */
+	uop = xcalloc(1, sizeof(struct x86_uop_t));
 	uop->magic = UOP_MAGIC;
 
 	/* Return */
@@ -49,7 +45,7 @@ void x86_uop_free_if_not_queued(struct x86_uop_t *uop)
 {
 	/* Do not free if 'uop' is still enqueued */
 	if (uop->in_fetch_queue || uop->in_uop_queue || uop->in_iq ||
-		uop->in_lq || uop->in_sq || uop->in_pq ||
+		uop->in_lq || uop->in_sq || uop->in_preq ||
 		uop->in_rob || uop->in_event_queue ||
 		uop->in_uop_trace_list)
 	{
@@ -63,6 +59,21 @@ void x86_uop_free_if_not_queued(struct x86_uop_t *uop)
 }
 
 
+void x86_uop_dump(struct x86_uop_t *uop, FILE *f)
+{
+	/* Fields */
+	fprintf(f, "id=%lld, ", uop->id);
+	fprintf(f, "eip=0x%x, ", uop->eip);
+	fprintf(f, "spec_mode=%c, ", uop->specmode ? 't' : 'f');
+	fprintf(f, "trace_cache=%c, ", uop->trace_cache ? 't' : 'f');
+
+	/* Micro-instruction */
+	fprintf(f, "uinst='");
+	x86_uinst_dump(uop->uinst, f);
+	fprintf(f, "'");
+}
+
+
 /* Check whether this is a valid pointer to an allocated uop by checking
  * the magic number. */
 int x86_uop_exists(struct x86_uop_t *uop)
@@ -71,16 +82,16 @@ int x86_uop_exists(struct x86_uop_t *uop)
 }
 
 
-void x86_uop_list_dump(struct list_t *uop_list, FILE *f)
+void x86_uop_list_dump(struct list_t *list, FILE *f)
 {
 	struct x86_uop_t *uop;
 	int i;
 	
-	for (i = 0; i < list_count(uop_list); i++)
+	for (i = 0; i < list_count(list); i++)
 	{
-		uop = list_get(uop_list, i);
 		fprintf(f, "%3d. ", i);
-		x86_uinst_dump(uop->uinst, f);
+		uop = list_get(list, i);
+		x86_uop_dump(uop, f);
 		fprintf(f, "\n");
 	}
 }
@@ -118,4 +129,3 @@ void x86_uop_linked_list_check_if_ready(struct linked_list_t *uop_list)
 		uop->ready = 1;
 	}
 }
-

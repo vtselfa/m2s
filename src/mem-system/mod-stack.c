@@ -18,8 +18,7 @@
  */
 
 #include <assert.h>
-#include <stdlib.h>
-#include <lib/util/linked-list.h>
+
 #include <lib/esim/esim.h>
 #include <lib/mhandle/mhandle.h>
 #include <lib/util/misc.h>
@@ -33,29 +32,25 @@
 long long mod_stack_id;
 
 struct mod_stack_t *mod_stack_create(long long id, struct mod_t *mod,
-	unsigned int addr, int ret_event, void *ret_stack, int core, int thread, int prefetch)
+	unsigned int addr, int ret_event, struct mod_stack_t *ret_stack, int prefetch)
 {
 	struct mod_stack_t *stack;
 
-	/* Create stack */
-	stack = calloc(1, sizeof(struct mod_stack_t));
-	if (!stack)
-		fatal("%s: out of memory", __FUNCTION__);
-
 	/* Initialize */
+	stack = xcalloc(1, sizeof(struct mod_stack_t));
 	stack->id = id;
 	stack->mod = mod;
 	stack->addr = addr;
 	stack->ret_event = ret_event;
 	stack->ret_stack = ret_stack;
+	if (ret_stack != NULL)
+		stack->client_info = ret_stack->client_info;
 	stack->way = -1;
 	stack->set = -1;
 	stack->tag = -1;
 	stack->pref_stream = -1;
 	stack->pref_slot = -1;
 	stack->prefetch = prefetch;
-	stack->core = core;
-	stack->thread = thread;
 
 	/* Return */
 	return stack;
@@ -71,14 +66,6 @@ void mod_stack_return(struct mod_stack_t *stack)
 	mod_stack_wakeup_stack(stack);
 
 	/* Free */
-	if(stack->coalesced_stacks!=NULL)
-	{
-		linked_list_free(stack->coalesced_stacks);
-		stack->coalesced_stacks=NULL;
-		//assert(stack->coalesced_stacks!=NULL);
-
-	}
-	
 	free(stack);
 	esim_schedule_event(ret_event, ret_stack, 0);
 }
@@ -210,7 +197,7 @@ void mod_stack_wakeup_stack(struct mod_stack_t *master_stack)
 		return;
 
 	/* Debug */
-	mem_debug("  %lld %lld 0x%x wake up accesses:", esim_cycle,
+	mem_debug("  %lld %lld 0x%x wake up accesses:", esim_time,
 		master_stack->id, master_stack->addr);
 
 	/* Wake up all coalesced accesses */
@@ -244,8 +231,8 @@ struct mod_t *mod_stack_set_peer(struct mod_t *peer, int state)
 {
 	struct mod_t *ret = NULL;
 
-	if (state == cache_block_owned || mem_system_peer_transfers)
-		ret = peer;
+	if (state == cache_block_owned || mem_peer_transfers)
+		ret = peer;	
 
 	return ret;
 }

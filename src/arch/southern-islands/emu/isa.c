@@ -17,12 +17,17 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include <arch/x86/emu/emu.h>
+#include <assert.h>
+
 #include <lib/mhandle/mhandle.h>
+#include <lib/util/debug.h>
 #include <lib/util/repos.h>
-#include <mem-system/memory.h>
 
 #include "emu.h"
+#include "isa.h"
+#include "wavefront.h"
+#include "work-group.h"
+#include "work-item.h"
 
 
 /* Repository of deferred tasks */
@@ -45,13 +50,9 @@ int si_isa_debug_category;
 /* Initialization */
 void si_isa_init()
 {
-	/* Allocate instruction execution table */
-	si_isa_inst_func = calloc(SI_INST_COUNT, sizeof(si_isa_inst_func_t));
-	if (!si_isa_inst_func)
-		fatal("%s: out of memory", __FUNCTION__);
-
 	/* Initialize */
-#define DEFINST(_name, _fmt_str, _fmt, _opcode, _size) \
+	si_isa_inst_func = xcalloc(SI_INST_COUNT, sizeof(si_isa_inst_func_t));
+#define DEFINST(_name, _fmt_str, _fmt, _opcode, _size, _flags) \
 	extern void si_isa_##_name##_impl(struct si_work_item_t *work_item, struct si_inst_t *inst); \
 	si_isa_inst_func[SI_INST_##_name] = si_isa_##_name##_impl;
 #include <arch/southern-islands/asm/asm.dat>
@@ -74,35 +75,101 @@ void si_isa_done()
 
 /* Helper functions */
 
-union si_reg_t si_isa_read_sreg(struct si_work_item_t *work_item, int sreg)
+unsigned int si_isa_read_sreg(struct si_work_item_t *work_item, int sreg)
 {
-	return work_item->wavefront->sreg[sreg];
+	unsigned int value;
+
+	assert(sreg >= 0);
+	assert(sreg != 104);
+	assert(sreg != 105);
+	assert(sreg != 125);
+	assert((sreg < 209) || (sreg > 239));
+	assert((sreg < 248) || (sreg > 250));
+	assert(sreg != 254);
+	assert(sreg < 256);
+
+	if (sreg == SI_VCCZ)
+	{
+		if (work_item->wavefront->sreg[SI_VCC].as_uint == 0 && 
+			work_item->wavefront->sreg[SI_VCC+1].as_uint == 0)
+			value = 1;
+		else 
+			value = 0;
+	}
+	if (sreg == SI_EXECZ)
+	{
+		if (work_item->wavefront->sreg[SI_EXEC].as_uint == 0 && 
+			work_item->wavefront->sreg[SI_EXEC+1].as_uint == 0)
+			value = 1;
+		else 
+			value = 0;
+	}
+	else
+	{
+		value = work_item->wavefront->sreg[sreg].as_uint;
+	}
+
+	/* Statistics */
+	work_item->work_group->sreg_read_count++;
+
+	return value;
 }
 
-void si_isa_write_sreg(struct si_work_item_t *work_item, int sreg, union si_reg_t value)
+void si_isa_write_sreg(struct si_work_item_t *work_item, int sreg, 
+	unsigned int value)
 {
-	work_item->wavefront->sreg[sreg] = value;
+	assert(sreg >= 0);
+	assert(sreg != 104);
+	assert(sreg != 105);
+	assert(sreg != 125);
+	assert((sreg < 209) || (sreg > 239));
+	assert((sreg < 248) || (sreg > 250));
+	assert(sreg != 254);
+	assert(sreg < 256);
+
+	work_item->wavefront->sreg[sreg].as_uint = value;
 
 	/* Update VCCZ and EXECZ if necessary. */
 	if (sreg == SI_VCC || sreg == SI_VCC + 1)
-		work_item->wavefront->sreg[SI_VCCZ].as_uint = !work_item->wavefront->sreg[SI_VCC].as_uint &
-														!work_item->wavefront->sreg[SI_VCC + 1].as_uint;
+	{
+		work_item->wavefront->sreg[SI_VCCZ].as_uint = 
+			!work_item->wavefront->sreg[SI_VCC].as_uint &
+			!work_item->wavefront->sreg[SI_VCC + 1].as_uint;
+	}
 	if (sreg == SI_EXEC || sreg == SI_EXEC + 1)
-		work_item->wavefront->sreg[SI_EXECZ].as_uint = !work_item->wavefront->sreg[SI_EXEC].as_uint &
-														!work_item->wavefront->sreg[SI_EXEC + 1].as_uint;
+	{
+		work_item->wavefront->sreg[SI_EXECZ].as_uint = 
+			!work_item->wavefront->sreg[SI_EXEC].as_uint &
+			!work_item->wavefront->sreg[SI_EXEC + 1].as_uint;
+	}
+
+	/* Statistics */
+	work_item->work_group->sreg_write_count++;
 }
 
-union si_reg_t si_isa_read_vreg(struct si_work_item_t *work_item, int vreg)
+unsigned int si_isa_read_vreg(struct si_work_item_t *work_item, int vreg)
 {
-	return work_item->vreg[vreg];
+	assert(vreg >= 0);
+	assert(vreg < 256);
+
+	/* Statistics */
+	work_item->work_group->vreg_read_count++;
+
+	return work_item->vreg[vreg].as_uint;
 }
 
-void si_isa_write_vreg(struct si_work_item_t *work_item, int vreg, union si_reg_t value)
+void si_isa_write_vreg(struct si_work_item_t *work_item, int vreg, 
+	unsigned int value)
 {
-	work_item->vreg[vreg] = value;
+	assert(vreg >= 0);
+	assert(vreg < 256);
+	work_item->vreg[vreg].as_uint = value;
+
+	/* Statistics */
+	work_item->work_group->vreg_write_count++;
 }
 
-union si_reg_t si_isa_read_reg(struct si_work_item_t *work_item, int reg)
+unsigned int si_isa_read_reg(struct si_work_item_t *work_item, int reg)
 {
 	if (reg < 256)
 	{
@@ -114,7 +181,8 @@ union si_reg_t si_isa_read_reg(struct si_work_item_t *work_item, int reg)
 	}
 }
 
-void si_isa_bitmask_sreg(struct si_work_item_t *work_item, int sreg, union si_reg_t value)
+void si_isa_bitmask_sreg(struct si_work_item_t *work_item, int sreg, 
+	unsigned int value)
 {
 	unsigned int mask = 1;
 	unsigned int bitfield;
@@ -122,16 +190,16 @@ void si_isa_bitmask_sreg(struct si_work_item_t *work_item, int sreg, union si_re
 	if (work_item->id_in_wavefront < 32)
 	{
 		mask <<= work_item->id_in_wavefront;
-		bitfield = si_isa_read_sreg(work_item, sreg).as_uint;
-		new_field.as_uint = (value.as_uint) ? bitfield | mask: bitfield & ~mask;
-		si_isa_write_sreg(work_item, sreg, new_field);
+		bitfield = si_isa_read_sreg(work_item, sreg);
+		new_field.as_uint = (value) ? bitfield | mask: bitfield & ~mask;
+		si_isa_write_sreg(work_item, sreg, new_field.as_uint);
 	}
 	else
 	{
 		mask <<= (work_item->id_in_wavefront - 32);
-		bitfield = si_isa_read_sreg(work_item, sreg + 1).as_uint;
-		new_field.as_uint = (value.as_uint) ? bitfield | mask: bitfield & ~mask;
-		si_isa_write_sreg(work_item, sreg + 1, new_field);
+		bitfield = si_isa_read_sreg(work_item, sreg + 1);
+		new_field.as_uint = (value) ? bitfield | mask: bitfield & ~mask;
+		si_isa_write_sreg(work_item, sreg + 1, new_field.as_uint);
 	}
 }
 
@@ -141,62 +209,59 @@ int si_isa_read_bitmask_sreg(struct si_work_item_t *work_item, int sreg)
 	if (work_item->id_in_wavefront < 32)
 	{
 		mask <<= work_item->id_in_wavefront;
-		return (si_isa_read_sreg(work_item, sreg).as_uint & mask) >> work_item->id_in_wavefront;
+		return (si_isa_read_sreg(work_item, sreg) & mask) >> 
+			work_item->id_in_wavefront;
 	}
 	else
 	{
 		mask <<= (work_item->id_in_wavefront - 32);
-		return (si_isa_read_sreg(work_item, sreg + 1).as_uint & mask) >> (work_item->id_in_wavefront - 32);
+		return (si_isa_read_sreg(work_item, sreg + 1) & mask) >> 
+			(work_item->id_in_wavefront - 32);
 	}
 }
 
 /* Initialize a buffer resource descriptor */
-void si_isa_read_buf_res(struct si_work_item_t *work_item, struct si_buffer_resource_t *buf_desc, int sreg)
+void si_isa_read_buf_res(struct si_work_item_t *work_item, 
+	struct si_buffer_desc_t *buf_desc, int sreg)
 {
 	assert(buf_desc);
 
-	memcpy(buf_desc, &work_item->wavefront->sreg[sreg].as_uint, sizeof(unsigned int)*4);
+	memcpy(buf_desc, &work_item->wavefront->sreg[sreg].as_uint, 
+		sizeof(unsigned int)*4);
 }
 
 /* Initialize a buffer resource descriptor */
-void si_isa_read_mem_ptr(struct si_work_item_t *work_item, struct si_mem_ptr_t *mem_ptr, int sreg)
+void si_isa_read_mem_ptr(struct si_work_item_t *work_item, 
+	struct si_mem_ptr_t *mem_ptr, int sreg)
 {
 	assert(mem_ptr);
 
-	memcpy(mem_ptr, &work_item->wavefront->sreg[sreg].as_uint, sizeof(unsigned int)*2);
+	memcpy(mem_ptr, &work_item->wavefront->sreg[sreg].as_uint, 
+		sizeof(unsigned int)*2);
 }
+
 
 
 /*
  * Constant Memory
  */
 
-void si_isa_const_mem_write(int buffer, int offset, void *pvalue)
+/* Used for allocating CB0 and CB1 */
+unsigned int si_isa_const_mem_allocate(unsigned int size)
 {
-	uint32_t addr; 
+        unsigned int ptr;
 
-	assert(buffer < CONSTANT_BUFFERS);
-	assert(offset <= CONSTANT_BUFFER_SIZE - 4);
+        /* Assign position in device global memory */
+        ptr = si_emu->video_mem_top;
+        si_emu->video_mem_top += size;
 
-	addr = CONSTANT_MEMORY_START + buffer*CONSTANT_BUFFER_SIZE + offset;
-
-	/* Write */
-    mem_write(si_emu->global_mem, addr, 4, pvalue);
+        return ptr;
 }
 
 
-void si_isa_const_mem_read(int buffer, int offset, void *pvalue)
-{
-	uint32_t addr; 
-
-	assert(buffer < CONSTANT_BUFFERS);
-	
-	addr = CONSTANT_MEMORY_START + buffer*CONSTANT_BUFFER_SIZE + offset;
-
-        /* Read */
-        mem_read(si_emu->global_mem, addr, 4, pvalue);
-}
-
+/* 
+ * Southern Islands data types
+ */
 int si_isa_get_num_elems(int data_format)
 {
 	int num_elems;
@@ -235,9 +300,8 @@ int si_isa_get_num_elems(int data_format)
 	}
 
 	default:
-	{
 		fatal("%s: Invalid or unsupported data format", __FUNCTION__);
-	}
+
 	}
 
 	return num_elems;

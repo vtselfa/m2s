@@ -46,17 +46,17 @@ struct frm_mem_access_t
 struct frm_thread_t
 {
 	/* IDs */
-	int id;  /* global ID */
+	int id;
 	int id_in_warp;
-	int id_in_threadblock;  /* local ID */
+	int id_in_thread_block;
 
 	/* 3-dimensional IDs */
 	int id_3d[3];  /* global 3D IDs */
-	int id_in_threadblock_3d[3];  /* local 3D IDs */
+	int id_in_thread_block_3d[3];  /* local 3D IDs */
 
-	/* Warp, threadblock, and grid where it belongs */
+	/* Warp, thread_block, and grid where it belongs */
 	struct frm_warp_t *warp;
-	struct frm_threadblock_t *threadblock;
+	struct frm_thread_block_t *thread_block;
 	struct frm_grid_t *grid;
 
 	/* Thread state */
@@ -84,10 +84,10 @@ struct frm_thread_t
 	unsigned int global_mem_access_size;
 
 	/* Last local memory access */
-	int local_mem_access_count;  /* Number of local memory access performed by last instruction */
-	unsigned int local_mem_access_addr[FRM_MAX_LOCAL_MEM_ACCESSES_PER_INST];
-	unsigned int local_mem_access_size[FRM_MAX_LOCAL_MEM_ACCESSES_PER_INST];
-	int local_mem_access_type[FRM_MAX_LOCAL_MEM_ACCESSES_PER_INST];  /* 0-none, 1-read, 2-write */
+	int lds_access_count;  /* Number of local memory access performed by last instruction */
+	unsigned int lds_access_addr[FRM_MAX_LOCAL_MEM_ACCESSES_PER_INST];
+	unsigned int lds_access_size[FRM_MAX_LOCAL_MEM_ACCESSES_PER_INST];
+	int lds_access_type[FRM_MAX_LOCAL_MEM_ACCESSES_PER_INST];  /* 0-none, 1-read, 2-write */
 };
 
 #define FRM_FOREACH_THREAD_IN_GRID(GRID, THREAD_ID) \

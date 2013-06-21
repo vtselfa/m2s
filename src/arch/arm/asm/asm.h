@@ -21,6 +21,14 @@
 #define ARM_ASM_H
 
 #include <stdio.h>
+#include "asm-thumb.h"
+
+/* Disassembly Mode */
+enum arm_disassembly_mode_t
+{
+	ARM_DISASM = 1,
+	THUMB_DISASM
+};
 
 
 /* Shift operators */
@@ -490,6 +498,7 @@ void arm_inst_dump_RT(char **inst_str_ptr, int *inst_str_size,
 unsigned int arm_rotl(unsigned int value, unsigned int shift);
 unsigned int arm_rotr(unsigned int value, unsigned int shift);
 
+
 /*
  * Arm Disassembler
  */
@@ -497,7 +506,10 @@ unsigned int arm_rotr(unsigned int value, unsigned int shift);
 void arm_emu_disasm(char *path);
 
 void arm_disasm(void *buf, unsigned int ip, volatile struct arm_inst_t *inst);
-
+void arm_disasm_done();
 void arm_inst_debug_dump(struct arm_inst_t *inst, FILE *f );
+
+//void thumb16_disasm(void *buf, unsigned int ip, volatile struct arm_thumb16_inst_t *inst);
+//void thumb32_disasm(void *buf, unsigned int ip, volatile struct arm_thumb32_inst_t *inst);
 
 #endif

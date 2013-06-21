@@ -17,7 +17,6 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include <stdlib.h>
 
 #include <lib/mhandle/mhandle.h>
 
@@ -38,12 +37,8 @@ struct matrix_t *matrix_create(int num_rows, int num_cols)
 {
 	struct matrix_t *matrix;
 
-	/* Allocate */
-	matrix = calloc(1, sizeof(struct matrix_t));
-	if (!matrix)
-		fatal("%s: out of memory", __FUNCTION__);
-
 	/* Check sizes */
+	matrix = xcalloc(1, sizeof(struct matrix_t));
 	if (num_rows < 0 || num_cols < 0)
 		fatal("%s: invalid sizes", __FUNCTION__);
 
@@ -53,11 +48,7 @@ struct matrix_t *matrix_create(int num_rows, int num_cols)
 
 	/* Allocate elements array */
 	if (num_rows > 0 && num_cols > 0)
-	{
-		matrix->elem = calloc(num_rows * num_cols, sizeof(void *));
-		if (!matrix->elem)
-			fatal("%s: out of memory", __FUNCTION__);
-	}
+		matrix->elem = xcalloc(num_rows * num_cols, sizeof(void *));
 
 	/* Return */
 	return matrix;

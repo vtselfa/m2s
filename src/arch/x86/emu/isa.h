@@ -20,8 +20,10 @@
 #ifndef ARCH_X86_EMU_ISA_H
 #define ARCH_X86_EMU_ISA_H
 
-#include "context.h"
-#include "regs.h"
+#include <arch/x86/asm/asm.h>
+
+/* Forward type declarations */
+struct x86_ctx_t;
 
 
 #define x86_isa_call_debug(...) debug(x86_isa_call_debug_category, __VA_ARGS__)
@@ -46,6 +48,7 @@ void x86_isa_store_reg(struct x86_ctx_t *ctx, enum x86_reg_t reg, unsigned int v
 unsigned char x86_isa_load_rm8(struct x86_ctx_t *ctx);
 unsigned short x86_isa_load_rm16(struct x86_ctx_t *ctx);
 unsigned int x86_isa_load_rm32(struct x86_ctx_t *ctx);
+unsigned short x86_isa_load_r32m16(struct x86_ctx_t *ctx);
 unsigned long long x86_isa_load_m64(struct x86_ctx_t *ctx);
 void x86_isa_store_rm8(struct x86_ctx_t *ctx, unsigned char value);
 void x86_isa_store_rm16(struct x86_ctx_t *ctx, unsigned short value);

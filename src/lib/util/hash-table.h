@@ -17,28 +17,10 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#ifndef HASH_H
-#define HASH_H
+#ifndef LIB_UTIL_HASH_TABLE_H
+#define LIB_UTIL_HASH_TABLE_H
 
-/*
- * Hash Table
- */
-
-struct hash_table_t
-{
-	int count;
-	int size;
-	int case_sensitive;
-
-	int find_op;
-	int find_index;
-
-	struct hash_table_elem_t *find_elem;
-
-	struct hash_table_elem_t **elem_vector;
-
-	int (*str_compare_func)(const char *, const char *);
-};
+struct hash_table_t;
 
 /** Iterate through all elements of the hash table.
  *

@@ -17,9 +17,12 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#include <arch/southern-islands/emu/emu.h>
+#include <lib/util/list.h>
 #include <lib/util/repos.h>
 
-#include "timing.h"
+#include "uop.h"
+
 
 
 /*
@@ -75,11 +78,12 @@ static void si_uop_add_src_idep(struct si_uop_t *uop, struct si_inst_t *inst, in
 void si_uop_init()
 {
 	/* GPU uop repository.
-	 * The size assigned for each 'si_uop_t' is equals to the baseline structure size plus the
-	 * size of a 'si_work_item_uop_t' element for each work-item in the wavefront. */
-	gpu_uop_repos = repos_create(sizeof(struct si_uop_t) + sizeof(struct si_work_item_uop_t)
+	 * The size assigned for each 'si_uop_t' is equals to the 
+	 * baseline structure size plus the size of a 'si_work_item_uop_t' 
+	 * element for each work-item in the wavefront. */
+	gpu_uop_repos = repos_create(sizeof(struct si_uop_t) + 
+		sizeof(struct si_work_item_uop_t)
 		* si_emu_wavefront_size, "gpu_uop_repos");
-	
 }
 
 
@@ -107,14 +111,13 @@ void si_uop_free(struct si_uop_t *gpu_uop)
 }
 
 
-void si_uop_list_free(struct linked_list_t *gpu_uop_list)
+void si_uop_list_free(struct list_t *uop_list)
 {
 	struct si_uop_t *uop;
-	while (linked_list_count(gpu_uop_list))
+	while (list_count(uop_list))
 	{
-		linked_list_head(gpu_uop_list);
-		uop = linked_list_get(gpu_uop_list);
+		uop = list_head(uop_list);
+		list_remove(uop_list, uop);
 		si_uop_free(uop);
-		linked_list_remove(gpu_uop_list);
 	}
 }

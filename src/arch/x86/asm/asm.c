@@ -17,9 +17,7 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include <string.h>
 #include <assert.h>
-#include <stdlib.h>
 
 #include <lib/mhandle/mhandle.h>
 #include <lib/util/debug.h>
@@ -79,7 +77,19 @@ static struct x86_opcode_info_elem_t *x86_opcode_info_table[0x100];
 static struct x86_opcode_info_elem_t *x86_opcode_info_table_0f[0x100];
 
 /* List of possible prefixes */
-static unsigned char x86_prefixes[] = { 0xf0, 0xf2, 0xf3, 0x66, 0x67, 0x2e, 0x36, 0x3e, 0x26, 0x64, 0x65 };
+static unsigned char x86_prefixes[] = {
+	0xf0,  /* lock */
+	0xf2,  /* repnz */
+	0xf3,  /* rep */
+	0x66,  /* op */
+	0x67,  /* addr */
+	0x2e,  /* use cs */
+	0x36,  /* use ss */
+	0x3e,  /* use ds */
+	0x26,  /* use es */
+	0x64,  /* use fs */
+	0x65   /* use gs */
+};
 static unsigned char x86_byte_is_prefix[256];
 
 
@@ -231,7 +241,7 @@ static void x86_opcode_info_insert(struct x86_opcode_info_t *info)
 
 	/* Insert */
 	for (i = 0; i < count; i++) {
-		elem = calloc(1, sizeof(struct x86_opcode_info_elem_t));
+		elem = xcalloc(1, sizeof(struct x86_opcode_info_elem_t));
 		elem->info = info;
 		x86_opcode_info_insert_at(table, elem, index + i);
 	}
@@ -717,7 +727,12 @@ void x86_inst_dump_buf(struct x86_inst_t *inst, char *buf, int size)
 	struct x86_opcode_info_t *info = &x86_opcode_info_list[op];
 	char *fmt = info->fmt;
 	int word = 0;
+
+	/* Null-terminate output string in case 'fmt' is empty */
+	if (size)
+		*buf = '\0';
 	
+	/* Dump instruction */
 	while (*fmt)
 	{
 		if (is_next_word(fmt, "r8"))
@@ -781,6 +796,17 @@ void x86_inst_dump_buf(struct x86_inst_t *inst, char *buf, int size)
 				x86_memory_address_dump_buf(inst, &buf, &size);
 			}
 			fmt += 5;
+		}
+		else if (is_next_word(fmt, "r32m16"))
+		{
+			if (inst->modrm_mod == 3)
+				str_printf(&buf, &size, "%s", x86_reg_name_get(inst->modrm_rm + x86_reg_eax));
+			else
+			{
+				str_printf(&buf, &size, "WORD PTR ");
+				x86_memory_address_dump_buf(inst, &buf, &size);
+			}
+			fmt += 6;
 		}
 		else if (is_next_word(fmt, "m"))
 		{

@@ -17,10 +17,15 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#include <assert.h>
+
 #include <lib/mhandle/mhandle.h>
 #include <lib/util/bit-map.h>
+#include <lib/util/linked-list.h>
+#include <lib/util/list.h>
 
-#include "emu.h"
+#include "wavefront.h"
+#include "work-item.h"
 
 
 
@@ -32,15 +37,8 @@ struct si_work_item_t *si_work_item_create()
 {
 	struct si_work_item_t *work_item;
 
-	/* Allocate */
-	work_item = calloc(1, sizeof(struct si_work_item_t));
-	if (!work_item)
-		fatal("%s: out of memory", __FUNCTION__);
-
 	/* Initialize */
-	work_item->write_task_list = linked_list_create();
-	work_item->lds_oqa = list_create();
-	work_item->lds_oqb = list_create();
+	work_item = xcalloc(1, sizeof(struct si_work_item_t));
 
 	/* Return */
 	return work_item;
@@ -49,15 +47,6 @@ struct si_work_item_t *si_work_item_create()
 
 void si_work_item_free(struct si_work_item_t *work_item)
 {
-	/* Empty LDS output queues */
-	while (list_count(work_item->lds_oqa))
-		free(list_dequeue(work_item->lds_oqa));
-	while (list_count(work_item->lds_oqb))
-		free(list_dequeue(work_item->lds_oqb));
-	list_free(work_item->lds_oqa);
-	list_free(work_item->lds_oqb);
-	linked_list_free(work_item->write_task_list);
-
 	/* Free work_item */
 	free(work_item);
 }
@@ -68,7 +57,8 @@ void si_work_item_set_pred(struct si_work_item_t *work_item, int pred)
 {
 	struct si_wavefront_t *wavefront = work_item->wavefront;
 
-	assert(work_item->id_in_wavefront >= 0 && work_item->id_in_wavefront < wavefront->work_item_count);
+	assert(work_item->id_in_wavefront >= 0 && 
+		work_item->id_in_wavefront < wavefront->work_item_count);
 	bit_map_set(wavefront->pred, work_item->id_in_wavefront, 1, !!pred);
 	wavefront->pred_mask_update = 1;
 }
@@ -78,7 +68,8 @@ int si_work_item_get_pred(struct si_work_item_t *work_item)
 {
 	struct si_wavefront_t *wavefront = work_item->wavefront;
 
-	assert(work_item->id_in_wavefront >= 0 && work_item->id_in_wavefront < wavefront->work_item_count);
+	assert(work_item->id_in_wavefront >= 0 && 
+		work_item->id_in_wavefront < wavefront->work_item_count);
 	return bit_map_get(wavefront->pred, work_item->id_in_wavefront, 1);
 }
 

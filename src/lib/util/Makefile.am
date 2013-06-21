@@ -17,6 +17,9 @@ libutil_a_SOURCES = \
 	debug.c \
 	debug.h \
 	\
+	elf-encode.c \
+	elf-encode.h \
+	\
 	elf-format.c \
 	elf-format.h \
 	\
@@ -51,3 +54,7 @@ libutil_a_SOURCES = \
 	timer.h
 
 INCLUDES = @M2S_INCLUDES@
+
+# For 'misc.c', we need the data directory to find distribution files.
+AM_CFLAGS = -DPACKAGE_DATA_DIR='"$(pkgdatadir)"'
+

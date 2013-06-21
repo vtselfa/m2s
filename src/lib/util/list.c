@@ -17,11 +17,9 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include <stdlib.h>
 
 #include <lib/mhandle/mhandle.h>
 
-#include "debug.h"
 #include "list.h"
 
 
@@ -42,9 +40,7 @@ static void list_grow(struct list_t *list)
 
 	/* Create new array */
 	nsize = list->size * 2;
-	nelem = calloc(nsize, sizeof(void *));
-	if (!nelem)
-		fatal("%s: out of memory", __FUNCTION__);
+	nelem = xcalloc(nsize, sizeof(void *));
 
 	/* Copy contents to new array */
 	for (i = list->head, index = 0;
@@ -99,16 +95,10 @@ struct list_t *list_create_with_size(int size)
 {
 	struct list_t *list;
 
-	/* Create list */
-	list = calloc(1, sizeof(struct list_t));
-	if (!list)
-		fatal("%s: out of memory", __FUNCTION__);
-	
 	/* Create vector of elements */
+	list = xcalloc(1, sizeof(struct list_t));
 	list->size = size < 4 ? 4 : size;
-	list->elem = calloc(list->size, sizeof(void *));
-	if (!list->elem)
-		fatal("%s: out of memory", __FUNCTION__);
+	list->elem = xcalloc(list->size, sizeof(void *));
 	
 	/* Return list */
 	return list;

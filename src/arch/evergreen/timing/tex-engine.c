@@ -19,6 +19,8 @@
 
 #include <assert.h>
 
+#include <arch/common/arch.h>
+#include <arch/evergreen/emu/emu.h>
 #include <arch/evergreen/emu/ndrange.h>
 #include <arch/evergreen/emu/wavefront.h>
 #include <arch/evergreen/emu/work-group.h>
@@ -29,7 +31,9 @@
 
 #include "compute-unit.h"
 #include "gpu.h"
-#include "periodic-report.h"
+#include "instruction-interval-report.h"
+#include "cycle-interval-report.h"
+
 #include "tex-engine.h"
 
 
@@ -107,7 +111,7 @@ static void evg_tex_engine_fetch(struct evg_compute_unit_t *compute_unit)
 
 	/* Access instruction cache. Record the time when the instruction will have been fetched,
 	 * as per the latency of the instruction memory. */
-	uop->inst_mem_ready = evg_gpu->cycle + evg_gpu_tex_engine_inst_mem_latency;
+	uop->inst_mem_ready = arch_evergreen->cycle + evg_gpu_tex_engine_inst_mem_latency;
 
 	/* Enqueue uop into fetch queue */
 	linked_list_out(compute_unit->tex_engine.fetch_queue);
@@ -117,6 +121,10 @@ static void evg_tex_engine_fetch(struct evg_compute_unit_t *compute_unit)
 	/* Stats */
 	compute_unit->inst_count++;
 	compute_unit->tex_engine.inst_count++;
+
+	if(evg_spatial_report_active)
+		evg_tex_report_new_inst(compute_unit);
+
 	if (evg_periodic_report_active)
 		evg_periodic_report_new_inst(uop);
 
@@ -124,7 +132,7 @@ static void evg_tex_engine_fetch(struct evg_compute_unit_t *compute_unit)
 	if (evg_tracing())
 	{
 		evg_inst_dump_buf(inst, inst_num, 0, str, sizeof str);
-		str_single_spaces(str_trimmed, str, sizeof str_trimmed);
+		str_single_spaces(str_trimmed, sizeof str_trimmed, str);
 		evg_trace("evg.new_inst id=%lld cu=%d wg=%d wf=%d cat=\"tex\" stg=\"tex-fe\" asm=\"%s\"\n",
 			uop->id_in_compute_unit, compute_unit->id, uop->work_group->id,
 			wavefront->id, str_trimmed);
@@ -146,7 +154,7 @@ static void evg_tex_engine_decode(struct evg_compute_unit_t *compute_unit)
 		return;
 
 	/* If uop is still being fetched from instruction memory, done */
-	if (uop->inst_mem_ready > evg_gpu->cycle)
+	if (uop->inst_mem_ready > arch_evergreen->cycle)
 		return;
 
 	/* If instruction buffer is occupied, done */
@@ -200,10 +208,15 @@ static void evg_tex_engine_read(struct evg_compute_unit_t *compute_unit)
 			work_item_uop = &uop->work_item_uop[work_item->id_in_wavefront];
 			mod_access(compute_unit->global_memory, mod_access_load, 
 				work_item_uop->global_mem_access_addr,
-				&uop->global_mem_witness, NULL, NULL, 0, 0, 0);
+				&uop->global_mem_witness, NULL, NULL, NULL);
 			uop->global_mem_witness--;
 		}
+		uop->num_global_mem_read = uop->global_mem_witness;
+		if(evg_spatial_report_active)
+			evg_tex_report_global_mem_inflight(compute_unit,uop->num_global_mem_read);
+
 	}
+
 
 	/* Trace */
 	evg_trace("evg.inst id=%lld cu=%d stg=\"tex-rd\"\n",
@@ -214,7 +227,6 @@ static void evg_tex_engine_read(struct evg_compute_unit_t *compute_unit)
 static void evg_tex_engine_write(struct evg_compute_unit_t *compute_unit)
 {
 	struct linked_list_t *finished_queue = compute_unit->tex_engine.finished_queue;
-
 	struct evg_uop_t *cf_uop, *uop;
 
 	/* Get instruction at the head of the load queue. */
@@ -223,9 +235,14 @@ static void evg_tex_engine_write(struct evg_compute_unit_t *compute_unit)
 	if (!uop)
 		return;
 
+
 	/* If the memory read did not complete, done. */
 	if (uop->global_mem_witness)
 		return;
+
+	/* Subtracted in this function which denotes accesses finished*/
+	if(evg_spatial_report_active)
+		evg_tex_report_global_mem_finish(compute_unit,uop->num_global_mem_read);
 
 	/* Extract from load queue. */
 	linked_list_remove(compute_unit->tex_engine.load_queue);
@@ -254,7 +271,7 @@ static void evg_tex_engine_write(struct evg_compute_unit_t *compute_unit)
 		evg_uop_free(uop);
 	
 	/* Statistics */
-	evg_gpu->last_complete_cycle = esim_cycle;
+	evg_gpu->last_complete_cycle = arch_evergreen->cycle;
 }
 
 
@@ -273,5 +290,8 @@ void evg_tex_engine_run(struct evg_compute_unit_t *compute_unit)
 
 	/* Stats */
 	compute_unit->tex_engine.cycle++;
+
+	/* Interval Reset Actions */
+	//evg_tex_engine_interval_update(compute_unit);
 }
 

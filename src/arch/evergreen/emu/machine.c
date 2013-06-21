@@ -20,7 +20,9 @@
 #include <assert.h>
 #include <math.h>
 
-#include <arch/x86/emu/emu.h>
+#include <driver/opencl-old/evergreen/bin-file.h>
+#include <driver/opencl-old/evergreen/kernel.h>
+#include <driver/opencl-old/evergreen/mem.h>
 #include <lib/mhandle/mhandle.h>
 #include <lib/util/bit-map.h>
 #include <lib/util/debug.h>
@@ -28,14 +30,10 @@
 #include <lib/util/misc.h>
 #include <mem-system/memory.h>
 
-#include "bin-file.h"
 #include "emu.h"
 #include "isa.h"
 #include "machine.h"
 #include "ndrange.h"
-#include "opencl-kernel.h"
-#include "opencl-mem.h"
-#include "wavefront.h"
 #include "work-item.h"
 #include "work-group.h"
 
@@ -3034,9 +3032,7 @@ void evg_isa_LDS_IDX_OP_impl(struct evg_work_item_t *work_item, struct evg_inst_
 	{
 		union evg_reg_t *value_ptr;
 
-		value_ptr = malloc(4);
-		if (!value_ptr)
-			fatal("%s: out of memory", __FUNCTION__);
+		value_ptr = xmalloc(4);
 
 		mem_read(local_mem, op0, 4, value_ptr);
 		list_enqueue(work_item->lds_oqa, value_ptr);
@@ -3059,16 +3055,12 @@ void evg_isa_LDS_IDX_OP_impl(struct evg_work_item_t *work_item, struct evg_inst_
 	{
 		union evg_reg_t *value_ptr;
 
-		value_ptr = malloc(4);
-		if (!value_ptr)
-			fatal("%s: out of memory", __FUNCTION__);
+		value_ptr = xmalloc(4);
 
 		mem_read(local_mem, op0, 4, value_ptr);
 		list_enqueue(work_item->lds_oqa, value_ptr);
 
-		value_ptr = malloc(4);
-		if (!value_ptr)
-			fatal("%s: out of memory", __FUNCTION__);
+		value_ptr = xmalloc(4);
 
 		mem_read(local_mem, op1, 4, value_ptr);
 		list_enqueue(work_item->lds_oqb, value_ptr);
@@ -3094,9 +3086,7 @@ void evg_isa_LDS_IDX_OP_impl(struct evg_work_item_t *work_item, struct evg_inst_
 
 		mem_read(local_mem, op0, 1, &value);
 
-		pvalue_se = malloc(4);
-		if (!pvalue_se)
-			fatal("%s: out of memory", __FUNCTION__);
+		pvalue_se = xmalloc(4);
 
 		*pvalue_se = value;
 		list_enqueue(work_item->lds_oqa, pvalue_se);
@@ -3119,9 +3109,7 @@ void evg_isa_LDS_IDX_OP_impl(struct evg_work_item_t *work_item, struct evg_inst_
 
 		mem_read(local_mem, op0, 1, &value);
 
-		pvalue_24h0 = malloc(4);
-		if (!pvalue_24h0)
-			fatal("%s: out of memory", __FUNCTION__);
+		pvalue_24h0 = xmalloc(4);
 
 		*pvalue_24h0 = value;
 		list_enqueue(work_item->lds_oqa, pvalue_24h0);
@@ -3143,9 +3131,7 @@ void evg_isa_LDS_IDX_OP_impl(struct evg_work_item_t *work_item, struct evg_inst_
 
 		mem_read(local_mem, op0, 2, &value);
 
-		pvalue_se = malloc(4);
-		if (!pvalue_se)
-			fatal("%s: out of memory", __FUNCTION__);
+		pvalue_se = xmalloc(4);
 
 		*pvalue_se = value;
 		evg_isa_debug("  t%d: %d (pvalue = %d)", work_item->id, value, *pvalue_se);
@@ -3168,9 +3154,7 @@ void evg_isa_LDS_IDX_OP_impl(struct evg_work_item_t *work_item, struct evg_inst_
 
 		mem_read(local_mem, op0, 2, &value);
 
-		pvalue_16h0 = malloc(4);
-		if (!pvalue_16h0)
-			fatal("%s: out of memory", __FUNCTION__);
+		pvalue_16h0 = xmalloc(4);
 
 		*pvalue_16h0 = value;
 		list_enqueue(work_item->lds_oqa, pvalue_16h0);

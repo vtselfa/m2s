@@ -21,6 +21,7 @@
 #define ARCH_ARM_EMU_CONTEXT_H
 
 #include <arch/arm/asm/asm.h>
+#include <arch/arm/asm/asm-thumb.h>
 #include <lib/util/config.h>
 
 #include "emu.h"
@@ -29,8 +30,28 @@
 #define arm_ctx_debug(...) debug(arm_ctx_debug_category, __VA_ARGS__)
 extern int arm_ctx_debug_category;
 
-/* Event scheduled periodically to dump IPC statistics for a context */
-extern int EV_ARM_CTX_IPC_REPORT;
+
+enum arm_thumb_iteq_t
+{
+	ITEQ_DISABLED = 0,
+	ITEQ_ENABLED
+};
+
+
+enum arm_mode_t
+{
+	ARM = 1,
+	THUMB
+};
+
+
+
+enum arm_inst_mode_t
+{
+	ARM32 = 1,
+	THUMB16,
+	THUMB32
+};
 
 struct arm_ctx_t
 {
@@ -52,10 +73,6 @@ struct arm_ctx_t
 
 	int exit_signal;  /* Signal to send parent when finished */
 	int exit_code;  /* For zombie contexts */
-
-	/* IPC report (for detailed simulation) */
-	FILE *ipc_report_file;
-	int ipc_report_interval;
 
 	/* Program data */
 	struct elf_file_t *elf_file;
@@ -91,9 +108,12 @@ struct arm_ctx_t
 	unsigned int last_ip;  /* Address of last emulated instruction */
 	unsigned int curr_ip;  /* Address of currently emulated instruction */
 	unsigned int target_ip;  /* Target address for branch, even if not taken */
+	unsigned int inst_type;	/* The type of the current instruction ARM/Thumb16/Thumb32 */
 
 	/* Currently emulated instruction */
 	struct arm_inst_t inst;
+	struct arm_thumb16_inst_t inst_th_16;
+	struct arm_thumb32_inst_t inst_th_32;
 
 	/* Links to contexts forming a linked list. */
 	struct arm_ctx_t *context_list_next, *context_list_prev;
@@ -110,6 +130,9 @@ struct arm_ctx_t
 	/* When debugging function calls with 'arm_isa_debug_call', function call level. */
 	int function_level;
 
+	/* For checking if the instruction is in IF-THEN Block */
+	unsigned int iteq_inst_num;
+	unsigned int iteq_block_flag;
 
 	/* Variables used to wake up suspended contexts. */
 	long long wakeup_time;  /* arm_emu_timer time to wake up (poll/nanosleep) */
@@ -133,6 +156,9 @@ struct arm_ctx_t
 
 	/* Call Debug Stack */
 	struct arm_isa_cstack_t *cstack;
+
+	/* ARM/Thumb Symbol List */
+	struct list_t *thumb_symbol_list;
 
 	/* Statistics */
 
@@ -180,7 +206,8 @@ void arm_ctx_finish_group(struct arm_ctx_t *ctx, int status);
 void arm_ctx_load_from_command_line(int argc, char **argv);
 void arm_ctx_load_from_ctx_config(struct config_t *config, char *section);
 void arm_ctx_gen_proc_self_maps(struct arm_ctx_t *ctx, char *path);
-void arm_ctx_ipc_report_handler(int event, void *data);
+void arm_ctx_thumb_symbol_list_sort(struct list_t * thumb_symbol_list, struct elf_file_t *elf_file);
+enum arm_mode_t arm_ctx_operate_mode_tag(struct list_t * thumb_symbol_list, unsigned int addr);
 
 unsigned int arm_ctx_check_fault(struct arm_ctx_t *ctx);
 

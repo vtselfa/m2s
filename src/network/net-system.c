@@ -1,4 +1,4 @@
-/*
+/* 
  *  Multi2Sim
  *  Copyright (C) 2012  Rafael Ubal (ubal@ece.neu.edu)
  *
@@ -18,7 +18,6 @@
  */
 
 #include <math.h>
-#include <string.h>
 
 #include <lib/esim/esim.h>
 #include <lib/mhandle/mhandle.h>
@@ -26,14 +25,16 @@
 #include <lib/util/file.h>
 #include <lib/util/hash-table.h>
 #include <lib/util/list.h>
+#include <lib/util/misc.h>
 #include <lib/util/string.h>
 
 #include "net-system.h"
 #include "network.h"
 #include "node.h"
+#include "visual.h"
 
 
-/*
+/* 
  * Variables
  */
 
@@ -44,6 +45,12 @@ char *net_config_help =
 	"IniFile format. It specifies a set of networks, their nodes, and\n"
 	"connections between them. The following set of sections and variables\n"
 	"are allowed:\n"
+	"\n"
+	"Section '[ General ]' contains configuration parameters affecting the\n"
+	"whole network system.\n"
+	"\n"
+	"  Frequency = <value> (Default = 1000)\n"
+	"      Frequency for the network system in MHz.\n"
 	"\n"
 	"Section '[ Network.<name> ]' defines a network. The string specified in\n"
 	"<name> can be used in other configuration files to refer to\n"
@@ -103,9 +110,7 @@ char *net_config_help =
 	"  node_B. Immediate next node that each packet must go through to get \n"
 	"      from node_A to node_C\n"
 	"  Virtual Channel. Is an optional field to choose a virtual channel on \n"
-	"  the link between node_A and node_B. \n"
-	"\n"
-	"\n";
+	"  the link between node_A and node_B. \n" "\n" "\n";
 
 char *net_err_end_nodes =
 	"\tAn attempt has been made to send a message from/to an intermediate\n"
@@ -141,6 +146,18 @@ char *net_err_can_send =
 	"\tbuffer. This can be solved by making sure a message can be sent\n"
 	"\tbefore injecting it (use function 'net_can_send').\n";
 
+char *net_err_cycle =
+	"\tA cycle has been detected in the graph representing the routing table\n"
+	"\tfor a network. Routing cycles can cause deadlocks in simulations, that\n"
+	"\tcan in turn make the simulation stall with no output.\n";
+
+char *net_err_route_step =
+	"\tThere is a link missing between source node and next node for this  \n"
+	"\troute step. The route between source and destination node should go \n"
+	"\tthrough existing links/Buses that are defined in the configuration  \n"
+	"\tfile.  \n";
+
+
 
 /* Events */
 int EV_NET_SEND;
@@ -157,20 +174,29 @@ char *net_config_file_name = "";
 char *net_report_file_name = "";
 FILE *net_report_file;
 
+char *net_visual_file_name = "";
+FILE *net_visual_file;
+
 char *net_sim_network_name = "";
-long long net_max_cycles = 1000000;  /* 1M cycles default */
-double net_injection_rate = 0.01;  /* 1 packet every 100 cycles */
-int net_msg_size = 1;  /* Message size in bytes */
+long long net_max_cycles = 1000000;	/* 1M cycles default */
+double net_injection_rate = 0.01;	/* 1 packet every 100 cycles */
+int net_msg_size = 1;			/* Message size in bytes */
+
+/* Frequency of the network system, and frequency domain, as returned by
+ * function 'esim_new_domain'. */
+int net_frequency = 1000;
+int net_domain_index;
 
 
 
-/*
+/* 
  * Private Functions
  */
 
 static double exp_random(double lambda)
 {
 	double x = (double) random() / RAND_MAX;
+
 	return log(1 - x) / -lambda;
 }
 
@@ -183,13 +209,12 @@ static double exp_random(double lambda)
  */
 
 
-void net_config_load(void)
+void net_read_config(void)
 {
 	struct config_t *config;
+	struct list_t *net_name_list;
 	char *section;
 	int i;
-
-	struct list_t *net_name_list;
 
 	/* Configuration file */
 	if (!*net_config_file_name)
@@ -197,17 +222,31 @@ void net_config_load(void)
 
 	/* Open network configuration file */
 	config = config_create(net_config_file_name);
-	if (!config_load(config))
-		fatal("%s: cannot open network configuration file", net_config_file_name);
+	if (*net_config_file_name)
+		config_load(config);
 
-	/* Create a temporary list of network names found in configuration file */
+	/* Section with generic configuration parameters */
+	section = "General";
+
+	/* Frequency */
+	net_frequency = config_read_int(config, section,
+		"Frequency", net_frequency);
+	if (!IN_RANGE(net_frequency, 1, ESIM_MAX_FREQUENCY))
+		fatal("%s: invalid value for 'Frequency'",
+			net_config_file_name);
+
+
+	/* Create a temporary list of network names found in configuration
+	 * file */
 	net_name_list = list_create();
-	for (section = config_section_first(config); section; section = config_section_next(config))
+	for (section = config_section_first(config); section;
+		section = config_section_next(config))
 	{
+		char *delim = ".";
+
 		char section_str[MAX_STRING_SIZE];
 		char *token;
 		char *net_name;
-		char *delim = ".";
 
 		/* Create a copy of section name */
 		snprintf(section_str, sizeof section_str, "%s", section);
@@ -229,14 +268,13 @@ void net_config_load(void)
 			continue;
 
 		/* Insert new network name */
-		net_name = strdup(net_name);
-		if (!net_name)
-			fatal("%s: out of memory", __FUNCTION__);
+		net_name = xstrdup(net_name);
 		list_add(net_name_list, net_name);
 	}
 
 	/* Print network names */
-	net_debug("%s: loading network configuration file\n", net_config_file_name);
+	net_debug("%s: loading network configuration file\n",
+		net_config_file_name);
 	net_debug("networks found:\n");
 	for (i = 0; i < net_name_list->count; i++)
 		net_debug("\t%s\n", (char *) list_get(net_name_list, i));
@@ -265,14 +303,21 @@ void net_config_load(void)
 
 void net_init(void)
 {
-	/* Register events */
-	EV_NET_SEND = esim_register_event_with_name(net_event_handler, "net_send");
-	EV_NET_OUTPUT_BUFFER = esim_register_event_with_name(net_event_handler, "net_output_buffer");
-	EV_NET_INPUT_BUFFER = esim_register_event_with_name(net_event_handler, "net_input_buffer");
-	EV_NET_RECEIVE = esim_register_event_with_name(net_event_handler, "net_receive");
-
 	/* Load network configuration file */
-	net_config_load();
+	net_read_config();
+
+	/* Create frequency domain */
+	net_domain_index = esim_new_domain(net_frequency);
+
+	/* Register events */
+	EV_NET_SEND = esim_register_event_with_name(net_event_handler,
+		net_domain_index, "net_send");
+	EV_NET_OUTPUT_BUFFER = esim_register_event_with_name(net_event_handler,
+		net_domain_index, "net_output_buffer");
+	EV_NET_INPUT_BUFFER = esim_register_event_with_name(net_event_handler,
+		net_domain_index, "net_input_buffer");
+	EV_NET_RECEIVE = esim_register_event_with_name(net_event_handler,
+		net_domain_index, "net_receive");
 
 	/* Report file */
 	if (*net_report_file_name)
@@ -281,6 +326,15 @@ void net_init(void)
 		if (!net_report_file)
 			fatal("%s: cannot write on network report file",
 				net_report_file_name);
+	}
+
+	/* Visualization File */
+	if (*net_visual_file_name)
+	{
+		net_visual_file = file_open_for_write(net_visual_file_name);
+		if (!net_visual_file)
+			fatal("%s: cannot write on network visualization file",
+					net_visual_file_name);
 	}
 }
 
@@ -299,6 +353,16 @@ void net_done(void)
 			if (net_report_file)
 				net_dump_report(net, net_report_file);
 
+			/* Dump Visualization data in a 'graphplot'
+			 * compatible file */
+			if (net_visual_file)
+			{
+				struct net_graph_t *graph;
+
+				graph = net_visual_calc(net);
+				net_dump_visual(graph, net_visual_file);
+				net_graph_free(graph);
+			}
 			/* Free network */
 			net_free(net);
 		}
@@ -307,6 +371,9 @@ void net_done(void)
 
 	/* Close report file */
 	file_close(net_report_file);
+
+	/* Close visualization file */
+	file_close(net_visual_file);
 }
 
 
@@ -352,14 +419,13 @@ struct net_t *net_find_next(void)
 void net_sim(char *debug_file_name)
 {
 	struct net_t *net;
-
-	double *inject_time;  /* Next injection time (one per node) */
+	double *inject_time;	/* Next injection time (one per node) */
 
 	/* Initialize */
 	debug_init();
 	esim_init();
 	net_init();
-	net_debug_category = debug_new_category(debug_file_name, 0);
+	net_debug_category = debug_new_category(debug_file_name);
 
 	/* Network to work with */
 	if (!*net_sim_network_name)
@@ -369,19 +435,23 @@ void net_sim(char *debug_file_name)
 		fatal("%s: network does not exist", net_sim_network_name);
 
 	/* Initialize */
-	inject_time = calloc(net->node_count, sizeof(double));
-	if (!inject_time)
-		fatal("%s: out of memory", __FUNCTION__);
+	inject_time = xcalloc(net->node_count, sizeof(double));
 
 	/* FIXME: error for no dest node in network */
 
 	/* Simulation loop */
-	esim_process_events();
-	while (esim_cycle < net_max_cycles)
+	esim_process_events(TRUE);
+	while (1)
 	{
 		struct net_node_t *node;
 		struct net_node_t *dst_node;
+		long long cycle;
 		int i;
+
+		/* Get current cycle */
+		cycle = esim_domain_cycle(net_domain_index);
+		if (cycle >= net_max_cycles)
+			break;
 
 		/* Inject messages */
 		for (i = 0; i < net->node_count; i++)
@@ -392,17 +462,19 @@ void net_sim(char *debug_file_name)
 				continue;
 
 			/* Turn for next injection? */
-			if (inject_time[i] > esim_cycle)
+			if (inject_time[i] > cycle)
 				continue;
 
 			/* Get a random destination node */
-			do {
+			do
+			{
 				dst_node = list_get(net->node_list, random() %
 					list_count(net->node_list));
-			} while (dst_node->kind != net_node_end || dst_node == node);
+			} while (dst_node->kind != net_node_end
+				|| dst_node == node);
 
 			/* Inject */
-			while (inject_time[i] < esim_cycle)
+			while (inject_time[i] < cycle)
 			{
 				inject_time[i] += exp_random(net_injection_rate);
 				if (net_can_send(net, node, dst_node, net_msg_size))
@@ -411,13 +483,12 @@ void net_sim(char *debug_file_name)
 		}
 
 		/* Next cycle */
-		net_debug("___ cycle %lld ___\n", esim_cycle);
-		esim_process_events();
+		net_debug("___ cycle %lld ___\n", cycle);
+		esim_process_events(TRUE);
 	}
 
 	/* Drain events */
-	while (esim_event_count())
-		esim_process_events();
+	esim_process_all_events();
 
 	/* Free */
 	free(inject_time);
@@ -431,4 +502,3 @@ void net_sim(char *debug_file_name)
 	mhandle_done();
 	exit(0);
 }
-

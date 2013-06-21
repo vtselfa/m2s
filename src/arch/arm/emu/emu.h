@@ -21,15 +21,13 @@
 #define ARCH_ARM_EMU_EMU_H
 
 #include <pthread.h>
+#include <stdio.h>
 
 
 struct arm_emu_t
 {
 	/* pid & address_space_index assignment */
 	int current_pid;
-
-	/* Timer for emulator activity */
-	struct m2s_timer_t *timer;
 
 	/* Schedule next call to 'x86_emu_process_events()'.
 	 * The call will only be effective if 'process_events_force' is set.
@@ -79,9 +77,9 @@ struct arm_emu_t
 	struct arm_ctx_t *alloc_list_tail;
 	int alloc_list_count;
 	int alloc_list_max;
-
-	/* Stats */
-	long long inst_count;  /* Number of emulated instructions */
+	
+	/* Architecture */
+	struct arch_t *arch;
 };
 
 enum arm_emu_list_kind_t
@@ -100,21 +98,22 @@ void arm_emu_list_insert_tail(enum arm_emu_list_kind_t list, struct arm_ctx_t *c
 void arm_emu_list_insert_head(enum arm_emu_list_kind_t list, struct arm_ctx_t *ctx);
 void arm_emu_dump_summary(FILE *f);
 
-/* Global CPU emulator variable */
 extern struct arm_emu_t *arm_emu;
 
 extern long long arm_emu_max_cycles;
 extern long long arm_emu_max_inst;
 extern long long arm_emu_max_time;
 
-extern enum arm_emu_kind_t
-{
-	arm_emu_kind_functional,
-	arm_emu_kind_detailed
-} arm_emu_kind;
+
+
+
+/*
+ * Public Functions
+ */
 
 void arm_emu_init(void);
 void arm_emu_done(void);
+void arm_emu_dump(FILE *f);
 
 int arm_emu_run(void);
 

@@ -19,6 +19,8 @@
 
 #include <assert.h>
 
+#include <arch/common/arch.h>
+#include <arch/evergreen/emu/emu.h>
 #include <arch/evergreen/emu/ndrange.h>
 #include <arch/evergreen/emu/wavefront.h>
 #include <arch/evergreen/emu/work-group.h>
@@ -32,7 +34,8 @@
 #include "cf-engine.h"
 #include "compute-unit.h"
 #include "gpu.h"
-#include "periodic-report.h"
+#include "instruction-interval-report.h"
+#include "cycle-interval-report.h"
 #include "sched.h"
 
 
@@ -63,6 +66,7 @@ static void evg_cf_engine_fetch(struct evg_compute_unit_t *compute_unit)
 	/* Emulate CF instruction */
 	evg_wavefront_execute(wavefront);
 	inst = &wavefront->cf_inst;
+
 
 	/* Create uop */
 	uop = evg_uop_create();
@@ -102,7 +106,7 @@ static void evg_cf_engine_fetch(struct evg_compute_unit_t *compute_unit)
 
 	/* Access instruction cache. Record the time when the instruction will have been fetched,
 	 * as per the latency of the instruction memory. */
-	uop->inst_mem_ready = evg_gpu->cycle + evg_gpu_cf_engine_inst_mem_latency;
+	uop->inst_mem_ready = arch_evergreen->cycle + evg_gpu_cf_engine_inst_mem_latency;
 
 	/* Insert uop to fetch buffer */
 	assert(!compute_unit->cf_engine.fetch_buffer[wavefront->id_in_compute_unit]);
@@ -111,6 +115,11 @@ static void evg_cf_engine_fetch(struct evg_compute_unit_t *compute_unit)
 	/* Stats */
 	compute_unit->inst_count++;
 	compute_unit->cf_engine.inst_count++;
+
+	if(evg_spatial_report_active)
+		evg_cf_report_new_inst(compute_unit);
+
+
 	if (uop->global_mem_write)
 		compute_unit->cf_engine.global_mem_write_count++;
 	if (uop->alu_clause_trigger)
@@ -124,7 +133,7 @@ static void evg_cf_engine_fetch(struct evg_compute_unit_t *compute_unit)
 	if (evg_tracing())
 	{
 		evg_inst_dump_buf(inst, -1, 0, str, sizeof str);
-		str_single_spaces(str_trimmed, str, sizeof str_trimmed);
+		str_single_spaces(str_trimmed, sizeof str_trimmed, str);
 		evg_trace("evg.new_inst id=%lld cu=%d wg=%d wf=%d cat=\"cf\" stg=\"cf-fe\" asm=\"%s\"\n",
 			uop->id_in_compute_unit, compute_unit->id, uop->work_group->id, wavefront->id, str_trimmed);
 	}
@@ -234,7 +243,7 @@ static void evg_cf_engine_execute(struct evg_compute_unit_t *compute_unit)
 				work_item_uop = &uop->work_item_uop[work_item->id_in_wavefront];
 				mod_access(compute_unit->global_memory, mod_access_nc_store, 
 					work_item_uop->global_mem_access_addr,
-					&uop->global_mem_witness, NULL, NULL, 0, 0, 0);
+					&uop->global_mem_witness, NULL, NULL, NULL);
 				uop->global_mem_witness--;
 			}
 		}
@@ -305,7 +314,7 @@ static void evg_cf_engine_complete(struct evg_compute_unit_t *compute_unit)
 			evg_compute_unit_unmap_work_group(compute_unit, work_group);
 
 		/* Statistics */
-		evg_gpu->last_complete_cycle = esim_cycle;
+		evg_gpu->last_complete_cycle = arch_evergreen->cycle;
 	}
 }
 

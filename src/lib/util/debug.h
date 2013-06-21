@@ -17,8 +17,8 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#ifndef DEBUG_H
-#define DEBUG_H
+#ifndef LIB_UTIL_DEBUG_H
+#define LIB_UTIL_DEBUG_H
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -30,9 +30,8 @@ void debug_done(void);
 
 /* Create new category for debugging, which will be passed as first parameter
  * to the 'debug' function. If a file name is given, an implicit call to
- * 'debug_assign_file' is performed. If max_size is not 0, the file will be
- * truncated if the limit is rebased. */
-int debug_new_category(char *filename, long long max_size);
+ * 'debug_assign_file' is performed. */
+int debug_new_category(char *filename);
 
 /* Switch the status of a debugging category. By default, the
  * debugging messages are on, while there is an opened file to be dumped into. */
@@ -72,9 +71,9 @@ void __debug(int category, char *fmt, ...) __attribute__ ((format (printf, 2, 3)
 void __debug_buffer(int category, char *buffer_name, void *buffer, int size);
 
 /* Other messages */
-void warning(char *fmt, ...) __attribute__ ((format (printf, 1, 2)));
-void fatal(char *fmt, ...) __attribute__ ((format (printf, 1, 2)));
-void panic(char *fmt, ...) __attribute__ ((format (printf, 1, 2)));
+void warning(const char *fmt, ...) __attribute__ ((format (printf, 1, 2)));
+void fatal(const char *fmt, ...) __attribute__ ((format (printf, 1, 2)));
+void panic(const char *fmt, ...) __attribute__ ((format (printf, 1, 2)));
 
 
 #endif

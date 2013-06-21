@@ -19,7 +19,6 @@
 
 #include <assert.h>
 
-#include <lib/mhandle/mhandle.h>
 #include <lib/util/linked-list.h>
 
 #include "cpu.h"
@@ -131,4 +130,3 @@ void x86_iq_recover(int core, int thread)
 		linked_list_next(iq);
 	}
 }
-

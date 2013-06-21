@@ -28,7 +28,7 @@
 #include "load-store-queue.h"
 #include "reg-file.h"
 #include "rob.h"
-#include "uop.h"
+#include "trace-cache.h"
 
 
 /* Return the reason why a thread cannot be dispatched. If it can,
@@ -40,33 +40,20 @@ static enum x86_dispatch_stall_t x86_cpu_can_dispatch_thread(int core, int threa
 
 	/* Uop queue empty. */
 	uop = list_get(uopq, 0);
-	if (!uop){
-		if(X86_THREAD.ctx && x86_ctx_get_status(X86_THREAD.ctx, x86_ctx_running)) X86_CORE.dispatch_stall_cycles_uop_queue++;
-		return !X86_THREAD.ctx || !x86_ctx_get_status(X86_THREAD.ctx, x86_ctx_running) ?
+	if (!uop)
+		return !X86_THREAD.ctx || !x86_ctx_get_state(X86_THREAD.ctx, x86_ctx_running) ?
 			x86_dispatch_stall_ctx : x86_dispatch_stall_uop_queue;
-	}
+
 	/* If iq/lq/sq/rob full, done */
-	if (!x86_rob_can_enqueue(uop)){
-		struct x86_uop_t *head=x86_rob_head(core, thread);
-		if(head->flags & X86_UINST_MEM){
-		  X86_CORE.dispatch_stall_cycles_rob_mem++;
-		}else{
-		  X86_CORE.dispatch_stall_cycles_rob++;
-		}
+	if (!x86_rob_can_enqueue(uop))
 		return x86_dispatch_stall_rob;
-	}
-	if (!(uop->flags & X86_UINST_MEM) && !x86_iq_can_insert(uop)){
-		X86_CORE.dispatch_stall_cycles_iq++;
+	if (!(uop->flags & X86_UINST_MEM) && !x86_iq_can_insert(uop))
 		return x86_dispatch_stall_iq;
-	}
-	if ((uop->flags & X86_UINST_MEM) && !x86_lsq_can_insert(uop)){
-		X86_CORE.dispatch_stall_cycles_lsq++;
-		return x86_dispatch_stall_lsq;	
-	}
-	if (!x86_reg_file_can_rename(uop)){
-		X86_CORE.dispatch_stall_cycles_rename++;
+	if ((uop->flags & X86_UINST_MEM) && !x86_lsq_can_insert(uop))
+		return x86_dispatch_stall_lsq;
+	if (!x86_reg_file_can_rename(uop))
 		return x86_dispatch_stall_rename;
-	}
+
 	return x86_dispatch_stall_used;
 }
 
@@ -115,11 +102,15 @@ static int x86_cpu_dispatch_thread(int core, int thread, int quant)
 			X86_THREAD.lsq_writes++;
 		}
 		
-		/* Another instruction dispatched */
+		/* Statistics */
 		X86_CORE.dispatch_stall[uop->specmode ? x86_dispatch_stall_spec : x86_dispatch_stall_used]++;
 		X86_THREAD.num_dispatched_uinst_array[uop->uinst->opcode]++;
 		X86_CORE.num_dispatched_uinst_array[uop->uinst->opcode]++;
 		x86_cpu->num_dispatched_uinst_array[uop->uinst->opcode]++;
+		if (uop->trace_cache)
+			X86_THREAD.trace_cache->num_dispatched_uinst++;
+		
+		/* Another instruction dispatched, update quantum. */
 		quant--;
 
 		/* Trace */

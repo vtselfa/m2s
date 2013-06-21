@@ -18,15 +18,14 @@
  */
 
 #include <assert.h>
-#include <string.h>
 
-#include <arch/evergreen/emu/bin-file.h>
+#include <arch/common/arch.h>
 #include <arch/evergreen/emu/emu.h>
 #include <arch/evergreen/emu/ndrange.h>
-#include <arch/evergreen/emu/opencl-kernel.h>
 #include <arch/evergreen/emu/wavefront.h>
 #include <arch/evergreen/emu/work-group.h>
-#include <arch/x86/emu/emu.h>
+#include <driver/opencl-old/evergreen/bin-file.h>
+#include <driver/opencl-old/evergreen/kernel.h>
 #include <lib/esim/esim.h>
 #include <lib/mhandle/mhandle.h>
 #include <lib/util/bit-map.h>
@@ -139,9 +138,7 @@ void evg_faults_init(void)
 			break;
 
 		/* Allocate new fault */
-		fault = calloc(1, sizeof(struct evg_fault_t));
-		if (!fault)
-			fatal("%s: out of memory", __FUNCTION__);
+		fault = xcalloc(1, sizeof(struct evg_fault_t));
 
 		/* Read <cycle> field */
 		line_ptr = strtok(line_ptr, delim);
@@ -298,7 +295,7 @@ void evg_faults_insert(void)
 	{
 		linked_list_head(evg_fault_list);
 		fault = linked_list_get(evg_fault_list);
-		if (!fault || fault->cycle > evg_gpu->cycle)
+		if (!fault || fault->cycle > arch_evergreen->cycle)
 			break;
 
 		/* Insert fault depending on fault type */
@@ -317,10 +314,10 @@ void evg_faults_insert(void)
 
 			/* Initial debug */
 			evg_faults_debug("fault clk=%lld cu=%d type=\"ams\" stack=%d am=%d bit=%d ",
-				evg_gpu->cycle,
+				arch_evergreen->cycle,
 				fault->compute_unit_id, fault->stack_id,
 				fault->active_mask_id, fault->bit);
-			assert(fault->cycle == evg_gpu->cycle);
+			assert(fault->cycle == arch_evergreen->cycle);
 			compute_unit = evg_gpu->compute_units[fault->compute_unit_id];
 
 			/* If compute unit is idle, dismiss */
@@ -399,11 +396,11 @@ void evg_faults_insert(void)
 
 			/* Initial debug */
 			evg_faults_debug("fault clk=%lld cu=%d type=\"reg\" reg=%d bit=%d ",
-				evg_gpu->cycle,
+				arch_evergreen->cycle,
 				fault->compute_unit_id,
 				fault->reg_id,
 				fault->bit);
-			assert(fault->cycle == evg_gpu->cycle);
+			assert(fault->cycle == arch_evergreen->cycle);
 			compute_unit = evg_gpu->compute_units[fault->compute_unit_id];
 
 			/* If compute unit is idle, dismiss */
@@ -527,11 +524,11 @@ void evg_faults_insert(void)
 
 			/* Initial debug */
 			evg_faults_debug("fault clk=%lld cu=%d type=\"mem\" byte=%d bit=%d ",
-				evg_gpu->cycle,
+				arch_evergreen->cycle,
 				fault->compute_unit_id,
 				fault->byte,
 				fault->bit);
-			assert(fault->cycle == evg_gpu->cycle);
+			assert(fault->cycle == arch_evergreen->cycle);
 			compute_unit = evg_gpu->compute_units[fault->compute_unit_id];
 
 			/* If compute unit is idle, dismiss */

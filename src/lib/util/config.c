@@ -17,96 +17,124 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
 #include <assert.h>
 
 #include <lib/mhandle/mhandle.h>
-#include <lib/util/debug.h>
-#include <lib/util/hash-table.h>
-#include <lib/util/linked-list.h>
 
 #include "config.h"
+#include "debug.h"
+#include "hash-table.h"
+#include "linked-list.h"
+#include "string.h"
 
 
-#define MAX_STRING_SIZE		1000
 #define HASH_TABLE_SIZE		100
 
 #define ITEM_ALLOWED  ((void *) 1)
 #define ITEM_MANDATORY  ((void *) 2)
 
 
+/* Error message */
+static char *config_err_format =
+	"\tA syntax error was detected while parsing a configuration INI file.\n"
+	"\tThese files are formed of sections in brackets (e.g. '[ SectionName ]')\n"
+	"\tfollowed by pairs 'VariableName = Value'. Comments preceded with ';'\n"
+	"\tor '#' characters can be used, as well as blank lines. Please verify\n"
+	"\tthe integrity of your input file and retry.\n";
+
+
+/* Structure representing a configuration file.
+ * The keys in the hash tables are strings representing section/variable names.
+ *    If a key is the name of a section, it is represented as the name of the section.
+ *    If a key is the name of a variable, it is represented as "<section>\n<var>"
+ *
+ */
+struct config_t
+{
+	/* Text file name containing configuration */
+	char *file_name;
+	
+	/* Hash table containing present elements
+ 	 * The values for sections are (void *) 1, while the values for variables are the
+	 * actual value represented for that variable in the config file. */
+	struct hash_table_t *items;
+
+	/* Hash table containing allowed items.
+	 * The keys are strings "<section>\n<variable>".
+	 * The values are SECTION_VARIABLE_ALLOWED/SECTION_VARIABLE_MANDATORY */
+	struct hash_table_t *allowed_items;
+};
+
+
+
+
 /*
  * Private Functions
  */
 
-static void trim(char *dest, char *str)
-{
-	/* Copy left-trimmed string to 'dest' */
-	while (*str == ' ' || *str == '\n' || *str == '\r')
-		str++;
-	snprintf(dest, MAX_STRING_SIZE, "%s", str);
-	
-	/* Create right-trimmed version of 'dest' */
-	str = dest + strlen(dest) - 1;
-	while (*dest && (*str == ' ' || *str == '\n' || *str == '\r')) {
-		*str = '\0';
-		str--;
-	}
-}
-
-
-/* Return a section and variable name from a string "<section>\n<var>" or "<secion>". In the
+/* Return a section and variable name from a string "<section>\n<var>" or "<section>". In the
  * latter case, the variable name is returned as an empty string. */
-static void get_section_var_from_item(char *item, char *section, char *var)
+static void get_section_var_from_item(char *item, char *section, int section_size,
+	char *var, int var_size)
 {
 	char *section_brk;
 
-	snprintf(section, MAX_STRING_SIZE, "%s", item);
+	snprintf(section, section_size, "%s", item);
 	section_brk = index(section, '\n');
-	if (section_brk) {
+	if (section_brk)
+	{
 		*section_brk = '\0';
-		snprintf(var, MAX_STRING_SIZE, "%s", section_brk + 1);
-	} else
+		snprintf(var, var_size, "%s", section_brk + 1);
+	}
+	else
+	{
+		assert(var_size);
 		*var = '\0';
+	}
 }
 
 
 /* Create string "<section>\n<var>" from separate strings.
  * String "<section>" is created if 'var' is NULL or an empty string.
  * Remove any spaces on the left or right of both the section and variable names. */
-static void get_item_from_section_var(char *section, char *var, char *item)
+static void get_item_from_section_var(char *section, char *var, char *item, int size)
 {
-	char var_trim[MAX_STRING_SIZE];
-	char section_trim[MAX_STRING_SIZE];
+	char var_trim[MAX_LONG_STRING_SIZE];
+	char section_trim[MAX_LONG_STRING_SIZE];
 
 	assert(section && *section);
-	trim(section_trim, section);
-	if (var && *var) {
-		trim(var_trim, var);
-		snprintf(item, MAX_STRING_SIZE, "%s\n%s", section_trim, var_trim);
-	} else
-		snprintf(item, MAX_STRING_SIZE, "%s", section_trim);
+	str_single_spaces(section_trim, sizeof section_trim, section);
+	if (var && *var)
+	{
+		str_trim(var_trim, sizeof var_trim, var);
+		snprintf(item, size, "%s\n%s", section_trim, var_trim);
+	}
+	else
+	{
+		snprintf(item, size, "%s", section_trim);
+	}
 }
 
 
 /* Return a variable name and its value from a string "<var>=<value>".
  * Both the returned variable and the value are trimmed.
- * If the input string format is wrong, two empty strings are returned. */
-static void get_var_value_from_item(char *item, char *var, char *value)
+ * If the input string format is wrong, a non-zero value is returned.
+ * Zero is returned on success. */
+static int get_var_value_from_item(char *item, char *var, int var_size,
+	char *value, int value_size)
 {
-	char var_str[MAX_STRING_SIZE];
-	char value_str[MAX_STRING_SIZE];
+	char var_str[MAX_LONG_STRING_SIZE];
+	char value_str[MAX_LONG_STRING_SIZE];
 
 	char *equal_ptr;
 	int equal_pos;
 
 	equal_ptr = index(item, '=');
-	if (!equal_ptr) {
+	if (!equal_ptr)
+	{
 		*var = '\0';
 		*value = '\0';
-		return;
+		return 1;
 	}
 
 	/* Equal sign found, split string */
@@ -117,42 +145,51 @@ static void get_var_value_from_item(char *item, char *var, char *value)
 	value_str[strlen(item) - equal_pos - 1] = '\0';
 
 	/* Return trimmed strings */
-	trim(var, var_str);
-	trim(value, value_str);
+	str_trim(var, var_size, var_str);
+	str_trim(value, value_size, value_str);
+	return 0;
 }
 
 
-static void config_insert_section(struct config_t *config, char *section)
+/* Return non-zero if the section already exists */
+static int config_insert_section(struct config_t *config, char *section)
 {
-	char section_trim[MAX_STRING_SIZE];
+	char section_trim[MAX_LONG_STRING_SIZE];
+	int err;
 
-	trim(section_trim, section);
-	hash_table_insert(config->items, section, (void *) 1);
+	str_single_spaces(section_trim, sizeof section_trim, section);
+	err = !hash_table_insert(config->items, section, (void *) 1);
+
+	return err;
 }
 
 
-static void config_insert_var(struct config_t *config, char *section, char *var, char *value)
+/* Return non-zero if the variable already exists */
+static int config_insert_var(struct config_t *config, char *section, char *var, char *value)
 {
-	char item[MAX_STRING_SIZE];
-	char value_trim[MAX_STRING_SIZE];
+	char item[MAX_LONG_STRING_SIZE];
+	char value_trim[MAX_LONG_STRING_SIZE];
 	char *ovalue, *nvalue;
 
-	get_item_from_section_var(section, var, item);
+	/* Combine section and variable */
+	get_item_from_section_var(section, var, item, sizeof item);
 
 	/* Allocate new value */
-	trim(value_trim, value);
-	nvalue = strdup(value_trim);
+	str_trim(value_trim, sizeof value_trim, value);
+	nvalue = xstrdup(value_trim);
 
 	/* Free previous value if variable existed */
 	ovalue = hash_table_get(config->items, item);
-	if (ovalue) {
+	if (ovalue)
+	{
 		free(ovalue);
 		hash_table_set(config->items, item, nvalue);
-		return;
+		return 1;
 	}
 
 	/* Insert new value */
 	hash_table_insert(config->items, item, nvalue);
+	return 0;
 }
 
 
@@ -167,23 +204,13 @@ struct config_t *config_create(char *filename)
 {
 	struct config_t *config;
 	
-	/* Config object */
-	config = calloc(1, sizeof(struct config_t));
-	if (!config) {
-		fprintf(stderr, "%s: out of memory\n", __FUNCTION__);
-		abort();
-	}
-	
-	/* Main hash table & file name*/
-	config->file_name = strdup(filename);
+	/* Initialize */
+	config = xcalloc(1, sizeof(struct config_t));
+	config->file_name = xstrdup(filename);
 	config->items = hash_table_create(HASH_TABLE_SIZE, 0);
 	config->allowed_items = hash_table_create(HASH_TABLE_SIZE, 0);
 
-	/* Return created object */
-	if (!config->items || !config->file_name || !config->allowed_items) {
-		fprintf(stderr, "%s: out of memory\n", __FUNCTION__);
-		abort();
-	}
+	/* Return */
 	return config;
 }
 
@@ -192,14 +219,15 @@ void config_free(struct config_t *config)
 {
 	char *item;
 	void *value;
-	char section[MAX_STRING_SIZE];
-	char var[MAX_STRING_SIZE];
+	char section[MAX_LONG_STRING_SIZE];
+	char var[MAX_LONG_STRING_SIZE];
 
 	/* Free variable values */
 	for (item = hash_table_find_first(config->items, &value);
 		item; item = hash_table_find_next(config->items, &value))
 	{
-		get_section_var_from_item(item, section, var);
+		get_section_var_from_item(item, section, sizeof section,
+			var, sizeof var);
 		if (var[0])
 		{
 			free(value);
@@ -223,63 +251,88 @@ char *config_get_file_name(struct config_t *config)
 }
 
 
-int config_load(struct config_t *config)
+void config_load(struct config_t *config)
 {
 	FILE *f;
 
-	char line[MAX_STRING_SIZE], line_trim[MAX_STRING_SIZE], *line_ptr;
+	char line[MAX_LONG_STRING_SIZE];
+	char line_trim[MAX_LONG_STRING_SIZE];
+	char *line_ptr;
 
-	char section[MAX_STRING_SIZE];
-	char var[MAX_STRING_SIZE];
-	char value[MAX_STRING_SIZE];
+	char section[MAX_LONG_STRING_SIZE];
+	char var[MAX_LONG_STRING_SIZE];
+	char value[MAX_LONG_STRING_SIZE];
+
+	int line_num;
+	int length;
+	int err;
 	
 	/* Try to open file for reading */
 	f = fopen(config->file_name, "rt");
 	if (!f)
-		return 0;
+		fatal("%s: cannot open configuration file", config->file_name);
 	
 	/* Read lines */
 	section[0] = '\0';
-	while (!feof(f)) {
-	
+	line_num = 0;
+	while (!feof(f))
+	{
 		/* Read a line */
-		line_ptr = fgets(line, MAX_STRING_SIZE, f);
+		line_num++;
+		line_ptr = fgets(line, sizeof line, f);
 		if (!line_ptr)
 			break;
-		trim(line_trim, line);
 
-		/* Comment */
-		if (line_trim[0] == ';')
+		/* Trim line */
+		str_trim(line_trim, sizeof line_trim, line);
+
+		/* Comment or blank line */
+		if (!line_trim[0] || line_trim[0] == ';' || line_trim[0] == '#')
 			continue;
 		
 		/* New "[ <section> ]" entry */
-		if (line_trim[0] == '[' && line_trim[strlen(line_trim) - 1] == ']') {
-			
+		length = strlen(line_trim);
+		if (line_trim[0] == '[' && line_trim[length - 1] == ']')
+		{
+			/* Get section name */
 			line_trim[0] = ' ';
-			line_trim[strlen(line_trim) - 1] = ' ';
-			trim(section, line_trim);
-			config_insert_section(config, section);
+			line_trim[length - 1] = ' ';
+			str_single_spaces(section, sizeof section, line_trim);
+
+			/* Insert section */
+			err = config_insert_section(config, section);
+			if (err)
+				fatal("%s: line %d: duplicated section '%s'.\n%s",
+					config->file_name, line_num, section, config_err_format);
+
+			/* Done for this line */
 			continue;
 		}
 
-		/* If there is no current section, ignore entry */
+		/* Check that there is an active section */
 		if (!section[0])
-			continue;
+			fatal("%s: line %d: section name expected.\n%s",
+				config->file_name, line_num, config_err_format);
 		
-		/* New "<var> = <value>" entry. If format is incorrect, ignore line. */
-		get_var_value_from_item(line_trim, var, value);
-		if (!var[0] || !value[0])
-			continue;
-		config_insert_var(config, section, var, value);
+		/* New "<var> = <value>" entry. */
+		err = get_var_value_from_item(line_trim, var, sizeof var, value, sizeof value);
+		if (err)
+			fatal("%s: line %d: invalid format.\n%s",
+				config->file_name, line_num, config_err_format);
+
+		/* New variable */
+		err = config_insert_var(config, section, var, value);
+		if (err)
+			fatal("%s: line %d: duplicated variable '%s'.\n%s",
+				config->file_name, line_num, var, config_err_format);
 	}
 	
-	/* close file */
+	/* Close file */
 	fclose(f);
-	return 1;
 }
 
 
-int config_save(struct config_t *config)
+void config_save(struct config_t *config)
 {
 	struct linked_list_t *section_list;
 	char *section;
@@ -289,7 +342,7 @@ int config_save(struct config_t *config)
 	/* Try to open file for writing */
 	f = fopen(config->file_name, "wt");
 	if (!f)
-		return 0;
+		fatal("%s: cannot save configuration file", config->file_name);
 	
 	/* Create a list with all sections first */
 	section_list = linked_list_create();
@@ -303,8 +356,8 @@ int config_save(struct config_t *config)
 	/* Dump all variables for each section */
 	for (linked_list_head(section_list); !linked_list_is_end(section_list); linked_list_next(section_list))
 	{
-		char section_buf[MAX_STRING_SIZE];
-		char var_buf[MAX_STRING_SIZE];
+		char section_buf[MAX_LONG_STRING_SIZE];
+		char var_buf[MAX_LONG_STRING_SIZE];
 
 		section = linked_list_get(section_list);
 		fprintf(f, "[ %s ]\n", section);
@@ -312,7 +365,8 @@ int config_save(struct config_t *config)
 		for (item = hash_table_find_first(config->items, (void **) &value); item;
 			item = hash_table_find_next(config->items, (void **) &value))
 		{
-			get_section_var_from_item(item, section_buf, var_buf);
+			get_section_var_from_item(item, section_buf, sizeof section_buf,
+				var_buf, sizeof var_buf);
 			if (var_buf[0] && !strcmp(section_buf, section))
 				fprintf(f, "%s = %s\n", var_buf, value);
 		}
@@ -325,24 +379,23 @@ int config_save(struct config_t *config)
 	
 	/* close file */
 	fclose(f);
-	return 1;
 }
 
 
 int config_section_exists(struct config_t *config, char *section)
 {
-	char section_trim[MAX_STRING_SIZE];
+	char section_trim[MAX_LONG_STRING_SIZE];
 
-	trim(section_trim, section);
+	str_single_spaces(section_trim, sizeof section_trim, section);
 	return hash_table_get(config->items, section_trim) != NULL;
 }
 
 
 int config_var_exists(struct config_t *config, char *section, char *var)
 {
-	char item[MAX_STRING_SIZE];
+	char item[MAX_LONG_STRING_SIZE];
 
-	get_item_from_section_var(section, var, item);
+	get_item_from_section_var(section, var, item, sizeof item);
 	return hash_table_get(config->items, item) != NULL;
 }
 
@@ -370,13 +423,14 @@ int config_key_remove(struct config_t *config, char *section, char *key)
 char *config_section_first(struct config_t *config)
 {
 	char *item;
-	char section[MAX_STRING_SIZE];
-	char var[MAX_STRING_SIZE];
+	char section[MAX_LONG_STRING_SIZE];
+	char var[MAX_LONG_STRING_SIZE];
 
 	item = hash_table_find_first(config->items, NULL);
 	if (!item)
 		return NULL;
-	get_section_var_from_item(item, section, var);
+	get_section_var_from_item(item, section, sizeof section,
+		var, sizeof var);
 	if (!var[0])
 		return item;
 	return config_section_next(config);
@@ -386,14 +440,15 @@ char *config_section_first(struct config_t *config)
 char *config_section_next(struct config_t *config)
 {
 	char *item;
-	char section[MAX_STRING_SIZE];
-	char var[MAX_STRING_SIZE];
+	char section[MAX_LONG_STRING_SIZE];
+	char var[MAX_LONG_STRING_SIZE];
 
 	do {
 		item = hash_table_find_next(config->items, NULL);
 		if (!item)
 			return NULL;
-		get_section_var_from_item(item, section, var);
+		get_section_var_from_item(item, section, sizeof section,
+			var, sizeof var);
 	} while (var[0]);
 	return item;
 }
@@ -407,11 +462,11 @@ char *config_section_next(struct config_t *config)
 
 void config_write_string(struct config_t *config, char *section, char *var, char *value)
 {
-	char item[MAX_STRING_SIZE];
+	char item[MAX_LONG_STRING_SIZE];
 
 	/* Add section and variable to the set of allowed items, as long as
 	 * it is not added already as a mandatory item. */
-	get_item_from_section_var(section, var, item);
+	get_item_from_section_var(section, var, item, sizeof item);
 	if (!hash_table_get(config->allowed_items, section))
 		hash_table_insert(config->allowed_items, section, ITEM_ALLOWED);
 	if (!hash_table_get(config->allowed_items, item))
@@ -425,7 +480,7 @@ void config_write_string(struct config_t *config, char *section, char *var, char
 
 void config_write_int(struct config_t *config, char *section, char *var, int value)
 {
-	char value_str[MAX_STRING_SIZE];
+	char value_str[MAX_LONG_STRING_SIZE];
 
 	sprintf(value_str, "%d", value);
 	config_write_string(config, section, var, value_str);
@@ -434,7 +489,7 @@ void config_write_int(struct config_t *config, char *section, char *var, int val
 
 void config_write_llint(struct config_t *config, char *section, char *var, long long value)
 {
-	char value_str[MAX_STRING_SIZE];
+	char value_str[MAX_LONG_STRING_SIZE];
 
 	sprintf(value_str, "%lld", value);
 	config_write_string(config, section, var, value_str);
@@ -443,7 +498,7 @@ void config_write_llint(struct config_t *config, char *section, char *var, long 
 
 void config_write_bool(struct config_t *config, char *section, char *var, int value)
 {
-	char value_str[MAX_STRING_SIZE];
+	char value_str[MAX_LONG_STRING_SIZE];
 
 	strcpy(value_str, value ? "t" : "f");
 	config_write_string(config, section, var, value_str);
@@ -452,7 +507,7 @@ void config_write_bool(struct config_t *config, char *section, char *var, int va
 
 void config_write_double(struct config_t *config, char *section, char *var, double value)
 {
-	char value_str[MAX_STRING_SIZE];
+	char value_str[MAX_LONG_STRING_SIZE];
 
 	sprintf(value_str, "%g", value);
 	config_write_string(config, section, var, value_str);
@@ -461,7 +516,7 @@ void config_write_double(struct config_t *config, char *section, char *var, doub
 
 void config_write_ptr(struct config_t *config, char *section, char *var, void *value)
 {
-	char value_str[MAX_STRING_SIZE];
+	char value_str[MAX_LONG_STRING_SIZE];
 
 	sprintf(value_str, "%p", value);
 	config_write_string(config, section, var, value_str);
@@ -476,12 +531,12 @@ void config_write_ptr(struct config_t *config, char *section, char *var, void *v
 
 char *config_read_string(struct config_t *config, char *section, char *var, char *def)
 {
-	char item[MAX_STRING_SIZE];
+	char item[MAX_LONG_STRING_SIZE];
 	char *value;
 
 	/* Add section and variable to the set of allowed items, as long as
 	 * it is not added already as a mandatory item. */
-	get_item_from_section_var(section, var, item);
+	get_item_from_section_var(section, var, item, sizeof item);
 	if (!hash_table_get(config->allowed_items, section))
 		hash_table_insert(config->allowed_items, section, ITEM_ALLOWED);
 	if (!hash_table_get(config->allowed_items, item))
@@ -496,29 +551,71 @@ char *config_read_string(struct config_t *config, char *section, char *var, char
 int config_read_int(struct config_t *config, char *section, char *var, int def)
 {
 	char *result;
+
+	int value;
+	int err;
+
+	/* Read value */
 	result = config_read_string(config, section, var, NULL);
-	return result ? atoi(result) : def;
+	if (!result)
+		return def;
+
+	/* Convert */
+	value = str_to_int(result, &err);
+	if (err)
+		fatal("%s: Section [ %s ], variable %s = '%s': %s\n",
+			config_get_file_name(config), section, var, result, str_error(err));
+
+	/* Return */
+	return value;
 }
 
 
 long long config_read_llint(struct config_t *config, char *section, char *var, long long def)
 {
 	char *result;
+	long long value;
+	int err;
+
+	/* Read value */
 	result = config_read_string(config, section, var, NULL);
-	return result ? atoll(result) : def;
+	if (!result)
+		return def;
+	
+	/* Convert */
+	value = str_to_llint(result, &err);
+	if (err)
+		fatal("%s: Section [ %s ], variable %s = '%s': %s\n",
+			config_get_file_name(config), section, var, result, str_error(err));
+
+	/* Return */
+	return value;
 }
 
 
 int config_read_bool(struct config_t *config, char *section, char *var, int def)
 {
 	char *result;
+
+	/* Read variable */
 	result = config_read_string(config, section, var, NULL);
 	if (!result)
 		return def;
-	if (!strcmp(result, "t") || !strcmp(result, "true") ||
-		!strcmp(result, "true") || !strcmp(result, "True") ||
-		!strcmp(result, "TRUE"))
+
+	/* True */
+	if (!strcasecmp(result, "t") || !strcasecmp(result, "True")
+		|| !strcasecmp(result, "On"))
 		return 1;
+	
+	/* False */
+	if (!strcasecmp(result, "f") || !strcasecmp(result, "False")
+		|| !strcasecmp(result, "Off"))
+		return 0;
+
+	/* Invalid value */
+	fatal("%s: Section [ %s ]: Invalid value for '%s'\n"
+		"\tPossible values are {t|True|On|f|False|Off}\n",
+		config_get_file_name(config), section, var);
 	return 0;
 }
 
@@ -527,6 +624,7 @@ double config_read_double(struct config_t *config, char *section, char *var, dou
 {
 	char *result;
 	double d;
+
 	result = config_read_string(config, section, var, NULL);
 	if (!result)
 		return def;
@@ -541,7 +639,8 @@ static void enumerate_map(char **map, int map_count)
 	char *comma = "";
 
 	fprintf(stderr, "Possible allowed values are { ");
-	for (i = 0; i < map_count; i++) {
+	for (i = 0; i < map_count; i++)
+	{
 		fprintf(stderr, "%s%s", comma, map[i]);
 		comma = ", ";
 	}
@@ -594,9 +693,9 @@ void *config_read_ptr(struct config_t *config, char *section, char *var, void *d
  * Field 'property' should be ITEM_ALLOWED/ITEM_MANDATORY. */
 static void allowed_items_insert(struct config_t *config, char *section, char *var, void *property)
 {
-	char item[MAX_STRING_SIZE];
+	char item[MAX_LONG_STRING_SIZE];
 
-	get_item_from_section_var(section, var, item);
+	get_item_from_section_var(section, var, item, sizeof item);
 	if (hash_table_get(config->allowed_items, item))
 		hash_table_set(config->allowed_items, item, property);
 	hash_table_insert(config->allowed_items, item, property);
@@ -607,9 +706,9 @@ static void allowed_items_insert(struct config_t *config, char *section, char *v
  * Argument 'var' can be NULL or an empty string to refer to a section. */
 static int item_is_allowed(struct config_t *config, char *section, char *var)
 {
-	char item[MAX_STRING_SIZE];
+	char item[MAX_LONG_STRING_SIZE];
 
-	get_item_from_section_var(section, var, item);
+	get_item_from_section_var(section, var, item, sizeof item);
 	return hash_table_get(config->allowed_items, item) != NULL;
 }
 
@@ -618,9 +717,9 @@ static int item_is_allowed(struct config_t *config, char *section, char *var)
  * Argument 'var' can be NULL or an empty string to refer to a section. */
 static int item_is_present(struct config_t *config, char *section, char *var)
 {
-	char item[MAX_STRING_SIZE];
+	char item[MAX_LONG_STRING_SIZE];
 
-	get_item_from_section_var(section, var, item);
+	get_item_from_section_var(section, var, item, sizeof item);
 	return hash_table_get(config->items, item) != NULL;
 }
 
@@ -654,8 +753,8 @@ void config_check(struct config_t *config)
 	char *item;
 	void *property;
 
-	char section[MAX_STRING_SIZE];
-	char var[MAX_STRING_SIZE];
+	char section[MAX_LONG_STRING_SIZE];
+	char var[MAX_LONG_STRING_SIZE];
 
 	/* Go through mandatory items and check they are present */
 	for (item = hash_table_find_first(config->allowed_items, &property);
@@ -667,7 +766,8 @@ void config_check(struct config_t *config)
 			continue;
 
 		/* Item must be in the configuration file */
-		get_section_var_from_item(item, section, var);
+		get_section_var_from_item(item, section, sizeof section,
+			var, sizeof var);
 		if (!item_is_present(config, section, NULL))
 			fatal("%s: section [ %s ] missing",
 				config->file_name, section);
@@ -682,7 +782,8 @@ void config_check(struct config_t *config)
 		item; item = hash_table_find_next(config->items, NULL))
 	{
 		/* Check if it is allowed */
-		get_section_var_from_item(item, section, var);
+		get_section_var_from_item(item, section, sizeof section,
+			var, sizeof var);
 		if (item_is_allowed(config, section, var))
 			continue;
 
@@ -702,8 +803,8 @@ void config_section_check(struct config_t *config, char *section_ref)
 	char *item;
 	void *property;
 
-	char section[MAX_STRING_SIZE];
-	char var[MAX_STRING_SIZE];
+	char section[MAX_LONG_STRING_SIZE];
+	char var[MAX_LONG_STRING_SIZE];
 
 	/* Go through mandatory items and check they are present */
 	for (item = hash_table_find_first(config->allowed_items, &property);
@@ -715,7 +816,8 @@ void config_section_check(struct config_t *config, char *section_ref)
 			continue;
 
 		/* Check that item is associated with section */
-		get_section_var_from_item(item, section, var);
+		get_section_var_from_item(item, section, sizeof section,
+			var, sizeof var);
 		if (strcasecmp(section, section_ref))
 			continue;
 
@@ -731,7 +833,8 @@ void config_section_check(struct config_t *config, char *section_ref)
 		item; item = hash_table_find_next(config->items, NULL))
 	{
 		/* Check it this is the section we're interested in */
-		get_section_var_from_item(item, section, var);
+		get_section_var_from_item(item, section, sizeof section,
+			var, sizeof var);
 		if (strcasecmp(section, section_ref))
 			continue;
 

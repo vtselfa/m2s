@@ -18,16 +18,13 @@
  */
 
 #include <assert.h>
-#include <stdarg.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
 
 #include <lib/mhandle/mhandle.h>
 #include <lib/util/debug.h>
 #include <lib/util/heap.h>
 #include <lib/util/linked-list.h>
 #include <lib/util/list.h>
+#include <lib/util/misc.h>
 #include <lib/util/string.h>
 #include <lib/util/timer.h>
 
@@ -68,7 +65,7 @@ volatile enum esim_finish_t esim_finish = esim_finish_none;
 
 struct str_map_t esim_finish_map =
 {
-	20, {
+	21, {
 		{ "ContextsFinished", esim_finish_ctx },
 
 		{ "x86LastInst", esim_finish_x86_last_inst },
@@ -79,6 +76,9 @@ struct str_map_t esim_finish_map =
 		{ "ArmMaxInst", esim_finish_arm_max_inst },
 		{ "ArmMaxCycles", esim_finish_arm_max_cycles },
 
+		{ "MipsMaxInst", esim_finish_mips_max_inst },
+		{ "MipsMaxCycles", esim_finish_mips_max_cycles },
+
 		{ "EvergreenMaxInst", esim_finish_evg_max_inst },
 		{ "EvergreenMaxCycles", esim_finish_evg_max_cycles },
 		{ "EvergreenMaxKernels", esim_finish_evg_max_kernels },
@@ -86,7 +86,7 @@ struct str_map_t esim_finish_map =
 
 		{ "FermiMaxInst", esim_finish_frm_max_inst },
 		{ "FermiMaxCycles", esim_finish_frm_max_cycles },
-		{ "FermiMaxKernels", esim_finish_frm_max_kernels },
+		{ "FermiMaxFunctions", esim_finish_frm_max_functions},
 
 		{ "SouthernIslandsMaxInst", esim_finish_si_max_inst },
 		{ "SouthernIslandsMaxCycles", esim_finish_si_max_cycles },
@@ -108,8 +108,18 @@ static int esim_lock_schedule = 0;
  * will prevent it to be shown more than once during the execution. */
 static int esim_overload_shown = 0;
 
-long long esim_cycle = 1;
+/* Special event without any effect. */
 int ESIM_EV_NONE;
+
+/* Simulated time in picoseconds */
+long long esim_time;
+
+/* Frequency (MHz) and cycle time (psec) of the fastest frequency domain. */
+long long esim_cycle_time;
+int esim_frequency;
+
+/* Number of main loop iterations with no forwarded time */
+long long esim_no_forward_cycles;
 
 
 
@@ -130,6 +140,115 @@ static struct m2s_timer_t *esim_timer;
 
 
 
+/*
+ * Frequency Domain
+ */
+
+/* List of frequency domains. Each domain is of type 'struct esim_domain_t'. The
+ * list contains an element at position 0 set to NULL. */
+static struct list_t *esim_domain_list;
+
+struct esim_domain_t
+{
+	int frequency;
+	long long cycle_time;
+};
+
+
+struct esim_domain_t *esim_domain_create(int frequency)
+{
+	struct esim_domain_t *domain;
+
+	/* Check valid 'frequency' */
+	if (!IN_RANGE(frequency, 1, ESIM_MAX_FREQUENCY))
+		fatal("%s: frequency not in range [1, %d] (=%d)\n",
+			__FUNCTION__, ESIM_MAX_FREQUENCY, frequency);
+
+	/* Initialize */
+	domain = xcalloc(1, sizeof(struct esim_domain_t));
+	domain->frequency = frequency;
+	domain->cycle_time = 1000000ll / frequency;  /* Picoseconds */
+
+	/* Update 'esim_cycle_time' if needed */
+	if (!esim_cycle_time || domain->cycle_time < esim_cycle_time)
+	{
+		esim_frequency = frequency;
+		esim_cycle_time = domain->cycle_time;
+	}
+
+	/* Return */
+	return domain;
+}
+
+
+void esim_domain_free(struct esim_domain_t *domain)
+{
+	free(domain);
+}
+
+
+int esim_new_domain(int frequency)
+{
+	struct esim_domain_t *domain;
+
+	domain = esim_domain_create(frequency);
+	list_add(esim_domain_list, domain);
+	return list_count(esim_domain_list) - 1;
+}
+
+
+long long esim_domain_cycle(int domain_index)
+{
+	struct esim_domain_t *domain;
+
+	/* Get domain */
+	domain = list_get(esim_domain_list, domain_index);
+	if (!domain)
+		panic("%s: invalid domain index (%d)",
+				__FUNCTION__, domain_index);
+
+	/* Return current cycle */
+	return esim_time / domain->cycle_time + 1;
+}
+
+
+long long esim_domain_cycle_time(int domain_index)
+{
+	struct esim_domain_t *domain;
+
+	/* Get domain */
+	domain = list_get(esim_domain_list, domain_index);
+	if (!domain)
+		panic("%s: invalid domain index (%d)",
+				__FUNCTION__, domain_index);
+
+	/* Return cycle time */
+	return domain->cycle_time;
+}
+
+
+int esim_domain_frequency(int domain_index)
+{
+	struct esim_domain_t *domain;
+
+	/* Get domain */
+	domain = list_get(esim_domain_list, domain_index);
+	if (!domain)
+		panic("%s: invalid domain index (%d)",
+				__FUNCTION__, domain_index);
+
+	/* Return cycle time */
+	return domain->frequency;
+}
+
+
+long long esim_cycle(void)
+{
+	return esim_time / esim_cycle_time + 1;
+}
+
+
+
 
 /*
  * Event Info
@@ -140,25 +259,22 @@ struct esim_event_info_t
 	int id;
 	char *name;
 	esim_event_handler_t handler;
+	struct esim_domain_t *domain;
 };
 
 
 struct esim_event_info_t *esim_event_info_create(int id,
-	char *name, esim_event_handler_t handler)
+	char *name, esim_event_handler_t handler,
+	struct esim_domain_t *domain)
 {
 	struct esim_event_info_t *event_info;
 
-	/* Allocate */
-	event_info = calloc(1, sizeof(struct esim_event_info_t));
-	if (!event_info)
-		fatal("%s: out of memory", __FUNCTION__);
-
 	/* Initialize */
+	event_info = xcalloc(1, sizeof(struct esim_event_info_t));
 	event_info->id = id;
 	event_info->handler = handler;
-	event_info->name = strdup(name);
-	if (!event_info->name)
-		fatal("%s: out of memory", __FUNCTION__);
+	event_info->name = xstrdup(name);
+	event_info->domain = domain;
 
 	/* Return */
 	return event_info;
@@ -189,12 +305,8 @@ struct esim_event_t *esim_event_create(int id, void *data)
 {
 	struct esim_event_t *event;
 
-	/* Allocate */
-	event = calloc(1, sizeof(struct esim_event_t));
-	if (!event)
-		fatal("%s: out of memory", __FUNCTION__);
-
 	/* Initialize */
+	event = xcalloc(1, sizeof(struct esim_event_t));
 	event->id = id;
 	event->data = data;
 
@@ -215,26 +327,28 @@ void esim_event_free(struct esim_event_t *event)
  * Private Functions
  */
 
-static void esim_drain_heap(void)
+/* Drain events in the heap. If this operation stalls after exceeding a limit
+ * in the number of events, return non-zero. Zero is success. */
+static int esim_drain_heap(void)
 {
 	int count = 0;
 
 	struct esim_event_t *event;
 	struct esim_event_info_t *event_info;
 
-	long long cycle;
+	long long when;
 
 	/* Extract all elements from heap */
 	while (1)
 	{
 		/* Extract event */
-		cycle = heap_extract(esim_event_heap, (void **) &event);
+		when = heap_extract(esim_event_heap, (void **) &event);
 		if (heap_error(esim_event_heap))
 			break;
 
 		/* Process it */
 		count++;
-		esim_cycle = cycle;
+		esim_time = when;
 		event_info = list_get(esim_event_info_list, event->id);
 		assert(event_info && event_info->handler);
 		event_info->handler(event->id, event->data);
@@ -247,11 +361,15 @@ static void esim_drain_heap(void)
 		if (count == ESIM_MAX_FINALIZATION_EVENTS)
 		{
 			esim_dump(stderr, 20);
-			fatal("%s: number of finalization events exceeds %d.\n%s",
+			warning("%s: number of finalization events exceeds %d - stopped.\n%s",
 				__FUNCTION__, ESIM_MAX_FINALIZATION_EVENTS,
 				esim_err_finalization);
+			return 1;
 		}
 	}
+
+	/* Success */
+	return 0;
 }
 
 
@@ -268,24 +386,38 @@ void esim_init()
 	esim_event_info_list = list_create();
 	esim_event_heap = heap_create(20);
 	esim_end_event_list = linked_list_create();
+	
+	/* List of frequency domains */
+	esim_domain_list = list_create();
+	list_add(esim_domain_list, NULL);
 
 	/* Initialize global timer */
 	esim_timer = m2s_timer_create(NULL);
 	m2s_timer_start(esim_timer);
 
 	/* Register special events */
-	ESIM_EV_INVALID = esim_register_event_with_name(NULL, "esim_invalid");
-	ESIM_EV_NONE = esim_register_event_with_name(NULL, "esim_none");
+	ESIM_EV_INVALID = esim_register_event_with_name(NULL, 0, "Invalid");
+	ESIM_EV_NONE = esim_register_event_with_name(NULL, 0, "None");
 }
 
 
 void esim_done()
 {
-	int id;
+	void *elem;
+	int index;
+
+	/* Free list of frequency domains */
+	LIST_FOR_EACH(esim_domain_list, index)
+	{
+		elem = list_get(esim_domain_list, index);
+		if (elem)
+			esim_domain_free(elem);
+	}
+	list_free(esim_domain_list);
 
 	/* Free list of event info items */
-	LIST_FOR_EACH(esim_event_info_list, id)
-		esim_event_info_free(list_get(esim_event_info_list, id));
+	LIST_FOR_EACH(esim_event_info_list, index)
+		esim_event_info_free(list_get(esim_event_info_list, index));
 	list_free(esim_event_info_list);
 
 	/* Free lists of events */
@@ -306,45 +438,46 @@ void esim_dump(FILE *f, int max)
 	struct esim_event_info_t *event_info;
 	struct esim_event_t *event;
 
-	long long cycle;
+	long long when;
 
 	/* Create auxiliary heap to store extracted events. */
 	aux_event_heap = heap_create(max);
 
 	/* Dump events */
 	fprintf(f, "\n");
-	fprintf(f, "Event heap state in cycle %lld\n", esim_cycle);
+	fprintf(f, "Event heap state in simulated time %lld picosedons\n",
+			esim_time);
 	while (1)
 	{
 		/* Stop dumping */
-		if (max && heap_count(aux_event_heap) == max)
+		if (max && aux_event_heap->count == max)
 			break;
-		if (!heap_count(esim_event_heap))
+		if (!esim_event_heap->count)
 			break;
 
 		/* Transfer an event from main heap to auxiliary heap */
-		cycle = heap_extract(esim_event_heap, (void **) &event);
-		heap_insert(aux_event_heap, cycle, event);
+		when = heap_extract(esim_event_heap, (void **) &event);
+		heap_insert(aux_event_heap, when, event);
 
 		/* Dump event */
 		event_info = list_get(esim_event_info_list, event->id);
 		assert(event_info);
-		fprintf(f, "\t{ event = '%s', cycle = %lld, rel. cycle = %lld }\n",
-			event_info->name, cycle, cycle - esim_cycle);
+		fprintf(f, "\t{ event = '%s', time = %lld, rel. time = %lld }\n",
+			event_info->name, when, when - esim_time);
 	}
 
 	/* Rest of events */
-	if (heap_count(esim_event_heap))
-		fprintf(f, "\t\t+ %d more\n", heap_count(esim_event_heap));
-	fprintf(f, "Total: %d event(s)\n", heap_count(esim_event_heap) +
-		heap_count(aux_event_heap));
+	if (esim_event_heap->count)
+		fprintf(f, "\t\t+ %d more\n", esim_event_heap->count);
+	fprintf(f, "Total: %d event(s)\n", esim_event_heap->count +
+		aux_event_heap->count);
 	fprintf(f, "\n");
 
 	/* Bring events back from list to heap. */
-	while (heap_count(aux_event_heap))
+	while (aux_event_heap->count)
 	{
-		cycle = heap_extract(aux_event_heap, (void **) &event);
-		heap_insert(esim_event_heap, cycle, event);
+		when = heap_extract(aux_event_heap, (void **) &event);
+		heap_insert(esim_event_heap, when, event);
 	}
 
 	/* Free auxiliary heap */
@@ -352,65 +485,83 @@ void esim_dump(FILE *f, int max)
 }
 
 
-int esim_register_event(esim_event_handler_t handler)
+int esim_register_event(esim_event_handler_t handler, int domain_index)
 {
 	char name[100];
-	int id;
+	int index;
 
 	/* Construct event name */
-	id = list_count(esim_event_info_list);
-	snprintf(name, sizeof name, "event_%d", id);
+	index = list_count(esim_event_info_list);
+	snprintf(name, sizeof name, "event_%d", index);
 
 	/* Register event */
-	return esim_register_event_with_name(handler, name);
+	return esim_register_event_with_name(handler, domain_index, name);
 }
 
 
-int esim_register_event_with_name(esim_event_handler_t handler, char *name)
+int esim_register_event_with_name(esim_event_handler_t handler,
+		int domain_index, char *name)
 {
 	struct esim_event_info_t *event_info;
-	int id;
+	struct esim_domain_t *domain;
+	int index;
+
+	/* Get frequency domain. Allow invalid domains for event 'Invalid'
+	 * and 'None'. */
+	domain = list_get(esim_domain_list, domain_index);
+	if (!domain && esim_event_info_list->count >= 2)
+		panic("%s: invalid domain index (%d)",
+				__FUNCTION__, domain_index);
 
 	/* Create event info item */
-	id = list_count(esim_event_info_list);
-	event_info = esim_event_info_create(id, name, handler);
+	index = list_count(esim_event_info_list);
+	event_info = esim_event_info_create(index, name, handler, domain);
 
 	/* Add to registered events list */
 	list_add(esim_event_info_list, event_info);
 
 	/* Return event ID */
-	return id;
+	return index;
 }
 
 
-void esim_schedule_event(int id, void *data, int after)
+void esim_schedule_event(int event_index, void *data, int cycles)
 {
 	struct esim_event_t *event;
-
-	long long when = esim_cycle + after;
+	struct esim_event_info_t *event_info;
+	struct esim_domain_t *domain;
+	long long when;
 
 	/* Schedule locked? */
 	if (esim_lock_schedule)
 		return;
 
 	/* Integrity */
-	if (id < 0 || id >= list_count(esim_event_info_list))
-		panic("%s: unknown event", __FUNCTION__);
-	if (when < esim_cycle)
-		panic("%s: event scheduled in the past", __FUNCTION__);
-	if (!id)
-		panic("%s: invalid event (forgot call to 'esim_register_event'?)", __FUNCTION__);
+	if (!event_index)
+		panic("%s: invalid event - forgot to register?", __FUNCTION__);
+	if (!IN_RANGE(event_index, 1, esim_event_info_list->count - 1))
+		panic("%s: invalid event index", __FUNCTION__);
 
-	/* If this is an empty event, ignore it */
-	if (id == ESIM_EV_NONE)
+	/* Special event to be ignored */
+	if (event_index == ESIM_EV_NONE)
 		return;
 
+	/* Get frequency domain */
+	event_info = list_get(esim_event_info_list, event_index);
+	domain = event_info->domain;
+
+	/* Calculate time based on event's frequency domain. First, get the
+	 * actual current time for the current frequency domain, then add the
+	 * time after which the event should be scheduled. */
+	when = esim_time / domain->cycle_time * domain->cycle_time;
+	when += domain->cycle_time * cycles;
+	
 	/* Create event and insert in heap */
-	event = esim_event_create(id, data);
+	event = esim_event_create(event_index, data);
 	heap_insert(esim_event_heap, when, event);
 
 	/* Warn when heap is overloaded */
-	if (!esim_overload_shown && heap_count(esim_event_heap) >= ESIM_OVERLOAD_EVENTS)
+	if (!esim_overload_shown && esim_event_heap->count >= ESIM_OVERLOAD_EVENTS)
 	{
 		esim_overload_shown = 1;
 		warning("%s: number of in-flight events exceeds %d.\n%s",
@@ -466,13 +617,21 @@ void esim_execute_event(int id, void *data)
 }
 
 
-/* New cycle. Process activated events */
-void esim_process_events()
+void esim_process_events(int forward)
 {
 	long long when;
 
 	struct esim_event_t *event;
 	struct esim_event_info_t *event_info;
+	
+	/* Check if any action is actually needed. Events will be checked and
+	 * global time will be advanced only if argument 'forward' is set or
+	 * there are any pending events to process. */
+	if (!forward && !esim_event_heap->count)
+	{
+		esim_no_forward_cycles++;
+		return;
+	}
 
 	/* Process events scheduled for this cycle */
 	while (1)
@@ -482,9 +641,8 @@ void esim_process_events()
 		if (heap_error(esim_event_heap))
 			break;
 
-		/* Must process it? */
-		assert(when >= esim_cycle);
-		if (when != esim_cycle)
+		/* Stop when we find the first event that should run in the future. */
+		if (when > esim_time)
 			break;
 
 		/* Process it */
@@ -496,7 +654,7 @@ void esim_process_events()
 	}
 
 	/* Next simulation cycle */
-	esim_cycle++;
+	esim_time += esim_cycle_time;
 }
 
 
@@ -504,9 +662,14 @@ void esim_process_all_events(void)
 {
 	struct esim_event_t *event;
 	struct esim_event_info_t *event_info;
+	int err;
 
 	/* Drain all previous events */
-	esim_drain_heap();
+	err = esim_drain_heap();
+
+	/* An stall while draining heap stops further processing. */
+	if (err)
+		return;
 
 	/* Schedule all events that were planned for the end of the simulation
 	 * using calls to 'esim_schedule_end_event'. */
@@ -560,7 +723,7 @@ void esim_empty(void)
 
 int esim_event_count(void)
 {
-	return heap_count(esim_event_heap);
+	return esim_event_heap->count;
 }
 
 

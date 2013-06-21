@@ -17,10 +17,13 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#include <arch/common/arch.h>
 #include <arch/evergreen/emu/opengl-bin-file.h>
 #include <arch/evergreen/timing/gpu.h>
-#include <arch/x86/emu/context.h>
-#include <arch/x86/emu/emu.h>
+#include <driver/opencl-old/evergreen/bin-file.h>
+#include <driver/opencl-old/evergreen/device.h>
+#include <driver/opencl-old/evergreen/platform.h>
+#include <driver/opencl-old/evergreen/repo.h>
 #include <lib/esim/esim.h>
 #include <lib/mhandle/mhandle.h>
 #include <lib/util/debug.h>
@@ -31,14 +34,9 @@
 #include <lib/util/timer.h>
 #include <mem-system/memory.h>
 
-#include "bin-file.h"
 #include "emu.h"
 #include "isa.h"
 #include "ndrange.h"
-#include "opencl-device.h"
-#include "opencl-platform.h"
-#include "opencl-repo.h"
-#include "wavefront.h"
 #include "work-group.h"
 
 
@@ -54,8 +52,6 @@ long long evg_emu_max_cycles = 0;
 long long evg_emu_max_inst = 0;
 int evg_emu_max_kernels = 0;
 
-enum evg_emu_kind_t evg_emu_kind = evg_emu_kind_functional;
-
 char *evg_emu_opencl_binary_name = "";
 char *evg_emu_report_file_name = "";
 FILE *evg_emu_report_file = NULL;
@@ -65,15 +61,7 @@ int evg_emu_wavefront_size = 64;
 
 
 
-
-/*
- * GPU Kernel (Functional Simulator) Public Functions
- */
-
-
-
-/* Initialize GPU kernel */
-void evg_emu_init()
+void evg_emu_init(void)
 {
 	/* Open report file */
 	if (*evg_emu_report_file_name)
@@ -84,13 +72,8 @@ void evg_emu_init()
 				evg_emu_report_file_name);
 	}
 
-	/* Allocate */
-	evg_emu = calloc(1, sizeof(struct evg_emu_t));
-	if (!evg_emu)
-		fatal("%s: out of memory", __FUNCTION__);
-
 	/* Initialize */
-	evg_emu->timer = m2s_timer_create("Evergreen GPU timer");
+	evg_emu = xcalloc(1, sizeof(struct evg_emu_t));
 	evg_emu->const_mem = mem_create();
 	evg_emu->const_mem->safe = 0;
 	evg_emu->global_mem = mem_create();
@@ -109,7 +92,6 @@ void evg_emu_init()
 }
 
 
-/* Finalize GPU kernel */
 void evg_emu_done()
 {
 	/* GPU report */
@@ -133,39 +115,18 @@ void evg_emu_done()
 	/* Finalize GPU kernel */
 	mem_free(evg_emu->const_mem);
 	mem_free(evg_emu->global_mem);
-	m2s_timer_free(evg_emu->timer);
 	free(evg_emu);
+}
+
+
+void evg_emu_dump(FILE *f)
+{
 }
 
 
 void evg_emu_dump_summary(FILE *f)
 {
-	double time_in_sec;
-	double inst_per_sec;
-
-	/* If there was no Evergreen simulation, no summary */
-	if (!evg_emu->ndrange_count)
-		return;
-
-	/* Calculate statistics */
-	time_in_sec = (double) m2s_timer_get_value(evg_emu->timer) / 1.0e6;
-	inst_per_sec = time_in_sec > 0.0 ? (double) evg_emu->inst_count / time_in_sec : 0.0;
-
-	/* Print statistics */
-	fprintf(f, "[ Evergreen ]\n");
-	fprintf(f, "SimType = %s\n", evg_emu_kind == evg_emu_kind_functional ?
-			"Functional" : "Detailed");
-	fprintf(f, "Time = %.2f\n", time_in_sec);
 	fprintf(f, "NDRangeCount = %d\n", evg_emu->ndrange_count);
-	fprintf(f, "Instructions = %lld\n", evg_emu->inst_count);
-	fprintf(f, "InstructionsPerSecond = %.0f\n", inst_per_sec);
-
-	/* Detailed simulation */
-	if (evg_emu_kind == evg_emu_kind_detailed)
-		evg_gpu_dump_summary(f);
-
-	/* End */
-	fprintf(f, "\n");
 }
 
 
@@ -266,8 +227,7 @@ void evg_emu_opengl_disasm(char *path, int opengl_shader_index)
 }
 
 
-/* Run one iteration of the Evergreen GPU emulation loop.
- * Return FALSE if there is no more emulation to perform. */
+/* One iteration of emulator. Return TRUE if the emulation is still running. */
 int evg_emu_run(void)
 {
 	struct evg_ndrange_t *ndrange;
@@ -281,7 +241,7 @@ int evg_emu_run(void)
 
 	/* Exit if there are no ND-Ranges to emulate */
 	if (!evg_emu->ndrange_list_count)
-		return 0;
+		return FALSE;
 
 	/* Start any ND-Range in state 'pending' */
 	while ((ndrange = evg_emu->pending_ndrange_list_head))
@@ -338,6 +298,6 @@ int evg_emu_run(void)
 		evg_ndrange_free(ndrange);
 	}
 
-	/* Return TRUE */
-	return 1;
+	/* Still emulating */
+	return TRUE;
 }

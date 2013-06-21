@@ -19,6 +19,7 @@
 
 #include <assert.h>
 
+#include <arch/common/arch.h>
 #include <lib/mhandle/mhandle.h>
 #include <lib/util/debug.h>
 #include <lib/util/list.h>
@@ -27,7 +28,6 @@
 
 #include "context.h"
 #include "emu.h"
-#include "isa.h"
 #include "uinst.h"
 
 
@@ -36,6 +36,7 @@
  */
 
 struct list_t *x86_uinst_list;
+int x86_uinst_active;
 
 
 /* Direct look-up table for regular dependences */
@@ -161,12 +162,13 @@ struct x86_uinst_info_t x86_uinst_info[x86_uinst_opcode_count] =
 	{ "fpush", X86_UINST_FP },
 	{ "fpop", X86_UINST_FP },
 
-	{ "x-and", X86_UINST_XMM },
-	{ "x-or", X86_UINST_XMM },
-	{ "x-xor", X86_UINST_XMM },
-	{ "x-not", X86_UINST_XMM },
-	{ "x-shift", X86_UINST_XMM },
-	{ "x-sign", X86_UINST_XMM },
+	{ "x-and", X86_UINST_XMM },  /* x86_uinst_xmm_and */
+	{ "x-or", X86_UINST_XMM },  /* x86_uinst_xmm_or */
+	{ "x-xor", X86_UINST_XMM },  /* x86_uinst_xmm_xor */
+	{ "x-not", X86_UINST_XMM },  /* x86_uinst_xmm_not */
+	{ "x-nand", X86_UINST_XMM },  /* x86_uinst_xmm_nand */
+	{ "x-shift", X86_UINST_XMM },  /* x86_uinst_xmm_shift */
+	{ "x-sign", X86_UINST_XMM },  /* x86_uinst_xmm_sign */
 
 	{ "x-add", X86_UINST_XMM },
 	{ "x-sub", X86_UINST_XMM },
@@ -530,6 +532,7 @@ static char *x86_uinst_dep_name_get(int dep)
 void x86_uinst_init(void)
 {
 	x86_uinst_list = list_create();
+	x86_uinst_active = arch_x86->sim_kind == arch_sim_kind_detailed;
 }
 
 
@@ -544,9 +547,7 @@ struct x86_uinst_t *x86_uinst_create(void)
 {
 	struct x86_uinst_t *uinst;
 
-	uinst = calloc(1, sizeof(struct x86_uinst_t));
-	if (!uinst)
-		fatal("%s: out of memory", __FUNCTION__);
+	uinst = xcalloc(1, sizeof(struct x86_uinst_t));
 	uinst->idep = uinst->dep;
 	uinst->odep = &uinst->dep[X86_UINST_MAX_IDEPS];
 	return uinst;
@@ -568,8 +569,8 @@ void __x86_uinst_new_mem(struct x86_ctx_t *ctx,
 	struct x86_uinst_t *uinst;
 	int i;
 
-	/* Create uinst */
-	assert(x86_emu_kind == x86_emu_kind_detailed);
+	/* Create micro-instruction */
+	assert(arch_x86->sim_kind == arch_sim_kind_detailed);
 	uinst = x86_uinst_create();
 	uinst->opcode = opcode;
 	uinst->idep[0] = idep0;

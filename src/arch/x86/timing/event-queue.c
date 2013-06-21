@@ -19,8 +19,13 @@
 
 #include <assert.h>
 
+#include <arch/common/arch.h>
+#include <arch/x86/emu/emu.h>
+#include <lib/util/linked-list.h>
+
 #include "cpu.h"
 #include "event-queue.h"
+#include "uop.h"
 
 
 void x86_event_queue_init()
@@ -64,7 +69,7 @@ int x86_event_queue_long_latency(int core, int thread)
 		uop = linked_list_get(event_queue);
 		if (uop->thread != thread)
 			continue;
-		if (x86_cpu->cycle - uop->issue_when > 20)
+		if (arch_x86->cycle - uop->issue_when > 20)
 			return 1;
 	}
 	return 0;
@@ -81,7 +86,7 @@ int x86_event_queue_cache_miss(int core, int thread)
 		uop = linked_list_get(event_queue);
 		if (uop->thread != thread || uop->uinst->opcode != x86_uinst_load)
 			continue;
-		if (x86_cpu->cycle - uop->issue_when > 5)
+		if (arch_x86->cycle - uop->issue_when > 5)
 			return 1;
 	}
 	return 0;
@@ -141,4 +146,3 @@ void x86_event_queue_recover(int core, int thread)
 		linked_list_next(event_queue);
 	}
 }
-

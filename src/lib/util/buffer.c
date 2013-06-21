@@ -17,8 +17,6 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include <stdlib.h>
-#include <string.h>
 
 #include <lib/mhandle/mhandle.h>
 
@@ -47,9 +45,7 @@ static int grow(struct buffer_t *buffer, int size)
 	/* allocate new memory */
 	if (size < buffer->size)
 		return 0;
-	data = calloc(1, size);
-	if (!data)
-		return 0;
+	data = xcalloc(1, size);
 	
 	/* copy buffer contents */
 	memcpy(data, buffer->data + buffer->head, buffer->size - buffer->head);
@@ -73,15 +69,9 @@ static int grow(struct buffer_t *buffer, int size)
 struct buffer_t *buffer_create(int size)
 {
 	struct buffer_t *buffer;
-	buffer = calloc(1, sizeof(struct buffer_t));
-	if (!buffer)
-		return NULL;
+	buffer = xcalloc(1, sizeof(struct buffer_t));
 	buffer->size = size;
-	buffer->data = calloc(1, size);
-	if (!buffer->data) {
-		free(buffer);
-		return NULL;
-	}
+	buffer->data = xcalloc(1, size);
 	return buffer;
 }
 

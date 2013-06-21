@@ -25,7 +25,7 @@
 
 
 /*
- * Event-Driven Simulation
+ * Global Variables
  */
 
 
@@ -46,6 +46,10 @@ extern volatile enum esim_finish_t
 	esim_finish_arm_max_cycles,
 	esim_finish_arm_last_inst,
 
+	esim_finish_mips_max_inst,
+	esim_finish_mips_max_cycles,
+	esim_finish_mips_last_inst,
+
 	esim_finish_evg_max_inst,  /* Maximum instruction count reached in Evergreen GPU */
 	esim_finish_evg_max_cycles,  /* Maximum cycle count reached in Evergreen GPU */
 	esim_finish_evg_max_kernels,  /* Maximum number of GPU kernels */
@@ -53,7 +57,7 @@ extern volatile enum esim_finish_t
 
 	esim_finish_frm_max_inst,
 	esim_finish_frm_max_cycles,
-	esim_finish_frm_max_kernels,
+	esim_finish_frm_max_functions,
 
 	esim_finish_si_max_inst,
 	esim_finish_si_max_cycles,
@@ -64,14 +68,36 @@ extern volatile enum esim_finish_t
 	esim_finish_stall  /* Simulation stalled */
 } esim_finish;
 
-/* Variable to indicate event simulation cycle */
-extern long long esim_cycle;
+
+/* Simulated time in picoseconds */
+extern long long esim_time;
+
+/* Cycle time of one iteration of the main Multi2Sim loop. For every call to
+ * 'esim_process_events()', 'esim_time' will advance in as many picoseconds as
+ * this value indicates. The main loop cycle time is calculated as the minimum
+ * of all frequency domains' cycle times, as registered with
+ * 'esim_new_domain()'. These variables are read-only, updated every time a new
+ * call to 'esim_new_domain()' is performed. */
+extern int esim_frequency;
+extern long long esim_cycle_time;
+
+/* Counter keeping track of all calls to 'esim_process_events()' where the
+ * global time 'esim_time' was not incremented (for example, as a result of
+ * all architectures performing only a functional simulation. */
+extern long long esim_no_forward_cycles;
 
 /* Empty event. When this event is scheduled, it will be ignored */
 extern int ESIM_EV_NONE;
 
 /* Procedure to handle an event */
 typedef void (*esim_event_handler_t)(int event, void *data);
+
+
+
+
+/*
+ * Functions
+ */
 
 /* Initialization and finalization */
 void esim_init(void);
@@ -81,9 +107,28 @@ void esim_done(void);
  * all events in the heap are dumped. */
 void esim_dump(FILE *f, int max);
 
-/* Register an events */
-int esim_register_event(esim_event_handler_t handler);
-int esim_register_event_with_name(esim_event_handler_t handler, char *name);
+/* Create a new frequency domain. Argument 'frequency' specifies the frequency
+ * in MHz. The function returns a domain identifier. */
+#define ESIM_MAX_FREQUENCY  10000
+int esim_new_domain(int frequency);
+
+/* Functions returning the current cycle and the cycle time of a frequency
+ * domain. As an argument, they take a domain identifier returned by
+ * 'esim_new_domain'. The first cycle in any frequency domain is always 1. */
+long long esim_domain_cycle(int domain_index);
+long long esim_domain_cycle_time(int domain_index);
+int esim_domain_frequency(int domain_index);
+
+/* Return the current cycle of the fastest domain. */
+long long esim_cycle(void);
+
+
+/* Register an event, optionally giving an event name. These functions take an
+ * additional argument 'domain_index', specifying the frequency domain that the
+ * event is associated to. */
+int esim_register_event(esim_event_handler_t handler, int domain_index);
+int esim_register_event_with_name(esim_event_handler_t handler,
+		int domain_index, char *name);
 
 /* Schedule an event in 'after' cycles from now. If several cycles are
  * scheduled for the same cycle, they will execute in the order they were
@@ -99,10 +144,19 @@ void esim_schedule_end_event(int event, void *data);
  * after all pending events for current cycle completed */
 void esim_execute_event(int event, void *data);
 
-/* Advance event simulation one cycle and process all events for the new cycle.
- * This function should be called at the end of the main simulation loop body
- * of the main program. */
-void esim_process_events(void);
+/* Call to be made in each iteration of the main simulation loop, moving the
+ * event-driven simulation engine one cycle.
+ * The argument 'forward' is a flag forcing the global simulation time
+ * 'esim_time' to advance by 'esim_cycle_time' picoseconds. If not set,
+ * the global time will only advance if there were any pending events to
+ * process.
+ * The caller should set flag 'forward' to FALSE if there is no need to
+ * advance the global simulation time, e.g., if all architectures in the
+ * system are just performing a functional simulation.
+ * For each call to 'esim_process_events' where the global simulation time
+ * did not effectively advance, global counter 'esim_no_forward_cycles' is
+ * incremented. */
+void esim_process_events(int forward);
 
 /* Process all events in the heap. When the heap is empty, all finalization
  * events scheduled with 'esim_schedule_end_event' are processed. Since
@@ -116,8 +170,8 @@ void esim_process_all_events(void);
 int esim_event_count(void);
 
 /* Process esim events, without enabling the schedule of a new event;
- * when all events are processed, esim heap will be empty;
- * esim_cycle is not incremented */
+ * when all events are processed, esim heap will be empty.
+ * Value in 'esim_time' is not incremented */
 void esim_empty(void);
 
 /* Return the number of micro-seconds ellapsed since the beginning of the

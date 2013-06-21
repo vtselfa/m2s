@@ -27,6 +27,8 @@
 #include <lib/util/string.h>
 
 #include "asm.h"
+#include "asm-thumb.h"
+
 
 
 void arm_disasm_init()
@@ -405,6 +407,8 @@ void arm_inst_dump(FILE *f , char *str , int inst_str_size , void *inst_ptr ,
 	char *fmt_str;
 	int token_len;
 
+
+
 	inst.addr = inst_index;
 	for (byte_index = 0; byte_index < 4; ++byte_index)
 		inst.dword.bytes[byte_index] = *(unsigned char *) (inst_ptr
@@ -489,10 +493,10 @@ void arm_inst_dump(FILE *f , char *str , int inst_str_size , void *inst_ptr ,
 			else if (arm_token_comp(fmt_str, "amode5", &token_len))
 				arm_inst_dump_AMODE_5(inst_str_ptr, &inst_str_size, &inst,
 					inst.info->category);
-			else if (arm_token_comp(fmt_str, "vfp1STMIA", &token_len))
+			else if (arm_token_comp(fmt_str, "vfp1stmia", &token_len))
 				arm_inst_dump_VFP1STM(inst_str_ptr, &inst_str_size, &inst,
 					inst.info->category);
-			else if (arm_token_comp(fmt_str, "vfp1LDMIA", &token_len))
+			else if (arm_token_comp(fmt_str, "vfp1ldmia", &token_len))
 				arm_inst_dump_VFP1LDM(inst_str_ptr, &inst_str_size, &inst,
 					inst.info->category);
 			else if (arm_token_comp(fmt_str, "vfpregs", &token_len))
@@ -511,6 +515,7 @@ void arm_inst_dump(FILE *f , char *str , int inst_str_size , void *inst_ptr ,
 			fmt_str += token_len;
 		}
 		fprintf(f, "%s\n", inst_str);
+
 	}
 	else
 	{
@@ -530,11 +535,28 @@ unsigned int arm_rotl(unsigned int value, unsigned int shift)
 
 unsigned int arm_rotr(unsigned int value, unsigned int shift)
 {
+
+	// Rotating 32 bits on a 32-bit integer is the same as rotating 0 bits; 33 bits -> 1 bit; etc.
+	if (shift >= 32 || shift <= -32) {
+		shift = shift % 32;
+	}
+
+	unsigned int temp = value;
+
+	// Rotate input to the right
+	value = value >> shift;
+
+	// Build mask for carried over bits
+	temp = temp << (32 - shift);
+
+	return value | temp;
+	/*
 	shift = shift * 2;
 	if ((shift &= sizeof(value) * 8 - 1) == 0)
 		return value;
 
 	return (value >> shift) | (value << (sizeof(value) * 8 - shift));
+	*/
 }
 
 void arm_inst_dump_RD(char **inst_str_ptr, int *inst_str_size,
@@ -687,6 +709,7 @@ void arm_inst_dump_RM(char **inst_str_ptr, int *inst_str_size,
 	struct arm_inst_t *inst, enum arm_cat_enum cat)
 {
 	unsigned int rm;
+	rm = 0;
 
 	if (cat == ARM_CAT_DPR_REG)
 		fatal("%d: rm fmt not recognized", cat);
@@ -857,19 +880,19 @@ void arm_inst_dump_OP2(char **inst_str_ptr, int *inst_str_size,
 			switch ((shift >> 1) & 0x00000003)
 			{
 			case (ARM_OPTR_LSL):
-				str_printf(inst_str_ptr, inst_str_size, "r%d , LSL r%d", rm, rs);
+				str_printf(inst_str_ptr, inst_str_size, "r%d , lsl r%d", rm, rs);
 			break;
 
 			case (ARM_OPTR_LSR):
-				str_printf(inst_str_ptr, inst_str_size, "r%d , LSR r%d", rm, rs);
+				str_printf(inst_str_ptr, inst_str_size, "r%d , lsr r%d", rm, rs);
 			break;
 
 			case (ARM_OPTR_ASR):
-				str_printf(inst_str_ptr, inst_str_size, "r%d , ASR r%d", rm, rs);
+				str_printf(inst_str_ptr, inst_str_size, "r%d , asr r%d", rm, rs);
 			break;
 
 			case (ARM_OPTR_ROR):
-				str_printf(inst_str_ptr, inst_str_size, "r%d , ROR r%d", rm, rs);
+				str_printf(inst_str_ptr, inst_str_size, "r%d , ror r%d", rm, rs);
 			break;
 			}
 		}
@@ -961,59 +984,59 @@ void arm_inst_dump_COND(char **inst_str_ptr, int *inst_str_size,
 	switch (cond)
 	{
 	case (EQ):
-	str_printf(inst_str_ptr, inst_str_size, "EQ");
+	str_printf(inst_str_ptr, inst_str_size, "eq");
 	break;
 
 	case (NE):
-	str_printf(inst_str_ptr, inst_str_size, "NE");
+	str_printf(inst_str_ptr, inst_str_size, "ne");
 	break;
 
 	case (CS):
-	str_printf(inst_str_ptr, inst_str_size, "CS");
+	str_printf(inst_str_ptr, inst_str_size, "cs");
 	break;
 
 	case (CC):
-	str_printf(inst_str_ptr, inst_str_size, "CC");
+	str_printf(inst_str_ptr, inst_str_size, "cc");
 	break;
 
 	case (MI):
-	str_printf(inst_str_ptr, inst_str_size, "MI");
+	str_printf(inst_str_ptr, inst_str_size, "mi");
 	break;
 
 	case (PL):
-	str_printf(inst_str_ptr, inst_str_size, "PL");
+	str_printf(inst_str_ptr, inst_str_size, "pl");
 	break;
 
 	case (VS):
-	str_printf(inst_str_ptr, inst_str_size, "VS");
+	str_printf(inst_str_ptr, inst_str_size, "vs");
 	break;
 
 	case (VC):
-	str_printf(inst_str_ptr, inst_str_size, "VC");
+	str_printf(inst_str_ptr, inst_str_size, "vc");
 	break;
 
 	case (HI):
-	str_printf(inst_str_ptr, inst_str_size, "HI");
+	str_printf(inst_str_ptr, inst_str_size, "hi");
 	break;
 
 	case (LS):
-	str_printf(inst_str_ptr, inst_str_size, "LS");
+	str_printf(inst_str_ptr, inst_str_size, "ls");
 	break;
 
 	case (GE):
-	str_printf(inst_str_ptr, inst_str_size, "GE");
+	str_printf(inst_str_ptr, inst_str_size, "ge");
 	break;
 
 	case (LT):
-	str_printf(inst_str_ptr, inst_str_size, "LT");
+	str_printf(inst_str_ptr, inst_str_size, "lt");
 	break;
 
 	case (GT):
-	str_printf(inst_str_ptr, inst_str_size, "GT");
+	str_printf(inst_str_ptr, inst_str_size, "gt");
 	break;
 
 	case (LE):
-	str_printf(inst_str_ptr, inst_str_size, "LE");
+	str_printf(inst_str_ptr, inst_str_size, "le");
 	break;
 
 	case (AL):
@@ -1828,27 +1851,59 @@ void arm_inst_dump_RT(char **inst_str_ptr, int *inst_str_size,
  * Arm disassembler
  */
 
-void arm_elf_function_symbol(struct elf_file_t *elf_file, unsigned int inst_addr)
+unsigned int arm_elf_function_symbol(struct elf_file_t *elf_file ,
+	unsigned int inst_addr , unsigned int prev_symbol ,
+	enum arm_disassembly_mode_t disasm_mode)
 {
 	unsigned int i;
 	struct elf_symbol_t *symbol;
-
-	for ( i = 0; i < list_count(elf_file->symbol_table); i++)
+	if (disasm_mode == ARM_DISASM)
 	{
-		symbol = (struct elf_symbol_t* )list_get(elf_file->symbol_table, i);
-		if(symbol->value == inst_addr)
+		for ( i = 0; i < list_count(elf_file->symbol_table); i++)
 		{
-			if((!strncmp(symbol->name, "$",1)))
+			symbol = (struct elf_symbol_t* )list_get(elf_file->symbol_table, i);
+			if(symbol->value == inst_addr)
 			{
-				continue;
-			}
-			else
-			{
-				printf ("\n%08x <%s>\n", symbol->value, symbol->name);
-				break;
+				if((!strncmp(symbol->name, "$",1)))
+				{
+					continue;
+				}
+				else
+				{
+					//if(prev_symbol != symbol->value)
+					{
+						printf ("\n%08x <%s>\n", symbol->value, symbol->name);
+						prev_symbol = symbol->value;
+					}
+					break;
+				}
 			}
 		}
 	}
+	else if (disasm_mode == THUMB_DISASM)
+	{
+		for ( i = 0; i < list_count(elf_file->symbol_table); i++)
+		{
+			symbol = (struct elf_symbol_t* )list_get(elf_file->symbol_table, i);
+			if(symbol->value == (inst_addr + 1))
+			{
+				if((!strncmp(symbol->name, "$",1)))
+				{
+					continue;
+				}
+				else
+				{
+					//if(prev_symbol != symbol->value)
+					{
+						printf ("\n%08x <%s>\n", (symbol->value -1), symbol->name);
+						prev_symbol = symbol->value;
+					}
+					break;
+				}
+			}
+		}
+	}
+	return (prev_symbol);
 }
 
 unsigned int arm_dump_word_symbol(struct elf_file_t *elf_file, unsigned int inst_addr, void *inst_ptr)
@@ -1870,49 +1925,252 @@ unsigned int arm_dump_word_symbol(struct elf_file_t *elf_file, unsigned int inst
 	return (word_flag);
 }
 
+unsigned int thumb_dump_word_symbol(struct elf_file_t *elf_file, unsigned int inst_addr, void *inst_ptr)
+{
+	struct elf_symbol_t *symbol;
+	unsigned int word_flag;
+ 	symbol = elf_symbol_get_by_address(elf_file, inst_addr,	NULL);
+
+	if((!strncmp(symbol->name, "$d",2)))
+	{
+		printf (".word   0x%08x\n", *(unsigned int *)inst_ptr);
+		word_flag = 1;
+	}
+	else
+	{
+		word_flag = 0;
+	}
+
+	return (word_flag);
+}
+
+int comp (const void *arg1,const void *arg2)
+{
+	struct elf_symbol_t *tmp1;
+	struct elf_symbol_t *tmp2;
+
+	tmp1 = (struct elf_symbol_t*)arg1;
+	tmp2 = (struct elf_symbol_t*)arg2;
+
+	return (tmp1->value - tmp2->value);
+}
+
+void arm_thumb_symbol_list_sort(struct list_t * thumb_symbol_list, struct elf_file_t *elf_file)
+{
+	struct elf_symbol_t *symbol;
+	unsigned int i;
+
+	for ( i = 0; i < list_count(elf_file->symbol_table); i++)
+		{
+			symbol = (struct elf_symbol_t* )list_get(elf_file->symbol_table, i);
+			if((!strncmp(symbol->name, "$t",2)) || (!strncmp(symbol->name, "$a",2)))
+			{
+				list_add(thumb_symbol_list, symbol);
+			}
+		}
+
+		list_sort(thumb_symbol_list, comp);
+
+}
+
+int arm_dissassembly_mode_tag(struct list_t * thumb_symbol_list, unsigned int addr)
+{
+	struct elf_symbol_t *symbol;
+
+	int disasm_mode;
+
+	unsigned int tag_index;
+	unsigned int i;
+
+	for (i = 0; i < list_count(thumb_symbol_list); ++i)
+	{
+		symbol = (struct elf_symbol_t*)list_get(thumb_symbol_list,i);
+		if(symbol->value > addr)
+		{
+			tag_index = i - 1;
+			break;
+		}
+		//printf("Symbol value = %x   %s\n", symbol->value, symbol->name);
+	}
+
+	symbol = (struct elf_symbol_t *) list_get(thumb_symbol_list, tag_index);
+
+	if(!strncmp(symbol->name, "$a",2))
+	{
+		disasm_mode = ARM_DISASM;
+	}
+	else if(!strncmp(symbol->name, "$t",2))
+	{
+		disasm_mode = THUMB_DISASM;
+	}
+
+	return(disasm_mode);
+}
+
+void arm_thumb16_inst_hex_dump(FILE *f , void *inst_ptr , unsigned int inst_addr)
+{
+	printf("%8x:	%04x		", inst_addr, *(unsigned short *) inst_ptr);
+}
+
+void arm_thumb32_inst_hex_dump(FILE *f , void *inst_ptr , unsigned int inst_addr)
+{
+	int thumb_32;
+	thumb_32 = *(unsigned int *)inst_ptr;
+	printf("%8x:	%04x %04x	", inst_addr, (thumb_32 & 0x0000ffff), ((thumb_32) & 0xffff0000) >> 16);
+}
+
+int arm_test_thumb32(void *inst_ptr)
+{
+	unsigned int byte_index;
+	unsigned int arg1;
+	struct arm_inst_t inst;
+	for (byte_index = 0; byte_index < 4; ++byte_index)
+			inst.dword.bytes[byte_index] = *(unsigned char *) (inst_ptr
+				+ byte_index);
+
+	arg1 = ((inst.dword.bytes[1] & 0xf8) >> 3);
+
+	if((arg1 == 0x1d) || (arg1 == 0x1e) || (arg1 == 0x1f))
+	{
+		return (1);
+	}
+	else
+	{
+		return(0);
+	}
+}
 
 void arm_emu_disasm(char *path)
 {
 	struct elf_file_t *elf_file;
 	struct elf_section_t *section;
 
+	struct list_t *thumb_symbol_list;
+
+	static int disasm_mode;
+
 	char inst_str[MAX_STRING_SIZE];
 	int i;
 	unsigned int inst_index;
+	unsigned int prev_symbol;
 	void *inst_ptr;
 
 	/* Initialization */
 	arm_disasm_init();
-
+	arm_thumb16_disasm_init();
+	arm_thumb32_disasm_init();
+	inst_index = 0;
 	/* Find .text section which saves instruction bits */
 	elf_file = elf_file_create_from_path(path);
 
 	for (i = 0; i < list_count(elf_file->section_list); ++i)
 	{
-		section = (struct elf_section_t *)list_get(elf_file->section_list, i);
+		section = (struct elf_section_t *) list_get(
+			elf_file->section_list, i);
 		if (!strncmp(section->name, ".text", 5))
 			break;
 	}
 	if (i == list_count(elf_file->section_list))
 		fatal(".text section not found!\n");
 
+	thumb_symbol_list = list_create();
+	arm_thumb_symbol_list_sort(thumb_symbol_list, elf_file);
+
 	/* Decode and dump instructions */
 	for (inst_ptr = section->buffer.ptr; inst_ptr < section->buffer.ptr +
-			section->buffer.size; inst_ptr += 4)
+	section->buffer.size; )
 	{
 
-		arm_elf_function_symbol(elf_file, (section->header->sh_addr + inst_index));
+		disasm_mode = arm_dissassembly_mode_tag(
+			thumb_symbol_list,
+			(section->header->sh_addr + inst_index));
 
-		arm_inst_hex_dump(stdout, inst_ptr, (section->header->sh_addr + inst_index));
+		if(disasm_mode == ARM_DISASM)
+		{
+			prev_symbol = arm_elf_function_symbol(
+				elf_file,
+				(section->header->sh_addr + inst_index),
+				prev_symbol, disasm_mode);
 
-		if (!arm_dump_word_symbol(elf_file, (section->header->sh_addr + inst_index),
-			inst_ptr))
-			arm_inst_dump(stdout, inst_str, MAX_STRING_SIZE, inst_ptr , inst_index,
+			arm_inst_hex_dump(
+				stdout, inst_ptr,
 				(section->header->sh_addr + inst_index));
 
-		inst_index += 4;
-	}
+			if (!arm_dump_word_symbol(elf_file, (section->header->sh_addr + inst_index),
+				inst_ptr))
+			{
+				arm_inst_dump(stdout, inst_str,	MAX_STRING_SIZE, inst_ptr,
+					inst_index, (section->header->sh_addr + inst_index));
+			}
+			/* Increment instruction buffer index by 4 for ARM mode */
+			inst_index += 4;
+			inst_ptr += 4;
+		}
 
+		else if(disasm_mode == THUMB_DISASM)
+		{
+
+			if(arm_test_thumb32(inst_ptr))
+			{
+
+
+				prev_symbol = arm_elf_function_symbol(
+					elf_file,
+					(section->header->sh_addr + inst_index),
+					prev_symbol, disasm_mode);
+
+				arm_thumb32_inst_hex_dump(
+					stdout, inst_ptr,
+					(section->header->sh_addr + inst_index));
+
+				if (!arm_dump_word_symbol(elf_file, (section->header->sh_addr + inst_index),
+					inst_ptr))
+				{
+
+
+					arm_thumb32_inst_dump(stdout, inst_str,	MAX_STRING_SIZE, inst_ptr,
+						inst_index, (section->header->sh_addr + inst_index));
+
+					/* Increment instruction buffer index by 4 for Thumb32 mode */
+					inst_index += 4;
+					inst_ptr += 4;
+				}
+				else
+				{
+					inst_index += 4;
+					inst_ptr += 4;
+				}
+			}
+
+			else
+			{
+
+				prev_symbol = arm_elf_function_symbol(
+					elf_file,
+					(section->header->sh_addr + inst_index),
+					prev_symbol, disasm_mode);
+
+				arm_thumb16_inst_hex_dump(
+					stdout, inst_ptr,
+					(section->header->sh_addr + inst_index));
+				if (!arm_dump_word_symbol(elf_file, (section->header->sh_addr + inst_index),
+					inst_ptr))
+				{
+					arm_thumb16_inst_dump(stdout, inst_str,	MAX_STRING_SIZE, inst_ptr,
+						inst_index, (section->header->sh_addr + inst_index));
+					/* Increment instruction buffer index by 2 for Thumb16 mode */
+					inst_index += 2;
+					inst_ptr += 2;
+				}
+				else
+				{
+					inst_index += 2;
+					inst_ptr += 2;
+				}
+			}
+		}
+	}
+	list_free(thumb_symbol_list);
 	/* Free external ELF */
 	elf_file_free(elf_file);
 }
@@ -1936,6 +2194,30 @@ void arm_disasm(void *buf, unsigned int ip, volatile struct arm_inst_t *inst)
 
 }
 
+void thumb16_disasm(void *buf, unsigned int ip, volatile struct arm_thumb16_inst_t *inst)
+{
+	unsigned int byte_index;
+	inst->addr = ip;
+	for (byte_index = 0; byte_index < 2; ++byte_index)
+		inst->dword.bytes[byte_index] = *(unsigned char *) (buf + byte_index);
+
+	arm_thumb16_inst_decode((struct arm_thumb16_inst_t*) inst);
+}
+
+void thumb32_disasm(void *buf, unsigned int ip, volatile struct arm_thumb32_inst_t *inst)
+{
+	unsigned int byte_index;
+	inst->addr = ip - 2;
+	for (byte_index = 0; byte_index < 4; ++byte_index)
+		inst->dword.bytes[byte_index] = *(unsigned char *) (buf
+			+ ((byte_index + 2) % 4));
+
+
+	arm_thumb32_inst_decode((struct arm_thumb32_inst_t*) inst);
+
+}
+
+
 void arm_inst_debug_dump(struct arm_inst_t *inst, FILE *f )
 {
 
@@ -1944,4 +2226,28 @@ void arm_inst_debug_dump(struct arm_inst_t *inst, FILE *f )
 
 	inst_ptr = &inst->dword.bytes;
 	arm_inst_dump(f, inst_str, MAX_STRING_SIZE, inst_ptr, inst->addr, inst->addr);
+}
+
+void arm_th16_inst_debug_dump(struct arm_thumb16_inst_t *inst, FILE *f )
+{
+
+	char inst_str[MAX_STRING_SIZE];
+	void *inst_ptr;
+
+	inst_ptr = &inst->dword.bytes;
+	arm_thumb16_inst_dump(f, inst_str, MAX_STRING_SIZE, inst_ptr, inst->addr, inst->addr);
+}
+
+void arm_th32_inst_debug_dump(struct arm_thumb32_inst_t *inst, FILE *f )
+{
+
+	char inst_str[MAX_STRING_SIZE];
+	struct arm_thumb32_inst_t inst_ptr;
+	unsigned int byte_index;
+
+	for (byte_index = 0; byte_index < 4; ++byte_index)
+		inst_ptr.dword.bytes[byte_index] = inst->dword.bytes[((byte_index
+			+ 2) % 4)];
+
+	arm_thumb32_inst_dump(f, inst_str, MAX_STRING_SIZE, &inst_ptr.dword.bytes, inst->addr, inst->addr);
 }

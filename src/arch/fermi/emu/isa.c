@@ -17,10 +17,8 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include <stdlib.h>
 
 #include <arch/fermi/asm/asm.h>
-#include <arch/x86/emu/emu.h>
 #include <lib/mhandle/mhandle.h>
 #include <lib/util/debug.h>
 #include <mem-system/memory.h>
@@ -34,6 +32,8 @@
 /* Instruction execution table */
 frm_isa_inst_func_t *frm_isa_inst_func;
 
+/* Debug */
+int frm_isa_debug_category = 1;
 
 
 /*
@@ -44,12 +44,8 @@ frm_isa_inst_func_t *frm_isa_inst_func;
 /* Initialization */
 void frm_isa_init()
 {
-	/* Allocate instruction execution table */
-	frm_isa_inst_func = calloc(FRM_INST_COUNT, sizeof(frm_isa_inst_func_t));
-	if (!frm_isa_inst_func)
-		fatal("%s: out of memory", __FUNCTION__);
-
-	/* Initialize */
+	/* Initialize instruction execution table */
+	frm_isa_inst_func = xcalloc(FRM_INST_COUNT, sizeof(frm_isa_inst_func_t));
 #define DEFINST(_name, _fmt_str, _fmt, _category, _opcode) \
 	frm_isa_inst_func[FRM_INST_##_name] = frm_isa_##_name##_impl;
 #include <arch/fermi/asm/asm.dat>

@@ -17,17 +17,14 @@
  */
 
 #include <assert.h>
-#include <stdlib.h>
 
-#include <arch/x86/timing/cpu.h>
-#include <arch/x86/timing/uop.h>
 #include <lib/esim/esim.h>
 #include <lib/mhandle/mhandle.h>
 #include <lib/util/debug.h>
 #include <lib/util/linked-list.h>
-#include <lib/util/list.h>
 #include <lib/util/misc.h>
 #include <lib/util/string.h>
+#include <lib/util/repos.h>
 
 #include "cache.h"
 #include "directory.h"
@@ -40,7 +37,7 @@
 /* String map for access type */
 struct str_map_t mod_access_kind_map =
 {
-	4, {
+	3, {
 		{ "Load", mod_access_load },
 		{ "Store", mod_access_store },
 		{ "NCStore", mod_access_nc_store },
@@ -48,7 +45,7 @@ struct str_map_t mod_access_kind_map =
 	}
 };
 
-
+/* Event used for updating the state of adaptative prefetch policy */
 int EV_CACHE_ADAPT_PREF;
 
 
@@ -56,117 +53,90 @@ int EV_CACHE_ADAPT_PREF;
  * Public Functions
  */
 
-///////////////////   MAIN MEMORY   ////////////////////////
 
-struct reg_bank_t* regs_bank_create( int num_banks, int t_row_hit, int t_row_miss){
+struct reg_bank_t* regs_bank_create( int num_banks, int t_row_hit, int t_row_miss)
+{
+	struct reg_bank_t *banks;
+	banks = calloc( num_banks, sizeof(struct reg_bank_t));
+	if (!banks)
+		fatal("%s: out of memory", __FUNCTION__);
 
-        struct reg_bank_t * banks;
-        banks = calloc( num_banks, sizeof(struct reg_bank_t));
-        if (!banks)
-                fatal("%s: out of memory", __FUNCTION__);
-
-        for(int i=0; i<num_banks;i++){
-                banks[i].row_buffer=-1;
-                banks[i].row_is_been_accesed=-1;
-                banks[i].t_row_buffer_miss=t_row_miss;
-                banks[i].t_row_buffer_hit=t_row_hit;
-        }
-
-        return banks;
-
-
+	for(int i=0; i<num_banks;i++)
+	{
+		banks[i].row_buffer=-1;
+		banks[i].row_is_been_accesed=-1;
+		banks[i].t_row_buffer_miss=t_row_miss;
+		banks[i].t_row_buffer_hit=t_row_hit;
+	}
+	return banks;
 }
 
 
+struct reg_rank_t* regs_rank_create( int num_ranks, int num_banks, int t_row_hit, int t_row_miss)
+{
+	struct reg_rank_t * ranks;
+	ranks = calloc(num_ranks, sizeof(struct reg_rank_t));
+	if (!ranks)
+		fatal("%s: out of memory", __FUNCTION__);
 
-struct reg_rank_t* regs_rank_create( int num_ranks, int num_banks, int t_row_hit, int t_row_miss){
-
-        struct reg_rank_t * ranks;
-        ranks = calloc(num_ranks, sizeof(struct reg_rank_t));
-        if (!ranks)
-                fatal("%s: out of memory", __FUNCTION__);
-
-
-        for(int i=0; i<num_ranks;i++){
-                ranks[i].num_regs_bank=num_banks;
-                ranks[i].regs_bank=regs_bank_create(num_banks, t_row_hit, t_row_miss);
-
-        }
-
-        return ranks;
-
+	for(int i=0; i<num_ranks;i++)
+	{
+		ranks[i].num_regs_bank=num_banks;
+		ranks[i].regs_bank=regs_bank_create(num_banks, t_row_hit, t_row_miss);
+	}
+	return ranks;
 }
 
 
-struct reg_channel_t* regs_channel_create( int num_channels, int num_ranks, int num_banks, int bandwith, struct reg_rank_t* regs_rank ){
-
-        struct reg_channel_t * channels;
-        channels = calloc(num_channels, sizeof(struct reg_channel_t));
-        if (!channels)
-                fatal("%s: out of memory", __FUNCTION__);
-
-
-        for(int i=0; i<num_channels;i++){
-                channels[i].state=channel_state_free;
-                channels[i].num_regs_rank=num_ranks;
-                channels[i].bandwith=bandwith;
-                channels[i].regs_rank= regs_rank;
-        }
-
-        return channels;
-
+struct reg_channel_t* regs_channel_create( int num_channels, int num_ranks, int num_banks, int bandwith, struct reg_rank_t *regs_rank)
+{
+	struct reg_channel_t * channels;
+	channels = calloc(num_channels, sizeof(struct reg_channel_t));
+	if (!channels)
+		fatal("%s: out of memory", __FUNCTION__);
+	for(int i=0; i<num_channels;i++){
+		channels[i].state=channel_state_free;
+		channels[i].num_regs_rank=num_ranks;
+		channels[i].bandwith=bandwith;
+		channels[i].regs_rank= regs_rank;
+	}
+	return channels;
 }
 
-void reg_channel_free(struct reg_channel_t * channels, int num_channels){
-
-        for(int c=0; c<num_channels;c++)
-                reg_rank_free(channels[c].regs_rank, channels[c].num_regs_rank);
-
-        free(channels);
-
+void reg_channel_free(struct reg_channel_t *channels, int num_channels)
+{
+	for(int c=0; c<num_channels;c++)
+		reg_rank_free(channels[c].regs_rank, channels[c].num_regs_rank);
+	free(channels);
 }
 
-void reg_rank_free(struct reg_rank_t * rank, int num_ranks){
+void reg_rank_free(struct reg_rank_t * rank, int num_ranks)
+{
 
-        for(int r=0; r<num_ranks;r++ )
-                free(rank[r].regs_bank);
-
-        free(rank);
-
+	for(int r=0; r<num_ranks;r++ )
+		free(rank[r].regs_bank);
+	free(rank);
 }
 
-
-/////////////////////////////////////////////////////////////////////////
 
 struct mod_t *mod_create(char *name, enum mod_kind_t kind, int num_ports,
 	int block_size, int latency)
 {
 	struct mod_t *mod;
 
-	/* Allocate */
-	mod = calloc(1, sizeof(struct mod_t));
-	if (!mod)
-		fatal("%s: out of memory", __FUNCTION__);
-
-	/* Name */
-	mod->name = strdup(name);
-	if (!mod->name)
-		fatal("%s: out of memory", __FUNCTION__);
-
 	/* Initialize */
+	mod = xcalloc(1, sizeof(struct mod_t));
+	mod->name = xstrdup(name);
 	mod->kind = kind;
 	mod->latency = latency;
 
 	/* Ports */
 	mod->num_ports = num_ports;
-	mod->ports = calloc(num_ports, sizeof(struct mod_port_t));
-	if (!mod->ports)
-		fatal("%s: out of memory", __FUNCTION__);
+	mod->ports = xcalloc(num_ports, sizeof(struct mod_port_t));
 
 	/* Lists */
 	mod->low_mod_list = linked_list_create();
 	mod->high_mod_list = linked_list_create();
-	mod->pq = linked_list_create();
 	mod->threads = list_create();
 
 	/* Block size */
@@ -174,7 +144,7 @@ struct mod_t *mod_create(char *name, enum mod_kind_t kind, int num_ports,
 	assert(!(block_size & (block_size - 1)) && block_size >= 4);
 	mod->log_block_size = log_base2(block_size);
 
-	printf("Mod %s\n", mod->name);
+	mod->client_info_repos = repos_create(sizeof(struct mod_client_info_t), mod->name);
 
 	return mod;
 }
@@ -184,19 +154,7 @@ void mod_free(struct mod_t *mod)
 {
 	linked_list_free(mod->low_mod_list);
 	linked_list_free(mod->high_mod_list);
-
-	/* Free L2 prefetch queue */
-	linked_list_head(mod->pq);
-	while (linked_list_count(mod->pq))
-	{
-		/* Free all the uops and pref_groups associated (if any)
-		 * remaining in the queue */
-		struct x86_uop_t * uop = linked_list_get(mod->pq);
-		linked_list_remove(mod->pq);
-		x86_uop_free_if_not_queued(uop);
-	}
-	linked_list_free(mod->pq);
-
+	
 	/* Free the queue containing the threads that can access this module */
 	list_head(mod->threads);
 	while (list_count(mod->threads))
@@ -204,20 +162,20 @@ void mod_free(struct mod_t *mod)
 		struct core_thread_tuple_t *tuple = list_pop(mod->threads);
 		free(tuple);
 	}
-	list_free(mod->threads);
+	list_free(mod->threads);	
 
 	if (mod->cache)
 		cache_free(mod->cache);
 	if (mod->dir)
 		dir_free(mod->dir);
-
-	///////////////////////////////////////////
-        if(mod->regs_rank) // this module is main memory
-                reg_rank_free(mod->regs_rank, mod->num_regs_rank);
-        //////////////////////////////////////////
+	
+	/* Main Memory module */
+	if(mod->regs_rank)
+		reg_rank_free(mod->regs_rank, mod->num_regs_rank);
 
 	free(mod->adapt_pref_stack);
 	free(mod->ports);
+	repos_free(mod->client_info_repos);
 	free(mod->name);
 	free(mod);
 }
@@ -234,25 +192,21 @@ void mod_dump(struct mod_t *mod, FILE *f)
  */
 long long mod_access(struct mod_t *mod, enum mod_access_kind_t access_kind,
 	unsigned int addr, int *witness_ptr, struct linked_list_t *event_queue,
-	void *event_queue_item, int core, int thread, int prefetch)
+	void *event_queue_item, struct mod_client_info_t *client_info)
 {
 	struct mod_stack_t *stack;
-	struct x86_uop_t *uop = (struct x86_uop_t *) event_queue_item;
 	int event;
 
 	/* Create module stack with new ID */
 	mod_stack_id++;
 	stack = mod_stack_create(mod_stack_id,
-		mod, addr, ESIM_EV_NONE, NULL, core, thread, prefetch);
-
-	/* Pass prefetch parameters */
-	if(uop && uop->pref.kind)
-		stack->pref = uop->pref;
+		mod, addr, ESIM_EV_NONE, NULL, access_kind == mod_access_prefetch);
 
 	/* Initialize */
 	stack->witness_ptr = witness_ptr;
 	stack->event_queue = event_queue;
 	stack->event_queue_item = event_queue_item;
+	stack->client_info = client_info;
 
 	/* Select initial CPU/GPU event */
 	if (mod->kind == mod_kind_cache || mod->kind == mod_kind_main_memory)
@@ -278,11 +232,7 @@ long long mod_access(struct mod_t *mod, enum mod_access_kind_t access_kind,
 			else if(mod->cache->prefetch_policy == prefetch_policy_obl_stride)
 				event = EV_MOD_NMOESI_PREF_OBL;
 			else
-				panic("%s: invalid prefetch policy", __FUNCTION__);
-		}
-		else if (access_kind == mod_access_invalidate)
-		{
-			event = EV_MOD_NMOESI_INVALIDATE_SLOT;
+				event = EV_MOD_NMOESI_PREFETCH;
 		}
 		else
 		{
@@ -299,19 +249,18 @@ long long mod_access(struct mod_t *mod, enum mod_access_kind_t access_kind,
 		{
 			event = EV_MOD_LOCAL_MEM_STORE;
 		}
-		else if (access_kind == mod_access_prefetch)
-		{
-			event = EV_MOD_PREF;
-		}
 		else
 		{
 			panic("%s: invalid access kind", __FUNCTION__);
 		}
 	}
-
+	else
+	{
+		panic("%s: invalid mod kind", __FUNCTION__);
+	}
 
 	/* Schedule */
-	  esim_execute_event(event, stack);
+	esim_execute_event(event, stack);
 
 	/* Return access ID */
 	return stack->id;
@@ -337,31 +286,6 @@ int mod_can_access(struct mod_t *mod, unsigned int addr)
 	non_coalesced_accesses = mod->access_list_count -
 		mod->access_list_coalesced_count;
 	return non_coalesced_accesses < mod->mshr_size;
-}
-
-
-void mod_get_tag_set(struct mod_t *mod, unsigned int addr, int *tag_ptr, int *set_ptr)
-{
-	struct cache_t *cache = mod->cache;
-	int tag, set;
-
-	tag = addr & ~cache->block_mask;
-	if (mod->range_kind == mod_range_interleaved)
-	{
-		unsigned int num_mods = mod->range.interleaved.mod;
-		set = ((tag >> cache->log_block_size) / num_mods) % cache->num_sets;
-	}
-	else if (mod->range_kind == mod_range_bounds)
-	{
-		set = (tag >> cache->log_block_size) % cache->num_sets;
-	}
-	else
-	{
-		panic("%s: invalid range kind (%d)", __FUNCTION__, mod->range_kind);
-	}
-
-	PTR_ASSIGN(tag_ptr, tag);
-	PTR_ASSIGN(set_ptr, set);
 }
 
 
@@ -425,8 +349,6 @@ int mod_find_block(struct mod_t *mod, unsigned int addr, int *set_ptr,
 			dir_lock = dir_lock_get(mod->dir, set, way);
 			if (dir_lock->lock)
 				break;
-			//else
-				//assert(!dir_lock->lock_queue); //VVV
 		}
 	}
 
@@ -517,6 +439,32 @@ hit:
 		return 1; //Hit in head
 	else
 		return 2; //Hit in the middle of the stream
+}
+
+
+void mod_block_set_prefetched(struct mod_t *mod, unsigned int addr, int val)
+{
+	int set, way;
+
+	assert(mod->kind == mod_kind_cache && mod->cache != NULL);
+	if (mod->cache->prefetcher && mod_find_block(mod, addr, &set, &way, NULL, NULL))
+	{
+		mod->cache->sets[set].blocks[way].prefetched = val;
+	}
+}
+
+
+int mod_block_get_prefetched(struct mod_t *mod, unsigned int addr)
+{
+	int set, way;
+
+	assert(mod->kind == mod_kind_cache && mod->cache != NULL);
+	if (mod->cache->prefetcher && mod_find_block(mod, addr, &set, &way, NULL, NULL))
+	{
+		return mod->cache->sets[set].blocks[way].prefetched;
+	}
+
+	return 0;
 }
 
 
@@ -821,66 +769,12 @@ struct mod_stack_t *mod_can_coalesce(struct mod_t *mod,enum mod_access_kind_t ac
 		for (stack = tail; stack; stack = stack->access_list_prev)
 		{
 			/* Only coalesce with groups of loads or prefetches at the tail */
-			if (stack->access_kind != mod_access_load && stack->access_kind != mod_access_prefetch)
-				return NULL;
-
-			/* Only coalesce if destination module is the same */
-			if(stack->mod != older_than_stack->mod)
-				continue;
-
-			if (stack->addr >> mod->log_block_size == addr >> mod->log_block_size)
-				return stack->master_stack ? stack->master_stack : stack;
-		}
-		break;
-	}
-
-	case mod_access_prefetch:
-	{
-		for (stack = tail; stack; stack = stack->access_list_prev)
-		{
-			struct mod_t *stack_mod;
-
 			if (stack->access_kind != mod_access_load &&
-				stack->access_kind != mod_access_prefetch &&
-				stack->access_kind != mod_access_read_request && /* Up down */
-				stack->access_kind != mod_access_write_request) /* Up down */
+			    stack->access_kind != mod_access_prefetch)
 				return NULL;
 
-			if (!stack->target_mod)
-				stack_mod = stack->mod;
-			else
-				stack_mod = stack->target_mod;
-
-			assert(mod && stack_mod);
-
-			/* Only coalesce if destination module is the same */
-			if(mod != stack_mod)
-				continue;
-
-			if (stack->addr >> mod->log_block_size == addr >> mod->log_block_size)
-				return stack->master_stack ? stack->master_stack : stack;
-		}
-		break;
-	}
-
-	case mod_access_read_request:
-	case mod_access_write_request:
-	{
-		for (stack = tail; stack; stack = stack->access_list_prev)
-		{
-			struct mod_t *stack_mod;
-			if (!stack->target_mod)
-				stack_mod = stack->mod;
-			else
-				stack_mod = stack->target_mod;
-
-			assert(mod && stack_mod);
-
-			/* Only coalesce if destination module is the same */
-			if(mod != stack_mod)
-				continue;
-
-			if (stack->addr >> mod->log_block_size == addr >> mod->log_block_size)
+			if (stack->addr >> mod->log_block_size ==
+				addr >> mod->log_block_size)
 				return stack->master_stack ? stack->master_stack : stack;
 		}
 		break;
@@ -932,6 +826,22 @@ struct mod_stack_t *mod_can_coalesce(struct mod_t *mod,enum mod_access_kind_t ac
 		return stack->master_stack ? stack->master_stack : stack;
 	}
 
+	case mod_access_prefetch:
+	{
+		/* At this point, we know that there is another access (load/store/read/write)
+		 * to the same block already in flight. Just find and return it.
+		 * The caller may abort the prefetch since the block is already
+		 * being fetched. */
+		for (stack = tail; stack; stack = stack->access_list_prev)
+		{
+			if (stack->addr >> mod->log_block_size ==
+				addr >> mod->log_block_size)
+				return stack;
+		}
+		assert(!"Hash table wrongly reported another access to same block.\n");
+		break;
+	}
+
 	default:
 		panic("%s: invalid access type", __FUNCTION__);
 		break;
@@ -946,7 +856,7 @@ void mod_coalesce(struct mod_t *mod, struct mod_stack_t *master_stack,
 	struct mod_stack_t *stack)
 {
 	/* Debug */
-	mem_debug("  %lld %lld 0x%x %s coalesce with %lld\n", esim_cycle,
+	mem_debug("  %lld %lld 0x%x %s coalesce with %lld\n", esim_time,
 		stack->id, stack->addr, mod->name, master_stack->id);
 
 	/* Master stack must not have a parent. We only want one level of
@@ -1122,4 +1032,21 @@ void mod_adapt_pref_handler(int event, void *data)
 		assert(mod->cache->prefetch.adapt_interval);
 		esim_schedule_event(event, stack, mod->cache->prefetch.adapt_interval);
 	}
+}
+
+
+struct mod_client_info_t *mod_client_info_create(struct mod_t *mod)
+{
+	struct mod_client_info_t *client_info;
+
+	/* Create object */
+	client_info = repos_create_object(mod->client_info_repos);
+
+	/* Return */
+	return client_info;
+}
+
+void mod_client_info_free(struct mod_t *mod, struct mod_client_info_t *client_info)
+{
+	repos_free_object(mod->client_info_repos, client_info);
 }

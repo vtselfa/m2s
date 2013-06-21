@@ -19,13 +19,14 @@
 
 #include <assert.h>
 
+#include <arch/common/arch.h>
+#include <arch/evergreen/emu/emu.h>
 #include <arch/evergreen/emu/ndrange.h>
 #include <arch/evergreen/emu/wavefront.h>
 #include <arch/evergreen/emu/work-group.h>
 #include <lib/esim/esim.h>
 #include <lib/esim/trace.h>
 #include <lib/mhandle/mhandle.h>
-#include <lib/util/debug.h>
 #include <lib/util/heap.h>
 #include <lib/util/linked-list.h>
 #include <lib/util/misc.h>
@@ -35,8 +36,9 @@
 #include "cf-engine.h"
 #include "compute-unit.h"
 #include "gpu.h"
-#include "periodic-report.h"
 #include "tex-engine.h"
+#include "instruction-interval-report.h"
+#include "cycle-interval-report.h"
 
 
 
@@ -49,12 +51,8 @@ struct evg_compute_unit_t *evg_compute_unit_create()
 	struct evg_compute_unit_t *compute_unit;
 	char buf[MAX_STRING_SIZE];
 
-	/* Create */
-	compute_unit = calloc(1, sizeof(struct evg_compute_unit_t));
-	if (!compute_unit)
-		fatal("%s: out of memory", __FUNCTION__);
-
 	/* Initialize */
+	compute_unit = xcalloc(1, sizeof(struct evg_compute_unit_t));
 	compute_unit->wavefront_pool = linked_list_create();
 
 	/* Local memory */
@@ -64,12 +62,8 @@ struct evg_compute_unit_t *evg_compute_unit_create()
 
 	/* Initialize CF Engine */
 	compute_unit->cf_engine.complete_queue = linked_list_create();
-	compute_unit->cf_engine.fetch_buffer = calloc(evg_gpu_max_wavefronts_per_compute_unit, sizeof(void *));
-	if (!compute_unit->cf_engine.fetch_buffer)
-		fatal("%s: out of memory", __FUNCTION__);
-	compute_unit->cf_engine.inst_buffer = calloc(evg_gpu_max_wavefronts_per_compute_unit, sizeof(void *));
-	if (!compute_unit->cf_engine.inst_buffer)
-		fatal("%s: out of memory", __FUNCTION__);
+	compute_unit->cf_engine.fetch_buffer = xcalloc(evg_gpu_max_wavefronts_per_compute_unit, sizeof(void *));
+	compute_unit->cf_engine.inst_buffer = xcalloc(evg_gpu_max_wavefronts_per_compute_unit, sizeof(void *));
 
 	/* Initialize ALU Engine */
 	compute_unit->alu_engine.pending_queue = linked_list_create();
@@ -83,12 +77,8 @@ struct evg_compute_unit_t *evg_compute_unit_create()
 	compute_unit->tex_engine.fetch_queue = linked_list_create();
 	compute_unit->tex_engine.load_queue = linked_list_create();
 
-	/* List of mapped work-groups */
-	compute_unit->work_groups = calloc(evg_gpu_max_work_groups_per_compute_unit, sizeof(void *));
-	if (!compute_unit->work_groups)
-		fatal("%s: out of memory", __FUNCTION__);
-
 	/* Return */
+	compute_unit->work_groups = xcalloc(evg_gpu_max_work_groups_per_compute_unit, sizeof(void *));
 	return compute_unit;
 }
 
@@ -114,7 +104,7 @@ void evg_compute_unit_free(struct evg_compute_unit_t *compute_unit)
 
 	/* ALU Engine - free uops in event queue (heap) */
 	event_queue = compute_unit->alu_engine.event_queue;
-	while (heap_count(event_queue))
+	while (event_queue->count)
 	{
 		heap_extract(event_queue, (void **) &uop);
 		uop->write_subwavefront_count++;
@@ -179,7 +169,7 @@ void evg_compute_unit_map_work_group(struct evg_compute_unit_t *compute_unit, st
 	DOUBLE_LINKED_LIST_REMOVE(evg_gpu, ready, compute_unit);
 	if (compute_unit->work_group_count < evg_gpu->work_groups_per_compute_unit)
 		DOUBLE_LINKED_LIST_INSERT_TAIL(evg_gpu, ready, compute_unit);
-
+	
 	/* If this is the first scheduled work-group, insert to 'busy' list. */
 	if (!DOUBLE_LINKED_LIST_MEMBER(evg_gpu, busy, compute_unit))
 		DOUBLE_LINKED_LIST_INSERT_TAIL(evg_gpu, busy, compute_unit);
@@ -221,7 +211,7 @@ void evg_compute_unit_map_work_group(struct evg_compute_unit_t *compute_unit, st
 
 	/* Stats */
 	compute_unit->mapped_work_groups++;
-	evg_gpu->last_complete_cycle = esim_cycle;
+	evg_gpu->last_complete_cycle = arch_evergreen->cycle;
 }
 
 
@@ -241,7 +231,7 @@ void evg_compute_unit_unmap_work_group(struct evg_compute_unit_t *compute_unit, 
 	/* If compute unit accepts work-groups again, insert into 'ready' list */
 	if (!DOUBLE_LINKED_LIST_MEMBER(evg_gpu, ready, compute_unit))
 		DOUBLE_LINKED_LIST_INSERT_TAIL(evg_gpu, ready, compute_unit);
-
+	
 	/* If compute unit is not busy anymore, remove it from 'busy' list */
 	if (!compute_unit->work_group_count && DOUBLE_LINKED_LIST_MEMBER(evg_gpu, busy, compute_unit))
 		DOUBLE_LINKED_LIST_REMOVE(evg_gpu, busy, compute_unit);
@@ -272,5 +262,7 @@ void evg_compute_unit_run(struct evg_compute_unit_t *compute_unit)
 
 	/* Stats */
 	compute_unit->cycle++;
+	if(evg_spatial_report_active)
+		evg_cu_interval_update(compute_unit);
 }
 

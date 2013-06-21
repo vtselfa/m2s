@@ -70,9 +70,6 @@ extern int evg_gpu_tex_engine_load_queue_size;
 
 struct evg_gpu_t
 {
-	/* Current cycle */
-	long long cycle;
-
 	/* ND-Range running on it */
 	struct evg_ndrange_t *ndrange;
 	int work_groups_per_compute_unit;
@@ -113,8 +110,16 @@ extern struct evg_gpu_t *evg_gpu;
 			* evg_gpu_num_stream_cores - 1, (WAVEFRONT)->work_item_id_last); \
 		(WORK_ITEM_ID)++)
 
+
+/*
+ * Public Functions
+ */
+
+void evg_gpu_read_config(void);
+
 void evg_gpu_init(void);
 void evg_gpu_done(void);
+void evg_gpu_dump(FILE *f);
 
 void evg_gpu_dump_report(void);
 void evg_gpu_dump_summary(FILE *f);

@@ -17,10 +17,11 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#ifndef ELF_FORMAT_H
-#define ELF_FORMAT_H
+#ifndef LIB_UTIL_ELF_FORMAT_H
+#define LIB_UTIL_ELF_FORMAT_H
 
 #include <elf.h>
+#include <stdio.h>
 
 
 /* ELF buffer */
@@ -100,9 +101,17 @@ void elf_buffer_seek(struct elf_buffer_t *buffer, int pos);
 void *elf_buffer_tell(struct elf_buffer_t *buffer);
 int elf_buffer_read(struct elf_buffer_t *buffer, void *ptr, int size);
 int elf_buffer_read_line(struct elf_buffer_t *buffer, char *str, int size);
+void elf_buffer_dump(struct elf_buffer_t *buffer, FILE *f);
 
-struct elf_symbol_t *elf_symbol_get_by_address(struct elf_file_t *elf_file, uint32_t addr, uint32_t *offset_ptr);
+struct elf_symbol_t *elf_symbol_get_by_address(struct elf_file_t *elf_file,
+	unsigned int addr, unsigned int *offset_ptr);
 struct elf_symbol_t *elf_symbol_get_by_name(struct elf_file_t *elf_file, char *name);
+
+/* Read the content in a section pointed to by a symbol value and size. If the
+ * symbol points to an invalid section or its value/size point to an invalid
+ * part of the section, the function returns FALSE. Otherwise, TRUE. */
+int elf_symbol_read_content(struct elf_file_t *elf_file, struct elf_symbol_t *symbol,
+		struct elf_buffer_t *elf_buffer);
 
 struct elf_file_t *elf_file_create_from_buffer(void *ptr, int size, char *name);
 struct elf_file_t *elf_file_create_from_path(char *path);

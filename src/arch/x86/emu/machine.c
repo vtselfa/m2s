@@ -17,8 +17,10 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#include <arch/common/arch.h>
 #include <lib/util/misc.h>
 
+#include "context.h"
 #include "emu.h"
 #include "isa.h"
 #include "machine.h"
@@ -646,7 +648,7 @@ void x86_isa_div_rm8_impl(struct x86_ctx_t *ctx)
 
 	/* A devide exception would occur in the host process if the 'div' instruction
 	 * in the assembly code below generates a result greater than 0xff. */
-	spec_mode = x86_ctx_get_status(ctx, x86_ctx_spec_mode);
+	spec_mode = x86_ctx_get_state(ctx, x86_ctx_spec_mode);
 	skip_emulation = spec_mode && ax > 0xff;
 
 	/* Emulate */
@@ -689,7 +691,7 @@ void x86_isa_div_rm32_impl(struct x86_ctx_t *ctx)
 
 	/* A devide exception would occur in the host process if the 'div' instruction
 	 * in the assembly code below generates a result greater than 0xffffffff. */
-	spec_mode = x86_ctx_get_status(ctx, x86_ctx_spec_mode);
+	spec_mode = x86_ctx_get_state(ctx, x86_ctx_spec_mode);
 	skip_emulation = spec_mode && edx;
 
 	/* Emulate */
@@ -742,7 +744,7 @@ void x86_isa_idiv_rm32_impl(struct x86_ctx_t *ctx)
 
 	/* Avoid emulation in speculative mode if it could cause a divide exception */
 	skip_emulation = 0;
-	spec_mode = x86_ctx_get_status(ctx, x86_ctx_spec_mode);
+	spec_mode = x86_ctx_get_state(ctx, x86_ctx_spec_mode);
 	if (spec_mode)
 	{
 		long long edx_eax = ((unsigned long long) edx << 32) | eax;
@@ -1065,7 +1067,7 @@ void x86_isa_int_imm8_impl(struct x86_ctx_t *ctx)
 		x86_isa_error(ctx, "%s: not supported for num != 0x80", __FUNCTION__);
 
 	/* Do system call if not in speculative mode */
-	spec_mode = x86_ctx_get_status(ctx, x86_ctx_spec_mode);
+	spec_mode = x86_ctx_get_state(ctx, x86_ctx_spec_mode);
 	if (!spec_mode)
 		x86_sys_call(ctx);
 
@@ -1668,18 +1670,18 @@ void x86_isa_popf_impl(struct x86_ctx_t *ctx)
 
 void x86_isa_prefetcht0_m8_impl(struct x86_ctx_t *ctx)
 {
-/* Prefetching support is disabled as the memory support for prefetching is still incomplete. */
-#if 0
 	unsigned int eff_addr;
 
 	/* prefetching makes sense only in a detailed simulation */
-	if (x86_emu_kind != x86_emu_kind_detailed)
+	if (arch_x86->sim_kind != arch_sim_kind_detailed)
+		return;
+
+	if (!x86_emu_process_prefetch_hints)
 		return;
 
 	eff_addr = x86_isa_effective_address(ctx);
 	x86_uinst_new(ctx, x86_uinst_effaddr, x86_dep_easeg, x86_dep_eabas, x86_dep_eaidx, x86_dep_aux, 0, 0, 0);
 	x86_uinst_new_mem(ctx, x86_uinst_prefetch, eff_addr, 1, x86_dep_aux, 0, 0, 0, 0, 0, 0);
-#endif
 }
 
 
@@ -1855,6 +1857,73 @@ void x86_isa_sahf_impl(struct x86_ctx_t *ctx)
 
 void x86_isa_sfence_impl(struct x86_ctx_t *ctx)
 {
+}
+
+
+void x86_isa_shld_rm16_r16_imm8_impl(struct x86_ctx_t *ctx)
+{
+	struct x86_regs_t *regs = ctx->regs;
+
+	unsigned short rm16 = x86_isa_load_rm16(ctx);
+	unsigned short r16 = x86_isa_load_r16(ctx);
+	unsigned char imm8 = ctx->inst.imm.b;
+	unsigned long flags = regs->eflags;
+
+	__X86_ISA_ASM_START__
+	asm volatile (
+		"push %5\n\t"
+		"popf\n\t"
+		"mov %4, %%cl\n\t"
+		"mov %3, %%bx\n\t"
+		"mov %2, %%ax\n\t"
+		"shld %%cl, %%bx, %%ax\n\t"
+		"mov %%ax, %1\n\t"
+		"pushf\n\t"
+		"pop %0\n\t"
+		: "=g" (flags), "=m" (rm16)
+		: "m" (rm16), "m" (r16), "m" (imm8), "g" (flags)
+		: "ax", "bx", "cl"
+	);
+	__X86_ISA_ASM_END__
+
+	x86_isa_store_rm16(ctx, rm16);
+	regs->eflags = flags;
+
+	x86_uinst_new(ctx, x86_uinst_shift, x86_dep_rm16, x86_dep_r16, 0, x86_dep_rm16, x86_dep_zps, x86_dep_cf, x86_dep_of);
+}
+
+
+void x86_isa_shld_rm16_r16_cl_impl(struct x86_ctx_t *ctx)
+{
+	struct x86_regs_t *regs = ctx->regs;
+
+	unsigned short rm16 = x86_isa_load_rm16(ctx);
+	unsigned short r16 = x86_isa_load_r16(ctx);
+	unsigned char cl = x86_isa_load_reg(ctx, x86_reg_cl);
+	unsigned long flags = regs->eflags;
+
+	__X86_ISA_ASM_START__
+	asm volatile (
+		"push %5\n\t"
+		"popf\n\t"
+		"mov %4, %%cl\n\t"
+		"mov %3, %%bx\n\t"
+		"mov %2, %%ax\n\t"
+		"shld %%cl, %%bx, %%ax\n\t"
+		"mov %%ax, %1\n\t"
+		"pushf\n\t"
+		"pop %0\n\t"
+		: "=g" (flags), "=m" (rm16)
+		: "m" (rm16), "m" (r16), "m" (cl), "g" (flags)
+		: "ax", "bx", "cl"
+	);
+	__X86_ISA_ASM_END__
+
+	x86_isa_store_rm16(ctx, rm16);
+	regs->eflags = flags;
+
+	x86_uinst_new(ctx, x86_uinst_shift, x86_dep_rm16, x86_dep_r16, x86_dep_ecx,
+		x86_dep_rm16, x86_dep_zps, x86_dep_cf, x86_dep_of);
 }
 
 

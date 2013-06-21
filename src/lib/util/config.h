@@ -17,30 +17,10 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#ifndef CONFIG_H
-#define CONFIG_H
+#ifndef LIB_UTIL_CONFIG_H
+#define LIB_UTIL_CONFIG_H
 
-/* Structure representing a configuration file.
- * The keys in the hash tables are strings representing section/variable names.
- *    If a key is the name of a section, it is represented as the name of the section.
- *    If a key is the name of a variable, it is represented as "<section>\n<var>"
- *
- */
-struct config_t
-{
-	/* Text file name containing configuration */
-	char *file_name;
-	
-	/* Hash table containing present elements
- 	 * The values for sections are (void *) 1, while the values for variables are the
-	 * actual value represented for that variable in the config file. */
-	struct hash_table_t *items;
-
-	/* Hash table containing allowed items.
-	 * The keys are strings "<section>\n<variable>".
-	 * The values are SECTION_VARIABLE_ALLOWED/SECTION_VARIABLE_MANDATORY */
-	struct hash_table_t *allowed_items;
-};
+struct config_t;
 
 /* Creation and destruction */
 struct config_t *config_create(char *file_name);
@@ -49,10 +29,9 @@ void config_free(struct config_t *config);
 /* Get the file name */
 char *config_get_file_name(struct config_t *config);
 
-/* Load and save configuration;
- * Return value: non-0=ok, 0=file access failure */
-int config_load(struct config_t *config);
-int config_save(struct config_t *config);
+/* Load/save configuration */
+void config_load(struct config_t *config);
+void config_save(struct config_t *config);
 
 /* Ask for section of variable existence */
 int config_section_exists(struct config_t *config, char *section);

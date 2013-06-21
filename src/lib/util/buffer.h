@@ -17,8 +17,8 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#ifndef BUFFER_H
-#define BUFFER_H
+#ifndef LIB_UTIL_BUFFER_H
+#define LIB_UTIL_BUFFER_H
 
 struct buffer_t;
 

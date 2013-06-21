@@ -17,7 +17,6 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include <stdlib.h>
 
 #include <lib/mhandle/mhandle.h>
 #include <lib/util/debug.h>
@@ -77,12 +76,8 @@ struct vi_x86_inst_t *vi_x86_inst_create(long long id, char *name,
 {
 	struct vi_x86_inst_t *inst;
 
-	/* Allocate */
-	inst = calloc(1, sizeof(struct vi_x86_inst_t));
-	if (!inst)
-		fatal("%s: out of memory", __FUNCTION__);
-
 	/* Initialize */
+	inst = xcalloc(1, sizeof(struct vi_x86_inst_t));
 	inst->id = id;
 	inst->name = str_set(NULL, name);
 	inst->asm_code = str_set(NULL, asm_code);

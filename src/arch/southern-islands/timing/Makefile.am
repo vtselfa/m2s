@@ -1,20 +1,42 @@
 lib_LIBRARIES = libtiming.a
 
 libtiming_a_SOURCES = \
+	cycle-interval-report.c \
+	cycle-interval-report.h	\
 	\
-	timing.h \
+	branch-unit.c \
+	branch-unit.h \
 	\
-	branch_unit.c \
 	calc.c \
+	calc.h \
+	\
 	compute-unit.c \
+	compute-unit.h \
+	\
 	gpu.c \
-	lds.c \
-	scalar_unit.c \
-	sched.c \
-	simd.c \
+	gpu.h \
+	\
+	lds-unit.c \
+	lds-unit.h \
+	\
+	mem-config.c \
+	mem-config.h \
+	\
+	scalar-unit.c \
+	scalar-unit.h \
+	\
+	simd-unit.c \
+	simd-unit.h \
+	\
 	uop.c \
-	vector_mem.c \
-	instruction_buffer.c
+	uop.h \
+	\
+	vector-mem-unit.c \
+	vector-mem-unit.h \
+	\
+	wavefront-pool.c \
+	wavefront-pool.h
+
 
 INCLUDES = @M2S_INCLUDES@
 

@@ -19,6 +19,9 @@
 
 #include <assert.h>
 
+#include <arch/common/arch.h>
+#include <arch/x86/emu/context.h>
+#include <arch/x86/emu/emu.h>
 #include <arch/x86/emu/regs.h>
 #include <lib/esim/trace.h>
 #include <lib/util/misc.h>
@@ -31,7 +34,6 @@
 #include "reg-file.h"
 #include "rob.h"
 #include "trace-cache.h"
-#include "uop.h"
 #include "uop-queue.h"
 
 
@@ -39,7 +41,8 @@ void x86_cpu_recover(int core, int thread)
 {
 	struct x86_uop_t *uop;
 
-	/* Remove instructions of this thread in fetch_queue, uop_queue, iq, sq, lq and event_queue. */
+	/* Remove instructions of this thread in fetch queue, uop queue,
+	 * instruction queue, store queue, load queue, and event queue. */
 	x86_fetch_queue_recover(core, thread);
 	x86_uop_queue_recover(core, thread);
 	x86_iq_recover(core, thread);
@@ -63,8 +66,8 @@ void x86_cpu_recover(int core, int thread)
 			break;
 		
 		/* Statistics */
-		if (uop->fetch_trace_cache)
-			X86_THREAD.trace_cache->squashed++;
+		if (uop->trace_cache)
+			X86_THREAD.trace_cache->num_squashed_uinst++;
 		X86_THREAD.num_squashed_uinst++;
 		X86_CORE.num_squashed_uinst++;
 		x86_cpu->num_squashed_uinst++;
@@ -86,11 +89,12 @@ void x86_cpu_recover(int core, int thread)
 		x86_rob_remove_tail(core, thread);
 	}
 
-	/* If we actually fetched wrong instructions, recover kernel */
-	if (x86_ctx_get_status(X86_THREAD.ctx, x86_ctx_spec_mode))
+	/* If we actually fetched wrong instructions, recover emulator */
+	if (x86_ctx_get_state(X86_THREAD.ctx, x86_ctx_spec_mode))
 		x86_ctx_recover(X86_THREAD.ctx);
 	
 	/* Stall fetch and set eip to fetch. */
-	X86_THREAD.fetch_stall_until = MAX(X86_THREAD.fetch_stall_until, x86_cpu->cycle + x86_cpu_recover_penalty - 1);
+	X86_THREAD.fetch_stall_until = MAX(X86_THREAD.fetch_stall_until, arch_x86->cycle + x86_cpu_recover_penalty - 1);
 	X86_THREAD.fetch_neip = X86_THREAD.ctx->regs->eip;
 }
+

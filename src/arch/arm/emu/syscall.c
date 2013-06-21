@@ -21,20 +21,12 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <poll.h>
-#include <sched.h>
-#include <signal.h>
-#include <syscall.h>
-#include <time.h>
 #include <unistd.h>
-#include <utime.h>
-#include <sys/ioctl.h>
 #include <sys/mman.h>
-#include <sys/resource.h>
-#include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/time.h>
-#include <sys/times.h>
 
+#include <arch/common/arch.h>
 #include <lib/mhandle/mhandle.h>
 #include <lib/util/debug.h>
 #include <lib/util/misc.h>
@@ -42,7 +34,6 @@
 #include <mem-system/memory.h>
 
 #include "context.h"
-#include "emu.h"
 #include "file.h"
 #include "isa.h"
 #include "regs.h"
@@ -262,9 +253,9 @@ void arm_sys_call(struct arm_ctx_t *ctx)
 
 	/* Debug */
 	arm_sys_debug("system call '%s' (code %d, inst %lld, pid %d)\n",
-		arm_sys_call_name[code], code, arm_emu->inst_count, ctx->pid);
+		arm_sys_call_name[code], code, arch_arm->inst_count, ctx->pid);
 	arm_isa_call_debug("system call '%s' (code %d, inst %lld, pid %d)\n",
-		arm_sys_call_name[code], code, arm_emu->inst_count, ctx->pid);
+		arm_sys_call_name[code], code, arch_arm->inst_count, ctx->pid);
 
 	/* Perform system call */
 	err = arm_sys_call_func[code](ctx);
@@ -358,12 +349,8 @@ static int arm_sys_read_impl(struct arm_ctx_t *ctx)
 	host_fd = fd->host_fd;
 	arm_sys_debug("  host_fd=%d\n", host_fd);
 
-	/* Allocate buffer */
-	buf = calloc(1, count);
-	if (!buf)
-		fatal("%s: out of memory", __FUNCTION__);
-
 	/* Poll the file descriptor to check if read is blocking */
+	buf = xcalloc(1, count);
 	fds.fd = host_fd;
 	fds.events = POLLIN;
 	err = poll(&fds, 1, 0);
@@ -444,12 +431,8 @@ static int arm_sys_write_impl(struct arm_ctx_t *ctx)
 	host_fd = desc->host_fd;
 	arm_sys_debug("  host_fd=%d\n", host_fd);
 
-	/* Allocate buffer */
-	buf = calloc(1, count);
-	if (!buf)
-		fatal("%s: out of memory", __FUNCTION__);
-
 	/* Read buffer from memory */
+	buf = xcalloc(1, count);
 	mem_read(mem, buf_ptr, count, buf);
 	arm_sys_debug_buffer("  buf", buf, count);
 
@@ -1232,7 +1215,7 @@ static int arm_sys_ARM_set_tls_impl(struct arm_ctx_t *ctx)
 	{ \
 		struct arm_regs_t *regs = ctx->regs; \
 		fatal("%s: system call not implemented (code %d, inst %lld, pid %d).\n%s", \
-			__FUNCTION__, regs->r7, arm_emu->inst_count, ctx->pid, \
+			__FUNCTION__, regs->r7, arch_arm->inst_count, ctx->pid, \
 			err_arm_sys_note); \
 		return 0; \
 	}

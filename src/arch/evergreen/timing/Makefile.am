@@ -1,6 +1,8 @@
 lib_LIBRARIES = libtiming.a
 
 libtiming_a_SOURCES = \
+	cycle-interval-report.c \
+	cycle-interval-report.h \
 	\
 	alu-engine.c \
 	alu-engine.h \
@@ -20,8 +22,11 @@ libtiming_a_SOURCES = \
 	gpu.c \
 	gpu.h \
 	\
-	periodic-report.c \
-	periodic-report.h \
+	instruction-interval-report.c \
+	instruction-interval-report.h \
+	\
+	mem-config.c \
+	mem-config.h \
 	\
 	sched.c \
 	sched.h \

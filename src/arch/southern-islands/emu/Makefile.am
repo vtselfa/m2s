@@ -6,23 +6,25 @@ libemu_a_SOURCES = \
 	emu.h \
 	\
 	isa.c \
+	isa.h \
+	\
 	machine.c \
+	machine.h \
+	\
 	ndrange.c \
-	opencl.dat \
-	opencl-api.c \
-	opencl-command-queue.c \
-	opencl-context.c \
-	opencl-device.c \
-	opencl-event.c \
-	opencl-kernel.c \
-	opencl-mem.c \
-	opencl-platform.c \
-	opencl-program.c \
-	opencl-repo.c \
-	opencl-sampler.c \
+	ndrange.h \
+	\
+	opengl-bin-file.c \
+	opengl-bin-file.h \
+	\
 	wavefront.c \
+	wavefront.h \
+	\
 	work-group.c \
-	work-item.c
+	work-group.h \
+	\
+	work-item.c \
+	work-item.h
 
 INCLUDES = @M2S_INCLUDES@
 

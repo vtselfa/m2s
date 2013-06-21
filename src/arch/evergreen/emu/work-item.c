@@ -18,15 +18,12 @@
  */
 
 #include <assert.h>
-#include <stdlib.h>
 
 #include <lib/mhandle/mhandle.h>
 #include <lib/util/bit-map.h>
-#include <lib/util/debug.h>
 #include <lib/util/linked-list.h>
 #include <lib/util/list.h>
 
-#include "emu.h"
 #include "wavefront.h"
 #include "work-item.h"
 
@@ -40,12 +37,8 @@ struct evg_work_item_t *evg_work_item_create()
 {
 	struct evg_work_item_t *work_item;
 
-	/* Allocate */
-	work_item = calloc(1, sizeof(struct evg_work_item_t));
-	if (!work_item)
-		fatal("%s: out of memory", __FUNCTION__);
-
 	/* Initialize */
+	work_item = xcalloc(1, sizeof(struct evg_work_item_t));
 	work_item->write_task_list = linked_list_create();
 	work_item->lds_oqa = list_create();
 	work_item->lds_oqb = list_create();

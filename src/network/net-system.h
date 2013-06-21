@@ -1,4 +1,4 @@
-/*
+/* 
  *  Multi2Sim
  *  Copyright (C) 2012  Rafael Ubal (ubal@ece.neu.edu)
  *
@@ -30,6 +30,8 @@ extern char *net_err_large_message;
 extern char *net_err_node_name_duplicate;
 extern char *net_err_config;
 extern char *net_err_can_send;
+extern char *net_err_cycle;
+extern char *net_err_route_step;
 
 
 /* Debug */
@@ -39,11 +41,16 @@ extern int net_debug_category;
 /* Configuration parameters */
 extern char *net_config_file_name;
 extern char *net_report_file_name;
+extern char *net_visual_file_name;
 extern char *net_sim_network_name;
 
 extern long long net_max_cycles;
 extern double net_injection_rate;
 extern int net_msg_size;
+
+/* Frequency and frequency domain */
+extern int net_frequency;
+extern int net_domain_index;
 
 /* Functions */
 void net_init(void);
@@ -59,4 +66,3 @@ void net_sim(char *debug_file_name);
 
 
 #endif
-

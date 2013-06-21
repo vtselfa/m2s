@@ -17,12 +17,7 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include <assert.h>
-#include <stdio.h>
-#include <string.h>
 #include <unistd.h>
-#include <string.h>
-#include <time.h>
 #include <sys/utsname.h>
 
 #include <lib/mhandle/mhandle.h>
@@ -83,9 +78,7 @@ void *read_buffer(char *file_name, int *psize)
 	alloc_size = size ? size : 1;
 	fseek(f, 0, SEEK_SET);
 
-	buf = malloc(alloc_size);
-	if (!buf)
-		return NULL;
+	buf = xmalloc(alloc_size);
 	read_size = fread(buf, 1, size, f);
 	if (psize)
 		*psize = read_size;
@@ -97,7 +90,6 @@ void free_buffer(void *buf)
 {
 	free(buf);
 }
-
 
 
 
@@ -156,14 +148,18 @@ void dump_bin(int x, int digits, FILE *f)
 {
 	int i;
 	char s[33];
-	if (!digits) {
-		fprintf(f, "0");
+
+	/* No digit */
+	if (!digits)
 		return;
-	}
+
+	/* Create string */
 	digits = MAX(MIN(digits, 32), 1);
 	for (i = 0; i < digits; i++)
 		s[i] = x & (1 << (digits - i - 1)) ? '1' : '0';
 	s[digits] = 0;
+
+	/* Print */
 	fprintf(f, "%s", s);
 }
 
@@ -194,14 +190,15 @@ void m2s_dist_file(char *file_name, char *dist_path, char *non_dist_path,
 	snprintf(dist_path_abs, MAX_STRING_SIZE, "%s/%s/%s",
 		PACKAGE_DATA_DIR, dist_path, file_name);
 	f = fopen(dist_path_abs, "r");
-	if (f) {
+	if (f)
+	{
 		snprintf(buffer, size, "%s", dist_path_abs);
 		fclose(f);
 		return;
 	}
 
 	/* Look for file in non-distribution package.
-	 * Assuming that 'm2s-debug-pipeline' runs in '$(TOPDIR)/src/',
+	 * Assuming that the Multi2Sim executable is in '$(TOPDIR)/bin',
 	 * distribution file should be in '$(TOPDIR)/', i.e., one level higher. */
 	exe_name[0] = '\0';
 	len = readlink("/proc/self/exe", exe_name, MAX_STRING_SIZE);
@@ -212,17 +209,21 @@ void m2s_dist_file(char *file_name, char *dist_path, char *non_dist_path,
 	}
 	exe_name[len] = '\0';
 
+	/* Go up two levels */
 	levels = 2;
-	while (len && levels) {
+	while (len && levels)
+	{
 		if (exe_name[len - 1] == '/')
 			levels--;
 		exe_name[--len] = '\0';
 	}
 
+	/* Construct path */
 	snprintf(non_dist_path_abs, MAX_STRING_SIZE, "%s/%s/%s",
 		exe_name, non_dist_path, file_name);
 	f = fopen(non_dist_path_abs, "r");
-	if (f) {
+	if (f)
+	{
 		snprintf(buffer, size, "%s", non_dist_path_abs);
 		fclose(f);
 		return;

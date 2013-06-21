@@ -17,15 +17,15 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#ifndef SOUTHERN_ISLANDS_ASM_H
-#define SOUTHERN_ISLANDS_ASM_H
+#ifndef ARCH_SOUTHERN_ISLANDS_ASM_H
+#define ARCH_SOUTHERN_ISLANDS_ASM_H
 
 #include <stdio.h>
 
-#include <lib/util/elf-format.h>
 
-
-/* Microcode Formats */
+/* Microcode Formats
+ * NOTE: Update string map 'si_inst_fmt_map' if new elements are added
+ * to this enumeration. */
 enum si_fmt_enum
 {
 	SI_FMT_NONE = 0,
@@ -60,6 +60,9 @@ enum si_fmt_enum
 	/* Vector Memory Image Format */
 	SI_FMT_MIMG,
 
+	/* Export Formats */
+	SI_FMT_EXP,
+
 	/* Max */
 	SI_FMT_COUNT
 };
@@ -70,24 +73,12 @@ enum si_fmt_enum
  * String maps
  */
 
-/* TODO Replace with SI maps */
-/*
-extern struct str_map_t si_pv_map;
-extern struct str_map_t si_alu_map;
-extern struct str_map_t si_bank_swizzle_map;
-extern struct str_map_t si_rat_inst_map;
-extern struct str_map_t si_cf_cond_map;
-extern struct str_map_t si_src_sel_map;
-extern struct str_map_t si_dst_sel_map;
+extern struct str_map_t si_inst_fmt_map;
+extern struct str_map_t si_inst_sdst_map;
+extern struct str_map_t si_inst_ssrc_map;
+extern struct str_map_t si_inst_OP16_map;
+extern struct str_map_t si_inst_OP8_map;
 
-extern struct str_map_t si_fmt_vtx_fetch_type_map;
-extern struct str_map_t si_fmt_vtx_data_format_map;
-extern struct str_map_t si_fmt_vtx_num_format_map;
-extern struct str_map_t si_fmt_vtx_format_comp_map;
-extern struct str_map_t si_fmt_vtx_srf_mode_map;
-extern struct str_map_t si_fmt_vtx_endian_swap_map;
-extern struct str_map_t si_fmt_lds_op_map;
-*/
 
 
 
@@ -127,7 +118,7 @@ struct si_fmt_sopc_t
         unsigned int ssrc0    : 8;  /*   [7:0] */
         unsigned int ssrc1    : 8;  /*  [15:8] */
         unsigned int op       : 7;  /* [22:16] */
-        unsigned int enc      : 9;  /* [31:32] */
+        unsigned int enc      : 9;  /* [31:23] */
         unsigned int lit_cnst : 32; /* [63:32] */
 };
 
@@ -233,7 +224,7 @@ struct si_fmt_mtbuf_t
 {
         unsigned int offset   : 12;  /*  [11:0] */
         unsigned int offen    : 1;   /*     12  */
-        unsigned int index    : 1;   /*     13  */
+        unsigned int idxen    : 1;   /*     13  */
         unsigned int glc      : 1;   /*     14  */
         unsigned int addr64   : 1;   /*     15  */
         unsigned int op       : 3;   /* [18:16] */
@@ -253,7 +244,7 @@ struct si_fmt_mubuf_t
 {
         unsigned int offset    : 12;  /*  [11:0] */
         unsigned int offen     : 1;   /*     12  */
-        unsigned int index     : 1;   /*     13  */
+        unsigned int idxen     : 1;   /*     13  */
         unsigned int glc       : 1;   /*     14  */
         unsigned int addr64    : 1;   /*     15  */
         unsigned int lds       : 1;   /*     16  */
@@ -308,8 +299,7 @@ struct si_fmt_exp_t
 
 
 extern struct str_map_t si_inst_category_map;
-
-enum si_inst_category_enum
+enum si_inst_category_t
 {
 	SI_INST_CAT_NONE = 0,
 
@@ -347,32 +337,73 @@ enum si_inst_category_enum
 };
 
 
-#if 0
-/* TODO Replace these with SI flags for emulation */
-enum si_inst_flag_enum
+extern struct str_map_t si_inst_special_reg_map;
+enum si_inst_special_reg_t
 {
-	SI_INST_FLAG_NONE         = 0x0000,
-	SI_INST_FLAG_TRANS_ONLY   = 0x0001,  /* Only executable in transcendental unit */
-	SI_INST_FLAG_INC_LOOP_IDX = 0x0002,  /* CF inst increasing loop depth index */
-	SI_INST_FLAG_DEC_LOOP_IDX = 0x0004,  /* CF inst decreasing loop index */
-	SI_INST_FLAG_DST_INT      = 0x0008,  /* Inst with integer dest operand */
-	SI_INST_FLAG_DST_UINT     = 0x0010,  /* Inst with unsigned int dest op */
-	SI_INST_FLAG_DST_FLOAT    = 0x0020,  /* Inst with float dest op */
-	SI_INST_FLAG_ACT_MASK     = 0x0040,  /* Inst affects the active mask (control flow) */
-	SI_INST_FLAG_LDS          = 0x0080,  /* Access to local memory */
-	SI_INST_FLAG_MEM          = 0x0100,  /* Access to global memory */
-	SI_INST_FLAG_MEM_READ     = 0x0200,  /* Read to global memory */
-	SI_INST_FLAG_MEM_WRITE    = 0x0400,  /* Write to global memory */
-	SI_INST_FLAG_PRED_MASK    = 0x0800   /* Inst affects the predicate mask */
+	si_inst_special_reg_invalid = 0,
+	si_inst_special_reg_vcc,
+	si_inst_special_reg_scc,
+	si_inst_special_reg_exec,
+	si_inst_special_reg_tma
 };
-#endif 
 
 
-enum si_inst_enum
+extern struct str_map_t si_inst_buf_data_format_map;
+enum si_inst_buf_data_format_t
+{
+	si_inst_buf_data_format_invalid = 0,
+	si_inst_buf_data_format_8 = 1,
+	si_inst_buf_data_format_16 = 2,
+	si_inst_buf_data_format_8_8 = 3,
+	si_inst_buf_data_format_32 = 4,
+	si_inst_buf_data_format_16_16 = 5,
+	si_inst_buf_data_format_10_11_11 = 6,
+	si_inst_buf_data_format_11_10_10 = 7,
+	si_inst_buf_data_format_10_10_10_2 = 8,
+	si_inst_buf_data_format_2_10_10_10 = 9,
+	si_inst_buf_data_format_8_8_8_8 = 10,
+	si_inst_buf_data_format_32_32 = 11,
+	si_inst_buf_data_format_16_16_16_16 = 12,
+	si_inst_buf_data_format_32_32_32 = 13,
+	si_inst_buf_data_format_32_32_32_32 = 14,
+	si_inst_buf_data_format_reserved = 15
+};
+
+
+extern struct str_map_t si_inst_buf_num_format_map;
+enum si_inst_buf_num_format_t
+{
+	si_inst_buf_num_format_unorm = 0,
+	si_inst_buf_num_format_snorm = 1,
+	si_inst_buf_num_format_unscaled = 2,
+	si_inst_buf_num_format_sscaled = 3,
+	si_inst_buf_num_format_uint = 4,
+	si_inst_buf_num_format_sint = 5,
+	si_inst_buf_num_format_snorm_nz = 6,
+	si_inst_buf_num_format_float = 7,
+	si_inst_buf_num_format_reserved = 8,
+	si_inst_buf_num_format_srgb = 9,
+	si_inst_buf_num_format_ubnorm = 10,
+	si_inst_buf_num_format_ubnorm_nz = 11,
+	si_inst_buf_num_format_ubint = 12,
+	si_inst_buf_num_format_ubscaled = 13
+};
+
+
+
+enum si_inst_flag_t
+{
+	SI_INST_FLAG_NONE = 0x0000,
+	SI_INST_FLAG_OP8 = 0x0001,  /* Opcode represents 8 comparison instructions */
+	SI_INST_FLAG_OP16 = 0x0002  /* Opcode represents 16 comparison instructions */
+};
+
+
+enum si_inst_opcode_t
 {
 	SI_INST_NONE = 0,
 
-#define DEFINST(_name, _fmt_str, _fmt, _opcode, _size) \
+#define DEFINST(_name, _fmt_str, _fmt, _opcode, _size, _flags) \
 	SI_INST_##_name,
 
 #include "asm.dat"
@@ -409,16 +440,21 @@ union si_inst_microcode_t
 
 struct si_inst_info_t
 {
-	enum si_inst_enum inst;
-	enum si_inst_category_enum category;
+	enum si_inst_opcode_t inst;
+	enum si_inst_category_t category;
 	char *name;
 	char *fmt_str;
 	enum si_fmt_enum fmt;  /* Word formats */
 	int opcode;  /* Operation code */
-	//enum si_inst_flag_enum flags;  /* Flag bitmap */
-	/* FIXME Can we add the size to the .dat file? */
+	enum si_inst_flag_t flags;  /* Flag bitmap */
 	int size;  /* Size of microcode inst (bytes) */
 };
+
+
+/* Table containing information for all instructions, filled out with the
+ * fields found in 'asm.dat'. */
+extern struct si_inst_info_t si_inst_info[SI_INST_COUNT];
+
 
 union si_reg_t
 {
@@ -445,227 +481,24 @@ typedef void (*si_fmt_dump_func_t)(void *buf, FILE *);
 
 void si_disasm_init(void);
 void si_disasm_done(void);
+
+struct elf_buffer_t;
 void si_disasm_buffer(struct elf_buffer_t *buffer, FILE *f);
 
-#if 0
-/* TODO Remove? */
-void si_inst_slot_dump_buf(struct si_inst_t *inst, int count, int loop_idx, int slot, char *buf, int size);
-void si_inst_dump_buf(struct si_inst_t *inst, int count, int loop_idx, char *buf, int size);
-
-void si_inst_word_dump(void *buf, enum si_fmt_enum fmt, FILE *f);
-void si_inst_dump_gpr(int gpr, int rel, int chan, int im, FILE *f);
-void si_inst_slot_dump(struct si_inst_t *inst, int count, int loop_idx, int slot, FILE *f);
-void si_inst_dump(struct si_inst_t *inst, int count, int loop_idx, FILE *f);
-void si_inst_dump_debug(struct si_inst_t *inst, int count, int loop_idx, FILE *f);
-void si_inst_words_dump(struct si_inst_t *inst, FILE *f);
-
-/* Copy instruction */
-void si_inst_copy(struct si_inst_t *dest, struct si_inst_t *src);
-
-/* Obtaining source operand fields for ALU instructions */
-void si_inst_get_op_src(struct si_inst_t *inst, int src_idx,
-	int *sel, int *rel, int *chan, int *neg, int *abs);
-#endif
-
-
-/*
- * AMD Southern Islands Binary File (Internal ELF)
- */
-
-
-/* Encoding dictionary entry header (as encoded in ELF file) */
-struct si_bin_enc_dict_entry_header_t
-{
-	Elf32_Word d_machine;
-	Elf32_Word d_type;
-	Elf32_Off d_offset;  /* Offset for encoding data (PT_NOTE + PT_LOAD segments) */
-	Elf32_Word d_size;  /* Size of encoding data (PT_NOTE + PT_LOAD segments) */
-	Elf32_Word d_flags;
-};
-
-
-/* Constats embedded in the '.data' section */
-struct si_bin_enc_dict_entry_consts_t
-{
-	float float_consts[256][4];
-	unsigned int int_consts[32][4];
-	unsigned int bool_consts[32];
-};
-
-typedef enum _E_SC_USER_DATA_CLASS
-{
-
-    IMM_RESOURCE,               // immediate resource descriptor
-    IMM_SAMPLER,                // immediate sampler descriptor
-    IMM_CONST_BUFFER,           // immediate const buffer descriptor
-    IMM_VERTEX_BUFFER,          // immediate vertex buffer descriptor
-    IMM_UAV,                    // immediate UAV descriptor
-    IMM_ALU_FLOAT_CONST,        // immediate float const (scalar or vector)
-    IMM_ALU_BOOL32_CONST,       // 32 immediate bools packed into a single UINT
-    IMM_GDS_COUNTER_RANGE,      // immediate UINT with GDS address range for counters
-    IMM_GDS_MEMORY_RANGE,       // immediate UINT with GDS address range for storage
-    IMM_GWS_BASE,               // immediate UINT with GWS resource base offset
-    IMM_WORK_ITEM_RANGE,        // immediate HSAIL work item range
-    IMM_WORK_GROUP_RANGE,       // immediate HSAIL work group range
-    IMM_DISPATCH_ID,            // immediate HSAIL dispatch ID
-    IMM_SCRATCH_BUFFER,         // immediate HSAIL scratch buffer descriptor
-    IMM_HEAP_BUFFER,            // immediate HSAIL heap buffer descriptor
-    IMM_KERNEL_ARG,             // immediate HSAIL kernel argument
-    IMM_CONTEXT_BASE,           // immediate HSAIL context base-address
-    IMM_LDS_ESGS_SIZE,          // immediate LDS ESGS size used in on-chip GS
-    SUB_PTR_FETCH_SHADER,       // fetch shader subroutine pointer
-    PTR_RESOURCE_TABLE,         // flat/chunked resource table pointer
-
-    /* PTR_CONST_BUFFER_TABLE Moved to position 20 */
-    PTR_CONST_BUFFER_TABLE,     // flat/chunked const buffer table pointer
-
-    PTR_INTERNAL_RESOURCE_TABLE,// flat/chunked internal resource table pointer
-    PTR_SAMPLER_TABLE,          // flat/chunked sampler table pointer
-
-    /* PTR_CONST_BUFFER_TABLE Was originally here at position 22 */
-
-    /* PTR_UAV_TABLE Moved to position 23 */
-    PTR_UAV_TABLE,              // flat/chunked UAV resource table pointer
-
-    PTR_VERTEX_BUFFER_TABLE,    // flat/chunked vertex buffer table pointer
-    PTR_SO_BUFFER_TABLE,        // flat/chunked stream-out buffer table pointer
-
-    /* PTR_UAV_TABLE Was originally here at position 25 */
-
-    PTR_INTERNAL_GLOBAL_TABLE,  // internal driver table pointer
-    PTR_EXTENDED_USER_DATA,     // extended user data in video memory
-    PTR_INDIRECT_RESOURCE,      // pointer to resource indirection table
-    PTR_INDIRECT_INTERNAL_RESOURCE,// pointer to internal resource indirection table
-    PTR_INDIRECT_UAV,           // pointer to UAV indirection table
-    E_SC_USER_DATA_CLASS_LAST
-
-} E_SC_USER_DATA_CLASS;
-
-/* User Element entry */
-struct si_bin_enc_user_element_t
-{
-	unsigned int dataClass;
-	unsigned int apiSlot;
-	unsigned int startUserReg;
-	unsigned int userRegCount;
-};
-
-/* COMPUTE_PGM_RSRC2 */
-struct si_bin_compute_pgm_rsrc2_t
-{
-	unsigned int scrach_en 		: 1;
-	unsigned int user_sgpr 		: 5;
-	unsigned int trap_present 	: 1;
-	unsigned int tgid_x_en 		: 1;
-	unsigned int tgid_y_en 		: 1;
-	unsigned int tgid_z_en 		: 1;
-	unsigned int tg_size_en 	: 1;
-	unsigned int tidig_comp_cnt : 2;
-	unsigned int excp_en_msb 	: 2;
-	unsigned int lds_size 		: 9;
-	unsigned int excp_en 		: 7;
-	unsigned int 				: 1;
-};
-
-/* Encoding dictionary entry */
-struct si_bin_enc_dict_entry_t
-{
-	/* Header (pointer to ELF buffer contents) */
-	struct si_bin_enc_dict_entry_header_t *header;
-
-	/* Buffers containing PT_LOAD and PT_NOTE segments */
-	struct elf_buffer_t pt_load_buffer;
-	struct elf_buffer_t pt_note_buffer;
-
-	/* Buffers containing sections */
-	struct elf_buffer_t sec_text_buffer;
-	struct elf_buffer_t sec_data_buffer;
-	struct elf_buffer_t sec_symtab_buffer;
-	struct elf_buffer_t sec_strtab_buffer;
-
-	/* Constants extract from '.data' section */
-	struct si_bin_enc_dict_entry_consts_t *consts;
-
-	/* Info read from pt_notes */
-	int num_gpr_used;
-	int lds_size_used;
-	int stack_size_used;
-
-	unsigned int userElementCount;
-	struct si_bin_enc_user_element_t userElements[16];
-
-	struct si_bin_compute_pgm_rsrc2_t *compute_pgm_rsrc2;
-};
-
-
-/* Binary file */
-struct si_bin_file_t
-{
-	/* Associated ELF file */
-	struct elf_file_t *elf_file;
-
-	/* Encoding dictionary.
-	 * Elements are of type 'struct si_bin_enc_dict_entry_t'
-	 * Each element of the dictionary contains the binary for a different architecture
-	 * (Evergreen, x86, etc.) */
-	struct list_t *enc_dict;
-
-	/* Encoding dictionary entry containing the Southern Islands kernel.
-	 * This is a member of the 'enc_dict' list. */
-	struct si_bin_enc_dict_entry_t *enc_dict_entry_southern_islands;
-};
-
-struct si_bin_file_t *si_bin_file_create(void *ptr, int size, char *name);
-void si_bin_file_free(struct si_bin_file_t *bin);
 void si_disasm(char* path);
-int si_inst_decode(void *buf, struct si_inst_t *inst);
+int si_inst_decode(void *buf, struct si_inst_t *inst, unsigned int offset);
 
 /* Functions to dump individual instruction lines for decoded instructions. */
 #define MAX_INST_STR_SIZE 200
-void si_inst_dump_sopp(struct si_inst_t* inst, unsigned int inst_size, unsigned int rel_addr, void* buf, char* line, int line_size);
-void si_inst_dump_sopc(struct si_inst_t* inst, unsigned int inst_size, unsigned int rel_addr, void* buf, char* line, int line_size);
-void si_inst_dump_sop1(struct si_inst_t* inst, unsigned int inst_size, unsigned int rel_addr, void* buf, char* line, int line_size);
-void si_inst_dump_sopk(struct si_inst_t* inst, unsigned int inst_size, unsigned int rel_addr, void* buf, char* line, int line_size);
-void si_inst_dump_sop2(struct si_inst_t* inst, unsigned int inst_size, unsigned int rel_addr, void* buf, char* line, int line_size);
-void si_inst_dump_smrd(struct si_inst_t* inst, unsigned int inst_size, unsigned int rel_addr, void* buf, char* line, int line_size);
-void si_inst_dump_vop3(struct si_inst_t* inst, unsigned int inst_size, unsigned int rel_addr, void* buf, char* line, int line_size);
-void si_inst_dump_vopc(struct si_inst_t* inst, unsigned int inst_size, unsigned int rel_addr, void* buf, char* line, int line_size);
-void si_inst_dump_vop1(struct si_inst_t* inst, unsigned int inst_size, unsigned int rel_addr, void* buf, char* line, int line_size);
-void si_inst_dump_vop2(struct si_inst_t* inst, unsigned int inst_size, unsigned int rel_addr, void* buf, char* line, int line_size);
-void si_inst_dump_ds(struct si_inst_t* inst, unsigned int inst_size, unsigned int rel_addr, void* buf, char* line, int line_size);
-void si_inst_dump_mtbuf(struct si_inst_t* inst, unsigned int inst_size, unsigned int rel_addr, void* buf, char* line, int line_size);
 
-
-/* Table 8.5 in SI documentation */
-struct si_buffer_resource_t
-{
-	unsigned long long base_addr : 48;   /*    [47:0] */
-	unsigned int stride          : 14;   /*   [61:48] */
-	unsigned int cache_swizzle   : 1;    /*       62  */
-	unsigned int swizzle_enable  : 1;    /*       63  */
-	unsigned int num_records     : 32;   /*   [95:64] */
-	unsigned int dst_sel_x       : 3;    /*   [98:96] */
-	unsigned int dst_sel_y       : 3;    /*  [101:99] */
-	unsigned int dst_sel_z       : 3;    /* [104:102] */
-	unsigned int dst_sel_w       : 3;    /* [107:105] */
-	unsigned int num_format      : 3;    /* [110:108] */
-	unsigned int data_format     : 4;    /* [114:111] */
-	unsigned int elem_size       : 2;    /* [116:115] */
-	unsigned int index_stride    : 2;    /* [118:117] */
-	unsigned int add_tid_enable  : 1;    /*      119  */
-	unsigned int reserved        : 1;    /*      120  */
-	unsigned int hash_enable     : 1;    /*      121  */
-	unsigned int heap            : 1;    /*      122  */
-	unsigned int unused          : 3;    /* [125:123] */
-	unsigned int type            : 2;    /* [127:126] */
-};
-
-/* Pointers get stored in 2 consecutive 32-bit registers */
-struct si_mem_ptr_t
-{
-	unsigned long long addr : 48;
-	unsigned int unused     : 16;
-};
+void si_inst_dump(struct si_inst_t *inst, unsigned int inst_size, unsigned int rel_addr, void *buf, char *line, int line_size);
+void si_inst_SSRC_dump(struct si_inst_t *inst, unsigned int ssrc, char *operand_str, char **inst_str, int str_size);
+void si_inst_64_SSRC_dump(struct si_inst_t *inst, unsigned int ssrc, char *operand_str, char **inst_str, int str_size);
+void si_inst_VOP3_SRC_dump(struct si_inst_t *inst, unsigned int src, int neg, char *operand_str, char **inst_str, int str_size);
+void si_inst_VOP3_64_SRC_dump(struct si_inst_t *inst, unsigned int src, int neg, char *operand_str, char **inst_str, int str_size);
+void si_inst_SERIES_VDATA_dump(unsigned int vdata, int op, char *operand_str, char **inst_str, int str_size);
+void si_inst_MADDR_dump(struct si_inst_t *inst, char *operand_str, char **inst_str, int str_size);
+void si_inst_DUG_dump(struct si_inst_t *inst, char *operand_str, char **inst_str, int str_size);
 
 #endif
 

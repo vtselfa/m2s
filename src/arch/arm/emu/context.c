@@ -19,9 +19,9 @@
 
 #include <assert.h>
 #include <fcntl.h>
-#include <stdlib.h>
 #include <unistd.h>
 
+#include <arch/common/arch.h>
 #include <lib/esim/esim.h>
 #include <lib/mhandle/mhandle.h>
 #include <lib/util/debug.h>
@@ -37,7 +37,6 @@
 #include "emu.h"
 #include "file.h"
 #include "isa.h"
-#include "machine.h"
 #include "regs.h"
 
 
@@ -99,12 +98,8 @@ static struct arm_ctx_t *arm_ctx_do_create()
 {
 	struct arm_ctx_t *ctx;
 
-	/* Create context and set its value */
-	ctx = calloc(1, sizeof(struct arm_ctx_t));
-	if (!ctx)
-		fatal("%s: out of memory", __FUNCTION__);
-
 	/* Initialize */
+	ctx = xcalloc(1, sizeof(struct arm_ctx_t));
 	ctx->pid = arm_emu->current_pid++;
 
 	/* Update status so that the context is inserted in the
@@ -128,12 +123,8 @@ static void arm_ctx_loader_add_args_vector(struct arm_ctx_t *ctx, int argc, char
 
 	for (i = 0; i < argc; i++)
 	{
-		/* Allocate */
-		arg = strdup(argv[i]);
-		if (!arg)
-			fatal("%s: out of memory", __FUNCTION__);
-
 		/* Add */
+		arg = xstrdup(argv[i]);
 		linked_list_add(ctx->args, arg);
 	}
 }
@@ -148,7 +139,7 @@ static void arm_ctx_loader_add_environ(struct arm_ctx_t *ctx, char *env)
 
 	/* Add variables from actual environment */
 	for (i = 0; environ[i]; i++)
-		linked_list_add(ctx->env, strdup(environ[i]));
+		linked_list_add(ctx->env, xstrdup(environ[i]));
 
 	/* Add the environment vars provided in 'env' */
 	while (env)
@@ -168,12 +159,12 @@ static void arm_ctx_loader_add_environ(struct arm_ctx_t *ctx, char *env)
 			if (!(next = strchr(env + 1, *env)))
 				fatal("%s: wrong format", __FUNCTION__);
 			*next = 0;
-			linked_list_add(ctx->env, strdup(env + 1));
+			linked_list_add(ctx->env, xstrdup(env + 1));
 			env = next + 1;
 			break;
 
 		default:
-			linked_list_add(ctx->env, strdup(env));
+			linked_list_add(ctx->env, xstrdup(env));
 			env = NULL;
 		}
 	}
@@ -291,7 +282,7 @@ static void arm_ctx_loader_load_sections(struct arm_ctx_t *ctx, struct elf_file_
 			{
 				void *ptr;
 
-				ptr = calloc(1, section->header->sh_size);
+				ptr = xcalloc(1, section->header->sh_size);
 				mem_access(mem, section->header->sh_addr,
 					section->header->sh_size,
 					ptr, mem_access_init);
@@ -444,11 +435,15 @@ static void arm_ctx_loader_load_stack(struct arm_ctx_t *ctx)
 				__FUNCTION__);
 }
 
+
 void arm_ctx_loader_load_exe(struct arm_ctx_t *ctx, char *exe)
 {
 
 	struct mem_t *mem = ctx->mem;
 	struct arm_file_desc_table_t *fdt = ctx->file_desc_table;
+
+	struct elf_symbol_t *symbol;
+	unsigned int mode;
 
 	char stdin_file_full_path[MAX_STRING_SIZE];
 	char stdout_file_full_path[MAX_STRING_SIZE];
@@ -486,9 +481,7 @@ void arm_ctx_loader_load_exe(struct arm_ctx_t *ctx, char *exe)
 	/* Load program into memory */
 	arm_ctx_loader_get_full_path(ctx, exe, exe_full_path, MAX_STRING_SIZE);
 	ctx->elf_file = elf_file_create_from_path(exe_full_path);
-	ctx->exe = strdup(exe_full_path);
-	if (!ctx->exe)
-		fatal("%s: out of memory", __FUNCTION__);
+	ctx->exe = xstrdup(exe_full_path);
 
 	/* Read sections and program entry */
 	arm_ctx_loader_load_sections(ctx, ctx->elf_file);
@@ -506,9 +499,40 @@ void arm_ctx_loader_load_exe(struct arm_ctx_t *ctx, char *exe)
 	/* Stack */
 	arm_ctx_loader_load_stack(ctx);
 
+	/* Detect ARM/Thumb Mode */
+	if((ctx->prog_entry % 2))
+	{
+		ctx->prog_entry = ctx->prog_entry - 1;
+	}
+	symbol = elf_symbol_get_by_address(ctx->elf_file, ctx->prog_entry, NULL);
+
+	if(!strncmp(symbol->name, "$t",2))
+	{
+		mode = THUMB;
+	}
+	else if (!strncmp(symbol->name, "$d",2))
+	{
+		fatal("%s: Wrong entry point selected",
+			__FUNCTION__);
+	}
+	else
+	{
+		mode = ARM;
+	}
+
 	/* Register initialization */
-	ctx->regs->pc = ctx->prog_entry + 4;
-	ctx->regs->sp = ctx->environ_base;
+	if(mode == ARM)
+	{
+		ctx->regs->pc = ctx->prog_entry + 4;
+		ctx->regs->sp = ctx->environ_base;
+	}
+	else if (mode == THUMB)
+	{
+		ctx->regs->pc = ctx->prog_entry + 2;
+		ctx->regs->sp = ctx->environ_base;
+		/* Set the Thumb Mode flag in CPSR */
+		ctx->regs->cpsr.thumb = 1;
+	}
 
 	arm_loader_debug("Program entry is 0x%x\n", ctx->regs->pc);
 	arm_loader_debug("Initial stack pointer is 0x%x\n", ctx->regs->sp);
@@ -633,13 +657,15 @@ unsigned int arm_ctx_check_fault(struct arm_ctx_t *ctx)
 
 void arm_ctx_execute(struct arm_ctx_t *ctx)
 {
+	struct arch_t *arch = arm_emu->arch;
 	struct arm_regs_t *regs = ctx->regs;
 	struct mem_t *mem = ctx->mem;
-
 
 	unsigned char *buffer_ptr;
 	unsigned int fault_id;
 	int spec_mode;
+	int arm_mode;
+
 
 	/* Memory permissions should not be checked if the context is executing in
 	 * speculative mode. This will prevent guest segmentation faults to occur. */
@@ -668,9 +694,37 @@ void arm_ctx_execute(struct arm_ctx_t *ctx)
 
 	}
 
+
+	arm_mode = arm_ctx_operate_mode_tag(ctx->thumb_symbol_list, (ctx->regs->pc -2));
+
+	if(arm_mode == ARM)
+	{
+		if(ctx->regs->cpsr.thumb)
+		{
+			ctx->regs->cpsr.thumb = 0;
+			ctx->regs->pc = ctx->regs->pc + 2;
+		}
+		else
+			ctx->regs->cpsr.thumb = 0;
+	}
+	else if(arm_mode == THUMB)
+	{
+		if(ctx->regs->cpsr.thumb == 0)
+		{
+			ctx->regs->cpsr.thumb = 1;
+			ctx->regs->pc = ctx->regs->pc - 2;
+		}
+		else
+			ctx->regs->cpsr.thumb = 1;
+	}
+
+
 	/* Read instruction from memory. Memory should be accessed here in unsafe mode
 	 * (i.e., allowing segmentation faults) if executing speculatively. */
-	buffer_ptr = mem_get_buffer(mem, (regs->pc - 4), 4, mem_access_exec);
+	if(ctx->regs->cpsr.thumb)
+		buffer_ptr = mem_get_buffer(mem, (regs->pc - 2), 2, mem_access_exec);
+	else
+		buffer_ptr = mem_get_buffer(mem, (regs->pc - 4), 4, mem_access_exec);
 
 	/* FIXME: Arm speculative mode execution to be added */
 	/*if (!buffer_ptr)
@@ -686,18 +740,104 @@ void arm_ctx_execute(struct arm_ctx_t *ctx)
 
 	mem->safe = mem_safe_mode;
 
-	/* Disassemble */
-	arm_disasm(buffer_ptr, (regs->pc - 4), &ctx->inst);
-	if (ctx->inst.info->opcode == ARM_INST_NONE)/*&& !spec_mode)*/
-		fatal("0x%x: not supported arm instruction (%02x %02x %02x %02x...)",
-			(regs->pc - 4), buffer_ptr[0], buffer_ptr[1], buffer_ptr[2], buffer_ptr[3]);
+	/* Important YU Comment: Will be removed after implementation
+	 * If arm mode then the pc - 4 works. If thumb mode, keep removing data
+	 * at rate of pc-2, if thumb32 detected,
+	 * increase the pc by 2 and fetch pc 4 size 4, but instruction commit will make pc = pc +2 for thumb */
 
+
+	/* Disassemble */
+	if(ctx->regs->cpsr.thumb)
+	{
+		if(arm_test_thumb32(buffer_ptr))
+		{
+			ctx->regs->pc += 2;
+			buffer_ptr = mem_get_buffer(mem, (regs->pc - 4), 4, mem_access_exec);
+			thumb32_disasm(buffer_ptr, (regs->pc - 2), &ctx->inst_th_32);
+			ctx->inst_type = THUMB32;
+			if (ctx->inst_th_32.info->name == ARM_THUMB32_INST_NONE)/*&& !spec_mode)*/
+				fatal("0x%x: not supported arm instruction (%02x %02x %02x %02x...)",
+					(regs->pc - 4), buffer_ptr[0], buffer_ptr[1], buffer_ptr[2], buffer_ptr[3]);
+
+		}
+		else
+		{
+			thumb16_disasm(buffer_ptr, (regs->pc - 2), &ctx->inst_th_16);
+			ctx->inst_type = THUMB16;
+		}
+	}
+	else
+	{
+		arm_disasm(buffer_ptr, (regs->pc - 4), &ctx->inst);
+		ctx->inst_type = ARM32;
+		if (ctx->inst.info->opcode == ARM_INST_NONE)/*&& !spec_mode)*/
+			fatal("0x%x: not supported arm instruction (%02x %02x %02x %02x...)",
+				(regs->pc - 4), buffer_ptr[0], buffer_ptr[1], buffer_ptr[2], buffer_ptr[3]);
+	}
 
 	/* Execute instruction */
-	arm_isa_execute_inst(ctx);
+	if(ctx->iteq_inst_num && ctx->iteq_block_flag)
+	{
+
+		if(arm_isa_thumb_check_cond(ctx, ctx->inst_th_16.dword.if_eq_ins.first_cond))
+			arm_isa_execute_inst(ctx);
+
+		ctx->iteq_inst_num = ctx->iteq_inst_num - 1;
+
+		switch(ctx->inst_type)
+		{
+		case(ARM32):
+			regs->pc = regs->pc + ctx->inst.info->size;
+		break;
+
+		case(THUMB16):
+			regs->pc = regs->pc + ctx->inst_th_16.info->size;
+		break;
+
+		case(THUMB32):
+			regs->pc = regs->pc + 2;
+		break;
+		}
+
+		arm_isa_inst_debug("If-Then Equation Detected\n\n");
+	}
+	else
+		arm_isa_execute_inst(ctx);
 
 	/* Statistics */
-	arm_emu->inst_count++;
+	arch->inst_count++;
+
+	if((arch->inst_count % 10) == 0)
+	{
+		arm_isa_inst_debug("Register Debug Dump\n");
+		arm_isa_inst_debug(
+			"r0 = 0x%x\n"
+			"r1 = 0x%x\n"
+			"r2 = 0x%x\n"
+			"r3 = 0x%x\n"
+			"r4 = 0x%x\n"
+			"r5 = 0x%x\n"
+			"r6 = 0x%x\n"
+			"r7 = 0x%x\n"
+			"r8 = 0x%x\n"
+			"r9 = 0x%x\n"
+			"r10(sl) = 0x%x\n"
+			"r11(fp) = 0x%x\n"
+			"r12(ip) = 0x%x\n"
+			"r13(sp) = 0x%x\n"
+			"r14(lr) = 0x%x\n"
+			"r15(pc) = 0x%x\n"
+			"cpsr.n	= 0x%x\n"
+			"cpsr.v	= 0x%x\n"
+			"cpsr.q	= 0x%x\n"
+			"cpsr.thumb = 0x%x\n"
+			"cpsr.C	= 0x%x\n\n", ctx->regs->r0, ctx->regs->r1, ctx->regs->r2, ctx->regs->r3,
+			ctx->regs->r4, ctx->regs->r5, ctx->regs->r6, ctx->regs->r7,
+			ctx->regs->r8, ctx->regs->r9, ctx->regs->sl, ctx->regs->fp,
+			ctx->regs->ip, ctx->regs->sp, ctx->regs->lr, ctx->regs->pc,
+			ctx->regs->cpsr.n, ctx->regs->cpsr.v, ctx->regs->cpsr.q,
+			ctx->regs->cpsr.thumb, ctx->regs->cpsr.C);
+	}
 }
 
 
@@ -812,6 +952,7 @@ void arm_ctx_finish(struct arm_ctx_t *ctx, int status)
 
 static void arm_ctx_update_status(struct arm_ctx_t *ctx, enum arm_ctx_status_t status)
 {
+	struct arch_t *arch = arm_emu->arch;
 	enum arm_ctx_status_t status_diff;
 
 	/* Remove contexts from the following lists:
@@ -871,9 +1012,9 @@ static void arm_ctx_update_status(struct arm_ctx_t *ctx, enum arm_ctx_status_t s
 	/* Start/stop arm timer depending on whether there are any contexts
 	 * currently running. */
 	if (arm_emu->running_list_count)
-		m2s_timer_start(arm_emu->timer);
+		m2s_timer_start(arch->timer);
 	else
-		m2s_timer_stop(arm_emu->timer);
+		m2s_timer_stop(arch->timer);
 }
 
 void arm_ctx_set_status(struct arm_ctx_t *ctx, enum arm_ctx_status_t status)
@@ -922,19 +1063,18 @@ void arm_ctx_load_from_command_line(int argc, char **argv)
 	if (!ctx->cwd)
 		panic("%s: buffer too small", __FUNCTION__);
 
-	/* Duplicate */
-	ctx->cwd = strdup(ctx->cwd);
-	if (!ctx->cwd)
-		fatal("%s: out of memory", __FUNCTION__);
-
 	/* Redirections */
-	ctx->stdin_file = strdup("");
-	ctx->stdout_file = strdup("");
-	if (!ctx->stdin_file || !ctx->stdout_file)
-		fatal("%s: out of memory", __FUNCTION__);
+	ctx->cwd = xstrdup(ctx->cwd);
+	ctx->stdin_file = xstrdup("");
+	ctx->stdout_file = xstrdup("");
 
 	/* Load executable */
 	arm_ctx_loader_load_exe(ctx, argv[0]);
+
+	/* Create Arm-Thumb Symbol List */
+	ctx->thumb_symbol_list = list_create();
+	arm_ctx_thumb_symbol_list_sort(ctx->thumb_symbol_list, ctx->elf_file);
+
 }
 
 void arm_ctx_loader_get_full_path(struct arm_ctx_t *ctx, char *file_name, char *full_path, int size)
@@ -1025,6 +1165,78 @@ void arm_ctx_gen_proc_self_maps(struct arm_ctx_t *ctx, char *path)
 }
 
 
+int arm_ctx_comp (const void *arg1,const void *arg2)
+{
+	struct elf_symbol_t *tmp1;
+	struct elf_symbol_t *tmp2;
+
+	tmp1 = (struct elf_symbol_t*)arg1;
+	tmp2 = (struct elf_symbol_t*)arg2;
+
+	return (tmp1->value - tmp2->value);
+}
+
+
+
+void arm_ctx_thumb_symbol_list_sort(struct list_t * thumb_symbol_list, struct elf_file_t *elf_file)
+{
+	struct elf_symbol_t *symbol;
+	unsigned int i;
+
+	for ( i = 0; i < list_count(elf_file->symbol_table); i++)
+	{
+		symbol = (struct elf_symbol_t* )list_get(elf_file->symbol_table, i);
+		if((!strncmp(symbol->name, "$t",2)) || (!strncmp(symbol->name, "$a",2)))
+		{
+			list_add(thumb_symbol_list, symbol);
+		}
+	}
+
+	list_sort(thumb_symbol_list, arm_ctx_comp);
+}
+
+
+
+enum arm_mode_t arm_ctx_operate_mode_tag(struct list_t * thumb_symbol_list, unsigned int addr)
+{
+	struct elf_symbol_t *symbol;
+
+	enum arm_mode_t mode;
+
+	unsigned int tag_index;
+	unsigned int i;
+
+	for (i = 0; i < list_count(thumb_symbol_list); ++i)
+	{
+		symbol = (struct elf_symbol_t*)list_get(thumb_symbol_list,i);
+		if(symbol->value > addr)
+		{
+			tag_index = i - 1;
+			break;
+		}
+		//printf("Symbol value = %x   %s\n", symbol->value, symbol->name);
+	}
+
+	symbol = (struct elf_symbol_t *) list_get(thumb_symbol_list, tag_index);
+
+	if(symbol)
+	{
+		if(!strncmp(symbol->name, "$a",2))
+		{
+			mode = ARM;
+		}
+		else if(!strncmp(symbol->name, "$t",2))
+		{
+			mode = THUMB;
+		}
+	}
+	else
+	{
+		mode = ARM;
+	}
+	return(mode);
+}
+
 
 
 /*
@@ -1042,9 +1254,9 @@ void arm_ctx_ipc_report_handler(int event, void *data)
 	struct arm_ctx_ipc_report_stack_t *stack = data;
 	struct arm_ctx_t *ctx;
 
-	long long inst_count;
-	double ipc_interval;
-	double ipc_global;
+	//long long inst_count;
+	//double ipc_interval;
+	//double ipc_global;
 
 	/* Get context. If it does not exist anymore, no more
 	 * events to schedule. */
@@ -1056,14 +1268,14 @@ void arm_ctx_ipc_report_handler(int event, void *data)
 	}
 
 	/* Dump new IPC */
-	assert(ctx->ipc_report_interval);
-	inst_count = ctx->inst_count - stack->inst_count;
-	ipc_global = esim_cycle ? (double) ctx->inst_count / esim_cycle : 0.0;
-	ipc_interval = (double) inst_count / ctx->ipc_report_interval;
-	fprintf(ctx->ipc_report_file, "%10lld %8lld %10.4f %10.4f\n",
-		esim_cycle, inst_count, ipc_global, ipc_interval);
+	//assert(ctx->ipc_report_interval);
+	//inst_count = ctx->inst_count - stack->inst_count;
+	//ipc_global = esim_cycle ? (double) ctx->inst_count / esim_cycle : 0.0;
+	//ipc_interval = (double) inst_count / ctx->ipc_report_interval;
+	//fprintf(ctx->ipc_report_file, "%10lld %8lld %10.4f %10.4f\n",
+	//	esim_cycle, inst_count, ipc_global, ipc_interval);
 
 	/* Schedule new event */
 	stack->inst_count = ctx->inst_count;
-	esim_schedule_event(event, stack, ctx->ipc_report_interval);
+	//esim_schedule_event(event, stack, ctx->ipc_report_interval);
 }

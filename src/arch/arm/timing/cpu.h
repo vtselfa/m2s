@@ -22,7 +22,19 @@
 
 #include <stdio.h>
 
+
+/*
+ * Public Functions
+ */
+
+void arm_cpu_read_config(void);
+
+void arm_cpu_init(void);
+void arm_cpu_done(void);
+
 int arm_cpu_run(void);
+
+void arm_cpu_dump(FILE *f);
 void arm_cpu_dump_summary(FILE *f);
 
 #endif

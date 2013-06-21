@@ -20,8 +20,8 @@
 #ifndef ARCH_X86_EMU_LOADER_H
 #define ARCH_X86_EMU_LOADER_H
 
-#include <lib/util/config.h>
-#include <mem-system/cache.h>
+/* Forward type declarations */
+struct config_t;
 
 extern struct str_map_t interval_kind_map;
 
@@ -107,4 +107,3 @@ void x86_loader_load_from_command_line(int argc, char **argv);
 
 
 #endif
-

@@ -19,14 +19,10 @@
 
 #include <assert.h>
 #include <stdarg.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
 #include <zlib.h>
 
 #include <lib/mhandle/mhandle.h>
 #include <lib/util/debug.h>
-#include <lib/util/heap.h>
 #include <lib/util/list.h>
 
 #include "esim.h"
@@ -65,9 +61,7 @@ void trace_init(char *file_name)
 	trace_category_list = list_create();
 
 	/* Create an invalid category at index 0 */
-	c = calloc(1, sizeof(struct trace_category_t));
-	if (!c)
-		fatal("%s: out of memory", __FUNCTION__);
+	c = xcalloc(1, sizeof(struct trace_category_t));
 	list_add(trace_category_list, c);
 }
 
@@ -97,12 +91,8 @@ int trace_new_category(void)
 	if (!trace_file)
 		return 0;
 
-	/* Allocate */
-	c = calloc(1, sizeof(struct trace_category_t));
-	if (!c)
-		fatal("%s: out of memory", __FUNCTION__);
-
 	/* Initialize */
+	c = xcalloc(1, sizeof(struct trace_category_t));
 	c->status = trace_status_on;
 
 	/* Add to list and return index */
@@ -133,6 +123,10 @@ void __trace(int category, int print_cycle, char *fmt, ...)
 	va_list va;
 	char buf[4096];
 	int len;
+	long long cycle;
+
+	/* Get current cycle */
+	cycle = esim_cycle();
 
 	/* Get category */
 	assert(category > 0);
@@ -151,12 +145,13 @@ void __trace(int category, int print_cycle, char *fmt, ...)
 		fatal("%s: buffer too small", __FUNCTION__);
 
 	/* Dump current cycle */
-	if (esim_cycle > trace_last_cycle && print_cycle)
+	if (cycle > trace_last_cycle && print_cycle)
 	{
-		gzprintf(trace_file, "c clk=%lld\n", esim_cycle);
-		trace_last_cycle = esim_cycle;
+		gzprintf(trace_file, "c clk=%lld\n", cycle);
+		trace_last_cycle = cycle;
 	}
 
 	/* Dump message */
 	gzwrite(trace_file, buf, len);
 }
+

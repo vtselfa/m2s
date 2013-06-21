@@ -25,9 +25,6 @@
 
 struct evg_emu_t
 {
-	/* Timer */
-	struct m2s_timer_t *timer;
-
 	/* OpenCL objects */
 	struct evg_opencl_repo_t *opencl_repo;
 	struct evg_opencl_platform_t *opencl_platform;
@@ -76,15 +73,8 @@ struct evg_emu_t
 
 	/* Stats */
 	int ndrange_count;  /* Number of OpenCL kernels executed */
-	long long inst_count;  /* Number of instructions executed by wavefronts */
 };
 
-
-extern enum evg_emu_kind_t
-{
-	evg_emu_kind_functional,
-	evg_emu_kind_detailed
-} evg_emu_kind;
 
 extern long long evg_emu_max_cycles;
 extern long long evg_emu_max_inst;
@@ -104,6 +94,7 @@ extern struct evg_emu_t *evg_emu;
 
 void evg_emu_init(void);
 void evg_emu_done(void);
+void evg_emu_dump(FILE *f);
 
 void evg_emu_dump_summary(FILE *f);
 

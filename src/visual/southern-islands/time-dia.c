@@ -18,10 +18,8 @@
  */
 
 #include <gtk/gtk.h>
-#include <stdlib.h>
 
 #include <lib/mhandle/mhandle.h>
-#include <lib/util/debug.h>
 #include <lib/util/hash-table.h>
 #include <lib/util/list.h>
 #include <lib/util/matrix.h>
@@ -491,12 +489,8 @@ struct vi_si_time_dia_t *vi_si_time_dia_create(struct vi_si_compute_unit_t *comp
 {
 	struct vi_si_time_dia_t *time_dia;
 
-	/* Allocate */
-	time_dia = calloc(1, sizeof(struct vi_si_time_dia_t));
-	if (!time_dia)
-		fatal("%s: out of memory", __FUNCTION__);
-
 	/* Initialize */
+	time_dia = xcalloc(1, sizeof(struct vi_si_time_dia_t));
 	time_dia->compute_unit = compute_unit;
 
 	/* Content layout */

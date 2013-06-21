@@ -19,9 +19,6 @@
 
 #include <assert.h>
 #include <stdarg.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
 #include <lib/mhandle/mhandle.h>
 
@@ -44,8 +41,6 @@ struct debug_category_t
 	/* File name and descriptor */
 	char *file_name;
 	FILE *f;
-
-	long long max_size; /* File max size */
 };
 
 static struct list_t *debug_category_list;
@@ -59,9 +54,7 @@ void debug_init(void)
 	debug_category_list = list_create();
 
 	/* Create an invalid category at index 0 */
-	c = calloc(1, sizeof(struct debug_category_t));
-	if (!c)
-		fatal("%s: out of memory", __FUNCTION__);
+	c = xcalloc(1, sizeof(struct debug_category_t));
 	list_add(debug_category_list, c);
 }
 
@@ -87,7 +80,7 @@ void debug_done(void)
 }
 
 
-int debug_new_category(char *file_name, long long max_size)
+int debug_new_category(char *file_name)
 {
 	struct debug_category_t *c;
 
@@ -95,17 +88,10 @@ int debug_new_category(char *file_name, long long max_size)
 	if (!file_name || !*file_name)
 		return 0;
 
-	/* Allocate */
-	c = calloc(1, sizeof(struct debug_category_t));
-	if (!c)
-		fatal("%s: out of memory", __FUNCTION__);
-
 	/* Initialize */
-	c->max_size = max_size;
+	c = xcalloc(1, sizeof(struct debug_category_t));
 	c->status = debug_status_on;
-	c->file_name = strdup(file_name);
-	if (!c->file_name)
-		fatal("%s: out of memory", __FUNCTION__);
+	c->file_name = xstrdup(file_name);
 
 	/* Assign file */
 	if (!strcmp(file_name, "stdout"))
@@ -235,22 +221,14 @@ void __debug(int category, char *fmt, ...)
 	assert(c);
 	if (c->status == debug_status_off)
 		return;
-
-	/* If there is a max size limit and file is bigger, truncate it */
-	if(c->max_size)
-	{
-		long long size = ftello(c->f);
-		if(size > c->max_size)
-			fseeko(c->f, 0, SEEK_SET);
-	}
-
+	
 	/* Print spaces */
 	if (c->space_count >= sizeof(spc))
 		c->space_count = sizeof(spc) - 1;
 	memset(spc, ' ', c->space_count);
 	spc[c->space_count] = '\0';
 	fprintf(c->f, "%s", spc);
-
+	
 	/* Print message */
 	va_start(va, fmt);
 	vfprintf(c->f, fmt, va);
@@ -332,7 +310,7 @@ void __debug_buffer(int category, char *buffer_name, void *buffer, int size)
 }
 
 
-void fatal(char *fmt, ...)
+void fatal(const char *fmt, ...)
 {
 	va_list va;
 	va_start(va, fmt);
@@ -344,7 +322,7 @@ void fatal(char *fmt, ...)
 }
 
 
-void panic(char *fmt, ...)
+void panic(const char *fmt, ...)
 {
 	va_list va;
 	va_start(va, fmt);
@@ -356,7 +334,7 @@ void panic(char *fmt, ...)
 }
 
 
-void warning(char *fmt, ...)
+void warning(const char *fmt, ...)
 {
 	va_list va;
 	va_start(va, fmt);

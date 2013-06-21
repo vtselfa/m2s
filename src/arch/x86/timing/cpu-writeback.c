@@ -19,11 +19,13 @@
 
 #include <assert.h>
 
+#include <arch/common/arch.h>
+#include <arch/x86/emu/emu.h>
 #include <lib/esim/trace.h>
+#include <lib/util/linked-list.h>
 
 #include "cpu.h"
 #include "reg-file.h"
-#include "uop.h"
 
 
 static void x86_cpu_writeback_core(int core)
@@ -44,13 +46,13 @@ static void x86_cpu_writeback_core(int core)
 		/* A memory uop placed in the event queue is always complete.
 		 * Other uops are complete when uop->when is equals to current cycle. */
 		if (uop->flags & X86_UINST_MEM)
-			uop->when = x86_cpu->cycle;
-		if (uop->when > x86_cpu->cycle)
+			uop->when = arch_x86->cycle;
+		if (uop->when > arch_x86->cycle)
 			break;
 		
 		/* Check element integrity */
 		assert(x86_uop_exists(uop));
-		assert(uop->when == x86_cpu->cycle);
+		assert(uop->when == arch_x86->cycle);
 		assert(uop->core == core);
 		assert(uop->ready);
 		assert(!uop->completed);
@@ -76,7 +78,7 @@ static void x86_cpu_writeback_core(int core)
 
 		/* Writeback */
 		uop->completed = 1;
-		if (uop->prefetch==0) x86_reg_file_write(uop);
+		x86_reg_file_write(uop);
 		X86_CORE.reg_file_int_writes += uop->ph_int_odep_count;
 		X86_CORE.reg_file_fp_writes += uop->ph_fp_odep_count;
 		X86_CORE.iq_wakeup_accesses++;

@@ -23,6 +23,12 @@
 #include <arch/x86/asm/asm.h>
 
 
+/* Forward declarations */
+struct bit_map_t;
+struct x86_ctx_t;
+
+
+
 #define x86_ctx_debug(...) debug(x86_ctx_debug_category, __VA_ARGS__)
 extern int x86_ctx_debug_category;
 
@@ -32,10 +38,8 @@ extern int EV_X86_CTX_MISC_REPORT;
 extern int EV_X86_CTX_MC_REPORT;
 extern int EV_X86_CTX_CPU_REPORT;
 
-struct x86_ctx_t;
 typedef int (*x86_ctx_can_wakeup_callback_func_t)(struct x86_ctx_t *ctx, void *data);
 typedef void (*x86_ctx_wakeup_callback_func_t)(struct x86_ctx_t *ctx, void *data);
-
 
 struct x86_ctx_report_stack_t
 {
@@ -47,12 +51,9 @@ struct x86_ctx_report_stack_t
 struct x86_ctx_t
 {
 	/* Context properties */
-	int status;
+	int state;
 	int pid;  /* Context ID */
 	int address_space_index;  /* Virtual memory address space index */
-
-	/* Core prefered for this context being executed in */
-	int core_affinity;
 
 	/* Parent context */
 	struct x86_ctx_t *parent;
@@ -84,18 +85,32 @@ struct x86_ctx_t
 	int str_op_dir;  /* Direction: 1 = forward, -1 = backward */
 	int str_op_count;  /* Number of iterations in string operation */
 
-	/* Allocation to hardware threads */
-	long long alloc_when;  /* esim_cycle of allocation */
-	long long dealloc_when;  /* esim_cycle of deallocation */
-	int alloc_core, alloc_thread;  /* core/thread id of last allocation */
-	int dealloc_signal;  /* signal to deallocate context */
+
+
+	/*
+	 * Context scheduling (timing simulation)
+	 */
+
+	/* Cycle when the context was allocated and evicted to a node (core/thread),
+	 * respectively. */
+	long long alloc_cycle;
+	long long evict_cycle;
+
+	/* The context is mapped and allocated, but its eviction is in progress.
+	 * It will be effectively evicted once the last instruction reaches the
+	 * commit stage. This value is set by 'x86_cpu_context_evict_signal'. */
+	int evict_signal;
+
+	/* If context is in state 'mapped', these two variables represent the
+	 * node (core/thread) associated with the context. */
+	int core;
+	int thread;
+
+
 
 	/* For segmented memory access in glibc */
 	unsigned int glibc_segment_base;
 	unsigned int glibc_segment_limit;
-
-	/* For the OpenCL library access */
-	int libopencl_open_attempt;
 
 	/* When debugging function calls with 'x86_isa_debug_call', function call level. */
 	int function_level;
@@ -140,7 +155,10 @@ struct x86_ctx_t
 	struct x86_ctx_t *suspended_list_next, *suspended_list_prev;
 	struct x86_ctx_t *finished_list_next, *finished_list_prev;
 	struct x86_ctx_t *zombie_list_next, *zombie_list_prev;
-	struct x86_ctx_t *alloc_list_next, *alloc_list_prev;
+
+	/* List of contexts mapped to a hardware core/thread. This list is
+	 * managed by the timing simulator for scheduling purposes. */
+	struct x86_ctx_t *mapped_list_next, *mapped_list_prev;
 
 	/* Substructures */
 	struct x86_loader_t *loader;
@@ -151,6 +169,12 @@ struct x86_ctx_t
 	struct x86_file_desc_table_t *file_desc_table;  /* File descriptor table */
 	struct x86_signal_mask_table_t *signal_mask_table;
 	struct x86_signal_handler_table_t *signal_handler_table;
+
+	/* Thread affinity mask */
+	struct bit_map_t *affinity;
+
+	/* Core affinity */
+	int core_affinity;
 
 	/* Report stacks */
 	struct x86_ctx_report_stack_t *ipc_report_stack;
@@ -165,7 +189,7 @@ struct x86_ctx_t
 	long long inst_count;
 };
 
-enum x86_ctx_status_t
+enum x86_ctx_state_t
 {
 	x86_ctx_running      = 0x00001,  /* it is able to run instructions */
 	x86_ctx_spec_mode    = 0x00002,  /* executing in speculative mode */
@@ -184,6 +208,7 @@ enum x86_ctx_status_t
 	x86_ctx_futex        = 0x04000,  /* suspended in a futex */
 	x86_ctx_alloc        = 0x08000,  /* allocated to a core/thread */
 	x86_ctx_callback     = 0x10000,  /* suspended after syscall with callback */
+	x86_ctx_mapped       = 0x20000,  /* mapped to a core/thread */
 	x86_ctx_none         = 0x00000
 };
 
@@ -206,8 +231,8 @@ void x86_ctx_suspend(struct x86_ctx_t *ctx,
 	void *can_wakeup_callback_data, x86_ctx_wakeup_callback_func_t wakeup_callback_func,
 	void *wakeup_callback_data);
 
-void x86_ctx_finish(struct x86_ctx_t *ctx, int status);
-void x86_ctx_finish_group(struct x86_ctx_t *ctx, int status);
+void x86_ctx_finish(struct x86_ctx_t *ctx, int state);
+void x86_ctx_finish_group(struct x86_ctx_t *ctx, int state);
 void x86_ctx_execute(struct x86_ctx_t *ctx);
 
 void x86_ctx_set_eip(struct x86_ctx_t *ctx, unsigned int eip);
@@ -216,15 +241,16 @@ void x86_ctx_recover(struct x86_ctx_t *ctx);
 struct x86_ctx_t *x86_ctx_get(int pid);
 struct x86_ctx_t *x86_ctx_get_zombie(struct x86_ctx_t *parent, int pid);
 
-int x86_ctx_get_status(struct x86_ctx_t *ctx, enum x86_ctx_status_t status);
-void x86_ctx_set_status(struct x86_ctx_t *ctx, enum x86_ctx_status_t status);
-void x86_ctx_clear_status(struct x86_ctx_t *ctx, enum x86_ctx_status_t status);
+int x86_ctx_get_state(struct x86_ctx_t *ctx, enum x86_ctx_state_t state);
+void x86_ctx_set_state(struct x86_ctx_t *ctx, enum x86_ctx_state_t state);
+void x86_ctx_clear_state(struct x86_ctx_t *ctx, enum x86_ctx_state_t state);
 
 int x86_ctx_futex_wake(struct x86_ctx_t *ctx, unsigned int futex,
 	unsigned int count, unsigned int bitset);
 void x86_ctx_exit_robust_list(struct x86_ctx_t *ctx);
 
-void x86_ctx_gen_proc_self_maps(struct x86_ctx_t *ctx, char *path);
+void x86_ctx_gen_proc_self_maps(struct x86_ctx_t *ctx, char *path, int size);
+void x86_ctx_gen_proc_cpuinfo(struct x86_ctx_t *ctx, char *path, int size);
 
 void x86_ctx_ipc_report_schedule(struct x86_ctx_t *ctx);
 void x86_ctx_ipc_report_handler(int event, void *data);
@@ -239,4 +265,3 @@ void x86_ctx_cpu_report_schedule(struct x86_ctx_t *ctx);
 void x86_ctx_cpu_report_handler(int event, void *data);
 
 #endif
-

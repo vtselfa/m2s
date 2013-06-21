@@ -19,13 +19,11 @@
 
 #include <assert.h>
 #include <gtk/gtk.h>
-#include <string.h>
 
 #include <lib/mhandle/mhandle.h>
 #include <lib/util/debug.h>
 #include <lib/util/hash-table.h>
 #include <lib/util/list.h>
-#include <lib/util/misc.h>
 #include <lib/util/string.h>
 #include <visual/common/state.h>
 #include <visual/common/trace.h>
@@ -375,12 +373,8 @@ void vi_x86_cpu_init(void)
 {
 	struct vi_trace_line_t *trace_line;
 
-	/* Allocate */
-	vi_x86_cpu = calloc(1, sizeof(struct vi_x86_cpu_t));
-	if (!vi_x86_cpu)
-		fatal("%s: out of memory", __FUNCTION__);
-
 	/* Initialize */
+	vi_x86_cpu = xcalloc(1, sizeof(struct vi_x86_cpu_t));
 	vi_x86_cpu->core_list = list_create();
 	vi_x86_cpu->context_table = hash_table_create(0, FALSE);
 
@@ -432,6 +426,9 @@ void vi_x86_cpu_init(void)
 
 			int version_major = 0;
 			int version_minor = 0;
+
+			/* Trace contains x86 */
+			vi_x86_cpu->active = 1;
 
 			/* Check version compatibility */
 			version = vi_trace_line_get_symbol(trace_line, "version");

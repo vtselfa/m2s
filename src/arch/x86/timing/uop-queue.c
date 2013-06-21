@@ -20,10 +20,10 @@
 #include <assert.h>
 
 #include <lib/esim/trace.h>
-#include <lib/mhandle/mhandle.h>
 #include <lib/util/list.h>
 
 #include "cpu.h"
+#include "uop.h"
 #include "uop-queue.h"
 
 
@@ -86,7 +86,3 @@ void x86_uop_queue_recover(int core, int thread)
 		x86_uop_free_if_not_queued(uop);
 	}
 }
-
-
-
-

@@ -17,14 +17,32 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#ifndef MEM_SYSTEM_H
-#define MEM_SYSTEM_H
+#ifndef MEM_SYSTEM_MEM_SYSTEM_H
+#define MEM_SYSTEM_MEM_SYSTEM_H
 
-#include "module.h"
-#include "mem-controller.h"
 
-extern char *mem_config_file_name;
-extern char *mem_config_help;
+/*
+ * Memory System Object
+ */
+
+struct mem_system_t
+{
+	/* List of modules and networks */
+	struct list_t *mod_list;
+	struct list_t *net_list;
+
+	/* List of Memory Controllers */
+	struct linked_list_t *mem_controllers;
+	int num_mc; /* TODO: Remove */
+};
+
+
+
+
+/*
+ * Global Variables
+ */
+
 
 extern char *mem_report_file_name;
 
@@ -37,45 +55,32 @@ extern int mem_debug_category;
 #define mem_trace_header(...) trace_header(mem_trace_category, __VA_ARGS__)
 extern int mem_trace_category;
 
-extern int mem_system_peer_transfers;
 
-//////////////////////////////////
-#define MEM_SYSTEM_MAX_LEVELS  10
-//////////////////////////////////
-struct mem_system_t
-{
-	/* List of modules and networks */
-	struct list_t *mod_list;
-	struct list_t *mm_mod_list; /* Main memory modules */
-	struct list_t *net_list;
+/* Configuration */
+extern int mem_frequency;
+extern int mem_peer_transfers;
 
-	 ///////////////////////////////////////
-        /*List of Memory controllers */
-        struct linked_list_t *mem_controllers;
-	int num_mc;
+/* Frequency and frequency domain */
+extern int mem_domain_index;
 
-        /* For statdistics (to show  MPKI) */
-        int min_level_cache;
-        int max_level_cache;
-        int faults[MEM_SYSTEM_MAX_LEVELS];
-        //////////////////////////////////////
-
-};
-
-
-
-
+/* Global memory system */
 extern struct mem_system_t *mem_system;
+
+
+
+
+/*
+ * Public Functions
+ */
+
 
 void mem_system_init(void);
 void mem_system_done(void);
 
-void mem_system_config_read(void);
 void mem_system_dump_report(void);
 
 struct mod_t *mem_system_get_mod(char *mod_name);
 struct net_t *mem_system_get_net(char *net_name);
-
 
 
 #endif

@@ -23,6 +23,10 @@
 #include <lib/util/string.h>
 
 
+/* Forward declarations */
+struct cuda_function_t;
+
+
 enum frm_grid_status_t
 {
         frm_grid_pending             = 0x0001,
@@ -33,37 +37,42 @@ enum frm_grid_status_t
 struct frm_grid_t
 {
 	/* ID */
-	int id;  /* Sequential grid ID (given by frm_emu->grid_count counter) */
+	int id;
 	char name[MAX_STRING_SIZE];
 
         /* Status */
         enum frm_grid_status_t status;
 
 	/* CUDA function associated */
-	struct frm_cuda_function_t *function;
+	struct cuda_function_t *function;
 
-	/* Pointers to threadblocks, warps, and threads */
-	struct frm_threadblock_t **threadblocks;
-	struct frm_warp_t **warps;
-	struct frm_thread_t **threads;
+	/* Number of register used by each thread. */
+	unsigned int num_gpr_used;
 
-	/* IDs of threadblocks contained */
-	int threadblock_id_first;
-	int threadblock_id_last;
-	int threadblock_count;
-	
-	/* IDs of warps contained */
-	int warp_id_first;
-	int warp_id_last;
-	int warp_count;
+	/* Call-back function run right before freeing ND-Range, using the value in
+	 * 'free_notify_data' as an argument. */
+	void (*free_notify_func)(void *);
+	void *free_notify_data;
 
-	/* IDs of threads contained */
-	int thread_id_first;
-	int thread_id_last;
-	int thread_count;
+	/* 3D work size counters */
+	int grid_size3[3];  /* Total number of threads */
+	int block_size3[3];  /* Number of threads in a thread block */
+	int block_count3[3];  /* Number of thread blocks */
 
-	/* Size of threadblocks */
-	int warps_per_threadblock;  /* = ceil(local_size / frm_emu_warp_size) */
+	/* 1D work size counters. Each counter is equal to the multiplication
+	 * of each component in the corresponding 3D counter. */
+	int grid_size;
+	int block_size;
+	int block_count;
+
+	/* Array of thread blocks */
+	int thread_block_count;
+	struct frm_thread_block_t **thread_blocks;
+
+	/* Lists of thread blocks */
+	struct list_t *pending_thread_blocks;
+	struct list_t *running_thread_blocks;
+	struct list_t *finished_thread_blocks;
 
         /* List of Grid */
         struct frm_grid_t *grid_list_prev;
@@ -75,36 +84,27 @@ struct frm_grid_t
         struct frm_grid_t *finished_grid_list_prev;
         struct frm_grid_t *finished_grid_list_next;
 
-	/* List of pending threadblocks */
-	struct frm_threadblock_t *pending_list_head;
-	struct frm_threadblock_t *pending_list_tail;
-	int pending_list_count;
-	int pending_list_max;
+	void *inst_buffer;
+	unsigned int inst_buffer_size;
 
-	/* List of running threadblocks */
-	struct frm_threadblock_t *running_list_head;
-	struct frm_threadblock_t *running_list_tail;
-	int running_list_count;
-	int running_list_max;
+	/* Local memory top to assign to local arguments.
+	 * Initially it is equal to the size of local variables in 
+	 * kernel function. */
+	unsigned int local_mem_top;
 
-	/* List of finished threadblocks */
-	struct frm_threadblock_t *finished_list_head;
-	struct frm_threadblock_t *finished_list_tail;
-	int finished_list_count;
-	int finished_list_max;
 };
 
-struct frm_grid_t *frm_grid_create(struct frm_cuda_function_t *function);
+struct frm_grid_t *frm_grid_create(struct cuda_function_t *function);
 void frm_grid_free(struct frm_grid_t *grid);
-int frm_grid_get_status(struct frm_grid_t *grid, enum frm_grid_status_t status);
-void frm_grid_set_status(struct frm_grid_t *grid, enum frm_grid_status_t status);
-void frm_grid_clear_status(struct frm_grid_t *grid, enum frm_grid_status_t status);
 void frm_grid_dump(struct frm_grid_t *grid, FILE *f);
 void frm_grid_setup_threads(struct frm_grid_t *grid);
 void frm_grid_setup_const_mem(struct frm_grid_t *grid);
 void frm_grid_setup_args(struct frm_grid_t *grid);
 void frm_grid_run(struct frm_grid_t *grid);
 
+void frm_grid_setup_size(struct frm_grid_t *grid,
+		unsigned int *global_size,
+		unsigned int *local_size);
 
 #endif
 

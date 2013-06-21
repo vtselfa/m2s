@@ -17,25 +17,28 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#include <assert.h>
 #include <errno.h>
 #include <poll.h>
-#include <pthread.h>
+#include <unistd.h>
 
-#include <arch/evergreen/emu/emu.h>
-#include <arch/fermi/emu/emu.h>
-#include <arch/southern-islands/emu/emu.h>
+#include <arch/common/arch.h>
 #include <arch/x86/timing/cpu.h>
+#include <driver/glew/glew.h>
+#include <driver/glu/glu.h>
+#include <driver/glut/glut.h>
+#include <driver/opengl/opengl.h>
 #include <lib/esim/esim.h>
 #include <lib/mhandle/mhandle.h>
+#include <lib/util/debug.h>
 #include <lib/util/misc.h>
-#include <lib/util/timer.h>
+#include <lib/util/string.h>
 #include <mem-system/memory.h>
 
+#include "context.h"
 #include "emu.h"
 #include "file-desc.h"
-#include "glut.h"
 #include "isa.h"
-#include "opengl.h"
 #include "regs.h"
 #include "signal.h"
 #include "syscall.h"
@@ -51,10 +54,8 @@ long long x86_emu_min_inst_per_ctx = 0;
 long long x86_emu_max_cycles = 0;
 char x86_emu_last_inst_bytes[20];
 int x86_emu_last_inst_size = 0;
-enum x86_emu_kind_t x86_emu_kind = x86_emu_kind_functional;
+int x86_emu_process_prefetch_hints = 0;
 
-
-/* x86 CPU Emulator */
 struct x86_emu_t *x86_emu;
 
 
@@ -85,15 +86,13 @@ void x86_emu_init(void)
 	M2S_HOST_GUEST_MATCH(sizeof(int), 4);
 	M2S_HOST_GUEST_MATCH(sizeof(short), 2);
 
-	/* Initialization */
+	/* Create */
+	x86_emu = xcalloc(1, sizeof(struct x86_emu_t));
+
+	/* Initialize */
 	x86_sys_init();
 	x86_isa_init();
-
-	/* Allocate */
-	x86_emu = calloc(1, sizeof(struct x86_emu_t));
-	if (!x86_emu)
-		fatal("%s: out of memory", __FUNCTION__);
-
+	
 	/* Event for context IPC reports */
 	EV_X86_CTX_IPC_REPORT = esim_register_event_with_name(x86_ctx_ipc_report_handler, "x86_ctx_ipc_report");
 
@@ -107,27 +106,22 @@ void x86_emu_init(void)
 	EV_X86_CTX_CPU_REPORT = esim_register_event_with_name(x86_ctx_cpu_report_handler, "x86_ctx_cpu_report");
 
 	/* Initialize */
-	x86_emu->current_pid = 1000;  /* Initial assigned pid */
-	x86_emu->timer = m2s_timer_create("x86 emulation timer");
-
+	x86_emu->current_pid = 100;  /* Initial assigned pid */
+	
 	/* Initialize mutex for variables controlling calls to 'x86_emu_process_events()' */
 	pthread_mutex_init(&x86_emu->process_events_mutex, NULL);
 
-	/* Initialize GPU emulators */
-	x86_emu->gpu_kind = x86_emu_gpu_evergreen;
-	evg_emu_init();
-	si_emu_init();
-
-#ifdef HAVE_GLUT
+#ifdef HAVE_OPENGL
 	/* GLUT */
-	x86_glut_init();
+	glut_init();
+	/* GLEW */
+	glew_init();
+	/* GLU */
+	glu_init();
 #endif
 
 	/* OpenGL */
-	x86_opengl_init();
-
-	/* CUDA */
-	frm_emu_init();
+	opengl_init();
 }
 
 
@@ -136,29 +130,25 @@ void x86_emu_done(void)
 {
 	struct x86_ctx_t *ctx;
 
-#ifdef HAVE_GLUT
-	x86_glut_done();
+#ifdef HAVE_OPENGL
+	glut_done();
+	glew_done();
+	glu_done();
 #endif
 
-	/* Finalize Opengl */
-	x86_opengl_done();
+	/* Finalize OpenGl */
+	opengl_done();
 
 	/* Finish all contexts */
 	for (ctx = x86_emu->context_list_head; ctx; ctx = ctx->context_list_next)
-		if (!x86_ctx_get_status(ctx, x86_ctx_finished))
+		if (!x86_ctx_get_state(ctx, x86_ctx_finished))
 			x86_ctx_finish(ctx, 0);
 
 	/* Free contexts */
 	while (x86_emu->context_list_head)
 		x86_ctx_free(x86_emu->context_list_head);
-
-	/* Finalize GPU */
-	evg_emu_done();
-	si_emu_done();
-	frm_emu_done();
-
+	
 	/* Free */
-	m2s_timer_free(x86_emu->timer);
 	free(x86_emu);
 
 	/* End */
@@ -170,127 +160,18 @@ void x86_emu_done(void)
 void x86_emu_dump(FILE *f)
 {
 	struct x86_ctx_t *ctx;
-	int index = 0;
 
-	fprintf(f, "List of kernel contexts (arbitrary order):\n");
-	ctx = x86_emu->context_list_head;
-	while (ctx)
-	{
-		fprintf(f, "kernel context #%d:\n", index);
+	fprintf(f, "List of contexts (shows in any order)\n\n");
+	DOUBLE_LINKED_LIST_FOR_EACH(x86_emu, context, ctx)
 		x86_ctx_dump(ctx, f);
-		ctx = ctx->context_list_next;
-		index++;
-	}
 }
 
 
 void x86_emu_dump_summary(FILE *f)
 {
-	double time_in_sec;
-	double inst_per_sec;
-
-	/* No statistic dump if there was no x86 simulation */
-	if (!x86_emu->inst_count)
-		return;
-
 	/* Functional simulation */
-	time_in_sec = (double) m2s_timer_get_value(x86_emu->timer) / 1.0e6;
-	inst_per_sec = time_in_sec > 0.0 ? (double) x86_emu->inst_count / time_in_sec : 0.0;
-	fprintf(f, "[ x86 ]\n");
-	fprintf(f, "SimType = %s\n", x86_emu_kind == x86_emu_kind_functional ?
-			"Functional" : "Detailed");
-	fprintf(f, "Time = %.2f\n", time_in_sec);
 	fprintf(f, "Contexts = %d\n", x86_emu->running_list_max);
 	fprintf(f, "Memory = %lu\n", mem_max_mapped_space);
-	fprintf(f, "EmulatedInstructions = %lld\n", x86_emu->inst_count);
-	fprintf(f, "EmulatedInstructionsPerSecond = %.0f\n", inst_per_sec);
-
-	/* Detailed simulation */
-	if (x86_emu_kind == x86_emu_kind_detailed)
-		x86_cpu_dump_summary(f);
-
-	/* End */
-	fprintf(f, "\n");
-}
-
-
-void x86_emu_list_insert_head(enum x86_emu_list_kind_t list, struct x86_ctx_t *ctx)
-{
-	assert(!x86_emu_list_member(list, ctx));
-	switch (list)
-	{
-	case x86_emu_list_context:
-
-		DOUBLE_LINKED_LIST_INSERT_HEAD(x86_emu, context, ctx);
-		break;
-
-	case x86_emu_list_running:
-
-		DOUBLE_LINKED_LIST_INSERT_HEAD(x86_emu, running, ctx);
-		break;
-
-	case x86_emu_list_finished:
-
-		DOUBLE_LINKED_LIST_INSERT_HEAD(x86_emu, finished, ctx);
-		break;
-
-	case x86_emu_list_zombie:
-
-		DOUBLE_LINKED_LIST_INSERT_HEAD(x86_emu, zombie, ctx);
-		break;
-
-	case x86_emu_list_suspended:
-
-		DOUBLE_LINKED_LIST_INSERT_HEAD(x86_emu, suspended, ctx);
-		break;
-
-	case x86_emu_list_alloc:
-
-		DOUBLE_LINKED_LIST_INSERT_HEAD(x86_emu, alloc, ctx);
-		break;
-	}
-}
-
-
-void x86_emu_list_insert_tail(enum x86_emu_list_kind_t list, struct x86_ctx_t *ctx)
-{
-	assert(!x86_emu_list_member(list, ctx));
-	switch (list) {
-	case x86_emu_list_context: DOUBLE_LINKED_LIST_INSERT_TAIL(x86_emu, context, ctx); break;
-	case x86_emu_list_running: DOUBLE_LINKED_LIST_INSERT_TAIL(x86_emu, running, ctx); break;
-	case x86_emu_list_finished: DOUBLE_LINKED_LIST_INSERT_TAIL(x86_emu, finished, ctx); break;
-	case x86_emu_list_zombie: DOUBLE_LINKED_LIST_INSERT_TAIL(x86_emu, zombie, ctx); break;
-	case x86_emu_list_suspended: DOUBLE_LINKED_LIST_INSERT_TAIL(x86_emu, suspended, ctx); break;
-	case x86_emu_list_alloc: DOUBLE_LINKED_LIST_INSERT_TAIL(x86_emu, alloc, ctx); break;
-	}
-}
-
-
-void x86_emu_list_remove(enum x86_emu_list_kind_t list, struct x86_ctx_t *ctx)
-{
-	assert(x86_emu_list_member(list, ctx));
-	switch (list) {
-	case x86_emu_list_context: DOUBLE_LINKED_LIST_REMOVE(x86_emu, context, ctx); break;
-	case x86_emu_list_running: DOUBLE_LINKED_LIST_REMOVE(x86_emu, running, ctx); break;
-	case x86_emu_list_finished: DOUBLE_LINKED_LIST_REMOVE(x86_emu, finished, ctx); break;
-	case x86_emu_list_zombie: DOUBLE_LINKED_LIST_REMOVE(x86_emu, zombie, ctx); break;
-	case x86_emu_list_suspended: DOUBLE_LINKED_LIST_REMOVE(x86_emu, suspended, ctx); break;
-	case x86_emu_list_alloc: DOUBLE_LINKED_LIST_REMOVE(x86_emu, alloc, ctx); break;
-	}
-}
-
-
-int x86_emu_list_member(enum x86_emu_list_kind_t list, struct x86_ctx_t *ctx)
-{
-	switch (list) {
-	case x86_emu_list_context: return DOUBLE_LINKED_LIST_MEMBER(x86_emu, context, ctx);
-	case x86_emu_list_running: return DOUBLE_LINKED_LIST_MEMBER(x86_emu, running, ctx);
-	case x86_emu_list_finished: return DOUBLE_LINKED_LIST_MEMBER(x86_emu, finished, ctx);
-	case x86_emu_list_zombie: return DOUBLE_LINKED_LIST_MEMBER(x86_emu, zombie, ctx);
-	case x86_emu_list_suspended: return DOUBLE_LINKED_LIST_MEMBER(x86_emu, suspended, ctx);
-	case x86_emu_list_alloc: return DOUBLE_LINKED_LIST_MEMBER(x86_emu, alloc, ctx);
-	}
-	return 0;
 }
 
 
@@ -318,7 +199,7 @@ static void *x86_emu_host_thread_suspend(void *arg)
 	pthread_detach(pthread_self());
 
 	/* Context suspended in 'poll' system call */
-	if (x86_ctx_get_status(ctx, x86_ctx_nanosleep))
+	if (x86_ctx_get_state(ctx, x86_ctx_nanosleep))
 	{
 		long long timeout;
 
@@ -327,7 +208,7 @@ static void *x86_emu_host_thread_suspend(void *arg)
 		usleep(timeout);
 
 	}
-	else if (x86_ctx_get_status(ctx, x86_ctx_poll))
+	else if (x86_ctx_get_state(ctx, x86_ctx_poll))
 	{
 		struct x86_file_desc_t *fd;
 		struct pollfd host_fds;
@@ -353,7 +234,7 @@ static void *x86_emu_host_thread_suspend(void *arg)
 		if (err < 0)
 			fatal("syscall 'poll': unexpected error in host 'poll'");
 	}
-	else if (x86_ctx_get_status(ctx, x86_ctx_read))
+	else if (x86_ctx_get_state(ctx, x86_ctx_read))
 	{
 		struct x86_file_desc_t *fd;
 		struct pollfd host_fds;
@@ -371,7 +252,7 @@ static void *x86_emu_host_thread_suspend(void *arg)
 		if (err < 0)
 			fatal("syscall 'read': unexpected error in host 'poll'");
 	}
-	else if (x86_ctx_get_status(ctx, x86_ctx_write))
+	else if (x86_ctx_get_state(ctx, x86_ctx_write))
 	{
 		struct x86_file_desc_t *fd;
 		struct pollfd host_fds;
@@ -462,7 +343,7 @@ void x86_emu_process_events()
 		next = ctx->suspended_list_next;
 
 		/* Context is suspended in 'nanosleep' system call. */
-		if (x86_ctx_get_status(ctx, x86_ctx_nanosleep))
+		if (x86_ctx_get_state(ctx, x86_ctx_nanosleep))
 		{
 			uint32_t rmtp = ctx->regs->ecx;
 			uint64_t zero = 0;
@@ -480,7 +361,7 @@ void x86_emu_process_events()
 					mem_write(ctx->mem, rmtp, 8, &zero);
 				x86_sys_debug("syscall 'nanosleep' - continue (pid %d)\n", ctx->pid);
 				x86_sys_debug("  return=0x%x\n", ctx->regs->eax);
-				x86_ctx_clear_status(ctx, x86_ctx_suspended | x86_ctx_nanosleep);
+				x86_ctx_clear_state(ctx, x86_ctx_suspended | x86_ctx_nanosleep);
 				continue;
 			}
 
@@ -497,7 +378,7 @@ void x86_emu_process_events()
 				}
 				ctx->regs->eax = -EINTR;
 				x86_sys_debug("syscall 'nanosleep' - interrupted by signal (pid %d)\n", ctx->pid);
-				x86_ctx_clear_status(ctx, x86_ctx_suspended | x86_ctx_nanosleep);
+				x86_ctx_clear_state(ctx, x86_ctx_suspended | x86_ctx_nanosleep);
 				continue;
 			}
 
@@ -509,7 +390,7 @@ void x86_emu_process_events()
 		}
 
 		/* Context suspended in 'rt_sigsuspend' system call */
-		if (x86_ctx_get_status(ctx, x86_ctx_sigsuspend))
+		if (x86_ctx_get_state(ctx, x86_ctx_sigsuspend))
 		{
 			/* Context received a signal */
 			if (ctx->signal_mask_table->pending & ~ctx->signal_mask_table->blocked)
@@ -517,7 +398,7 @@ void x86_emu_process_events()
 				x86_signal_handler_check_intr(ctx);
 				ctx->signal_mask_table->blocked = ctx->signal_mask_table->backup;
 				x86_sys_debug("syscall 'rt_sigsuspend' - interrupted by signal (pid %d)\n", ctx->pid);
-				x86_ctx_clear_status(ctx, x86_ctx_suspended | x86_ctx_sigsuspend);
+				x86_ctx_clear_state(ctx, x86_ctx_suspended | x86_ctx_sigsuspend);
 				continue;
 			}
 
@@ -527,7 +408,7 @@ void x86_emu_process_events()
 		}
 
 		/* Context suspended in 'poll' system call */
-		if (x86_ctx_get_status(ctx, x86_ctx_poll))
+		if (x86_ctx_get_state(ctx, x86_ctx_poll))
 		{
 			uint32_t prevents = ctx->regs->ebx + 6;
 			uint16_t revents = 0;
@@ -549,7 +430,7 @@ void x86_emu_process_events()
 			{
 				x86_signal_handler_check_intr(ctx);
 				x86_sys_debug("syscall 'poll' - interrupted by signal (pid %d)\n", ctx->pid);
-				x86_ctx_clear_status(ctx, x86_ctx_suspended | x86_ctx_poll);
+				x86_ctx_clear_state(ctx, x86_ctx_suspended | x86_ctx_poll);
 				continue;
 			}
 
@@ -568,7 +449,7 @@ void x86_emu_process_events()
 				ctx->regs->eax = 1;
 				x86_sys_debug("syscall poll - continue (pid %d) - POLLOUT occurred in file\n", ctx->pid);
 				x86_sys_debug("  retval=%d\n", ctx->regs->eax);
-				x86_ctx_clear_status(ctx, x86_ctx_suspended | x86_ctx_poll);
+				x86_ctx_clear_state(ctx, x86_ctx_suspended | x86_ctx_poll);
 				continue;
 			}
 
@@ -580,7 +461,7 @@ void x86_emu_process_events()
 				ctx->regs->eax = 1;
 				x86_sys_debug("syscall poll - continue (pid %d) - POLLIN occurred in file\n", ctx->pid);
 				x86_sys_debug("  retval=%d\n", ctx->regs->eax);
-				x86_ctx_clear_status(ctx, x86_ctx_suspended | x86_ctx_poll);
+				x86_ctx_clear_state(ctx, x86_ctx_suspended | x86_ctx_poll);
 				continue;
 			}
 
@@ -591,7 +472,7 @@ void x86_emu_process_events()
 				mem_write(ctx->mem, prevents, 2, &revents);
 				x86_sys_debug("syscall poll - continue (pid %d) - time out\n", ctx->pid);
 				x86_sys_debug("  return=0x%x\n", ctx->regs->eax);
-				x86_ctx_clear_status(ctx, x86_ctx_suspended | x86_ctx_poll);
+				x86_ctx_clear_state(ctx, x86_ctx_suspended | x86_ctx_poll);
 				continue;
 			}
 
@@ -604,7 +485,7 @@ void x86_emu_process_events()
 
 
 		/* Context suspended in a 'write' system call  */
-		if (x86_ctx_get_status(ctx, x86_ctx_write))
+		if (x86_ctx_get_state(ctx, x86_ctx_write))
 		{
 			struct x86_file_desc_t *fd;
 			int count, err;
@@ -621,7 +502,7 @@ void x86_emu_process_events()
 			{
 				x86_signal_handler_check_intr(ctx);
 				x86_sys_debug("syscall 'write' - interrupted by signal (pid %d)\n", ctx->pid);
-				x86_ctx_clear_status(ctx, x86_ctx_suspended | x86_ctx_write);
+				x86_ctx_clear_state(ctx, x86_ctx_suspended | x86_ctx_write);
 				continue;
 			}
 
@@ -641,7 +522,7 @@ void x86_emu_process_events()
 			if (host_fds.revents) {
 				pbuf = ctx->regs->ecx;
 				count = ctx->regs->edx;
-				buf = malloc(count);
+				buf = xmalloc(count);
 				mem_read(ctx->mem, pbuf, count, buf);
 
 				count = write(fd->host_fd, buf, count);
@@ -653,7 +534,7 @@ void x86_emu_process_events()
 
 				x86_sys_debug("syscall write - continue (pid %d)\n", ctx->pid);
 				x86_sys_debug("  return=0x%x\n", ctx->regs->eax);
-				x86_ctx_clear_status(ctx, x86_ctx_suspended | x86_ctx_write);
+				x86_ctx_clear_state(ctx, x86_ctx_suspended | x86_ctx_write);
 				continue;
 			}
 
@@ -665,7 +546,7 @@ void x86_emu_process_events()
 		}
 
 		/* Context suspended in 'read' system call */
-		if (x86_ctx_get_status(ctx, x86_ctx_read))
+		if (x86_ctx_get_state(ctx, x86_ctx_read))
 		{
 			struct x86_file_desc_t *fd;
 			uint32_t pbuf;
@@ -682,7 +563,7 @@ void x86_emu_process_events()
 			{
 				x86_signal_handler_check_intr(ctx);
 				x86_sys_debug("syscall 'read' - interrupted by signal (pid %d)\n", ctx->pid);
-				x86_ctx_clear_status(ctx, x86_ctx_suspended | x86_ctx_read);
+				x86_ctx_clear_state(ctx, x86_ctx_suspended | x86_ctx_read);
 				continue;
 			}
 
@@ -703,7 +584,7 @@ void x86_emu_process_events()
 			{
 				pbuf = ctx->regs->ecx;
 				count = ctx->regs->edx;
-				buf = malloc(count);
+				buf = xmalloc(count);
 
 				count = read(fd->host_fd, buf, count);
 				if (count < 0)
@@ -715,7 +596,7 @@ void x86_emu_process_events()
 
 				x86_sys_debug("syscall 'read' - continue (pid %d)\n", ctx->pid);
 				x86_sys_debug("  return=0x%x\n", ctx->regs->eax);
-				x86_ctx_clear_status(ctx, x86_ctx_suspended | x86_ctx_read);
+				x86_ctx_clear_state(ctx, x86_ctx_suspended | x86_ctx_read);
 				continue;
 			}
 
@@ -727,7 +608,7 @@ void x86_emu_process_events()
 		}
 
 		/* Context suspended in a 'waitpid' system call */
-		if (x86_ctx_get_status(ctx, x86_ctx_waitpid))
+		if (x86_ctx_get_state(ctx, x86_ctx_waitpid))
 		{
 			struct x86_ctx_t *child;
 			uint32_t pstatus;
@@ -741,11 +622,11 @@ void x86_emu_process_events()
 				ctx->regs->eax = child->pid;
 				if (pstatus)
 					mem_write(ctx->mem, pstatus, 4, &child->exit_code);
-				x86_ctx_set_status(child, x86_ctx_finished);
+				x86_ctx_set_state(child, x86_ctx_finished);
 
 				x86_sys_debug("syscall waitpid - continue (pid %d)\n", ctx->pid);
 				x86_sys_debug("  return=0x%x\n", ctx->regs->eax);
-				x86_ctx_clear_status(ctx, x86_ctx_suspended | x86_ctx_waitpid);
+				x86_ctx_clear_state(ctx, x86_ctx_suspended | x86_ctx_waitpid);
 				continue;
 			}
 
@@ -759,13 +640,13 @@ void x86_emu_process_events()
 		 * calls started using it. It is nicer, since it allows for a check of wake up
 		 * conditions together with the system call itself, without having distributed
 		 * code for the implementation of a system call (e.g. 'read'). */
-		if (x86_ctx_get_status(ctx, x86_ctx_callback))
+		if (x86_ctx_get_state(ctx, x86_ctx_callback))
 		{
 			assert(ctx->can_wakeup_callback_func);
 			if (ctx->can_wakeup_callback_func(ctx, ctx->can_wakeup_callback_data))
 			{
 				/* Set context status to 'running' again. */
-				x86_ctx_clear_status(ctx, x86_ctx_suspended | x86_ctx_callback);
+				x86_ctx_clear_state(ctx, x86_ctx_suspended | x86_ctx_callback);
 
 				/* Call wake up function */
 				if (ctx->wakeup_callback_func)
@@ -861,27 +742,26 @@ void x86_emu_process_events()
  */
 
 
-/* Run one iteration of the x86 emulation loop.
- * Return FALSE if there is no more simulation to perform. */
+/* Run one iteration of the x86 emulation loop. Return TRUE if still running. */
 int x86_emu_run(void)
 {
 	struct x86_ctx_t *ctx;
 
 	/* Stop if there is no context running */
 	if (x86_emu->finished_list_count >= x86_emu->context_list_count)
-		return 0;
+		return FALSE;
 
 	/* Stop if maximum number of CPU instructions exceeded */
-	if (x86_emu_max_inst && x86_emu->inst_count >= x86_emu_max_inst)
+	if (x86_emu_max_inst && arch_x86->inst_count >= x86_emu_max_inst)
 		esim_finish = esim_finish_x86_max_inst;
 
 	/* Stop if maximum number of cycles exceeded */
-	if (x86_emu_max_cycles && esim_cycle >= x86_emu_max_cycles)
+	if (x86_emu_max_cycles && arch_x86->cycle >= x86_emu_max_cycles)
 		esim_finish = esim_finish_x86_max_cycles;
 
 	/* Stop if any previous reason met */
 	if (esim_finish)
-		return 0;
+		return TRUE;
 
 	/* Run an instruction from every running process */
 	for (ctx = x86_emu->running_list_head; ctx; ctx = ctx->running_list_next)
@@ -894,6 +774,6 @@ int x86_emu_run(void)
 	/* Process list of suspended contexts */
 	x86_emu_process_events();
 
-	/* Return TRUE */
-	return 1;
+	/* Still running */
+	return TRUE;
 }

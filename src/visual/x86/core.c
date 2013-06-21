@@ -18,7 +18,6 @@
  */
 
 #include <gtk/gtk.h>
-#include <stdlib.h>
 
 #include <lib/mhandle/mhandle.h>
 #include <lib/util/debug.h>
@@ -38,12 +37,8 @@ struct vi_x86_core_t *vi_x86_core_create(char *name)
 {
 	struct vi_x86_core_t *core;
 
-	/* Allocate */
-	core = calloc(1, sizeof(struct vi_x86_core_t));
-	if (!core)
-		fatal("%s: out of memory", __FUNCTION__);
-
 	/* Initialize */
+	core = xcalloc(1, sizeof(struct vi_x86_core_t));
 	core->name = str_set(NULL, name);
 	core->context_table = hash_table_create(0, FALSE);
 	core->inst_table = hash_table_create(0, FALSE);

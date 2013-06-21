@@ -21,8 +21,9 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include <arch/x86/timing/cpu.h>
+#include <arch/common/arch.h>
 #include <lib/mhandle/mhandle.h>
+#include <lib/util/config.h>
 #include <lib/util/debug.h>
 #include <lib/util/elf-format.h>
 #include <lib/util/file.h>
@@ -37,6 +38,7 @@
 #include "file-desc.h"
 #include "loader.h"
 #include "regs.h"
+
 
 int x86_loader_debug_category;
 
@@ -74,7 +76,7 @@ char *x86_loader_help =
 	"      File to dump a report of the context performance. At specific\n"
 	"      intervals, the context IPC (instructions-per-cycle) value will be\n"
 	"      dumped in this file. This option must be specified together with\n"
-	"      command-line option '--cpu-sim detailed'.\n"
+	"      command-line option '--x86-sim detailed'.\n"
 	"  IPCReportInterval = <cycles>\n"
 	"      Interval in number of cycles that a new record will be added into\n"
 	"      the IPC report file.\n"
@@ -97,6 +99,7 @@ static char *err_x86_ctx_mc_report =
 	"\tThe mc report file has been specified for a context, but the\n"
 	"\tfunctional simulation does not track cycles. Please use option\n"
 	"\t'--cpu-sim detailed' in the command line to activate misc reports.\n";
+
 static char *err_x86_ctx_cpu_report =
 	"\tThe cpu report file has been specified for a context, but the\n"
 	"\tfunctional simulation does not track cycles. Please use option\n"
@@ -249,7 +252,7 @@ static void x86_loader_load_sections(struct x86_ctx_t *ctx, struct elf_file_t *e
 			{
 				void *ptr;
 
-				ptr = calloc(1, section->header->sh_size);
+				ptr = xcalloc(1, section->header->sh_size);
 				mem_access(mem, section->header->sh_addr, section->header->sh_size,
 					ptr, mem_access_init);
 				free(ptr);
@@ -565,7 +568,6 @@ void x86_loader_load_exe(struct x86_ctx_t *ctx, char *exe)
 		x86_loader_debug("%s: stdout redirected\n", stdout_file_full_path);
 	}
 
-
 	/* Load program into memory */
 	x86_loader_get_full_path(ctx, exe, exe_full_path, MAX_STRING_SIZE);
 	ld->elf_file = elf_file_create_from_path(exe_full_path);
@@ -610,12 +612,8 @@ struct x86_loader_t *x86_loader_create(void)
 {
 	struct x86_loader_t *ld;
 
-	/* Allocate */
-	ld = calloc(1, sizeof(struct x86_loader_t));
-	if (!ld)
-		fatal("%s: out of memory", __FUNCTION__);
-
 	/* Initialize */
+	ld = xcalloc(1, sizeof(struct x86_loader_t));
 	ld->args = linked_list_create();
 	ld->env = linked_list_create();
 
@@ -645,10 +643,12 @@ void x86_loader_free(struct x86_loader_t *ld)
 
 	/* IPC report file */
 	file_close(ld->ipc_report_file);
+	file_close(ld->misc_report_file);
+	file_close(ld->mc_report_file);
+	file_close(ld->cpu_report_file);
 
 	/* Free loader */
-	if (ld->interp)
-		free(ld->interp);
+	str_free(ld->interp);
 	str_free(ld->exe);
 	str_free(ld->cwd);
 	str_free(ld->stdin_file);
@@ -725,8 +725,9 @@ void x86_loader_load_from_ctx_config(struct config_t *config, char *section)
 	char *misc_report_file_name;
 	char *mc_report_file_name;
 	char *cpu_report_file_name;
-	char *config_file_name;
 	char *interval_kind_str;
+
+	char *config_file_name;
 
 	/* Get configuration file name for errors */
 	config_file_name = config_get_file_name(config);
@@ -908,4 +909,3 @@ void x86_loader_load_from_command_line(int argc, char **argv)
 	/* Load executable */
 	x86_loader_load_exe(ctx, argv[0]);
 }
-

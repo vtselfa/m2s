@@ -40,8 +40,4 @@ void x86_lq_remove(int core, int thread);
 void x86_sq_remove(int core, int thread);
 void x86_preq_remove(int core, int thread);
 
-void x86_pq_insert(struct x86_uop_t *uop);
-void x86_pq_remove(int core, int thread);
-
 #endif
-

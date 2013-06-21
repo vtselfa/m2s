@@ -17,17 +17,15 @@
  */
 
 #include <assert.h>
-#include <stdlib.h>
 
 #include <lib/esim/trace.h>
 #include <lib/mhandle/mhandle.h>
-#include <lib/util/debug.h>
-#include <lib/util/linked-list.h> //VVV
 #include <lib/util/misc.h>
 #include <lib/util/string.h>
 
 #include "cache.h"
 #include "mem-system.h"
+#include "prefetcher.h"
 
 
 /*
@@ -157,24 +155,15 @@ static void cache_update_waylist(struct cache_set_t *set,
 
 
 struct cache_t *cache_create(char *name, unsigned int num_sets, unsigned int block_size,
-	unsigned int assoc, unsigned int num_streams, unsigned int pref_aggr, enum cache_policy_t policy)
+	unsigned int assoc, enum cache_policy_t policy)
 {
 	struct cache_t *cache;
 	struct cache_block_t *block;
-	struct stream_buffer_t *sb;
-	unsigned int set, way, stream, slot;
-
-	/* Create cache */
-	cache = calloc(1, sizeof(struct cache_t));
-	if (!cache)
-		fatal("%s: out of memory", __FUNCTION__);
-
-	/* Name */
-	cache->name = strdup(name);
-	if (!cache->name)
-		fatal("%s: out of memory", __FUNCTION__);
+	unsigned int set, way;
 
 	/* Initialize */
+	cache = xcalloc(1, sizeof(struct cache_t));
+	cache->name = xstrdup(name);
 	cache->num_sets = num_sets;
 	cache->block_size = block_size;
 	cache->assoc = assoc;
@@ -190,21 +179,16 @@ struct cache_t *cache_create(char *name, unsigned int num_sets, unsigned int blo
 	cache->block_mask = block_size - 1;
 
 	/* Create matrix of prefetched blocks */
-	cache->prefetch.streams = calloc(num_streams, sizeof(struct stream_buffer_t));
-	if (!cache->prefetch.streams)
-		fatal("%s: out of memory", __FUNCTION__);
-	for(stream=0; stream<num_streams; stream++){
-		cache->prefetch.streams[stream].blocks =
-			calloc(pref_aggr, sizeof(struct stream_block_t));
-		if (!cache->prefetch.streams[stream].blocks)
-			fatal("%s: out of memory", __FUNCTION__);
-	}
+	cache->prefetch.streams = xcalloc(num_streams, sizeof(struct stream_buffer_t));
+	for(stream=0; stream<num_streams; stream++)
+		cache->prefetch.streams[stream].blocks = xcalloc(pref_aggr, sizeof(struct stream_block_t));
 
 	/* Initialize streams */
 	cache->prefetch.stream_mask = 0x1FFF; /* 13 bits */
 	cache->prefetch.stream_head = &cache->prefetch.streams[0];
 	cache->prefetch.stream_tail = &cache->prefetch.streams[num_streams - 1];
-	for (stream = 0; stream < num_streams; stream++){
+	for (stream = 0; stream < num_streams; stream++)
+	{
 		sb = &cache->prefetch.streams[stream];
 		sb->stream = stream;
 		sb->stream_tag = -1; /* 0xFFFF...FFFF */
@@ -222,20 +206,12 @@ struct cache_t *cache_create(char *name, unsigned int num_sets, unsigned int blo
 	/* Stride detector */
 	cache->prefetch.stride_detector.camps = linked_list_create();
 
-	/* Create array of sets */
-	cache->sets = calloc(num_sets, sizeof(struct cache_set_t));
-	if (!cache->sets)
-		fatal("%s: out of memory", __FUNCTION__);
-
 	/* Initialize array of sets */
+	cache->sets = xcalloc(num_sets, sizeof(struct cache_set_t));
 	for (set = 0; set < num_sets; set++)
 	{
-		/* Create array of blocks */
-		cache->sets[set].blocks = calloc(assoc, sizeof(struct cache_block_t));
-		if (!cache->sets[set].blocks)
-			fatal("%s: out of memory", __FUNCTION__);
-
 		/* Initialize array of blocks */
+		cache->sets[set].blocks = xcalloc(assoc, sizeof(struct cache_block_t));
 		cache->sets[set].way_head = &cache->sets[set].blocks[0];
 		cache->sets[set].way_tail = &cache->sets[set].blocks[assoc - 1];
 		for (way = 0; way < assoc; way++)
@@ -244,7 +220,6 @@ struct cache_t *cache_create(char *name, unsigned int num_sets, unsigned int blo
 			block->way = way;
 			block->way_prev = way ? &cache->sets[set].blocks[way - 1] : NULL;
 			block->way_next = way < assoc - 1 ? &cache->sets[set].blocks[way + 1] : NULL;
-			block->prefetched = 0;
 		}
 	}
 
@@ -320,7 +295,6 @@ void cache_free(struct cache_t *cache)
 	struct stride_detector_camp_t *camp;
 	struct stream_buffer_t *sb;
 
-	/* Destroy sets */
 	for (set = 0; set < cache->num_sets; set++)
 		free(cache->sets[set].blocks);
 	free(cache->sets);
@@ -350,6 +324,7 @@ void cache_free(struct cache_t *cache)
 	linked_list_free(sd);
 
 	free(cache->name);
+	prefetcher_free(cache->prefetcher);
 	free(cache);
 }
 
@@ -395,7 +370,7 @@ int cache_find_block(struct cache_t *cache, unsigned int addr, int *set_ptr, int
 /* Set the tag and state of a block.
  * If replacement policy is FIFO, update linked list in case a new
  * block is brought to cache, i.e., a new tag is set. */
-void cache_set_block(struct cache_t *cache, int set, int way, int tag, int state, unsigned int prefetched)
+void cache_set_block(struct cache_t *cache, int set, int way, int tag, int state)
 {
 	assert(set >= 0 && set < cache->num_sets);
 	assert(way >= 0 && way < cache->assoc);
@@ -411,7 +386,6 @@ void cache_set_block(struct cache_t *cache, int set, int way, int tag, int state
 			cache_waylist_head);
 	cache->sets[set].blocks[way].tag = tag;
 	cache->sets[set].blocks[way].state = state;
-	cache->sets[set].blocks[way].prefetched = prefetched;
 }
 
 

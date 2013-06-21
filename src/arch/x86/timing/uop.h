@@ -21,8 +21,6 @@
 #define X86_ARCH_TIMING_UOP_H
 
 #include <arch/x86/emu/uinst.h>
-#include <lib/util/linked-list.h>
-#include <mem-system/mod-stack.h>
 
 struct x86_uop_t
 {
@@ -31,7 +29,6 @@ struct x86_uop_t
 	enum x86_uinst_flag_t flags;
 
 	/* Name and sequence numbers */
-	char name[40];
 	long long magic;  /* Magic number for debugging */
 	long long id;  /* Unique ID */
 	long long id_in_core;  /* Unique ID in core */
@@ -42,7 +39,6 @@ struct x86_uop_t
 	int thread;
 
 	/* Fetch info */
-	int fetch_trace_cache;  /* True if uop comes from trace cache */
 	unsigned int eip;  /* Address of x86 macro-instruction */
 	unsigned int neip;  /* Address of next non-speculative x86 macro-instruction */
 	unsigned int pred_neip; /* Address of next predicted x86 macro-instruction (for branches) */
@@ -50,6 +46,7 @@ struct x86_uop_t
 	int specmode;
 	unsigned int fetch_address;  /* Physical address of memory access to fetch this instruction */
 	long long fetch_access;  /* Access identifier to fetch this instruction */
+	int trace_cache;  /* Flag telling if uop came from trace cache */
 
 	/* Fields associated with macroinstruction */
 	char mop_name[40];
@@ -75,7 +72,7 @@ struct x86_uop_t
 	int in_iq : 1;
 	int in_lq : 1;
 	int in_sq : 1;
-	int in_pq : 1;
+	int in_preq : 1;
 	int in_event_queue : 1;
 	int in_rob : 1;
 	int in_uop_trace_list : 1;
@@ -98,18 +95,15 @@ struct x86_uop_t
 	int bimod_index, bimod_pred;
 	int twolevel_bht_index, twolevel_pht_row, twolevel_pht_col, twolevel_pred;
 	int choice_index, choice_pred;
-	
-	//Pref
-	int prefetch;
-	
-	//Prefetch data
-	struct pref_data_t pref;
 };
 
 struct x86_uop_t *x86_uop_create(void);
 void x86_uop_free_if_not_queued(struct x86_uop_t *uop);
+void x86_uop_dump(struct x86_uop_t *uop, FILE *f);
+
 int x86_uop_exists(struct x86_uop_t *uop);
 
+struct linked_list_t;
 void x86_uop_list_dump(struct list_t *uop_list, FILE *f);
 void x86_uop_linked_list_dump(struct linked_list_t *uop_list, FILE *f);
 void x86_uop_linked_list_check_if_ready(struct linked_list_t *uop_list);

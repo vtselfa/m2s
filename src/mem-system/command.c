@@ -17,7 +17,6 @@
  */
 
 #include <assert.h>
-#include <string.h>
 
 #include <lib/esim/esim.h>
 #include <lib/mhandle/mhandle.h>
@@ -34,6 +33,7 @@
 #include "cache.h"
 #include "directory.h"
 #include "mem-system.h"
+#include "module.h"
 
 
 int EV_MEM_SYSTEM_COMMAND;
@@ -87,6 +87,27 @@ static void mem_system_command_get_string(struct list_t *token_list,
 	snprintf(buf, size, "%s", str_token_list_first(token_list));
 	str_token_list_shift(token_list);
 }
+
+
+static long long mem_system_command_get_cycle(struct list_t *token_list,
+	char *command_line)
+{
+	int err;
+	long long command_cycle;
+
+	/* Read cycle */
+	mem_system_command_expect(token_list, command_line);
+	command_cycle = str_to_llint(str_token_list_first(token_list), &err);
+	if (err || command_cycle < 1)
+		fatal("%s: %s: invalid cycle number, integer >= 1 expected.\n\t> %s",
+			__FUNCTION__, str_token_list_first(token_list),
+			command_line);
+	
+	/* Shift token and return */
+	str_token_list_shift(token_list);
+	return command_cycle;
+}
+
 
 int mem_system_command_get_high_low(struct list_t *token_list, char *command_line)
 {
@@ -321,7 +342,6 @@ void mem_system_command_handler(int event, void *data)
 
 		int set_check;
 		int tag_check;
-		int prefetched;
 
 		int state;
 
@@ -337,7 +357,7 @@ void mem_system_command_handler(int event, void *data)
 				__FUNCTION__, mod->name, tag, command_line);
 
 		/* Check that tag goes to specified set */
-		mod_find_block(mod, tag, &set_check, NULL, &tag_check, NULL, &prefetched);
+		mod_find_block(mod, tag, &set_check, NULL, &tag_check, NULL);
 		if (set != set_check)
 			fatal("%s: %s: tag 0x%x belongs to set %d.\n\t> %s",
 				__FUNCTION__, mod->name, tag, set_check, command_line);
@@ -346,7 +366,7 @@ void mem_system_command_handler(int event, void *data)
 				__FUNCTION__, mod->name, command_line);
 
 		/* Set tag */
-		cache_set_block(mod->cache, set, way, tag, state, 0);
+		cache_set_block(mod->cache, set, way, tag, state);
 	}
 
 	/* Command 'SetOwner' */
@@ -424,12 +444,28 @@ void mem_system_command_handler(int event, void *data)
 		enum mod_access_kind_t access_kind;
 		unsigned int addr;
 
+		long long command_cycle;
+		long long cycle;
+
+		/* Get current cycle */
+		cycle = esim_domain_cycle(mem_domain_index);
+
+		/* Read fields */
 		mod = mem_system_command_get_mod(token_list, command_line);
+		command_cycle = mem_system_command_get_cycle(token_list, command_line);
 		access_kind = mem_system_command_get_mod_access(token_list, command_line);
 		addr = mem_system_command_get_hex(token_list, command_line);
 
+		/* If command is scheduled for later, exit */
+		if (command_cycle > cycle)
+		{
+			str_token_list_free(token_list);
+			esim_schedule_event(EV_MEM_SYSTEM_COMMAND, data, command_cycle - cycle);
+			return;
+		}
+
 		/* Access module */
-		mod_access(mod, access_kind, addr, NULL, NULL, NULL,0,0,0);
+		mod_access(mod, access_kind, addr, NULL, NULL, NULL, NULL);
 	}
 
 	/* Command not supported */
@@ -714,18 +750,24 @@ void mem_system_end_command_handler(int event, void *data)
 		assert(list_count(buffer_list) == 1);
 
 		buffer = list_get(buffer_list, 0);
-		link = buffer->link;
-
-		/* Output */
-		str_printf(&msg_str, &msg_size, "check bytes on %s", link->name);
-
-		if (expected_bytes != link-> transferred_bytes)
+		/*New change because of BUS implementation */
+		/* FIXME: Check to see if the Virtual channel capability is considered. */
+		if (buffer->kind == net_buffer_link)
 		{
-			test_failed = 1;
-			str_printf(&msg_detail_str, &msg_detail_size,
-				"\t%s expected %llu bytes transferred, but %llu found\n",
-				link->name, expected_bytes, link->transferred_bytes);
+			link = buffer->link;
+			assert(link);
+			/* Output */
+			str_printf(&msg_str, &msg_size, "check bytes on %s", link->name);
+
+			if (expected_bytes != link-> transferred_bytes)
+			{
+				test_failed = 1;
+				str_printf(&msg_detail_str, &msg_detail_size,
+						"\t%s expected %llu bytes transferred, but %llu found\n",
+						link->name, expected_bytes, link->transferred_bytes);
+			}
 		}
+		/* FIXME: The same calculation may be required for BUS connections. */
 	}
 
 	/* Invalid command */

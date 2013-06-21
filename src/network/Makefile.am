@@ -19,6 +19,12 @@ libnetwork_a_SOURCES = \
 	node.c \
 	node.h \
 	\
+	visual.c \
+	visual.h \
+	\
+	bus.c \
+	bus.h \
+	\
 	routing-table.c \
 	routing-table.h
 

@@ -18,7 +18,6 @@
  */
 
 #include <assert.h>
-#include <string.h>
 
 #include <lib/mhandle/mhandle.h>
 #include <lib/util/debug.h>
@@ -319,12 +318,8 @@ void vi_evg_gpu_init(void)
 {
 	struct vi_trace_line_t *trace_line;
 
-	/* Allocate */
-	vi_evg_gpu = calloc(1, sizeof(struct vi_evg_gpu_t));
-	if (!vi_evg_gpu)
-		fatal("%s: out of memory", __FUNCTION__);
-
 	/* Initialize */
+	vi_evg_gpu = xcalloc(1, sizeof(struct vi_evg_gpu_t));
 	vi_evg_gpu->compute_unit_list = list_create();
 
 	/* State file */
@@ -375,6 +370,9 @@ void vi_evg_gpu_init(void)
 
 			int version_major = 0;
 			int version_minor = 0;
+
+			/* Trace contains the Evergreen GPU */
+			vi_evg_gpu->active = 1;
 
 			/* Check version compatibility */
 			version = vi_trace_line_get_symbol(trace_line, "version");

@@ -19,12 +19,12 @@
 
 #include <assert.h>
 
+#include <arch/common/arch.h>
 #include <arch/x86/emu/context.h>
-#include <arch/x86/emu/loader.h>
+#include <arch/x86/emu/emu.h>
 #include <lib/esim/esim.h>
 #include <lib/esim/trace.h>
 #include <lib/util/debug.h>
-#include <lib/util/list.h>
 
 #include "bpred.h"
 #include "cpu.h"
@@ -32,7 +32,6 @@
 #include "reg-file.h"
 #include "rob.h"
 #include "trace-cache.h"
-#include "uop.h"
 
 
 static char *err_x86_cpu_commit_stall =
@@ -49,9 +48,9 @@ static int x86_cpu_can_commit_thread(int core, int thread)
 
 	/* Sanity check - If the context is running, we assume that something is
 	 * going wrong if more than 1M cycles go by without committing an inst. */
-	if (!ctx || !x86_ctx_get_status(ctx, x86_ctx_running))
-		X86_THREAD.last_commit_cycle = x86_cpu->cycle;
-	if (x86_cpu->cycle - X86_THREAD.last_commit_cycle > 1000000)
+	if (!ctx || !x86_ctx_get_state(ctx, x86_ctx_running))
+		X86_THREAD.last_commit_cycle = arch_x86->cycle;
+	if (arch_x86->cycle - X86_THREAD.last_commit_cycle > 1000000)
 	{
 		warning("core-thread %d-%d: simulation ended due to commit stall.\n%s",
 			core, thread, err_x86_cpu_commit_stall);
@@ -87,7 +86,6 @@ static void x86_cpu_commit_thread(int core, int thread, int quant)
 	struct x86_ctx_t *ctx = X86_THREAD.ctx;
 	struct x86_uop_t *uop;
 	int recover = 0;
-	int i;
 
 	/* Commit stage for thread */
 	assert(ctx);
@@ -122,12 +120,28 @@ static void x86_cpu_commit_thread(int core, int thread, int quant)
 			x86_trace_cache_new_uop(X86_THREAD.trace_cache, uop);
 
 		/* Statistics */
-		X86_THREAD.last_commit_cycle = x86_cpu->cycle;
+		X86_THREAD.last_commit_cycle = arch_x86->cycle;
 		X86_THREAD.num_committed_uinst_array[uop->uinst->opcode]++;
 		X86_CORE.num_committed_uinst_array[uop->uinst->opcode]++;
 		x86_cpu->num_committed_uinst_array[uop->uinst->opcode]++;
 		x86_cpu->num_committed_uinst++;
 		ctx->inst_count++;
+		if (uop->trace_cache)
+			X86_THREAD.trace_cache->num_committed_uinst++;
+		if (!uop->mop_index)
+			x86_cpu->num_committed_inst++;
+		if (uop->flags & X86_UINST_CTRL)
+		{
+			X86_THREAD.num_branch_uinst++;
+			X86_CORE.num_branch_uinst++;
+			x86_cpu->num_branch_uinst++;
+			if (uop->neip != uop->pred_neip)
+			{
+				X86_THREAD.num_mispred_branch_uinst++;
+				X86_CORE.num_mispred_branch_uinst++;
+				x86_cpu->num_mispred_branch_uinst++;
+			}
+		}
 
 		/* Adaptative pref. Update commited inst counters and launch handlers if necessary. */
 		LIST_FOR_EACH(X86_THREAD.adapt_pref_modules, i)
@@ -152,23 +166,6 @@ static void x86_cpu_commit_thread(int core, int thread, int quant)
 
 			if(ctx->cpu_report_stack && ctx->inst_count % ctx->loader->cpu_report_interval == 0)
 				x86_ctx_cpu_report_handler(EV_X86_CTX_CPU_REPORT, ctx->cpu_report_stack);
-		}
-
-		if (uop->fetch_trace_cache)
-			X86_THREAD.trace_cache->committed++;
-		if (!uop->mop_index)
-			x86_cpu->num_committed_inst++;
-		if (uop->flags & X86_UINST_CTRL)
-		{
-			X86_THREAD.num_branch_uinst++;
-			X86_CORE.num_branch_uinst++;
-			x86_cpu->num_branch_uinst++;
-			if (uop->neip != uop->pred_neip)
-			{
-				X86_THREAD.num_mispred_branch_uinst++;
-				X86_CORE.num_mispred_branch_uinst++;
-				x86_cpu->num_mispred_branch_uinst++;
-			}
 		}
 
 		/* Trace */
@@ -196,14 +193,16 @@ static void x86_cpu_commit_thread(int core, int thread, int quant)
 
 	/* If context eviction signal is activated and pipeline is empty,
 	 * deallocate context. */
-	if (ctx->dealloc_signal && x86_cpu_pipeline_empty(core, thread))
-		x86_cpu_unmap_context(core, thread);
+	if (ctx->evict_signal && x86_cpu_pipeline_empty(core, thread))
+		x86_cpu_evict_context(core, thread);
 }
 
 
 static void x86_cpu_commit_core(int core)
 {
-	int pass, quant, new;
+	int pass;
+	int quant;
+	int new;
 
 	/* Commit stage for core */
 	switch (x86_cpu_commit_kind)
@@ -245,6 +244,7 @@ static void x86_cpu_commit_core(int core)
 void x86_cpu_commit()
 {
 	int core;
+
 	x86_cpu->stage = "commit";
 	X86_CORE_FOR_EACH
 		x86_cpu_commit_core(core);

@@ -19,7 +19,6 @@
 
 #include <lib/mhandle/mhandle.h>
 #include <lib/util/misc.h>
-#include <lib/util/debug.h>
 
 #include "isa.h"
 #include "regs.h"
@@ -29,11 +28,10 @@ struct x86_regs_t *x86_regs_create()
 {
 	struct x86_regs_t *regs;
 
-	/* Allocate */
-	regs = calloc(1, sizeof(struct x86_regs_t));
-	if (!regs)
-		fatal("%s: out of memory", __FUNCTION__);
-	
+	/* Initialize */
+	regs = xcalloc(1, sizeof(struct x86_regs_t));
+	regs->fpu_ctrl = 0x37f;  /* Default FP control word */
+
 	/* Return */
 	return regs;
 }

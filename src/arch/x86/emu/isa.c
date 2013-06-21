@@ -19,12 +19,14 @@
 
 #include <stdarg.h>
 
+#include <arch/common/arch.h>
 #include <lib/util/misc.h>
 #include <lib/util/debug.h>
 #include <lib/util/elf-format.h>
 #include <mem-system/memory.h>
 #include <mem-system/spec-mem.h>
 
+#include "context.h"
 #include "emu.h"
 #include "isa.h"
 #include "loader.h"
@@ -39,7 +41,6 @@ int x86_isa_inst_debug_category;
 
 /* Variables used to preserve host state before running assembly */
 long x86_isa_host_flags;
-unsigned short x86_isa_guest_fpcw;
 unsigned char x86_isa_host_fpenv[28];
 
 
@@ -65,7 +66,7 @@ static x86_isa_inst_func_t x86_isa_inst_func[x86_opcode_count] =
 void x86_isa_mem_read(struct x86_ctx_t *ctx, unsigned int addr, int size, void *buf)
 {
 	/* Speculative mode read */
-	if (ctx->status & x86_ctx_spec_mode)
+	if (ctx->state & x86_ctx_spec_mode)
 	{
 		spec_mem_read(ctx->spec_mem, addr, size, buf);
 		return;
@@ -79,7 +80,7 @@ void x86_isa_mem_read(struct x86_ctx_t *ctx, unsigned int addr, int size, void *
 void x86_isa_mem_write(struct x86_ctx_t *ctx, unsigned int addr, int size, void *buf)
 {
 	/* Speculative mode write */
-	if (ctx->status & x86_ctx_spec_mode)
+	if (ctx->state & x86_ctx_spec_mode)
 	{
 		spec_mem_write(ctx->spec_mem, addr, size, buf);
 		return;
@@ -96,12 +97,12 @@ void x86_isa_error(struct x86_ctx_t *ctx, char *fmt, ...)
 	va_start(va, fmt);
 
 	/* No error shown on speculative mode */
-	if (ctx->status & x86_ctx_spec_mode)
+	if (ctx->state & x86_ctx_spec_mode)
 		return;
 
 	/* Error */
 	fprintf(stderr, "fatal: x86 context %d at 0x%08x inst %lld: ",
-		ctx->pid, ctx->curr_eip, x86_emu->inst_count);
+		ctx->pid, ctx->curr_eip, arch_x86->inst_count);
 	vfprintf(stderr, fmt, va);
 	fprintf(stderr, "\n");
 	exit(1);
@@ -168,7 +169,7 @@ static void x86_isa_debug_call(struct x86_ctx_t *ctx)
 	int i;
 
 	/* Do nothing on speculative mode */
-	if (ctx->status & x86_ctx_spec_mode)
+	if (ctx->state & x86_ctx_spec_mode)
 		return;
 
 	/* Call or return. Otherwise, exit */
@@ -441,6 +442,19 @@ unsigned int x86_isa_load_rm32(struct x86_ctx_t *ctx)
 }
 
 
+unsigned short x86_isa_load_r32m16(struct x86_ctx_t *ctx)
+{
+	unsigned short value;
+
+	if (ctx->inst.modrm_mod == 0x03)
+		return x86_isa_load_reg(ctx, ctx->inst.modrm_rm + x86_reg_eax);
+
+	x86_isa_mem_read(ctx, x86_isa_effective_address(ctx), 2, &value);
+	x86_isa_inst_debug("  [0x%x]=0x%x", x86_isa_effective_address(ctx), value);
+	return value;
+}
+
+
 unsigned long long x86_isa_load_m64(struct x86_ctx_t *ctx)
 {
 	unsigned long long value;
@@ -622,7 +636,7 @@ double x86_isa_extended_to_double(unsigned char *e)
 
 void x86_isa_float_to_extended(float f, unsigned char *e)
 {
-	asm volatile ("fld %1; fstpt %0\n\t"
+	asm volatile ("flds %1; fstpt %0\n\t"
 			: "=m" (*e) : "m" (f));
 }
 
@@ -630,7 +644,7 @@ void x86_isa_float_to_extended(float f, unsigned char *e)
 float x86_isa_extended_to_float(unsigned char *e)
 {
 	float f;
-	asm volatile ("fldt %1; fstp %0\n\t"
+	asm volatile ("fldt %1; fstps %0\n\t"
 			: "=m" (f) : "m" (*e));
 	return f;
 }
@@ -673,7 +687,7 @@ void x86_isa_store_float(struct x86_ctx_t *ctx, float value)
 }
 
 
-/* Store the code bits (14, 10, 9, and 8) of the FPU status word into
+/* Store the code bits (14, 10, 9, and 8) of the FPU state word into
  * the 'code' register. */
 void x86_isa_store_fpu_code(struct x86_ctx_t *ctx, unsigned short status)
 {
@@ -687,7 +701,7 @@ void x86_isa_store_fpu_code(struct x86_ctx_t *ctx, unsigned short status)
 }
 
 
-/* Read the status register, by building it from the 'top' and
+/* Read the state register, by building it from the 'top' and
  * 'code' fields. */
 unsigned short x86_isa_load_fpu_status(struct x86_ctx_t *ctx)
 {
@@ -846,13 +860,6 @@ void x86_isa_init(void)
 {
 	x86_disasm_init();
 	x86_uinst_init();
-
-	/* Initialize default floating-point control word (FPCW) */
-	asm volatile (
-		"fstcw %0\n\t"
-		: "=m" (x86_isa_guest_fpcw)
-	);
-	x86_isa_guest_fpcw |= 0x3f;
 }
 
 
@@ -884,7 +891,7 @@ void x86_isa_execute_inst(struct x86_ctx_t *ctx)
 	if (debug_status(x86_isa_inst_debug_category))
 	{
 		x86_isa_inst_debug("%d %8lld %x: ", ctx->pid,
-			x86_emu->inst_count, ctx->curr_eip);
+			arch_x86->inst_count, ctx->curr_eip);
 		x86_inst_dump(&ctx->inst, debug_file(x86_isa_inst_debug_category));
 		x86_isa_inst_debug("  (%d bytes)", ctx->inst.size);
 	}

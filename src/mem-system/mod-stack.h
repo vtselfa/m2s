@@ -21,7 +21,6 @@
 #define MEM_SYSTEM_MOD_STACK_H
 
 #include "module.h"
-#include "cache.h"
 
 
 /* Current identifier for stack */
@@ -66,7 +65,6 @@ struct pref_data_t
 	int invalidating : 1;
 };
 
-////////////////////////////
 /* Request types */
 enum mod_request_type_t
 {
@@ -75,7 +73,6 @@ enum mod_request_type_t
         write_request,
         eviction_request
 };
-///////////////////////////////
 
 
 /* Stack */
@@ -87,6 +84,7 @@ struct mod_stack_t
 
 	struct linked_list_t *event_queue;
 	void *event_queue_item;
+	struct mod_client_info_t *client_info;
 
 	struct mod_t *mod;
 	struct mod_t *target_mod;
@@ -146,9 +144,9 @@ struct mod_stack_t
 	int blocking : 1;
 	int writeback : 1;
 	int eviction : 1;
-	int retry;
 	int coalesced : 1;
 	int port_locked : 1;
+	
 	/* Pref flags */
 	int stream_hit : 1;
 	int stream_head_hit : 1;
@@ -165,6 +163,8 @@ struct mod_stack_t
 	int stride;
 	struct pref_data_t pref;
 	long long stream_retried_cycle;
+
+	int retry;
 
 	/* Message sent through interconnect */
 	struct net_msg_t *msg;
@@ -204,7 +204,7 @@ struct mod_stack_t
 };
 
 struct mod_stack_t *mod_stack_create(long long id, struct mod_t *mod,
-	unsigned int addr, int ret_event, void *ret_stack, int core, int thread, int prefetch);
+		unsigned int addr, int ret_event, struct mod_stack_t *ret_stack, int thread, int core, int prefetch);
 void mod_stack_return(struct mod_stack_t *stack);
 
 void mod_stack_wait_in_mod(struct mod_stack_t *stack,

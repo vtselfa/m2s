@@ -17,12 +17,11 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <poll.h>
-#include <sched.h>
 #include <syscall.h>
-#include <time.h>
 #include <unistd.h>
 #include <utime.h>
 #include <sys/ioctl.h>
@@ -34,21 +33,23 @@
 #include <sys/time.h>
 #include <sys/times.h>
 
-#include <arch/evergreen/emu/opencl.h>
-#include <arch/fermi/emu/cuda.h>
-#include <arch/southern-islands/emu/emu.h>
+#include <arch/common/arch.h>
+#include <arch/common/runtime.h>
+#include <arch/x86/timing/cpu.h>
 #include <lib/esim/esim.h>
 #include <lib/mhandle/mhandle.h>
+#include <lib/util/bit-map.h>
+#include <lib/util/debug.h>
+#include <lib/util/list.h>
 #include <lib/util/misc.h>
+#include <lib/util/string.h>
 #include <mem-system/memory.h>
 
-#include "clrt.h"
+#include "context.h"
 #include "emu.h"
 #include "file-desc.h"
-#include "glut.h"
 #include "isa.h"
 #include "loader.h"
-#include "opengl.h"
 #include "regs.h"
 #include "signal.h"
 #include "syscall.h"
@@ -275,30 +276,53 @@ void x86_sys_dump(FILE *f)
 void x86_sys_call(struct x86_ctx_t *ctx)
 {
 	struct x86_regs_t *regs = ctx->regs;
+	struct runtime_t *runtime;
 
 	int code;
 	int err;
 
-	/* System call code */
+	/* Get system call code from 'eax' */
 	code = regs->eax;
+
+	/* Check for special system call codes outside of the standard range
+	 * defined in 'syscall.dat'. */
 	if (code < 1 || code >= x86_sys_code_count)
-		fatal("%s: invalid system call code (%d)", __FUNCTION__, code);
+	{
+		/* Check if it is a special code registered by a runtime ABI */
+		runtime = runtime_get_from_syscall_code(code);
+		if (!runtime)
+			fatal("%s: invalid system call code (%d)", __FUNCTION__, code);
+
+		/* Debug */
+		x86_sys_debug("%s runtime ABI call (code %d, inst %lld, pid %d)\n",
+			runtime->name, code, arch_x86->inst_count, ctx->pid);
+
+		/* Run runtime ABI call */
+		err = runtime_abi_call(runtime, ctx);
+
+		/* Set return value in 'eax'. */
+		regs->eax = err;
+
+		/* Debug and done */
+		x86_sys_debug("  ret=(%d, 0x%x)\n", err, err);
+		return;
+	}
 
 	/* Statistics */
 	x86_sys_call_freq[code]++;
 
 	/* Debug */
 	x86_sys_debug("system call '%s' (code %d, inst %lld, pid %d)\n",
-		x86_sys_call_name[code], code, x86_emu->inst_count, ctx->pid);
+		x86_sys_call_name[code], code, arch_x86->inst_count, ctx->pid);
 	x86_isa_call_debug("system call '%s' (code %d, inst %lld, pid %d)\n",
-		x86_sys_call_name[code], code, x86_emu->inst_count, ctx->pid);
+		x86_sys_call_name[code], code, arch_x86->inst_count, ctx->pid);
 
 	/* Perform system call */
 	err = x86_sys_call_func[code](ctx);
 
 	/* Set return value in 'eax', except for 'sigreturn' system call. Also, if the
 	 * context got suspended, the wake up routine will set the return value. */
-	if (code != x86_sys_code_sigreturn && !x86_ctx_get_status(ctx, x86_ctx_suspended))
+	if (code != x86_sys_code_sigreturn && !x86_ctx_get_state(ctx, x86_ctx_suspended))
 		regs->eax = err;
 
 	/* Debug */
@@ -407,12 +431,8 @@ static int x86_sys_read_impl(struct x86_ctx_t *ctx)
 	host_fd = fd->host_fd;
 	x86_sys_debug("  host_fd=%d\n", host_fd);
 
-	/* Allocate buffer */
-	buf = calloc(1, count);
-	if (!buf)
-		fatal("%s: out of memory", __FUNCTION__);
-
 	/* Poll the file descriptor to check if read is blocking */
+	buf = xcalloc(1, count);
 	fds.fd = host_fd;
 	fds.events = POLLIN;
 	err = poll(&fds, 1, 0);
@@ -446,7 +466,7 @@ static int x86_sys_read_impl(struct x86_ctx_t *ctx)
 	x86_sys_debug("  blocking read - process suspended\n");
 	ctx->wakeup_fd = guest_fd;
 	ctx->wakeup_events = 1;  /* POLLIN */
-	x86_ctx_set_status(ctx, x86_ctx_suspended | x86_ctx_read);
+	x86_ctx_set_state(ctx, x86_ctx_suspended | x86_ctx_read);
 	x86_emu_process_events_schedule();
 
 	/* Free allocated buffer. Return value doesn't matter,
@@ -493,12 +513,8 @@ static int x86_sys_write_impl(struct x86_ctx_t *ctx)
 	host_fd = desc->host_fd;
 	x86_sys_debug("  host_fd=%d\n", host_fd);
 
-	/* Allocate buffer */
-	buf = calloc(1, count);
-	if (!buf)
-		fatal("%s: out of memory", __FUNCTION__);
-
 	/* Read buffer from memory */
+	buf = xcalloc(1, count);
 	mem_read(mem, buf_ptr, count, buf);
 	x86_sys_debug_buffer("  buf", buf, count);
 
@@ -523,7 +539,7 @@ static int x86_sys_write_impl(struct x86_ctx_t *ctx)
 	/* Blocking write - suspend thread */
 	x86_sys_debug("  blocking write - process suspended\n");
 	ctx->wakeup_fd = guest_fd;
-	x86_ctx_set_status(ctx, x86_ctx_suspended | x86_ctx_write);
+	x86_ctx_set_state(ctx, x86_ctx_suspended | x86_ctx_write);
 	x86_emu_process_events_schedule();
 
 	/* Return value doesn't matter here. It will be overwritten when the
@@ -561,6 +577,39 @@ static struct str_map_t sys_open_flags_map =
 	}
 };
 
+static struct x86_file_desc_t *x86_sys_open_virtual(struct x86_ctx_t *ctx,
+		char *path, int flags, int mode)
+{
+	char temp_path[MAX_PATH_SIZE];
+	struct x86_file_desc_t *desc;
+	int host_fd;
+
+	/* Assume no file found */
+	temp_path[0] = '\0';
+
+	/* Virtual file /proc/self/maps */
+	if (!strcmp(path, "/proc/self/maps"))
+		x86_ctx_gen_proc_self_maps(ctx, temp_path, sizeof temp_path);
+	
+	/* Virtual file /proc/cpuinfo */
+	else if (!strcmp(path, "/proc/cpuinfo"))
+		x86_ctx_gen_proc_cpuinfo(ctx, temp_path, sizeof temp_path);
+
+	/* No file found */
+	if (!temp_path[0])
+		return NULL;
+
+	/* File found, create descriptor */
+	host_fd = open(temp_path, flags, mode);
+	assert(host_fd > 0);
+
+	/* Add file descriptor table entry. */
+	desc = x86_file_desc_table_entry_new(ctx->file_desc_table, file_desc_virtual, host_fd, temp_path, flags);
+	x86_sys_debug("    host file '%s' opened: guest_fd=%d, host_fd=%d\n",
+			temp_path, desc->guest_fd, desc->host_fd);
+	return desc;
+}
+
 static int x86_sys_open_impl(struct x86_ctx_t *ctx)
 {
 	struct x86_regs_t *regs = ctx->regs;
@@ -594,40 +643,21 @@ static int x86_sys_open_impl(struct x86_ctx_t *ctx)
 	x86_sys_debug("  fullpath='%s'\n", full_path);
 	str_map_flags(&sys_open_flags_map, flags, flags_str, sizeof flags_str);
 	x86_sys_debug("  flags=%s\n", flags_str);
-
-	/* Intercept attempt to access OpenCL library and redirect to 'm2s-opencl.so' */
-	switch (x86_emu->gpu_kind)
-	{
-	case x86_emu_gpu_evergreen:
-		evg_opencl_runtime_redirect(ctx, full_path, sizeof full_path);
-		break;
 	
-	case x86_emu_gpu_southern_islands:
-		si_emu_libopencl_redirect(ctx, full_path, sizeof full_path);
-		break;
-	
-	default:
-		panic("%s: invalid GPU kind", __FUNCTION__);
-	}
+	/* The dynamic linker uses the 'open' system call to open shared libraries.
+	 * We need to intercept here attempts to access runtime libraries and
+	 * redirect them to our own Multi2Sim runtimes. */
+	if (runtime_redirect(full_path, temp_path, sizeof temp_path))
+		snprintf(full_path, sizeof full_path, "%s", temp_path);
 
 	/* Virtual files */
 	if (!strncmp(full_path, "/proc/", 6))
 	{
-		/* File /proc/self/maps */
-		if (!strcmp(full_path, "/proc/self/maps"))
-		{
-			/* Create temporary file and open it. */
-			x86_ctx_gen_proc_self_maps(ctx, temp_path);
-			host_fd = open(temp_path, flags, mode);
-			assert(host_fd > 0);
-
-			/* Add file descriptor table entry. */
-			desc = x86_file_desc_table_entry_new(ctx->file_desc_table, file_desc_virtual, host_fd, temp_path, flags);
-			x86_sys_debug("    host file '%s' opened: guest_fd=%d, host_fd=%d\n",
-				temp_path, desc->guest_fd, desc->host_fd);
+		/* Attempt to open virtual file */
+		desc = x86_sys_open_virtual(ctx, full_path, flags, mode);
+		if (desc)
 			return desc->guest_fd;
-		}
-
+		
 		/* Unhandled virtual file. Let the application read the contents of the host
 		 * version of the file as if it was a regular file. */
 		x86_sys_debug("    warning: unhandled virtual file\n");
@@ -704,7 +734,7 @@ static int x86_sys_waitpid_impl(struct x86_ctx_t *ctx)
 	if (!child && !(options & 0x1))
 	{
 		ctx->wakeup_pid = pid;
-		x86_ctx_set_status(ctx, x86_ctx_suspended | x86_ctx_waitpid);
+		x86_ctx_set_state(ctx, x86_ctx_suspended | x86_ctx_waitpid);
 		return 0;
 	}
 
@@ -714,7 +744,7 @@ static int x86_sys_waitpid_impl(struct x86_ctx_t *ctx)
 	{
 		if (status_ptr)
 			mem_write(mem, status_ptr, 4, &child->exit_code);
-		x86_ctx_set_status(child, x86_ctx_finished);
+		x86_ctx_set_state(child, x86_ctx_finished);
 		return child->pid;
 	}
 
@@ -825,12 +855,8 @@ static int x86_sys_execve_impl(struct x86_ctx_t *ctx)
 		if (length >= sizeof arg_str)
 			fatal("%s: buffer too small", __FUNCTION__);
 
-		/* Duplicate */
-		arg = strdup(arg_str);
-		if (!arg)
-			fatal("%s: out of memory", __FUNCTION__);
-
 		/* Add to argument list */
+		arg = xstrdup(arg_str);
 		list_add(arg_list, arg);
 		x86_sys_debug("    argv[%d]='%s'\n", arg_list->count, arg);
 	}
@@ -2197,7 +2223,6 @@ static void sim_statfs_host_to_guest(struct sim_statfs_t *host, struct statfs *g
 	memcpy(&host->fsid, &guest->f_fsid, MIN(sizeof host->fsid, sizeof guest->f_fsid));
 	host->namelen = guest->f_namelen;
 	host->frsize = guest->f_frsize;
-	host->flags = guest->f_flags;
 }
 
 static int x86_sys_statfs_impl(struct x86_ctx_t *ctx)
@@ -2469,9 +2494,7 @@ static int x86_sys_socketcall_impl(struct x86_ctx_t *ctx)
 		mem_read(mem, addr_len_ptr, 4, &addr_len);
 		x86_sys_debug("    addrlen=%d\n", addr_len);
 		host_addr_len = addr_len;
-		addr = malloc(addr_len);
-		if (!addr)
-			fatal("%s: out of memory", __FUNCTION__);
+		addr = xmalloc(addr_len);
 
 		/* Get peer name */
 		err = getpeername(desc->host_fd, addr, &host_addr_len);
@@ -3073,19 +3096,18 @@ static int x86_sys_getdents_impl(struct x86_ctx_t *ctx)
 		fd, pdirent, count);
 	x86_sys_debug("  host_fd=%d\n", host_fd);
 
-	/* Allocate buffer */
-	buf = calloc(1, count);
-	if (!buf)
-		fatal("%s: out of memory", __FUNCTION__);
-
 	/* Call host getdents */
+	buf = xcalloc(1, count);
 	nread = syscall(SYS_getdents, host_fd, buf, count);
 	if (nread == -1)
 		fatal("%s: host call failed", __FUNCTION__);
 
 	/* No more entries */
 	if (!nread)
+	{
+		free(buf);
 		return 0;
+	}
 
 	/* Copy to host memory */
 	host_offs = 0;
@@ -3389,12 +3411,8 @@ static int x86_sys_writev_impl(struct x86_ctx_t *ctx)
 		mem_read(mem, iovec_ptr + 4, 4, &iov_len);
 		iovec_ptr += 8;
 
-		/* Allocate buffer */
-		buf = malloc(iov_len);
-		if (!buf)
-			fatal("%s: out of memory", __FUNCTION__);
-
 		/* Read buffer from memory and write it to file */
+		buf = xmalloc(iov_len);
 		mem_read(mem, iov_base, iov_len, buf);
 		len = write(host_fd, buf, iov_len);
 		if (len == -1)
@@ -3669,7 +3687,7 @@ static int x86_sys_nanosleep_impl(struct x86_ctx_t *ctx)
 
 	/* Suspend process */
 	ctx->wakeup_time = now + total;
-	x86_ctx_set_status(ctx, x86_ctx_suspended | x86_ctx_nanosleep);
+	x86_ctx_set_state(ctx, x86_ctx_suspended | x86_ctx_nanosleep);
 	x86_emu_process_events_schedule();
 	return 0;
 }
@@ -3790,24 +3808,44 @@ static int x86_sys_clock_gettime_impl(struct x86_ctx_t *ctx)
 	x86_sys_debug("  clk_id=0x%x (%s), ts_ptr=0x%x\n",
 		clk_id, clk_id_str, ts_ptr);
 
+	/* Initialize */
+	sim_ts.sec = 0;
+	sim_ts.nsec = 0;
+
 	/* Clock type */
 	switch (clk_id)
 	{
 	case 0:  /* CLOCK_REALTIME */
-	case 1:  /* CLOCK_MONOTONIC */
-	case 4:  /* CLOCK_MONOTONIC_RAW */
 
-		/* Get count in micro-seconds */
+		/* For CLOCK_REALTIME, return the host real time. This is the same
+		 * value that the guest application would see if it ran natively. */
 		now = esim_real_time();
 		sim_ts.sec = now / 1000000;
 		sim_ts.nsec = (now % 1000000) * 1000;
+		break;
 
-		/* Debug */
-		x86_sys_debug("\tts.tv_sec = %u\n", sim_ts.sec);
-		x86_sys_debug("\tts.tv_nsec = %u\n", sim_ts.nsec);
+	case 1:  /* CLOCK_MONOTONIC */
+	case 4:  /* CLOCK_MONOTONIC_RAW */
 
-		/* Write to guest memory */
-		mem_write(mem, ts_ptr, sizeof sim_ts, &sim_ts);
+		/* For these two clocks, we want to return simulated time. This
+		 * time is tricky to calculate when there could be iterations of the
+		 * main simulation loop when no timing simulation happened, but
+		 * which still need to be considered to avoid the application
+		 * having the illusion of time not going by at all. This is the
+		 * strategy assumed to calculate simulated time:
+		 *   - A first component is based on the value of 'esim_time',
+		 *     considering all simulation cycles when there was an
+		 *     active timing simulation of any architecture.
+		 *   - A second component will add a time increment for each
+		 *     simulation main loop iteration where the global time
+		 *     'esim_time' was not incremented. These iterations are
+		 *     recorded in variable 'esim_no_forward_cycles'. A default
+		 *     value of 1ns per each iteration is considered here.
+		 */
+		now = esim_time / 1000;  /* Obtain nsec */
+		now += esim_no_forward_cycles;  /* One more nsec per iteration */
+		sim_ts.sec = now / 1000000000ll;
+		sim_ts.nsec = now % 1000000000ll;
 		break;
 
 	case 2:  /* CLOCK_PROCESS_CPUTIME_ID */
@@ -3824,7 +3862,12 @@ static int x86_sys_clock_gettime_impl(struct x86_ctx_t *ctx)
 			__FUNCTION__, clk_id);
 	}
 
-	/* Success */
+	/* Debug */
+	x86_sys_debug("\tts.tv_sec = %u\n", sim_ts.sec);
+	x86_sys_debug("\tts.tv_nsec = %u\n", sim_ts.nsec);
+
+	/* Write to guest memory */
+	mem_write(mem, ts_ptr, sizeof sim_ts, &sim_ts);
 	return 0;
 }
 
@@ -3957,7 +4000,7 @@ static int x86_sys_poll_impl(struct x86_ctx_t *ctx)
 		ctx->wakeup_time = now + (long long) timeout * 1000;
 	ctx->wakeup_fd = guest_fd;
 	ctx->wakeup_events = guest_fds.events;
-	x86_ctx_set_status(ctx, x86_ctx_suspended | x86_ctx_poll);
+	x86_ctx_set_state(ctx, x86_ctx_suspended | x86_ctx_poll);
 	x86_emu_process_events_schedule();
 	return 0;
 }
@@ -4152,7 +4195,7 @@ static int x86_sys_rt_sigsuspend_impl(struct x86_ctx_t *ctx)
 	/* Save old mask and set new one, then suspend. */
 	ctx->signal_mask_table->backup = ctx->signal_mask_table->blocked;
 	ctx->signal_mask_table->blocked = new_set;
-	x86_ctx_set_status(ctx, x86_ctx_suspended | x86_ctx_sigsuspend);
+	x86_ctx_set_state(ctx, x86_ctx_suspended | x86_ctx_sigsuspend);
 
 	/* New signal mask may cause new events */
 	x86_emu_process_events_schedule();
@@ -4703,12 +4746,8 @@ static int x86_sys_getdents64_impl(struct x86_ctx_t *ctx)
 	if (host_fd < 0)
 		return -EBADF;
 
-	/* Allocate buffer */
-	buf = calloc(1, count);
-	if (!buf)
-		fatal("%s: out of memory", __FUNCTION__);
-
 	/* Host call */
+	buf = xcalloc(1, count);
 	nread = syscall(SYS_getdents, host_fd, buf, count);
 	if (nread < 0)
 		fatal("%s: host call failed", __FUNCTION__);
@@ -4981,7 +5020,7 @@ static int x86_sys_futex_impl(struct x86_ctx_t *ctx)
 		ctx->wakeup_futex = addr1;
 		ctx->wakeup_futex_bitset = bitset;
 		ctx->wakeup_futex_sleep = ++x86_emu->futex_sleep_count;
-		x86_ctx_set_status(ctx, x86_ctx_suspended | x86_ctx_futex);
+		x86_ctx_set_state(ctx, x86_ctx_suspended | x86_ctx_futex);
 		return 0;
 	}
 
@@ -5018,7 +5057,7 @@ static int x86_sys_futex_impl(struct x86_ctx_t *ctx)
 		for (temp_ctx = x86_emu->suspended_list_head; temp_ctx;
 				temp_ctx = temp_ctx->suspended_list_next)
 		{
-			if (x86_ctx_get_status(temp_ctx, x86_ctx_futex)
+			if (x86_ctx_get_state(temp_ctx, x86_ctx_futex)
 					&& temp_ctx->wakeup_futex == addr1)
 			{
 				temp_ctx->wakeup_futex = addr2;
@@ -5124,26 +5163,88 @@ static int x86_sys_sched_setaffinity_impl(struct x86_ctx_t *ctx)
 {
 	struct x86_regs_t *regs = ctx->regs;
 	struct mem_t *mem = ctx->mem;
+	struct x86_ctx_t *target_ctx;
 
+	int err = 0;
 	int pid;
-	int len;
-	int num_procs = 4;
+	int size;
+	int node;
+	int num_nodes;
+	int num_bits;
+
+	int i;
+	int j;
 
 	unsigned int mask_ptr;
-	unsigned int mask;
+	unsigned char *mask;
 
 	/* Arguments */
 	pid = regs->ebx;
-	len = regs->ecx;
+	size = regs->ecx;
 	mask_ptr = regs->edx;
-	x86_sys_debug("  pid=%d, len=%d, mask_ptr=0x%x\n", pid, len, mask_ptr);
+	x86_sys_debug("  pid=%d, size=%d, mask_ptr=0x%x\n",
+			pid, size, mask_ptr);
+
+	/* Check valid size (assume reasonable maximum of 1KB) */
+	if (!IN_RANGE(size, 0, 1 << 10))
+		fatal("%s: invalid range for 'size' (%d)", __FUNCTION__, size);
 
 	/* Read mask */
-	mem_read(mem, mask_ptr, 4, &mask);
-	x86_sys_debug("  mask=0x%x\n", mask);
+	mask = xcalloc(1, size);
+	mem_read(mem, mask_ptr, size, mask);
 
-	/* FIXME: system call ignored. Return the number of processors. */
-	return num_procs;
+	/* Dump it */
+	x86_sys_debug("  CPUs = {");
+	for (i = 0; i < size; i++)
+		for (j = 0; j < 8; j++)
+			if (mask[i] & (1 << j))
+				x86_sys_debug(" %d", i * 8 + j);
+	x86_sys_debug(" }\n");
+
+	/* Find context associated with 'pid'. If the value given in 'pid' is
+	 * zero, the current context is used. */
+	target_ctx = pid ? x86_ctx_get(pid) : ctx;
+	if (!target_ctx)
+	{
+		err = -ESRCH;
+		goto out;
+	}
+
+	/* Count number of effective valid bits in the mask. We need at least
+	 * one bit to be set for the context to make progress hereafter. */
+	num_bits = 0;
+	node = 0;
+	num_nodes = x86_cpu_num_cores * x86_cpu_num_threads;
+	for (i = 0; i < size && node < num_nodes; i++)
+	{
+		for (j = 0; j < 8 && node < num_nodes; j++)
+		{
+			num_bits += mask[i] & (1 << j) ? 1 : 0;
+			node++;
+		}
+	}
+	if (!num_bits)
+	{
+		err = -EINVAL;
+		goto out;
+	}
+
+	/* Set context affinity */
+	node = 0;
+	for (i = 0; i < size && node < num_nodes; i++)
+		for (j = 0; j < 8 && node < num_nodes; j++)
+			bit_map_set(target_ctx->affinity, node++,
+					1, mask[i] & (1 << j) ? 1 : 0);
+
+	/* Changing the context affinity might force it to be evicted and unmapped
+	 * from the current node where it is running (timing simulation only). We
+	 * need to force a call to the scheduler. */
+	x86_emu->schedule_signal = 1;
+
+out:
+	/* Success */
+	free(mask);
+	return err;
 }
 
 
@@ -5157,25 +5258,53 @@ static int x86_sys_sched_getaffinity_impl(struct x86_ctx_t *ctx)
 {
 	struct x86_regs_t *regs = ctx->regs;
 	struct mem_t *mem = ctx->mem;
+	struct x86_ctx_t *target_ctx;
 
 	int pid;
-	int len;
-	int num_procs = 4;
+	int size;
+	int node;
+	int num_nodes;
+
+	int i;
+	int j;
 
 	unsigned int mask_ptr;
-	unsigned int mask = (1 << num_procs) - 1;
+	unsigned char *mask;
 
 	/* Arguments */
 	pid = regs->ebx;
-	len = regs->ecx;
+	size = regs->ecx;
 	mask_ptr = regs->edx;
-	x86_sys_debug("  pid=%d, len=%d, mask_ptr=0x%x\n", pid, len, mask_ptr);
+	x86_sys_debug("  pid=%d, size=%d, mask_ptr=0x%x\n",
+			pid, size, mask_ptr);
+	
+	/* Check valid size (assume reasonable maximum of 1KB) */
+	if (!IN_RANGE(size, 0, 1 << 10))
+		fatal("%s: invalid range for 'size' (%d)", __FUNCTION__, size);
 
-	/* FIXME: the affinity is set to 1 for num_procs processors and only the 4 LSBytes are set.
-	 * The return value is set to num_procs. This is the behavior on a 4-core processor
-	 * in a real system. */
-	mem_write(mem, mask_ptr, 4, &mask);
-	return num_procs;
+	/* Find context associated with 'pid'. If the value given in 'pid' is
+	 * zero, the current context is used. */
+	target_ctx = pid ? x86_ctx_get(pid) : ctx;
+	if (!target_ctx)
+		return -ESRCH;
+
+	/* Allocate mask */
+	mask = xcalloc(1, size);
+
+	/* Read mask from context affinity bitmap */
+	node = 0;
+	num_nodes = x86_cpu_num_cores * x86_cpu_num_threads;
+	for (i = 0; i < size && node < num_nodes; i++)
+		for (j = 0; j < 8 && node < num_nodes; j++)
+			mask[i] |= bit_map_get(target_ctx->affinity,
+					node++, 1) << j;
+	
+	/* Return mask */
+	mem_write(mem, mask_ptr, size, mask);
+	free(mask);
+
+	/* Return sizeof(cpu_set_t) = 32 */
+	return 32;
 }
 
 
@@ -5379,7 +5508,6 @@ static void sim_statfs64_host_to_guest(struct sim_statfs64_t *host, struct statf
 	memcpy(&host->fsid, &guest->f_fsid, MIN(sizeof host->fsid, sizeof guest->f_fsid));
 	host->namelen = guest->f_namelen;
 	host->frsize = guest->f_frsize;
-	host->flags = guest->f_flags;
 }
 
 static int x86_sys_statfs64_impl(struct x86_ctx_t *ctx)
@@ -5473,6 +5601,86 @@ static int x86_sys_tgkill_impl(struct x86_ctx_t *ctx)
 
 
 /*
+ * System call 'openat' (code 295)
+ */
+
+static int x86_sys_openat_impl(struct x86_ctx_t *ctx)
+{
+	struct x86_regs_t *regs = ctx->regs;
+	struct mem_t *mem = ctx->mem;
+	struct x86_file_desc_t *desc;
+
+	unsigned int path_ptr;
+
+	char path[MAX_STRING_SIZE];
+	char full_path[MAX_STRING_SIZE];
+	char temp_path[MAX_STRING_SIZE];
+	char flags_str[MAX_STRING_SIZE];
+
+	int dirfd;
+	int flags;
+	int mode;
+	int length;
+	int host_fd;
+
+	/* Arguments */
+	dirfd = regs->ebx;
+	path_ptr = regs->ecx;
+	flags = regs->edx;
+	mode = regs->esi;
+
+	/* Debug */
+	str_map_flags(&sys_open_flags_map, flags, flags_str, sizeof flags_str);
+	x86_sys_debug("  dirfd=%d, path_ptr=0x%x, flags=0x%x %s, mode=0x%x\n",
+		dirfd, path_ptr, flags, flags_str, mode);
+
+	/* Read path */
+	length = mem_read_string(mem, path_ptr, sizeof path, path);
+	if (length == sizeof path)
+		fatal("%s: buffer too small", __FUNCTION__);
+	x86_sys_debug("  path='%s'\n", path);
+
+	/* Implemented cases:
+	 * dirfd = AT_FDCWD (-100), path is relative -> path is relative to current directory.
+	 * path is absolute -> dirfd ignored
+	 * dirfd != AT_FDCWD, path is relative -> path is relative to 'difd' (not implemented)
+	 */
+	if (dirfd != -100 && path[0] != '/')
+		fatal("%s: difd != AT_FDCWD with relative path not implemented", __FUNCTION__);
+
+	/* Full path */
+	x86_loader_get_full_path(ctx, path, full_path, sizeof full_path);
+	x86_sys_debug("  full_path='%s'\n", full_path);
+
+	/* The dynamic linker uses the 'open' system call to open shared libraries.
+	 * We need to intercept here attempts to access runtime libraries and
+	 * redirect them to our own Multi2Sim runtimes. */
+	if (runtime_redirect(full_path, temp_path, sizeof temp_path))
+		snprintf(full_path, sizeof full_path, "%s", temp_path);
+
+	/* Virtual files */
+	if (!strncmp(full_path, "/proc/", 6))
+		fatal("%s: virtual files not supported", __FUNCTION__);
+
+	/* Regular file. */
+	host_fd = open(full_path, flags, mode);
+	if (host_fd == -1)
+		return -errno;
+
+	/* File opened, create a new file descriptor. */
+	desc = x86_file_desc_table_entry_new(ctx->file_desc_table,
+		file_desc_regular, host_fd, full_path, flags);
+	x86_sys_debug("    file descriptor opened: guest_fd=%d, host_fd=%d\n",
+		desc->guest_fd, desc->host_fd);
+
+	/* Return guest descriptor index */
+	return desc->guest_fd;
+}
+
+
+
+
+/*
  * System call 'set_robust_list' (code 311)
  */
 
@@ -5502,85 +5710,6 @@ static int x86_sys_set_robust_list_impl(struct x86_ctx_t *ctx)
 
 
 /*
- * System call 'opencl' (code 325)
- * Special system call code used by 'libm2s-opencl'
- */
-
-static int x86_sys_opencl_impl(struct x86_ctx_t *ctx)
-{
-	switch (x86_emu->gpu_kind)
-	{
-	case x86_emu_gpu_evergreen:
-		return evg_opencl_api_run(ctx);
-
-	case x86_emu_gpu_southern_islands:
-		return si_opencl_api_run(ctx);
-	
-	default:
-		panic("%s: invalid GPU kind", __FUNCTION__);
-		return 0;
-	}
-}
-
-
-
-
-/*
- * System call 'glut' (code 326)
- * Special system call code used by 'libm2s-glut'
- */
-
-static int x86_sys_glut_impl(struct x86_ctx_t *ctx)
-{
-	/* Run GLUT call */
-	return x86_glut_call(ctx);
-}
-
-
-
-
-/*
- * System call 'opengl' (code 327)
- * Special system call code used by 'libm2s-opengl'
- */
-
-static int x86_sys_opengl_impl(struct x86_ctx_t *ctx)
-{
-	/* Run OPENGL call */
-	return x86_opengl_call(ctx);
-}
-
-
-
-
-/*
- * System call 'cuda' (code 328)
- * Special system call code used by 'libm2s-cuda'
- */
-
-static int x86_sys_cuda_impl(struct x86_ctx_t *ctx)
-{
-	/* Run CUDA call */
-	return frm_cuda_call(ctx);
-}
-
-
-
-/*
- * System call 'clrt' (code 329)
- * Special system call code used by 'libm2s-clrt'
- */
-
-static int x86_sys_clrt_impl(struct x86_ctx_t *ctx)
-{
-	/* Run OpenCL Runtime call */
-	return x86_clrt_call(ctx);
-}
-
-
-
-
-/*
  * Not implemented system calls
  */
 
@@ -5589,7 +5718,7 @@ static int x86_sys_clrt_impl(struct x86_ctx_t *ctx)
 	{ \
 		struct x86_regs_t *regs = ctx->regs; \
 		fatal("%s: system call not implemented (code %d, inst %lld, pid %d).\n%s", \
-			__FUNCTION__, regs->eax, x86_emu->inst_count, ctx->pid, \
+			__FUNCTION__, regs->eax, arch_x86->inst_count, ctx->pid, \
 			err_x86_sys_note); \
 		return 0; \
 	}
@@ -5806,7 +5935,6 @@ SYS_NOT_IMPL(inotify_init)
 SYS_NOT_IMPL(inotify_add_watch)
 SYS_NOT_IMPL(inotify_rm_watch)
 SYS_NOT_IMPL(migrate_pages)
-SYS_NOT_IMPL(openat)
 SYS_NOT_IMPL(mkdirat)
 SYS_NOT_IMPL(mknodat)
 SYS_NOT_IMPL(fchownat)

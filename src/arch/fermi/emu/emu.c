@@ -17,34 +17,33 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include <arch/fermi/asm/asm.h>
-#include <arch/x86/emu/emu.h>
+#include <arch/common/arch.h>
+#include <driver/cuda/object.h>
+#include <lib/esim/esim.h>
 #include <lib/mhandle/mhandle.h>
 #include <lib/util/debug.h>
-#include <lib/util/elf-format.h>
+#include <lib/util/file.h>
 #include <lib/util/linked-list.h>
-#include <lib/util/list.h>
-#include <lib/util/string.h>
+#include <lib/util/misc.h>
+#include <lib/util/timer.h>
 #include <mem-system/memory.h>
 
-#include "cuda-device.h"
-#include "cuda-object.h"
 #include "emu.h"
 #include "isa.h"
+#include "grid.h"
+#include "warp.h"
+#include "thread-block.h"
 
 
 /*
  * Global variables
  */
 
-
 struct frm_emu_t *frm_emu;
 
 long long frm_emu_max_cycles = 0;
 long long frm_emu_max_inst = 0;
 int frm_emu_max_functions = 0;
-
-enum frm_emu_kind_t frm_emu_kind = frm_emu_kind_functional;
 
 char *frm_emu_cuda_binary_name = "";
 char *frm_emu_report_file_name = "";
@@ -54,94 +53,135 @@ int frm_emu_warp_size = 32;
 
 
 
-/*
- * Fermi Emulator
- */
-
 
 void frm_emu_init(void)
 {
-        /* Allocate */
-        frm_emu = calloc(1, sizeof(struct frm_emu_t));
-        if (!frm_emu)
-                fatal("%s: out of memory", __FUNCTION__);
+	/* Open report file */
+	if (*frm_emu_report_file_name)
+	{
+		frm_emu_report_file = file_open_for_write(
+			frm_emu_report_file_name);
+		if (!frm_emu_report_file)
+		{
+			fatal("%s: cannot open report for Fermi emulator", 
+				frm_emu_report_file_name);
+		}
+	}
 
-        frm_emu->const_mem = mem_create();
-        frm_emu->const_mem->safe = 0;
+        /* Initialize */
+        frm_emu = xcalloc(1, sizeof(struct frm_emu_t));
+	frm_emu->grids = list_create();
+	frm_emu->pending_grids = list_create();
+	frm_emu->running_grids = list_create();
+	frm_emu->finished_grids = list_create();
         frm_emu->global_mem = mem_create();
         frm_emu->global_mem->safe = 0;
-        frm_emu->total_global_mem_size = 1 << 31; /* 2GB */
-        frm_emu->free_global_mem_size = frm_emu->total_global_mem_size;
         frm_emu->global_mem_top = 0;
+        frm_emu->total_global_mem_size = 1 << 31; /* 2GB */
+        frm_emu->free_global_mem_size = 1 << 31; /* 2GB */
+        frm_emu->const_mem = mem_create();
+        frm_emu->const_mem->safe = 0;
 
+	/* Initialize disassembler (decoding tables...) */
 	frm_disasm_init();
-	frm_isa_init();
 
-        /* Create device */
-        frm_cuda_object_list = linked_list_create();
-        frm_cuda_device_create();
+	/* Initialize ISA (instruction execution tables...) */
+	frm_isa_init();
 }
 
 
 void frm_emu_done(void)
 {
-	/* Free CUDA object list */
-	frm_cuda_object_free_all();
-	linked_list_free(frm_cuda_object_list);
+	/* Report */
+	if (frm_emu_report_file)
+		fclose(frm_emu_report_file);
 
+	/* Finalize disassembler */
+	frm_disasm_done();
+
+	/* Finalize ISA */
 	frm_isa_done();
 
+	/* Free grids */
+	list_free(frm_emu->grids);
+	list_free(frm_emu->pending_grids);
+	list_free(frm_emu->running_grids);
+	list_free(frm_emu->finished_grids);
         mem_free(frm_emu->const_mem);
         mem_free(frm_emu->global_mem);
+
+	/* Finalize GPU emulator */
         free(frm_emu);
 }
 
 
-
-
-/* 
- * Fermi disassembler
- */
-
-
-void frm_emu_disasm(char *path)
+void frm_emu_dump(FILE *f)
 {
-	struct elf_file_t *elf_file;
-	struct elf_section_t *section;
-	int inst_index;
-	char inst_str[MAX_STRING_SIZE];
-	int i;
+}
 
-	/* Initialization */
-	frm_disasm_init();
 
-	/* Load cubin file */
-	elf_file = elf_file_create_from_path(path);
+/* One iteration of emulator. Return TRUE if emulation is still running. */
+int frm_emu_run(void)
+{
+	struct frm_grid_t *grid;
+	struct frm_thread_block_t *thread_block;
+	struct frm_warp_t *warp;
 
-	for (i = 0; i < list_count(elf_file->section_list); ++i)
+	/* Stop emulation if no grid needs running */
+	if (!list_count(frm_emu->grids))
+		return FALSE;
+
+	/* Remove grid and its thread blocks from pending list, and add them to
+	 * running list */
+	while ((grid = list_head(frm_emu->pending_grids)))
 	{
-		section = (struct elf_section_t *)list_get(elf_file->section_list, i);
-
-		/* Determine if section is .text.kernel_name */
-		if (!strncmp(section->name, ".text.", 6))
+		while ((thread_block = list_head(grid->pending_thread_blocks)))
 		{
-			/* Decode and dump instructions */
-			fprintf(stdout, "%s\n", section->name+6);
-			for (inst_index = 0; inst_index < section->buffer.size/8; ++inst_index)
-			{
-				frm_inst_hex_dump(stdout, (unsigned char*)(section->buffer.ptr), inst_index);
-				frm_inst_dump(stdout, inst_str, MAX_STRING_SIZE, (unsigned char*)(section->buffer.ptr), inst_index);
-			}
+			list_remove(grid->pending_thread_blocks, thread_block);
+			list_add(grid->running_thread_blocks, thread_block);
 		}
-		if (!strncmp(section->name, ".rodata", 7))
+
+		list_remove(frm_emu->pending_grids, grid);
+		list_add(frm_emu->running_grids, grid);
+	}
+
+	/* Run one instruction of each warp in each thread block of each running
+	 * grid */
+	while ((grid = list_head(frm_emu->running_grids)))
+	{
+		/* Execute an instruction from each thread block */
+		while ((thread_block = list_head(grid->running_thread_blocks)))
 		{
-			FILE *fp = fopen(".rodata", "wb");
-			fwrite(section->buffer.ptr, 1, section->buffer.size, fp);
-			fclose(fp);
+			/* Run an instruction from each warp */
+			while ((warp = list_head(thread_block->running_warps)))
+			{
+				/* Execute instruction in warp */
+				frm_warp_execute(warp);
+			}
 		}
 	}
 
-	/* Free external ELF */
-	elf_file_free(elf_file);
+	/* Free finished grids */
+	while ((grid = list_head(frm_emu->finished_grids)))
+	{
+		/* Dump grid report */
+		frm_grid_dump(grid, frm_emu_report_file);
+
+		/* Stop if maximum number of CUDA functions reached */
+		if (frm_emu_max_functions && frm_emu->grid_count >= 
+				frm_emu_max_functions)
+			esim_finish = esim_finish_frm_max_functions;
+
+		/* Remove grid from finished list and free */
+		list_remove(frm_emu->finished_grids, grid);
+		frm_grid_free(grid);
+	}
+
+	/* Continue emulation */
+	return TRUE;
 }
 
+
+void frm_emu_dump_summary(FILE *f)
+{
+}

@@ -22,8 +22,8 @@
 
 #include <stdio.h>
 
+/* Adaptative prefetch */
 extern int EV_CACHE_ADAPT_PREF;
-
 struct core_thread_tuple_t
 {
 	int core;
@@ -70,6 +70,16 @@ enum mod_kind_t
 	mod_kind_local_memory
 };
 
+/* Any info that clients (cpu/gpu) can pass
+ * to the memory system when mod_access() 
+ * is called. */
+struct mod_client_info_t
+{
+	/* This field is for use by the prefetcher. It is set
+	 * to the PC of the instruction accessing the module */
+	unsigned int prefetcher_eip;
+};
+
 /* Type of address range */
 enum mod_range_kind_t
 {
@@ -77,11 +87,6 @@ enum mod_range_kind_t
 	mod_range_bounds,
 	mod_range_interleaved
 };
-
-///////////////////////////////////////
-/*Control if it has to read or write no prefetched misses on a file*/
-int misses_no_prefetch;
-/////////////////////////////////////
 
 struct mod_adapt_pref_stack_t
 {
@@ -98,8 +103,6 @@ struct mod_adapt_pref_stack_t
 	long long last_cycle_pref_disabled;
 	double last_ipc_int;
 };
-
-
 
 #define MOD_ACCESS_HASH_TABLE_SIZE  17
 
@@ -118,13 +121,11 @@ struct mod_t
 	struct list_t *threads; /* List of (core, thread) tuples that can access this module */
 
 	/* Main memory module */
-	//struct reg_channel_t * regs_channel;
-	//int num_regs_channel;
-	struct reg_rank_t * regs_rank; // ranks which this channels connects with
+	struct reg_rank_t *regs_rank; // ranks which this channels connects with
 	int num_regs_rank;
 
-	/*Mem controller associated to mm*/
-	struct mem_controller_t * mem_controller;
+	/* Mem controller associated to mm */
+	struct mem_controller_t *mem_controller;
 
 	/* Module level starting from entry points */
 	int level;
@@ -148,9 +149,6 @@ struct mod_t
 			unsigned int eq;
 		} interleaved;
 	} range;
-
-	/* Prefetch queue */
-	struct linked_list_t *pq;
 
 	/* Ports */
 	struct mod_port_t *ports;
@@ -209,6 +207,11 @@ struct mod_t
 	 * between 0 and 'access_list_count' at all times. */
 	int access_list_coalesced_count;
 
+	/* Clients (CPU/GPU) that use this module can fill in some
+	 * optional information in the mod_client_info_t structure.
+	 * Using a repos_t memory allocator for these structures. */
+	struct repos_t *client_info_repos;
+
 	/* Hash table of accesses */
 	struct
 	{
@@ -218,15 +221,10 @@ struct mod_t
 		int bucket_list_max;
 	} access_hash_table[MOD_ACCESS_HASH_TABLE_SIZE];
 
-	/* For coloring algorithm used to check collisions between CPU and GPU
-	 * memory hierarchies. Remove when fused. */
-	int color;
-
-	/* For constructing a list with all the modules with adaptative prefetch */
-	int visited;
-
-	/* Stack for activate/deactivate prefetch at intervals */
-	struct mod_adapt_pref_stack_t *adapt_pref_stack;
+	/* Architecture accessing this module. For versions of Multi2Sim where it is
+	 * allowed to have multiple architectures sharing the same subset of the
+	 * memory hierarchy, the field is used to check this restriction. */
+	struct arch_t *arch;
 
 	/* Statistics */
 	long long accesses;
@@ -234,8 +232,6 @@ struct mod_t
 	long long hits;
 	long long last_hits;
 	long long last_misses_int; /* Misses in last interval */
-
-	long long hits_pref; /* Hits de stacks de prefetch en els moduls inferiors */
 
 	long long reads;
 	long long effective_reads;
@@ -246,6 +242,9 @@ struct mod_t
 	long long nc_writes;
 	long long effective_nc_writes;
 	long long effective_nc_write_hits;
+	long long prefetches;
+	long long prefetch_aborts;
+	long long useless_prefetches;
 	long long evictions;
 
 	long long blocking_reads;
@@ -319,65 +318,63 @@ struct mod_t
 	long long faults_mem_without_pref;
 };
 
-////////////////////////////////////////////////////////////
 
-/*--------- MAIN MEMORY STRUCTURES------*/
-/* Reg bank*/
-struct reg_bank_t{
+/*--------- MAIN MEMORY STRUCTURES ------*/
+/* Reg bank */
+struct reg_bank_t
+{
+	int row_is_been_accesed; // row which is been accessed
+	int row_buffer; // row which is inside row buffer
+	int is_been_accesed;// show if a bank is been accedid for some instruction
 
-        int row_is_been_accesed; // row which is been accessed
-        int row_buffer; // row which is inside row buffer
-        int is_been_accesed;// show if a bank is been accedid for some instruction
-
-        /*Stadistics*/
-        long long row_buffer_hits; // number of acceses to row buffer which are hits
+	/* Statistics */
+	long long row_buffer_hits; // number of acceses to row buffer which are hits
    	long long row_buffer_hits_pref;
 	long long row_buffer_hits_normal;
 	int t_row_buffer_hit; // cycles needed to acces the bank if the row is in row buffer
-        int t_row_buffer_miss; // cycles needed to acces the bank if the row isn't in row buffer
-        long long conflicts;
-        long long acceses;
-        long long pref_accesses;
-	long long normal_accesses;
-	long long t_wait; // time waited by the requestes to acces to bank
-    	long long t_pref_wait;
-	long long t_normal_wait;
-	long long parallelism;////////////
-};
-
-
-/* Reg rank*/
-struct reg_rank_t{
-
-        struct reg_bank_t * regs_bank;
-        int num_regs_bank;
-        int is_been_accesed; //true or false
-
-        /*Stadistics*/
-        long long parallelism;// number of acceses which acces when that rank is been accesed by others
-        long long acceses;
+	int t_row_buffer_miss; // cycles needed to acces the bank if the row isn't in row buffer
+	long long conflicts;
+	long long acceses;
 	long long pref_accesses;
 	long long normal_accesses;
-        long long row_buffer_hits; // number of acceses to row buffer which are hits
+	long long t_wait; // time waited by the requestes to acces to bank
+	long long t_pref_wait;
+	long long t_normal_wait;
+	long long parallelism;
+};
+
+/* Reg rank */
+struct reg_rank_t
+{
+	struct reg_bank_t *regs_bank;
+	int num_regs_bank;
+	int is_been_accesed; //true or false
+
+	/* Statistics */
+	long long parallelism;// number of acceses which acces when that rank is been accesed by others
+	long long acceses;
+	long long pref_accesses;
+	long long normal_accesses;
+	long long row_buffer_hits; // number of acceses to row buffer which are hits
 	long long row_buffer_hits_pref;
 	long long row_buffer_hits_normal;
 };
 
-/*Reg channels*/
+/* Reg channels */
 enum channel_state_t
 {
-        channel_state_free = 0,
-        channel_state_busy
+	channel_state_free = 0,
+	channel_state_busy
 };
 
-
-struct reg_channel_t{
+struct reg_channel_t
+{
 	enum channel_state_t state; // busy, free
 	int bandwith;
 	struct reg_rank_t * regs_rank; // ranks which this channels connects with
 	int num_regs_rank;
 
-	/*Stadistics*/
+	/* Statistics */
 	long long acceses;
 	long long pref_accesses;
 	long long normal_accesses;
@@ -400,14 +397,13 @@ struct reg_channel_t{
 	long long num_normal_requests_transfered;
 };
 
-/*States of request which  try to acces to main memory*/
+/* States of request which try to acces to main memory */
 enum acces_main_memory_state_t
 {
         row_buffer_hit = 0,
         channel_busy,
         bank_accesed,
         row_buffer_miss
-
 };
 
 ////////////////////////// MAIN MEMORY  //////////////////////////
@@ -427,11 +423,14 @@ struct mod_t *mod_stack_set_peer(struct mod_t *peer, int state);
 
 long long mod_access(struct mod_t *mod, enum mod_access_kind_t access_kind,
 	unsigned int addr, int *witness_ptr, struct linked_list_t *event_queue,
-	void *event_queue_item, int core, int thread, int prefetch);
+	void *event_queue_item, struct mod_client_info_t *client_info);
 int mod_can_access(struct mod_t *mod, unsigned int addr);
 
-int mod_find_block(struct mod_t *mod, unsigned int addr, int *set_ptr, int *way_ptr,
-	int *tag_ptr, int *state_ptr, int *prefetched_prt);
+int mod_find_block(struct mod_t *mod, unsigned int addr, int *set_ptr, int *way_ptr, 
+	int *tag_ptr, int *state_ptr, int *prefetched);
+
+void mod_block_set_prefetched(struct mod_t *mod, unsigned int addr, int val);
+int mod_block_get_prefetched(struct mod_t *mod, unsigned int addr);
 
 void mod_lock_port(struct mod_t *mod, struct mod_stack_t *stack, int event);
 void mod_unlock_port(struct mod_t *mod, struct mod_port_t *port,
@@ -457,6 +456,9 @@ struct mod_stack_t *mod_can_coalesce(struct mod_t *mod,
 	struct mod_stack_t *older_than_stack);
 void mod_coalesce(struct mod_t *mod, struct mod_stack_t *master_stack,
 	struct mod_stack_t *stack);
+
+struct mod_client_info_t *mod_client_info_create(struct mod_t *mod);
+void mod_client_info_free(struct mod_t *mod, struct mod_client_info_t *client_info);
 
 /* Prefetch */
 int mod_find_pref_block(struct mod_t *mod, unsigned int addr, int *pref_stream_ptr, int* pref_slot_ptr);

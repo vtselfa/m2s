@@ -27,7 +27,7 @@
 #include <lib/util/string.h>
 #include <mem-system/memory.h>
 
-#include "emu.h"
+#include "context.h"
 #include "regs.h"
 #include "signal.h"
 #include "syscall.h"
@@ -175,12 +175,8 @@ struct x86_signal_mask_table_t *x86_signal_mask_table_create(void)
 {
 	struct x86_signal_mask_table_t *table;
 
-	/* Create */
-	table = calloc(1, sizeof(struct x86_signal_mask_table_t));
-	if (!table)
-		fatal("%s: out of memory", __FUNCTION__);
-
 	/* Return */
+	table = xcalloc(1, sizeof(struct x86_signal_mask_table_t));
 	return table;
 }
 
@@ -200,12 +196,8 @@ struct x86_signal_handler_table_t *x86_signal_handler_table_create(void)
 {
 	struct x86_signal_handler_table_t *table;
 
-	/* Allocate */
-	table = calloc(1, sizeof(struct x86_signal_handler_table_t));
-	if (!table)
-		fatal("%s: out of memory", __FUNCTION__);
-
 	/* Return */
+	table = xcalloc(1, sizeof(struct x86_signal_handler_table_t));
 	return table;
 }
 
@@ -327,9 +319,9 @@ void x86_signal_handler_run(struct x86_ctx_t *ctx, int sig)
 	/* The program will continue now executing the signal handler.
 	 * In the current implementation, we do not allow other signals to
 	 * interrupt the signal handler, so we notify it in the context status. */
-	if (x86_ctx_get_status(ctx, x86_ctx_handler))
+	if (x86_ctx_get_state(ctx, x86_ctx_handler))
 		fatal("signal_handler_run: already running a handler");
-	x86_ctx_set_status(ctx, x86_ctx_handler);
+	x86_ctx_set_state(ctx, x86_ctx_handler);
 
 	/* Set eip to run handler */
 	handler = ctx->signal_handler_table->sigaction[sig - 1].handler;
@@ -343,9 +335,9 @@ void x86_signal_handler_run(struct x86_ctx_t *ctx, int sig)
 void x86_signal_handler_return(struct x86_ctx_t *ctx)
 {
 	/* Change context status */
-	if (!x86_ctx_get_status(ctx, x86_ctx_handler))
+	if (!x86_ctx_get_state(ctx, x86_ctx_handler))
 		fatal("signal_handler_return: not handling a signal");
-	x86_ctx_clear_status(ctx, x86_ctx_handler);
+	x86_ctx_clear_state(ctx, x86_ctx_handler);
 
 	/* Free signal frame */
 	mem_unmap(ctx->mem, ctx->signal_mask_table->pretcode, MEM_PAGE_SIZE);
@@ -372,7 +364,7 @@ void x86_signal_handler_check_intr(struct x86_ctx_t *ctx)
 
 	/* Context cannot be running a signal handler */
 	/* A signal must be pending and unblocked */
-	assert(!x86_ctx_get_status(ctx, x86_ctx_handler));
+	assert(!x86_ctx_get_state(ctx, x86_ctx_handler));
 	assert(ctx->signal_mask_table->pending & ~ctx->signal_mask_table->blocked);
 
 	/* Get signal number */
@@ -411,7 +403,7 @@ void x86_signal_handler_check(struct x86_ctx_t *ctx)
 	int sig;
 
 	/* If context is already running a signal handler, do nothing. */
-	if (x86_ctx_get_status(ctx, x86_ctx_handler))
+	if (x86_ctx_get_state(ctx, x86_ctx_handler))
 		return;
 	
 	/* If there is no pending unblocked signal, do nothing. */

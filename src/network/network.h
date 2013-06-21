@@ -29,7 +29,6 @@ extern int EV_NET_OUTPUT_BUFFER;
 extern int EV_NET_INPUT_BUFFER;
 extern int EV_NET_RECEIVE;
 
-
 /* Stack */
 struct net_stack_t
 {
@@ -57,12 +56,14 @@ struct net_t
 {
 	/* Properties */
 	char *name;
-	long long msg_id_counter;  /* Counter to assign message IDs */
-	
+	long long msg_id_counter;	/* Counter to assign message IDs */
+	int def_output_buffer_size;
+	int def_input_buffer_size;
+
 	/* Nodes */
 	struct list_t *node_list;
 	int node_count;
-	int end_node_count;  /* Number of end nodes */
+	int end_node_count;	/* Number of end nodes */
 
 	/* Links */
 	struct list_t *link_list;
@@ -74,9 +75,9 @@ struct net_t
 	struct net_msg_t *msg_table[NET_MSG_TABLE_SIZE];
 
 	/* Stats */
-	long long transfers;  /* Transfers */
-	long long lat_acc;  /* Accumulated latency */
-	long long msg_size_acc;  /* Accumulated message size */
+	long long transfers;	/* Transfers */
+	long long lat_acc;	/* Accumulated latency */
+	long long msg_size_acc;	/* Accumulated message size */
 };
 
 
@@ -92,7 +93,7 @@ void net_dump_report(struct net_t *net, FILE *f);
 struct net_node_t *net_add_end_node(struct net_t *net,
 	int input_buffer_size, int output_buffer_size,
 	char *name, void *user_data);
-struct net_node_t *net_add_bus(struct net_t *net, int bandwidth, char *name);
+struct net_node_t *net_add_bus(struct net_t *net, int bandwidth, char *name, int lanes);	/* [K] */
 struct net_node_t *net_add_switch(struct net_t *net,
 	int input_buffer_size, int output_buffer_size,
 	int bandwidth, char *name);
@@ -104,10 +105,16 @@ struct net_node_t *net_get_node_by_user_data(struct net_t *net,
 
 struct net_link_t *net_add_link(struct net_t *net,
 	struct net_node_t *src_node, struct net_node_t *dst_node,
-	int bandwidth, int vc_count);
+	int bandwidth, int link_src_bsize, int link_dst_bsize, int vc_count);
 void net_add_bidirectional_link(struct net_t *net,
 	struct net_node_t *src_node, struct net_node_t *dst_node,
-	int bandwidth, int vc_count);
+	int bandwidth, int link_src_bsize, int link_dst_bsize, int vc_count);
+
+void net_add_bus_port(struct net_t *net, struct net_node_t *src_node,
+	struct net_node_t *dst_node, int bus_src_buffer, int bus_dst_buffer);
+void net_add_bidirectional_bus_port(struct net_t *net,
+	struct net_node_t *src_node, struct net_node_t *dst_node,
+	int bus_src_buffer, int bus_dst_buffer);
 
 
 int net_can_send(struct net_t *net, struct net_node_t *src_node,
@@ -125,12 +132,13 @@ struct net_msg_t *net_send_ev(struct net_t *net, struct net_node_t *src_node,
 struct net_msg_t *net_try_send(struct net_t *net, struct net_node_t *src_node,
 	struct net_node_t *dst_node, int size,
 	int retry_event, void *retry_stack);
-struct net_msg_t *net_try_send_ev(struct net_t *net, struct net_node_t *src_node,
-	struct net_node_t *dst_node, int size, int receive_event, void *receive_stack,
-	int retry_event, void *retry_stack);
+struct net_msg_t *net_try_send_ev(struct net_t *net,
+	struct net_node_t *src_node, struct net_node_t *dst_node, int size,
+	int receive_event, void *receive_stack, int retry_event,
+	void *retry_stack);
 
 
-void net_receive(struct net_t *net, struct net_node_t *node, struct net_msg_t *msg);
+void net_receive(struct net_t *net, struct net_node_t *node,
+	struct net_msg_t *msg);
 
 #endif
-
