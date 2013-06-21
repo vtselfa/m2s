@@ -30,7 +30,16 @@ struct mem_system_t
 	/* List of modules and networks */
 	struct list_t *mod_list;
 	struct list_t *net_list;
+
+	/*List of Memory controllers */
+        struct linked_list_t *mem_controllers;
+	int num_mc;
+
+	/*Piggybacking*/
+	struct linked_list_t *pref_into_normal;
+
 };
+
 
 
 
@@ -74,6 +83,7 @@ void mem_system_init(void);
 void mem_system_done(void);
 
 void mem_system_dump_report(void);
+
 
 struct mod_t *mem_system_get_mod(char *mod_name);
 struct net_t *mem_system_get_net(char *net_name);
