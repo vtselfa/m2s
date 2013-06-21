@@ -21,8 +21,8 @@
 #define MEM_SYSTEM_MODULE_H
 
 #include <stdio.h>
-
-
+#include <rank.h>
+#include <bank.h>
 /* Port */
 struct mod_port_t
 {
@@ -91,6 +91,13 @@ struct mod_t
 	int latency;
 	int dir_latency;
 	int mshr_size;
+
+	/* Main memory module */
+	struct reg_rank_t * regs_rank; // ranks which this channels connects with
+	int num_regs_rank;
+
+	/*Mem controller associated to mm*/
+	struct mem_controller_t * mem_controller;
 
 	/* Module level starting from entry points */
 	int level;
