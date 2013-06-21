@@ -27,35 +27,21 @@
  * Bank
  */
 
-struct dram_bank_t *dram_bank_create(struct dram_rank_t *rank)
-{
-	struct dram_bank_t *bank;
+struct reg_bank_t* regs_bank_create( int num_banks, int t_row_hit, int t_row_miss){
 
-	/* Initialize */
-	bank = xcalloc(1, sizeof(struct dram_bank_t));
-	bank->rank = rank;
+        struct reg_bank_t * banks;
+        banks = calloc( num_banks, sizeof(struct reg_bank_t));
+        if (!banks)
+                fatal("%s: out of memory", __FUNCTION__);
 
-	/* Return */
-	return bank;
-}
+        for(int i=0; i<num_banks;i++){
+                banks[i].row_buffer=-1;
+                banks[i].row_is_been_accesed=-1;
+                banks[i].t_row_buffer_miss=t_row_miss;
+                banks[i].t_row_buffer_hit=t_row_hit;
+        }
 
-
-void dram_bank_free(struct dram_bank_t *bank)
-{
-	/* Free */
-	free(bank);
-}
+        return banks;
 
 
-void dram_bank_dump(struct dram_bank_t *bank, FILE *f)
-{
-	/* Active row */
-	fprintf(f, "\t\tActive row: ");
-	if (bank->row_buffer_valid)
-		fprintf(f, "%d\n", bank->active_row_id);
-	else
-		fprintf(f, "none\n");
-
-	/* Last line */
-	fprintf(f, "\n");
 }

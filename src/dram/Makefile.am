@@ -5,23 +5,11 @@ libdram_a_SOURCES = \
 	bank.c \
 	bank.h \
 	\
-	command.c \
-	command.h \
+	channel.c \
+	channel.h \
 	\
-	controller.c \
-	controller.h \
-	\
-	dram.c \
-	dram.h \
-	\
-	dram-system.c \
-	dram-system.h \
-	\
-	file-accessor.c \
-	file-accessor.h \
-	\
-	rank.c \
-	rank.h \
+	mem-controller.c \
+	mem-controller.h \
 	\
 	request.c \
 	request.h

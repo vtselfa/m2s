@@ -20,65 +20,37 @@
 
 #include <lib/mhandle/mhandle.h>
 
-#include "bank.h"
-#include "dram.h"
-#include "rank.h"
 
+#include "rank.h"
 
 /*
  * Rank
  */
 
-struct dram_rank_t *dram_rank_create(struct dram_t *dram)
-{
-	struct dram_rank_t *rank;
-	int i;
+struct reg_rank_t* regs_rank_create( int num_ranks, int num_banks, int t_row_hit, int t_row_miss){
 
-	/* Initialize */
-	rank = xcalloc(1, sizeof(struct dram_rank_t));
-	rank->dram = dram;
+        struct reg_rank_t * ranks;
+        ranks = calloc(num_ranks, sizeof(struct reg_rank_t));
+        if (!ranks)
+                fatal("%s: out of memory", __FUNCTION__);
 
-	/* Initialize bank array */
-	rank->bank_array = xcalloc(dram->num_banks_per_device, sizeof(struct dram_bank_t *));
-	for (i = 0; i < dram->num_banks_per_device; i++)
-		rank->bank_array[i] = dram_bank_create(rank);
 
-	/* Return */
-	return rank;
+        for(int i=0; i<num_ranks;i++){
+                ranks[i].num_regs_bank=num_banks;
+                ranks[i].regs_bank=regs_bank_create(num_banks, t_row_hit, t_row_miss);
+
+        }
+
+        return ranks;
+
 }
 
+void reg_rank_free(struct reg_rank_t * rank, int num_ranks){
 
-void dram_rank_free(struct dram_rank_t *rank)
-{
-	int i;
+        for(int r=0; r<num_ranks;r++ )
+                free(rank[r].regs_bank);
 
-	/* Free all banks */
-	for (i = 0; i < rank->dram->num_banks_per_device; i++)
-		dram_bank_free(rank->bank_array[i]);
+        free(rank);
 
-	/* Free bank array */
-	free(rank->bank_array);
-
-	/* Free */
-	free(rank);
-}
-
-
-void dram_rank_dump(struct dram_rank_t *rank, FILE *f)
-{
-	int i;
-
-	/* Print fields */
-	fprintf(f, "\tExampleVariable = 1000\n");
-
-	/* Dump all banks */
-	for (i = 0; i < rank->dram->num_banks_per_device; i++)
-	{
-		fprintf(f, "\tBank %d:\n", i);
-		dram_bank_dump(rank->bank_array[i], f);
-	}
-	
-	/* Last line */
-	fprintf(f, "\n");
 }
 
