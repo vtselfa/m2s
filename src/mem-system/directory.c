@@ -343,7 +343,7 @@ int dir_entry_lock(struct dir_t *dir, int x, int y, int event, struct mod_stack_
 			 * weren't we happy with this policy? */
 			while (lock_queue_iter->dir_lock_next)
 			{
-				assert(lock_queue_iter->stack_id != stack->id);
+				assert(lock_queue_iter->id != stack->id);
 				lock_queue_iter = lock_queue_iter->dir_lock_next;
 			}
 			/* ------------------------------------------------------------------------ */
@@ -422,7 +422,7 @@ void dir_entry_unlock(struct dir_t *dir, int x, int y)
 void dir_pref_entry_unlock(struct dir_t *dir, int pref_stream, int pref_slot)
 {
 	struct dir_lock_t *dir_lock;
-	int num_access = 0;
+	int num_accesses = 0;
 
 	assert(IN_RANGE(pref_stream, 0, dir->ssize - 1));
 	assert(IN_RANGE(pref_slot, 0, dir->asize - 1));
@@ -430,7 +430,7 @@ void dir_pref_entry_unlock(struct dir_t *dir, int pref_stream, int pref_slot)
 
 	while (dir_lock->lock_queue)
 	{
-		num_access++;
+		num_accesses++;
 		esim_schedule_event(dir_lock->lock_queue->dir_lock_event, dir_lock->lock_queue, 1);
 		mem_debug("    0x%x access resumed\n", dir_lock->lock_queue->tag);
 		dir_lock->lock_queue = dir_lock->lock_queue->dir_lock_next;

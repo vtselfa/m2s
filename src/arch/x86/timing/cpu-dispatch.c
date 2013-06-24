@@ -46,7 +46,13 @@ static enum x86_dispatch_stall_t x86_cpu_can_dispatch_thread(int core, int threa
 
 	/* If iq/lq/sq/rob full, done */
 	if (!x86_rob_can_enqueue(uop))
+	{
+		struct x86_uop_t *head = x86_rob_head(core, thread);
+		if(head->flags & X86_UINST_MEM)
+			X86_CORE.dispatch_stall_cycles_rob_mem++;
+		X86_CORE.dispatch_stall_cycles_rob++;
 		return x86_dispatch_stall_rob;
+	}
 	if (!(uop->flags & X86_UINST_MEM) && !x86_iq_can_insert(uop))
 		return x86_dispatch_stall_iq;
 	if ((uop->flags & X86_UINST_MEM) && !x86_lsq_can_insert(uop))
@@ -70,22 +76,28 @@ static int x86_cpu_dispatch_thread(int core, int thread, int quant)
 		if (stall != x86_dispatch_stall_used)
 		{
 			X86_CORE.dispatch_stall[stall] += quant;
+			if (x86_dispatch_stall_rob)
+			{
+				struct x86_uop_t *head = x86_rob_head(core, thread);
+				if(head->flags & X86_UINST_MEM)
+					X86_CORE.dispatch_stall[x86_dispatch_stall_rob_mem] += quant;
+			}
 			break;
 		}
-	
+
 		/* Get entry from uop queue */
 		uop = list_remove_at(X86_THREAD.uop_queue, 0);
 		assert(x86_uop_exists(uop));
 		uop->in_uop_queue = 0;
-		
+
 		/* Rename */
 		x86_reg_file_rename(uop);
-		
+
 		/* Insert in ROB */
 		x86_rob_enqueue(uop);
 		X86_CORE.rob_writes++;
 		X86_THREAD.rob_writes++;
-		
+
 		/* Non memory instruction into IQ */
 		if (!(uop->flags & X86_UINST_MEM))
 		{
@@ -93,7 +105,7 @@ static int x86_cpu_dispatch_thread(int core, int thread, int quant)
 			X86_CORE.iq_writes++;
 			X86_THREAD.iq_writes++;
 		}
-		
+
 		/* Memory instructions into the LSQ */
 		if (uop->flags & X86_UINST_MEM)
 		{
@@ -101,7 +113,7 @@ static int x86_cpu_dispatch_thread(int core, int thread, int quant)
 			X86_CORE.lsq_writes++;
 			X86_THREAD.lsq_writes++;
 		}
-		
+
 		/* Statistics */
 		X86_CORE.dispatch_stall[uop->specmode ? x86_dispatch_stall_spec : x86_dispatch_stall_used]++;
 		X86_THREAD.num_dispatched_uinst_array[uop->uinst->opcode]++;
@@ -109,7 +121,7 @@ static int x86_cpu_dispatch_thread(int core, int thread, int quant)
 		x86_cpu->num_dispatched_uinst_array[uop->uinst->opcode]++;
 		if (uop->trace_cache)
 			X86_THREAD.trace_cache->num_dispatched_uinst++;
-		
+
 		/* Another instruction dispatched, update quantum. */
 		quant--;
 
@@ -133,7 +145,7 @@ static void x86_cpu_dispatch_core(int core)
 	{
 
 	case x86_cpu_dispatch_kind_shared:
-		
+
 		do {
 			X86_CORE.dispatch_current = (X86_CORE.dispatch_current + 1) % x86_cpu_num_threads;
 			remain = x86_cpu_dispatch_thread(core, X86_CORE.dispatch_current, 1);
@@ -141,9 +153,9 @@ static void x86_cpu_dispatch_core(int core)
 			quant = remain ? quant : quant - 1;
 		} while (quant && skip);
 		break;
-	
+
 	case x86_cpu_dispatch_kind_timeslice:
-		
+
 		do {
 			X86_CORE.dispatch_current = (X86_CORE.dispatch_current + 1) % x86_cpu_num_threads;
 			skip--;

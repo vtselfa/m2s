@@ -114,7 +114,7 @@ void mod_handler_local_mem_load(int event, void *data)
 
 		/* Call find and lock to lock the port */
 		new_stack = mod_stack_create(stack->id, mod, stack->addr,
-			EV_MOD_LOCAL_MEM_LOAD_FINISH, stack);
+			EV_MOD_LOCAL_MEM_LOAD_FINISH, stack, stack->prefetch);
 		new_stack->read = 1;
 		esim_schedule_event(EV_MOD_LOCAL_MEM_FIND_AND_LOCK, new_stack, 0);
 		return;
@@ -212,7 +212,7 @@ void mod_handler_local_mem_store(int event, void *data)
 
 		/* Call find and lock */
 		new_stack = mod_stack_create(stack->id, mod, stack->addr,
-			EV_MOD_LOCAL_MEM_STORE_FINISH, stack);
+			EV_MOD_LOCAL_MEM_STORE_FINISH, stack, stack->prefetch);
 		new_stack->read = 0;
 		new_stack->witness_ptr = stack->witness_ptr;
 		esim_schedule_event(EV_MOD_LOCAL_MEM_FIND_AND_LOCK, new_stack, 0);

@@ -146,7 +146,7 @@ struct mod_stack_t
 	int eviction : 1;
 	int coalesced : 1;
 	int port_locked : 1;
-	
+
 	/* Pref flags */
 	int stream_hit : 1;
 	int stream_head_hit : 1;
@@ -204,7 +204,7 @@ struct mod_stack_t
 };
 
 struct mod_stack_t *mod_stack_create(long long id, struct mod_t *mod,
-		unsigned int addr, int ret_event, struct mod_stack_t *ret_stack, int thread, int core, int prefetch);
+		unsigned int addr, int ret_event, struct mod_stack_t *ret_stack, int prefetch);
 void mod_stack_return(struct mod_stack_t *stack);
 
 void mod_stack_wait_in_mod(struct mod_stack_t *stack,
@@ -219,9 +219,8 @@ void mod_stack_wait_in_stack(struct mod_stack_t *stack,
 	struct mod_stack_t *master_stack, int event);
 void mod_stack_wakeup_stack(struct mod_stack_t *master_stack);
 
-
-void mod_stack_wait_in_write_buffer(struct mod_stack_t *stack,
-	struct write_buffer_block_t *block, int event);
+struct write_buffer_block_t;
+void mod_stack_wait_in_write_buffer(struct mod_stack_t *stack, struct write_buffer_block_t *block, int event);
 void mod_stack_wake_up_write_buffer(struct write_buffer_block_t *block);
 
 #endif

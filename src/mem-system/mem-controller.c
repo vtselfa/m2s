@@ -1,19 +1,19 @@
 #include <assert.h>
 #include <stdlib.h>
 
+#include <lib/esim/esim.h>
 #include <lib/esim/trace.h>
 #include <lib/mhandle/mhandle.h>
 #include <lib/util/debug.h>
+#include <lib/util/linked-list.h>
+#include <lib/util/list.h>
 #include <lib/util/misc.h>
 #include <lib/util/string.h>
-/////////////////////////
+
+#include "cache.h"
 #include "mem-controller.h"
 #include "mem-system.h"
-#include <lib/util/linked-list.h>
-#include <lib/esim/esim.h>
-#include <lib/util/list.h>
-#include "mod-stack.h"///
-////////////////////////
+#include "mod-stack.h"
 
 int row_buffer_find_row(struct mem_controller_t * mem_controller, struct mod_t *mod, unsigned int addr, unsigned int *channel_ptr,
 	unsigned int *rank_ptr, unsigned int *bank_ptr, unsigned int *row_ptr,  int * tag_ptr, int *state_ptr)
@@ -81,12 +81,10 @@ int row_buffer_find_row(struct mem_controller_t * mem_controller, struct mod_t *
 //////////////////////////////////////////////////////////////////////////////////
 struct mem_controller_queue_t *mem_controller_queue_create(void){
 	struct mem_controller_queue_t *mem_controller_queue;
-	mem_controller_queue = calloc(1, sizeof(struct mem_controller_queue_t));
-	if (!mem_controller_queue)
-		fatal("%s: out of memory", __FUNCTION__);
+	mem_controller_queue = xcalloc(1, sizeof(struct mem_controller_queue_t));
 
 	/* Create stack list */
-	mem_controller_queue->queue=linked_list_create();
+	mem_controller_queue->queue = linked_list_create();
 
 
 	return mem_controller_queue;
@@ -111,9 +109,7 @@ void mem_controller_queue_free(struct mem_controller_queue_t *mem_controller_que
 ///////////////////////////////////////////////////////////////////////////
 struct mem_controller_t *mem_controller_create(void){
 	struct mem_controller_t *mem_controller;
-	mem_controller = calloc(1, sizeof(struct mem_controller_t));
-	if (!mem_controller)
-		fatal("%s: out of memory", __FUNCTION__);
+	mem_controller = xcalloc(1, sizeof(struct mem_controller_t));
 
 	return mem_controller;
 
@@ -141,8 +137,8 @@ void mem_controller_init_main_memory(struct mem_controller_t *mem_controller, in
 	mem_controller->queue_round_robin=0;
 	mem_controller->coalesce= coalesce;
 
-	mem_controller->normal_queue=calloc(mem_controller->num_queues, sizeof(struct mem_controller_queue_t *));
-	mem_controller->pref_queue=calloc(mem_controller->num_queues, sizeof(struct mem_controller_queue_t *));
+	mem_controller->normal_queue = xcalloc(mem_controller->num_queues, sizeof(struct mem_controller_queue_t *));
+	mem_controller->pref_queue = xcalloc(mem_controller->num_queues, sizeof(struct mem_controller_queue_t *));
 	for(int i=0; i<mem_controller->num_queues;i++)
 	{
 		mem_controller->normal_queue[i]=mem_controller_queue_create();
@@ -150,28 +146,28 @@ void mem_controller_init_main_memory(struct mem_controller_t *mem_controller, in
 	}
 
 	//////////////////////////////////////////////////
-	mem_controller->burst_size=calloc(row_size/block_size,sizeof(int*));
-	mem_controller->successive_hit=calloc(row_size/block_size,sizeof(int*));
-	for(int i=0; i<row_size/block_size;i++)
-		mem_controller->successive_hit[i]=calloc(row_size/block_size,sizeof(int));
+	mem_controller->burst_size = xcalloc(row_size/block_size,sizeof(int*));
+	mem_controller->successive_hit = xcalloc(row_size/block_size,sizeof(int*));
+	for(int i = 0; i < row_size / block_size; i++)
+		mem_controller->successive_hit[i] = xcalloc(row_size/block_size,sizeof(int));
 
-	mem_controller->regs_channel=regs_channel_create(channels, ranks, banks, bandwith, regs_rank);
+	mem_controller->regs_channel = regs_channel_create(channels, ranks, banks, bandwith, regs_rank);
 	////////////////////////////////////////////////
 
 
 
-	/*mem_controller->row_in_buffer_banks = calloc(channels, sizeof(int **));
+	/*mem_controller->row_in_buffer_banks = xcalloc(channels, sizeof(int **));
 	if (!mem_controller->row_in_buffer_banks)
 		fatal("%s: out of memory", __FUNCTION__);
 
 	for(int c=0; c<channels;c++){
 
-		mem_controller->row_in_buffer_banks[c] =calloc(ranks, sizeof(int *));
+		mem_controller->row_in_buffer_banks[c] = xcalloc(ranks, sizeof(int *));
 		if (!mem_controller->row_in_buffer_banks[c])
 			fatal("%s: out of memory", __FUNCTION__);
 
 		for(int r=0; r<ranks;r++){
-			mem_controller->row_in_buffer_banks[c][r] = calloc(banks, sizeof( int));
+			mem_controller->row_in_buffer_banks[c][r] = xcalloc(banks, sizeof( int));
 			if (!mem_controller->row_in_buffer_banks[c][r])
 				fatal("%s: out of memory", __FUNCTION__);
 
@@ -244,7 +240,7 @@ void mem_controller_normal_queue_add(struct mod_stack_t * stack){
 
 	/*Now queue is full?*/
 	 if(linked_list_count(mem_controller->normal_queue[bank]->queue)==mem_controller->size_queue)
-         	mem_controller->normal_queue[bank]->instant_begin_full=esim_cycle;
+         	mem_controller->normal_queue[bank]->instant_begin_full = esim_cycle();
 
  	mem_controller->normal_queue[bank]->total_insertions++;
 
@@ -273,8 +269,8 @@ void mem_controller_prefetch_queue_add(struct mod_stack_t * stack){
 	linked_list_head(mem_controller->pref_queue[bank]->queue);
 
 	/*Now queue is full?*/
-	 if(linked_list_count(mem_controller->pref_queue[bank]->queue)==mem_controller->size_queue)
-         	mem_controller->pref_queue[bank]->instant_begin_full=esim_cycle;
+	 if(linked_list_count(mem_controller->pref_queue[bank]->queue) == mem_controller->size_queue)
+         	mem_controller->pref_queue[bank]->instant_begin_full = esim_cycle();
 
 	mem_controller->pref_queue[bank]->total_insertions++;
 
@@ -859,7 +855,7 @@ int mem_controller_get_size_queue(struct mod_stack_t* stack)
 	unsigned int bank;
 	int size;
 	unsigned int log2_row_size= log_base2( mem_controller->row_buffer_size);
-	
+
 	if(mem_controller->queue_per_bank)
 		bank = ((stack->addr >> log2_row_size) % (mem_controller->num_regs_bank*mem_controller->num_regs_rank));
 	else
@@ -868,7 +864,7 @@ int mem_controller_get_size_queue(struct mod_stack_t* stack)
 	 	size=linked_list_count(mem_controller->normal_queue[bank]->queue);
 	else
 		size= linked_list_count(mem_controller->pref_queue[bank]->queue);
-	
+
 
 	assert(size>=0 && size<=mem_controller->size_queue);
 	return size;

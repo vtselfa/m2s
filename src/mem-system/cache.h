@@ -180,7 +180,7 @@ struct cache_t
 	struct cache_write_buffer wb;
 };
 
-struct cache_t *cache_create(char *name, unsigned int num_sets, unsigned int block_size,
+struct cache_t *cache_create(char *name, unsigned int num_sets, int num_strams, int pref_aggr, unsigned int block_size,
 	unsigned int assoc, enum cache_policy_t policy);
 void cache_free(struct cache_t *cache);
 

@@ -85,26 +85,6 @@ char *x86_loader_help =
 	"examples on how to use the context configuration file.\n"
 	"\n";
 
-static char *err_x86_ctx_ipc_report =
-	"\tThe IPC report file has been specified for a context, but the\n"
-	"\tfunctional simulation does not track cycles. Please use option\n"
-	"\t'--cpu-sim detailed' in the command line to activate IPC reports.\n";
-
-static char *err_x86_ctx_misc_report =
-	"\tThe misc report file has been specified for a context, but the\n"
-	"\tfunctional simulation does not track cycles. Please use option\n"
-	"\t'--cpu-sim detailed' in the command line to activate misc reports.\n";
-
-static char *err_x86_ctx_mc_report =
-	"\tThe mc report file has been specified for a context, but the\n"
-	"\tfunctional simulation does not track cycles. Please use option\n"
-	"\t'--cpu-sim detailed' in the command line to activate misc reports.\n";
-
-static char *err_x86_ctx_cpu_report =
-	"\tThe cpu report file has been specified for a context, but the\n"
-	"\tfunctional simulation does not track cycles. Please use option\n"
-	"\t'--cpu-sim detailed' in the command line to activate misc reports.\n";
-
 static struct str_map_t elf_section_flags_map =
 {
 	3, {
@@ -775,10 +755,11 @@ void x86_loader_load_from_ctx_config(struct config_t *config, char *section)
 	out = config_read_string(config, section, "Stdout", "");
 	ld->stdout_file = str_set(NULL, out);
 
-	/* Core affinity */
+	/* TODO: Core affinity
 	ctx->core_affinity = config_read_int(config, section, "CoreAffinity", -1);
 	if(ctx->core_affinity < -1 || ctx->core_affinity > x86_cpu_num_cores)
 		fatal("%s: invalid value for 'CoreAffinity'", config_file_name);
+	*/
 
 	/* Interval kind (instructions or cycles) */
 	interval_kind_str = config_read_string(config, section, "IntervalKind", "cycles");
@@ -793,20 +774,14 @@ void x86_loader_load_from_ctx_config(struct config_t *config, char *section)
 			"IPCReportInterval", 100000);
 	if (*ipc_report_file_name)
 	{
-		if (x86_emu_kind == x86_emu_kind_functional)
-			warning("%s: [%s]: value for 'IPCReport' ignored.\n%s",
-				config_file_name, section, err_x86_ctx_ipc_report);
-		else
-		{
-			ld->ipc_report_file = file_open_for_write(ipc_report_file_name);
-			if (!ld->ipc_report_file)
-				fatal("%s: cannot open IPC report file",
-						ipc_report_file_name);
-			if (ld->ipc_report_interval < 1)
-				fatal("%s: invalid value for 'IPCReportInterval'",
-						config_file_name);
-			x86_ctx_ipc_report_schedule(ctx);
-		}
+		ld->ipc_report_file = file_open_for_write(ipc_report_file_name);
+		if (!ld->ipc_report_file)
+			fatal("%s: cannot open IPC report file",
+					ipc_report_file_name);
+		if (ld->ipc_report_interval < 1)
+			fatal("%s: invalid value for 'IPCReportInterval'",
+					config_file_name);
+		x86_ctx_ipc_report_schedule(ctx);
 	}
 
 	/* Misc stats report file */
@@ -816,20 +791,14 @@ void x86_loader_load_from_ctx_config(struct config_t *config, char *section)
 			"MiscReportInterval", ld->ipc_report_interval); /* By default, same as IPC */
 	if (*misc_report_file_name)
 	{
-		if (x86_emu_kind == x86_emu_kind_functional)
-			warning("%s: [%s]: value for 'MiscReport' ignored.\n%s",
-				config_file_name, section, err_x86_ctx_misc_report);
-		else
-		{
-			ld->misc_report_file = file_open_for_write(misc_report_file_name);
-			if (!ld->misc_report_file)
-				fatal("%s: cannot open misc report file",
-						misc_report_file_name);
-			if (ld->misc_report_interval < 1)
-				fatal("%s: invalid value for 'MiscReportInterval'",
-						config_file_name);
-			x86_ctx_misc_report_schedule(ctx);
-		}
+		ld->misc_report_file = file_open_for_write(misc_report_file_name);
+		if (!ld->misc_report_file)
+			fatal("%s: cannot open misc report file",
+					misc_report_file_name);
+		if (ld->misc_report_interval < 1)
+			fatal("%s: invalid value for 'MiscReportInterval'",
+					config_file_name);
+		x86_ctx_misc_report_schedule(ctx);
 	}
 
 	/* MC stats report file*/
@@ -838,20 +807,14 @@ void x86_loader_load_from_ctx_config(struct config_t *config, char *section)
 			"MCReportInterval", ld->ipc_report_interval); /* By default, same as IPC */
 	if (*mc_report_file_name)
 	{
-		if (x86_emu_kind == x86_emu_kind_functional)
-			warning("%s: [%s]: value for 'MCReport' ignored.\n%s",
-				config_file_name, section, err_x86_ctx_mc_report);
-		else
-		{
-			ld->mc_report_file = file_open_for_write(mc_report_file_name);
-			if (!ld->mc_report_file)
-				fatal("%s: cannot open mc report file",
-						mc_report_file_name);
-			if (ld->mc_report_interval < 1)
-				fatal("%s: invalid value for 'MCReportInterval'",
-						config_file_name);
-			x86_ctx_mc_report_schedule(ctx);
-		}
+		ld->mc_report_file = file_open_for_write(mc_report_file_name);
+		if (!ld->mc_report_file)
+			fatal("%s: cannot open mc report file",
+					mc_report_file_name);
+		if (ld->mc_report_interval < 1)
+			fatal("%s: invalid value for 'MCReportInterval'",
+					config_file_name);
+		x86_ctx_mc_report_schedule(ctx);
 	}
 
 	/* CPU stats report file*/
@@ -860,20 +823,14 @@ void x86_loader_load_from_ctx_config(struct config_t *config, char *section)
 			"CPUReportInterval", ld->ipc_report_interval); /* By default, same as IPC */
 	if (*cpu_report_file_name)
 	{
-		if (x86_emu_kind == x86_emu_kind_functional)
-			warning("%s: [%s]: value for 'CPUReport' ignored.\n%s",
-				config_file_name, section, err_x86_ctx_cpu_report);
-		else
-		{
-			ld->cpu_report_file = file_open_for_write(cpu_report_file_name);
-			if (!ld->cpu_report_file)
-				fatal("%s: cannot open mc report file",
-						cpu_report_file_name);
-			if (ld->cpu_report_interval < 1)
-				fatal("%s: invalid value for 'CPUReportInterval'",
-						config_file_name);
-			x86_ctx_cpu_report_schedule(ctx);
-		}
+		ld->cpu_report_file = file_open_for_write(cpu_report_file_name);
+		if (!ld->cpu_report_file)
+			fatal("%s: cannot open mc report file",
+					cpu_report_file_name);
+		if (ld->cpu_report_interval < 1)
+			fatal("%s: invalid value for 'CPUReportInterval'",
+					config_file_name);
+		x86_ctx_cpu_report_schedule(ctx);
 	}
 
 	/* Load executable */

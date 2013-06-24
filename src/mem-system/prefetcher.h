@@ -34,6 +34,7 @@ enum prefetcher_type_t
 	prefetcher_type_invalid = 0,
 	prefetcher_type_ghb_pc_cs,
 	prefetcher_type_ghb_pc_dc,
+	prefetcher_type_czone_streams,
 };
 
 /* Doesn't really make sense to have a big lookup depth */

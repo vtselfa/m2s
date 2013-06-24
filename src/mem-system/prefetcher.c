@@ -34,6 +34,7 @@ struct str_map_t prefetcher_type_map =
 	2, {
 		{ "GHB_PC_CS", prefetcher_type_ghb_pc_cs },
 		{ "GHB_PC_DC", prefetcher_type_ghb_pc_dc },
+		{ "CZone_Streams", prefetcher_type_czone_streams },
 	}
 };
 

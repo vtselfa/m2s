@@ -22,9 +22,12 @@
 #include <arch/common/arch.h>
 #include <arch/x86/emu/context.h>
 #include <arch/x86/emu/emu.h>
+#include <arch/x86/emu/loader.h>
 #include <lib/esim/esim.h>
 #include <lib/esim/trace.h>
 #include <lib/util/debug.h>
+#include <lib/util/list.h>
+#include <mem-system/module.h>
 
 #include "bpred.h"
 #include "cpu.h"
@@ -86,6 +89,7 @@ static void x86_cpu_commit_thread(int core, int thread, int quant)
 	struct x86_ctx_t *ctx = X86_THREAD.ctx;
 	struct x86_uop_t *uop;
 	int recover = 0;
+	int i;
 
 	/* Commit stage for thread */
 	assert(ctx);

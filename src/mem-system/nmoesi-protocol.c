@@ -23,12 +23,14 @@
 #include <lib/util/debug.h>
 #include <lib/util/linked-list.h>
 #include <lib/util/list.h>
+#include <lib/util/misc.h>
 #include <lib/util/string.h>
 #include <network/network.h>
 #include <network/node.h>
 
 #include "cache.h"
 #include "directory.h"
+#include "mem-controller.h"
 #include "mem-system.h"
 #include "mmu.h"
 #include "mod-stack.h"
@@ -184,7 +186,7 @@ void enqueue_prefetch_group(int core, int thread, struct mod_t *mod, unsigned in
 {
 	struct cache_t *cache = mod->cache;
 	struct stream_buffer_t *sb;
-	struct x86_uop_t * uop;
+	struct mod_client_info_t *client_info;
 	unsigned int mmu_page_tag;
 	unsigned int prev_address;
 	int num_prefetches = cache->prefetch.aggressivity;
@@ -227,19 +229,19 @@ void enqueue_prefetch_group(int core, int thread, struct mod_t *mod, unsigned in
 
 	/* Mark the number of pending prefetches for this stream */
 	sb->pending_prefetches += num_prefetches;
-	sb->cycle = esim_cycle;
+	sb->cycle = esim_time;
 
 	/* Insert prefetches */
 	sb->next_address = base_addr;
 	for (i = 0; i < num_prefetches; i++)
 	{
-		unsigned int phy_addr = sb->next_address;
-		int invalidating = 0;
+		unsigned int prefetch_addr = sb->next_address;
+		int invalidate = 0;
 
 		if(dead || eos)
 		{
-			phy_addr = sb->stream_transcient_tag;
-			invalidating = 1;
+			prefetch_addr = sb->stream_transcient_tag;
+			invalidate = 1;
 		}
 		else
 		{
@@ -263,26 +265,13 @@ void enqueue_prefetch_group(int core, int thread, struct mod_t *mod, unsigned in
 				eos = 1;
 		}
 
-		uop = x86_uop_create();
-		uop->uinst = x86_uinst_create();
-		uop->uinst->opcode = x86_uinst_prefetch;
-		uop->phy_addr = phy_addr;
-		uop->core = core;
-		uop->thread = thread;
-		uop->flags = X86_UINST_MEM;
-		uop->pref.kind = GROUP;
-		uop->pref.mod = mod;
-		uop->pref.dest_stream = stream;
-		uop->pref.dest_slot = (sb->head + i) % sb->num_slots; //HEAD
-		uop->pref.invalidating = invalidating;
-
-		if (mod->level == 1)
-			x86_pq_insert(uop);
-		else
-		{
-			linked_list_out(mod->pq);
-			linked_list_insert(mod->pq, uop);
-		}
+		client_info = mod_client_info_create(mod);
+		client_info->core = core;
+		client_info->thread = thread;
+		client_info->stream = stream;
+		client_info->thread = (sb->head + i) % sb->num_slots;
+		client_info->invalidate = invalidate;
+		mod_access(mod, mod_access_prefetch, prefetch_addr, NULL, NULL, NULL, client_info);
 	}
 
 	/* Reset tail */
@@ -319,7 +308,7 @@ void enqueue_prefetch_on_miss(struct mod_stack_t *stack)
 	/* End of page */
 	if((stack->addr & ~mmu_page_mask) != ((stack->addr + stack->stride) & ~mmu_page_mask)) return;
 
-	enqueue_prefetch_group(stack->core, stack->thread, mod, stack->addr + stack->stride, stack->stride);
+	enqueue_prefetch_group(stack->client_info->core, stack->client_info->thread, mod, stack->addr + stack->stride, stack->stride);
 
 	return;
 }
@@ -329,8 +318,8 @@ void enqueue_prefetch_on_hit(struct mod_stack_t *stack)
 {
 	struct mod_t *mod;
 	struct cache_t *cache;
-	struct x86_uop_t *uop;
 	struct stream_buffer_t *sb;
+	struct mod_client_info_t *client_info;
 	unsigned int prev_address;
 	unsigned int mmu_page_tag;
 
@@ -346,7 +335,7 @@ void enqueue_prefetch_on_hit(struct mod_stack_t *stack)
 	sb = &cache->prefetch.streams[stack->pref_stream];
 
 	/* Next address of this stream is out of page, over/underflowed or has a different stream tag */
-	if(sb->dead)
+	if (sb->dead)
 		return;
 
 	prev_address = sb->next_address - sb->stride;
@@ -362,42 +351,28 @@ void enqueue_prefetch_on_hit(struct mod_stack_t *stack)
 	if (sb->stream_transcient_tag != (sb->next_address & ~cache->prefetch.stream_mask))
 	{
 		sb->dead = 1; /* Only do this the first time */
-		enqueue_prefetch_group(stack->core, stack->thread, mod, sb->next_address, sb->stride);
+		enqueue_prefetch_group(stack->client_info->core, stack->client_info->thread, mod, sb->next_address, sb->stride);
 		return;
 	}
 
 	/* Statistics */
 	mod->single_prefetches++;
 
-	mem_debug("    Enqueued single prefetch at addr=0x%x to stream=%d with stride=0x%x(%d)\n",
-		sb->next_address + sb->stride, sb->stream, sb->stride, sb->stride);
+	mem_debug("    Enqueued single prefetch at addr=0x%x to stream=%d with stride=0x%x(%d)\n", sb->next_address + sb->stride, sb->stream, sb->stride, sb->stride);
 
-	uop = x86_uop_create();
-	uop->uinst = x86_uinst_create();
-	uop->uinst->opcode = x86_uinst_prefetch;
-	uop->phy_addr = sb->next_address;
-	uop->core = stack->core;
-	uop->thread = stack->thread;
-	uop->flags = X86_UINST_MEM;
-	uop->pref.kind = SINGLE;
-	uop->pref.mod = mod;
-	uop->pref.dest_stream = stack->pref_stream; //Destination stream
-	uop->pref.dest_slot = sb->tail; //TAIL
+	client_info = mod_client_info_create(mod);
+	client_info->core = stack->core;
+	client_info->thread = stack->thread;
+	client_info->stream = sb->stream;
+	client_info->thread = sb->tail;
+	mod_access(mod, mod_access_prefetch, sb->next_address, NULL, NULL, NULL, client_info);
 
 	/* Update tail */
 	sb->tail = (sb->tail + 1) % sb->num_slots; //TAIL
 
-	if (mod->level == 1)
-		x86_pq_insert(uop);
-	else
-	{
-		linked_list_out(stack->target_mod->pq);
-		linked_list_insert(stack->target_mod->pq, uop);
-	}
-
 	/* Add a pending prefetch */
 	sb->pending_prefetches++;
-	sb->cycle = esim_cycle;
+	sb->cycle = esim_time;
 
 	/* Increment next address */
 	prev_address = sb->next_address;
@@ -419,36 +394,36 @@ void enqueue_prefetch_on_hit(struct mod_stack_t *stack)
 
 void enqueue_prefetch_obl(struct mod_stack_t *stack)
 {
-	struct mod_t *mod;
-	struct x86_uop_t *uop;
-
-	/* L1 prefetch */
-	if (!stack->target_mod)
-		mod = stack->mod;
-
-	/* Deeper than L1 prefetch */
-	else
-		mod = stack->target_mod;
-
-	uop = x86_uop_create();
-	uop->uinst = x86_uinst_create();
-	uop->uinst->opcode = x86_uinst_prefetch;
-	if (mod->cache->pref_enabled == prefetch_policy_obl_stride)
-		uop->phy_addr = stack->addr + stack->stride;
-	else
-		uop->phy_addr = stack->addr + mod->block_size;
-	uop->core = stack->core;
-	uop->thread = stack->thread;
-	uop->flags = X86_UINST_MEM;
-	uop->pref.mod = mod;
-
-	if (mod->level == 1)
-		x86_pq_insert(uop);
-	else
-	{
-		linked_list_out(mod->pq);
-		linked_list_insert(mod->pq, uop);
-	}
+/* 	struct mod_t *mod; */
+/* 	struct x86_uop_t *uop; */
+/*  */
+/* 	#<{(| L1 prefetch |)}># */
+/* 	if (!stack->target_mod) */
+/* 		mod = stack->mod; */
+/*  */
+/* 	#<{(| Deeper than L1 prefetch |)}># */
+/* 	else */
+/* 		mod = stack->target_mod; */
+/*  */
+/* 	uop = x86_uop_create(); */
+/* 	uop->uinst = x86_uinst_create(); */
+/* 	uop->uinst->opcode = x86_uinst_prefetch; */
+/* 	if (mod->cache->pref_enabled == prefetch_policy_obl_stride) */
+/* 		uop->phy_addr = stack->addr + stack->stride; */
+/* 	else */
+/* 		uop->phy_addr = stack->addr + mod->block_size; */
+/* 	uop->core = stack->core; */
+/* 	uop->thread = stack->thread; */
+/* 	uop->flags = X86_UINST_MEM; */
+/* 	uop->pref.mod = mod; */
+/*  */
+/* 	if (mod->level == 1) */
+/* 		x86_pq_insert(uop); */
+/* 	else */
+/* 	{ */
+/* 		linked_list_out(mod->pq); */
+/* 		linked_list_insert(mod->pq, uop); */
+/* 	} */
 }
 
 
@@ -467,9 +442,9 @@ void mod_handler_pref(int event, void *data)
 	if (event == EV_MOD_PREF)
 	{
 		if (stack->pref.kind == SINGLE)
-			mem_debug("%lld %lld 0x%x %s single pref\n", esim_cycle, stack->id, stack->addr, mod->name);
+			mem_debug("%lld %lld 0x%x %s single pref\n", esim_time, stack->id, stack->addr, mod->name);
 		else
-			mem_debug("%lld %lld 0x%x %s dest_stream=%d dest_slot=%d group pref\n", esim_cycle, stack->id, stack->addr, mod->name, stack->pref.dest_stream, stack->pref.dest_slot);
+			mem_debug("%lld %lld 0x%x %s dest_stream=%d dest_slot=%d group pref\n", esim_time, stack->id, stack->addr, mod->name, stack->pref.dest_stream, stack->pref.dest_slot);
 
 		mem_trace("mem.new_access name=\"A-%lld\" type=\"pref\" state=\"%s:pref\" addr=0x%x\n", stack->id, mod->name, stack->addr);
 
@@ -490,7 +465,7 @@ void mod_handler_pref(int event, void *data)
 			mod->canceled_prefetches++;
 			mod->canceled_prefetches_end_stream++;
 
-			new_stack = mod_stack_create(stack->id, mod, stack->addr, EV_MOD_PREF_FINISH, stack, stack->core, stack->thread, stack->prefetch);
+			new_stack = mod_stack_create(stack->id, mod, stack->addr, EV_MOD_PREF_FINISH, stack, stack->prefetch);
 			new_stack->retry = stack->retry;
 			new_stack->pref_stream = stack->pref_stream;
 			new_stack->pref_slot = stack->pref_slot;
@@ -508,7 +483,7 @@ void mod_handler_pref(int event, void *data)
 		struct mod_stack_t *master_stack;
 		struct mod_stack_t *older_stack;
 
-		mem_debug("  %lld %lld 0x%x %s pref lock\n", esim_cycle, stack->id, stack->addr, mod->name);
+		mem_debug("  %lld %lld 0x%x %s pref lock\n", esim_time, stack->id, stack->addr, mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:pref_lock\"\n", stack->id, mod->name);
 
 		/* Coalesce access, if so die or invalidate slot */
@@ -520,7 +495,7 @@ void mod_handler_pref(int event, void *data)
 			mod->canceled_prefetches_mshr++; /* Statistics */
 			if (stack->pref.kind == GROUP)
 			{
-				new_stack = mod_stack_create(stack->id, mod, stack->addr, EV_MOD_PREF_FINISH, stack, stack->core, stack->thread, stack->prefetch);
+				new_stack = mod_stack_create(stack->id, mod, stack->addr, EV_MOD_PREF_FINISH, stack, stack->prefetch);
 				new_stack->retry = stack->retry;
 				new_stack->pref_stream = stack->pref_stream;
 				new_stack->pref_slot = stack->pref_slot;
@@ -542,7 +517,7 @@ void mod_handler_pref(int event, void *data)
 		}
 
 		/* Call find and lock */
-		new_stack = mod_stack_create(stack->id, mod, stack->addr, EV_MOD_PREF_ACTION, stack, stack->core, stack->thread, stack->prefetch);
+		new_stack = mod_stack_create(stack->id, mod, stack->addr, EV_MOD_PREF_ACTION, stack, stack->prefetch);
 		new_stack->blocking = 1;
 		new_stack->read = 1;
 		new_stack->retry = stack->retry;
@@ -558,7 +533,7 @@ void mod_handler_pref(int event, void *data)
 	{
 		int retry_lat;
 
-		mem_debug("  %lld %lld 0x%x %s pref action\n", esim_cycle, stack->id,
+		mem_debug("  %lld %lld 0x%x %s pref action\n", esim_time, stack->id,
 			stack->addr, mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:pref_action\"\n",
 			stack->id, mod->name);
@@ -603,7 +578,7 @@ void mod_handler_pref(int event, void *data)
 
 		/* Miss */
 		new_stack = mod_stack_create(stack->id, mod, stack->tag,
-			EV_MOD_PREF_MISS, stack, stack->core, stack->thread, stack->prefetch);
+			EV_MOD_PREF_MISS, stack, stack->prefetch);
 		new_stack->peer = mod;
 		new_stack->target_mod = mod_get_low_mod(mod, stack->tag);
 		new_stack->request_dir = mod_request_up_down;
@@ -615,7 +590,7 @@ void mod_handler_pref(int event, void *data)
 	{
 		int retry_lat;
 
-		mem_debug("  %lld %lld 0x%x %s pref miss\n", esim_cycle, stack->id,
+		mem_debug("  %lld %lld 0x%x %s pref miss\n", esim_time, stack->id,
 			stack->addr, mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:pref_miss\"\n",
 			stack->id, mod->name);
@@ -650,7 +625,7 @@ void mod_handler_pref(int event, void *data)
 
 	if (event == EV_MOD_PREF_UNLOCK)
 	{
-		mem_debug("  %lld %lld 0x%x %s pref unlock\n", esim_cycle, stack->id,
+		mem_debug("  %lld %lld 0x%x %s pref unlock\n", esim_time, stack->id,
 			stack->addr, mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:pref_unlock\"\n",
 			stack->id, mod->name);
@@ -673,7 +648,7 @@ void mod_handler_pref(int event, void *data)
 
 	if (event == EV_MOD_PREF_FINISH)
 	{
-		mem_debug("%lld %lld 0x%x %s pref finish\n", esim_cycle, stack->id,
+		mem_debug("%lld %lld 0x%x %s pref finish\n", esim_time, stack->id,
 			stack->addr, mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:pref_finish\"\n",
 			stack->id, mod->name);
@@ -960,7 +935,7 @@ void mod_handler_nmoesi_load(int event, void *data)
 				block = linked_list_get(cache->wb.blocks);
 				if (block->tag == stack->tag)
 				{
-					cache_set_block(cache, stack->set, stack->way, stack->tag, block->state, 0);
+					cache_set_block(cache, stack->set, stack->way, stack->tag, block->state);
 					mod_stack_wake_up_write_buffer(block);
 					linked_list_remove(cache->wb.blocks);
 					free(block);
@@ -978,7 +953,7 @@ void mod_handler_nmoesi_load(int event, void *data)
 				LIST_FOR_EACH(mem_system->mm_mod_list, i)
 				{
 					struct mod_t *mm_mod = list_get(mem_system->mm_mod_list, i);
-					if (mod_serves_address(mm_mod, stack->addr) && esim_cycle - stack->stream_retried_cycle < mm_mod->latency / 3)
+					if (mod_serves_address(mm_mod, stack->addr) && esim_time - stack->stream_retried_cycle < mm_mod->latency / 3)
 						mod->effective_useful_prefetches++;
 				}
 			}
@@ -994,7 +969,7 @@ void mod_handler_nmoesi_load(int event, void *data)
 			assert(stack->state);
 
 			/* Write block in cache */
-			cache_set_block(cache, stack->set, stack->way, tag, stack->state, 0);
+			cache_set_block(cache, stack->set, stack->way, tag, stack->state);
 
 			/* Free buffer entry */
 			cache_set_pref_block(cache, stack->pref_stream, stack->pref_slot, -1, cache_block_invalid);
@@ -1009,7 +984,7 @@ void mod_handler_nmoesi_load(int event, void *data)
 				LIST_FOR_EACH(mem_system->mm_mod_list, i)
 				{
 					struct mod_t *mm_mod = list_get(mem_system->mm_mod_list, i);
-					if (mod_serves_address(mm_mod, stack->addr) && esim_cycle - stack->stream_retried_cycle < mm_mod->latency / 3)
+					if (mod_serves_address(mm_mod, stack->addr) && esim_time - stack->stream_retried_cycle < mm_mod->latency / 3)
 						mod->effective_useful_prefetches++;
 				}
 			}
@@ -1020,7 +995,7 @@ void mod_handler_nmoesi_load(int event, void *data)
 		{
 			/* Set block state to excl/shared depending on return var 'shared'.
 			* Also set the tag of the block. */
-			cache_set_block(cache, stack->set, stack->way, stack->tag, stack->shared ? cache_block_shared : cache_block_exclusive, 0);
+			cache_set_block(cache, stack->set, stack->way, stack->tag, stack->shared ? cache_block_shared : cache_block_exclusive);
 		}
 
 		/* Continue */
@@ -1041,7 +1016,7 @@ void mod_handler_nmoesi_load(int event, void *data)
 			dir_pref_entry_unlock(mod->dir, stack->pref_stream, stack->pref_slot);
 
 		/* Impose the access latency before continuing */
-		esim_schedule_event(EV_MOD_NMOESI_LOAD_FINISH, stack, 
+		esim_schedule_event(EV_MOD_NMOESI_LOAD_FINISH, stack,
 			mod->latency);
 		return;
 	}
@@ -1061,14 +1036,14 @@ void mod_handler_nmoesi_load(int event, void *data)
 			/* Increment witness variable */
 			if (stack->witness_ptr)
 				(*stack->witness_ptr)++;
-			
+
 			/* Increment head */
 			if(stack->stream_hit && stack->stream_head_hit)
 			{
 				struct stream_buffer_t *sb = &cache->prefetch.streams[stack->pref_stream];
 				sb->head = (stack->pref_slot + 1) % sb->num_slots; //HEAD
 			}
-			
+
 			/* Return event queue element into event queue */
 			if (stack->event_queue && stack->event_queue_item)
 				linked_list_add(stack->event_queue, stack->event_queue_item);
@@ -1224,7 +1199,7 @@ void mod_handler_nmoesi_store(int event, void *data)
 		new_stack->request_dir = mod_request_up_down;
 		esim_schedule_event(EV_MOD_NMOESI_WRITE_REQUEST, new_stack, 0);
 		new_stack->access_kind = mod_access_store; //PPP
-		
+
 		/* The prefetcher may be interested in this miss */
 		prefetcher_access_miss(stack, mod);
 
@@ -1254,11 +1229,11 @@ void mod_handler_nmoesi_store(int event, void *data)
 
 		/* Update tag/state and unlock */
 		cache_set_block(mod->cache, stack->set, stack->way,
-			stack->tag, cache_block_modified, 0);
+			stack->tag, cache_block_modified);
 		dir_entry_unlock(mod->dir, stack->set, stack->way);
 
 		/* Impose the access latency before continuing */
-		esim_schedule_event(EV_MOD_NMOESI_STORE_FINISH, stack, 
+		esim_schedule_event(EV_MOD_NMOESI_STORE_FINISH, stack,
 			mod->latency);
 		return;
 	}
@@ -1356,7 +1331,7 @@ void mod_handler_nmoesi_nc_store(int event, void *data)
 
 		/* Call find and lock */
 		new_stack = mod_stack_create(stack->id, mod, stack->addr,
-			EV_MOD_NMOESI_NC_STORE_WRITEBACK, stack);
+			EV_MOD_NMOESI_NC_STORE_WRITEBACK, stack, stack->prefetch);
 		new_stack->blocking = 1;
 		new_stack->nc_write = 1;
 		new_stack->retry = stack->retry;
@@ -1425,7 +1400,7 @@ void mod_handler_nmoesi_nc_store(int event, void *data)
 		if (mod->kind == mod_kind_main_memory)
 		{
 			/* For non-coherent stores, finding an E or M for the state of
-			 * a cache block in the directory still requires a message to 
+			 * a cache block in the directory still requires a message to
 			 * the lower-level module so it can update its owner field.
 			 * These messages should not be sent if the module is a main
 			 * memory module. */
@@ -1506,7 +1481,7 @@ void mod_handler_nmoesi_nc_store(int event, void *data)
 		dir_entry_unlock(mod->dir, stack->set, stack->way);
 
 		/* Impose the access latency before continuing */
-		esim_schedule_event(EV_MOD_NMOESI_NC_STORE_FINISH, stack, 
+		esim_schedule_event(EV_MOD_NMOESI_NC_STORE_FINISH, stack,
 			mod->latency);
 		return;
 	}
@@ -1559,7 +1534,7 @@ void mod_handler_nmoesi_pref_find_and_lock(int event, void *data)
 
 	if (event == EV_MOD_NMOESI_PREF_FIND_AND_LOCK)
 	{
-		mem_debug("  %lld %lld 0x%x %s pref find and lock (blocking=%d)\n", esim_cycle, stack->id, stack->addr, mod->name, stack->blocking);
+		mem_debug("  %lld %lld 0x%x %s pref find and lock (blocking=%d)\n", esim_time, stack->id, stack->addr, mod->name, stack->blocking);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:pref_find_and_lock\"\n", stack->id, mod->name);
 
 		/* Look for block in write buffer */
@@ -1594,10 +1569,10 @@ void mod_handler_nmoesi_pref_find_and_lock(int event, void *data)
 		struct mod_port_t *port = stack->port;
 		struct dir_lock_t *dir_lock;
 		struct stream_block_t *sblock;
-		int prefetch, slot;
+		int slot;
 
 		assert(stack->port);
-		mem_debug("  %lld %lld 0x%x %s pref find and lock port\n", esim_cycle, stack->id, stack->addr, mod->name);
+		mem_debug("  %lld %lld 0x%x %s pref find and lock port\n", esim_time, stack->id, stack->addr, mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:pref_find_and_lock_port\"\n", stack->id, mod->name);
 
 		/* Set parent stack flag expressing that port has already been locked.
@@ -1611,7 +1586,7 @@ void mod_handler_nmoesi_pref_find_and_lock(int event, void *data)
 			sb = &cache->prefetch.streams[stack->pref_stream];
 
 			/* Search in cache */
-			stack->hit = mod_find_block(mod, stack->addr, &stack->set, &stack->way, &stack->tag, &stack->state, &prefetch);
+			stack->hit = mod_find_block(mod, stack->addr, &stack->set, &stack->way, &stack->tag, &stack->state);
 
 			/* Block in cache */
 			if (stack->hit)
@@ -1711,7 +1686,7 @@ void mod_handler_nmoesi_pref_find_and_lock(int event, void *data)
 		struct mod_port_t *port = stack->port;
 
 		assert(port);
-		mem_debug("  %lld %lld 0x%x %s pref find and lock action\n", esim_cycle, stack->id, stack->tag, mod->name);
+		mem_debug("  %lld %lld 0x%x %s pref find and lock action\n", esim_time, stack->id, stack->tag, mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:pref_find_and_lock_action\"\n", stack->id, mod->name);
 
 		/* Release port */
@@ -1723,7 +1698,7 @@ void mod_handler_nmoesi_pref_find_and_lock(int event, void *data)
 		{
 			/* assert(stack->request_dir == mod_request_up_down);
 			stack->pref_eviction = 1;
-			new_stack = mod_stack_create(stack->id, mod, 0, EV_MOD_NMOESI_PREF_FIND_AND_LOCK_FINISH, stack, stack->core, stack->thread, stack->prefetch);
+			new_stack = mod_stack_create(stack->id, mod, 0, EV_MOD_NMOESI_PREF_FIND_AND_LOCK_FINISH, stack, stack->prefetch);
 			new_stack->pref_stream = stack->pref_stream;
 			new_stack->pref_slot = stack->pref_slot;
 			new_stack->access_kind = stack->access_kind;
@@ -1742,7 +1717,7 @@ void mod_handler_nmoesi_pref_find_and_lock(int event, void *data)
 
 	if (event == EV_MOD_NMOESI_PREF_FIND_AND_LOCK_FINISH)
 	{
-		mem_debug("  %lld %lld 0x%x %s pref find and lock finish (err=%d)\n", esim_cycle, stack->id, stack->tag, mod->name, stack->err);
+		mem_debug("  %lld %lld 0x%x %s pref find and lock finish (err=%d)\n", esim_time, stack->id, stack->tag, mod->name, stack->err);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:pref_find_and_lock_finish\"\n", stack->id, mod->name);
 
 		/* If evict produced err, return err */ //TODO: Deprecated
@@ -1793,7 +1768,7 @@ void mod_handler_nmoesi_pref_obl(int event, void *data)
 	{
 		struct mod_stack_t *master_stack;
 
-		mem_debug("%lld %lld 0x%x %s prefetch\n", esim_cycle, stack->id,
+		mem_debug("%lld %lld 0x%x %s prefetch\n", esim_time, stack->id,
 			stack->addr, mod->name);
 		mem_trace("mem.new_access name=\"A-%lld\" type=\"store\" "
 			"state=\"%s:prefetch\" addr=0x%x\n",
@@ -1829,7 +1804,7 @@ void mod_handler_nmoesi_pref_obl(int event, void *data)
 	{
 		struct mod_stack_t *older_stack;
 
-		mem_debug("  %lld %lld 0x%x %s prefetch lock\n", esim_cycle, stack->id,
+		mem_debug("  %lld %lld 0x%x %s prefetch lock\n", esim_time, stack->id,
 			stack->addr, mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:prefetch_lock\"\n",
 			stack->id, mod->name);
@@ -1846,7 +1821,7 @@ void mod_handler_nmoesi_pref_obl(int event, void *data)
 
 		/* Call find and lock */
 		new_stack = mod_stack_create(stack->id, mod, stack->addr,
-			EV_MOD_NMOESI_PREF_OBL_ACTION, stack, stack->core, stack->thread, stack->prefetch);
+			EV_MOD_NMOESI_PREF_OBL_ACTION, stack, stack->prefetch);
 		new_stack->blocking = 0;
 		new_stack->prefetch = 1;
 		new_stack->retry = 0;
@@ -1863,7 +1838,7 @@ void mod_handler_nmoesi_pref_obl(int event, void *data)
 
 	if (event == EV_MOD_NMOESI_PREF_OBL_ACTION)
 	{
-		mem_debug("  %lld %lld 0x%x %s prefetch action\n", esim_cycle, stack->id,
+		mem_debug("  %lld %lld 0x%x %s prefetch action\n", esim_time, stack->id,
 			stack->addr, mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:prefetch_action\"\n",
 			stack->id, mod->name);
@@ -1892,7 +1867,7 @@ void mod_handler_nmoesi_pref_obl(int event, void *data)
 
 		/* Miss */
 		new_stack = mod_stack_create(stack->id, mod, stack->tag,
-			EV_MOD_NMOESI_PREF_OBL_MISS, stack, stack->core, stack->thread, stack->prefetch);
+			EV_MOD_NMOESI_PREF_OBL_MISS, stack, stack->prefetch);
 		new_stack->peer = mod_stack_set_peer(mod, stack->state);
 		new_stack->target_mod = mod_get_low_mod(mod, stack->tag);
 		new_stack->request_dir = mod_request_up_down;
@@ -1903,7 +1878,7 @@ void mod_handler_nmoesi_pref_obl(int event, void *data)
 
 	if (event == EV_MOD_NMOESI_PREF_OBL_MISS)
 	{
-		mem_debug("  %lld %lld 0x%x %s prefetch miss\n", esim_cycle, stack->id,
+		mem_debug("  %lld %lld 0x%x %s prefetch miss\n", esim_time, stack->id,
 			stack->addr, mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:prefetch_miss\"\n",
 			stack->id, mod->name);
@@ -1925,7 +1900,8 @@ void mod_handler_nmoesi_pref_obl(int event, void *data)
 		/* Set block state to excl/shared depending on return var 'shared'.
 		 * Also set the tag of the block. */
 		cache_set_block(mod->cache, stack->set, stack->way, stack->tag,
-			stack->shared ? cache_block_shared : cache_block_exclusive, stack->prefetch);
+			stack->shared ? cache_block_shared : cache_block_exclusive);
+		mod_block_set_prefetched(mod, stack->addr, 1);
 
 		/* Continue */
 		esim_schedule_event(EV_MOD_NMOESI_PREF_OBL_UNLOCK, stack, 0);
@@ -1934,7 +1910,7 @@ void mod_handler_nmoesi_pref_obl(int event, void *data)
 
 	if (event == EV_MOD_NMOESI_PREF_OBL_UNLOCK)
 	{
-		mem_debug("  %lld %lld 0x%x %s prefetch unlock\n", esim_cycle, stack->id,
+		mem_debug("  %lld %lld 0x%x %s prefetch unlock\n", esim_time, stack->id,
 			stack->addr, mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:prefetch_unlock\"\n",
 			stack->id, mod->name);
@@ -1952,7 +1928,7 @@ void mod_handler_nmoesi_pref_obl(int event, void *data)
 
 	if (event == EV_MOD_NMOESI_PREF_OBL_FINISH)
 	{
-		mem_debug("%lld %lld 0x%x %s prefetch finish\n", esim_cycle, stack->id,
+		mem_debug("%lld %lld 0x%x %s prefetch finish\n", esim_time, stack->id,
 			stack->addr, mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:prefetch_finish\"\n",
 			stack->id, mod->name);
@@ -2045,7 +2021,7 @@ void mod_handler_nmoesi_prefetch(int event, void *data)
 
 		/* Call find and lock */
 		new_stack = mod_stack_create(stack->id, mod, stack->addr,
-			EV_MOD_NMOESI_PREFETCH_ACTION, stack);
+			EV_MOD_NMOESI_PREFETCH_ACTION, stack, stack->prefetch);
 		new_stack->blocking = 0;
 		new_stack->prefetch = 1;
 		new_stack->retry = 0;
@@ -2070,7 +2046,7 @@ void mod_handler_nmoesi_prefetch(int event, void *data)
 		/* Error locking */
 		if (stack->err)
 		{
-			/* Don't want to ever retry prefetches if getting a lock failed. 
+			/* Don't want to ever retry prefetches if getting a lock failed.
 			Effectively this means that prefetches are of low priority.
 			This can be improved to not retry only when the current lock
 			holder is writing to the block. */
@@ -2094,7 +2070,7 @@ void mod_handler_nmoesi_prefetch(int event, void *data)
 
 		/* Miss */
 		new_stack = mod_stack_create(stack->id, mod, stack->tag,
-			EV_MOD_NMOESI_PREFETCH_MISS, stack);
+			EV_MOD_NMOESI_PREFETCH_MISS, stack, stack->prefetch);
 		new_stack->peer = mod_stack_set_peer(mod, stack->state);
 		new_stack->target_mod = mod_get_low_mod(mod, stack->tag);
 		new_stack->request_dir = mod_request_up_down;
@@ -2112,7 +2088,7 @@ void mod_handler_nmoesi_prefetch(int event, void *data)
 		/* Error on read request. Unlock block and abort. */
 		if (stack->err)
 		{
-			/* Don't want to ever retry prefetches if read request failed. 
+			/* Don't want to ever retry prefetches if read request failed.
 			 * Effectively this means that prefetches are of low priority.
 			 * This can be improved depending on the reason for read request fail */
 			mod->prefetch_aborts++;
@@ -2127,9 +2103,9 @@ void mod_handler_nmoesi_prefetch(int event, void *data)
 		cache_set_block(mod->cache, stack->set, stack->way, stack->tag,
 			stack->shared ? cache_block_shared : cache_block_exclusive);
 
-		/* Mark the prefetched block as prefetched. This is needed to let the 
+		/* Mark the prefetched block as prefetched. This is needed to let the
 		 * prefetcher know about an actual access to this block so that it
-		 * is aware of all misses as they would be without the prefetcher. 
+		 * is aware of all misses as they would be without the prefetcher.
 		 * TODO: The lower caches that will be filled because of this prefetch
 		 * do not know if it was a prefetch or not. Need to have a way to mark
 		 * them as prefetched too. */
@@ -2260,7 +2236,7 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 
 		/* Get a port */
 		mod_lock_port(mod, stack, EV_MOD_NMOESI_FIND_AND_LOCK_PORT);
-		
+
 		stack->hit = stack->stream_hit = 0;
 		return;
 	}
@@ -2269,7 +2245,6 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 	{
 		struct mod_port_t *port = stack->port;
 		struct dir_lock_t *dir_lock;
-		int prefetch;
 
 		assert(stack->port);
 		mem_debug("  %lld %lld 0x%x %s find and lock port\n", esim_time, stack->id,
@@ -2300,8 +2275,6 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 		if (stack->hit)
 		{
 			mod->hits++;
-			if(stack->prefetch)
-				mod->hits_pref++;
 		}
 
 		if (stack->read)
@@ -2344,7 +2317,7 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 		{
 			/* FIXME */
 		}
-		else 
+		else
 		{
 			fatal("Unknown memory operation type");
 		}
@@ -2390,7 +2363,7 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 		if (!stack->hit)
 		{
 			/* Find victim */
-			if (stack->way < 0) 
+			if (stack->way < 0)
 				stack->way = cache_replace_block(mod->cache, stack->set);
 			cache_get_block(mod->cache, stack->set, stack->way, NULL, &stack->state);
 			assert(stack->state || !dir_entry_group_shared_or_owned(mod->dir, stack->set, stack->way));
@@ -2415,10 +2388,10 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 				return;
 			}
 
-			/* Lock directory entry. If lock fails, port needs to be released to prevent 
-			 * deadlock.  When the directory entry is released, locking port and 
+			/* Lock directory entry. If lock fails, port needs to be released to prevent
+			 * deadlock.  When the directory entry is released, locking port and
 			 * directory entry will be retried. */
-			if (!dir_entry_lock(mod->dir, stack->set, stack->way, EV_MOD_NMOESI_FIND_AND_LOCK, 
+			if (!dir_entry_lock(mod->dir, stack->set, stack->way, EV_MOD_NMOESI_FIND_AND_LOCK,
 				stack))
 			{
 				mem_debug("    %lld 0x%x %s block already locked at set=%d, way=%d by A-%lld - waiting\n",
@@ -2427,13 +2400,12 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 				ret->port_locked = 0;
 				return;
 			}
-				mem_debug("    %lld 0x%x %s block locked at set=%d, way=%d by A-%lld - aborting\n",
-			
+
 			/* This stack has been retried because the block it was looking for was locked in the stream and now has found the block in cache. Delayed hit statistics must be updated. */
 			if(stack->hit && stack->stream_retried)
 			{
 				assert(stack->stream_retried_cycle);
-				mod->delayed_hit_cycles += esim_cycle - stack->stream_retried_cycle;
+				mod->delayed_hit_cycles += esim_time - stack->stream_retried_cycle;
 				mod->delayed_hits_cycles_counted++;
 				ret->stream_retried = 0;
 			}
@@ -2442,10 +2414,10 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 			* detects that the block is being brought.
 			* Also, update LRU counters here. */
 			cache_set_transient_tag(mod->cache, stack->set, stack->way, stack->tag);
-			cache_access_block(mod->cache, stack->set, stack->way);		
+			cache_access_block(mod->cache, stack->set, stack->way);
 		}
-		
-		
+
+
 
 		/* Access latency */
 		if (!stack->hit && !stack->background && cache->prefetch_policy == prefetch_policy_streams)
@@ -2464,7 +2436,7 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 		struct stream_buffer_t *sb;
 		struct dir_lock_t *dir_lock;
 
-		mem_debug("  %lld %lld 0x%x %s find and lock pref stream\n", esim_cycle, stack->id, stack->addr, mod->name);
+		mem_debug("  %lld %lld 0x%x %s find and lock pref stream\n", esim_time, stack->id, stack->addr, mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:find_and_lock_pref_stream\"\n", stack->id, mod->name);
 
 		/* Look for block in prefetch stream buffers */
@@ -2527,7 +2499,7 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 					if(dir_lock->prefetch_stack)
 					{
 						mod->delayed_hits++;
-						ret->stream_retried_cycle = esim_cycle;
+						ret->stream_retried_cycle = esim_time;
 						ret->stream_retried = 1;
 					}
 				}
@@ -2549,7 +2521,7 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 			if(stack->stream_retried)
 			{
 				assert(stack->stream_retried_cycle);
-				mod->delayed_hit_cycles += esim_cycle - stack->stream_retried_cycle;
+				mod->delayed_hit_cycles += esim_time - stack->stream_retried_cycle;
 				mod->delayed_hits_cycles_counted++;
 				ret->stream_retried = 0;
 			}
@@ -2580,7 +2552,7 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 		/* Because of silent replacement used in streams, there may be misses in down up requests */
 		if(!stack->hit && !stack->stream_hit && stack->request_dir == mod_request_down_up)
 		{
-			mem_debug("  %lld %lld 0x%x %s down up miss due a silent eviction in a stream\n", esim_cycle, stack->id,
+			mem_debug("  %lld %lld 0x%x %s down up miss due a silent eviction in a stream\n", esim_time, stack->id,
 				stack->tag, mod->name);
 			stack->state = cache_block_invalid;
 			if(stack->read)
@@ -2615,13 +2587,13 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 				struct write_buffer_block_t *block;
 				struct stream_buffer_t *sb;
 
-				mem_debug("  %lld %lld 0x%x %s fast resume access\n", esim_cycle, stack->id, stack->tag, mod->name);
+				mem_debug("  %lld %lld 0x%x %s fast resume access\n", esim_time, stack->id, stack->tag, mod->name);
 
 				assert(!(mod->level==1 && stack->write)); //TODO: Arreglar stores
 
 				/* Stack that will write block from prefetch buffer to cache */
 				background_stack = mod_stack_create(stack->id, ret->mod, stack->addr, ESIM_EV_NONE,
-					NULL, stack->core, stack->thread, stack->prefetch);
+					NULL, stack->prefetch);
 				background_stack->target_mod = ret->target_mod;
 				background_stack->request_dir = ret->request_dir;
 				background_stack->reply_size = ret->reply_size;
@@ -2629,8 +2601,7 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 
 				/* Stack that will wait for eviction to complete */
 				find_and_lock_stack = mod_stack_create(stack->id, mod, stack->addr,
-					stack->ret_event, background_stack, stack->core,
-					stack->thread, stack->prefetch);
+					stack->ret_event, background_stack, stack->prefetch);
 				find_and_lock_stack->blocking = stack->blocking; /* Not used */
 				find_and_lock_stack->read = stack->read; /* Not used */
 				find_and_lock_stack->write = stack->write; /* Not used */
@@ -2649,8 +2620,7 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 
 				/* Eviction stack */
 				eviction_stack = mod_stack_create(stack->id, mod, 0,
-					EV_MOD_NMOESI_FIND_AND_LOCK_FINISH, find_and_lock_stack, stack->core,
-					stack->thread, stack->prefetch);
+					EV_MOD_NMOESI_FIND_AND_LOCK_FINISH, find_and_lock_stack, stack->prefetch);
 				eviction_stack->set = stack->set;
 				eviction_stack->way = stack->way;
 
@@ -2734,7 +2704,7 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 		{
 			stack->state = cache_block_exclusive;
 			cache_set_block(mod->cache, stack->set, stack->way,
-				stack->tag, stack->state, 0);
+				stack->tag, stack->state);
 		}
 
 		/* Return */
@@ -2811,12 +2781,12 @@ void mod_handler_nmoesi_evict(int event, void *data)
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:evict_invalid\"\n",
 			stack->id, mod->name);
 
-		/* If module is main memory, we just need to set the block as invalid, 
+		/* If module is main memory, we just need to set the block as invalid,
 		 * and finish. */
 		if (mod->kind == mod_kind_main_memory)
 		{
 			cache_set_block(mod->cache, stack->src_set, stack->src_way,
-				0, cache_block_invalid, 0);
+				0, cache_block_invalid);
 			esim_schedule_event(EV_MOD_NMOESI_EVICT_FINISH, stack, 0);
 			return;
 		}
@@ -2844,10 +2814,10 @@ void mod_handler_nmoesi_evict(int event, void *data)
 		assert(low_mod == mod_get_low_mod(mod, stack->tag));
 		assert(low_node && low_node->user_data == low_mod);
 
-		/* Update the cache state since it may have changed after its 
+		/* Update the cache state since it may have changed after its
 		 * higher-level modules were invalidated */
 		cache_get_block(mod->cache, stack->set, stack->way, NULL, &stack->state);
-		
+
 		/* State = I */
 		if (stack->state == cache_block_invalid)
 		{
@@ -2885,7 +2855,7 @@ void mod_handler_nmoesi_evict(int event, void *data)
 			stack->id, target_mod->name);
 
 		/* Is mem controller queue busy? */
-		if(target_mod->kind == mod_kind_main_memory && mod_request_up_down && 
+		if(target_mod->kind == mod_kind_main_memory && mod_request_up_down &&
 		mem_controller_get_size_queue(stack) >= mem_controller->size_queue)
 		{
 			esim_schedule_event(EV_MOD_NMOESI_EVICT_RECEIVE, stack, 1);
@@ -2899,12 +2869,12 @@ void mod_handler_nmoesi_evict(int event, void *data)
 		if (stack->state == cache_block_noncoherent)
 		{
 			new_stack = mod_stack_create(stack->id, target_mod, stack->src_tag,
-				EV_MOD_NMOESI_EVICT_PROCESS_NONCOHERENT, stack);
+				EV_MOD_NMOESI_EVICT_PROCESS_NONCOHERENT, stack, stack->prefetch);
 		}
-		else 
+		else
 		{
 			new_stack = mod_stack_create(stack->id, target_mod, stack->src_tag,
-				EV_MOD_NMOESI_EVICT_PROCESS, stack);
+				EV_MOD_NMOESI_EVICT_PROCESS, stack, stack->prefetch);
 		}
 
 		/* FIXME It's not guaranteed to be a write */
@@ -2946,8 +2916,8 @@ void mod_handler_nmoesi_evict(int event, void *data)
 		{
 			if (stack->state == cache_block_exclusive)
 			{
-				cache_set_block(target_mod->cache, stack->set, stack->way, 
-					stack->tag, cache_block_modified, stack->prefetch);
+				cache_set_block(target_mod->cache, stack->set, stack->way,
+					stack->tag, cache_block_modified);
 			}
 			else if (stack->state == cache_block_modified)
 			{
@@ -3017,7 +2987,7 @@ void mod_handler_nmoesi_evict(int event, void *data)
 			if (stack->state == cache_block_exclusive)
 			{
 				cache_set_block(target_mod->cache, stack->set, stack->way,
-					stack->tag, cache_block_modified, stack->prefetch);
+					stack->tag, cache_block_modified);
 			}
 			else if (stack->state == cache_block_owned ||
 				stack->state == cache_block_modified)
@@ -3028,7 +2998,7 @@ void mod_handler_nmoesi_evict(int event, void *data)
 				stack->state == cache_block_noncoherent)
 			{
 				cache_set_block(target_mod->cache, stack->set, stack->way,
-					stack->tag, cache_block_noncoherent, stack->prefetch);
+					stack->tag, cache_block_noncoherent);
 			}
 			else
 			{
@@ -3101,7 +3071,7 @@ void mod_handler_nmoesi_evict(int event, void *data)
 		/* Invalidate block if there was no error. */
 		if (!stack->err)
 			cache_set_block(mod->cache, stack->src_set, stack->src_way,
-				0, cache_block_invalid, 0);
+				0, cache_block_invalid);
 
 		assert(!dir_entry_group_shared_or_owned(mod->dir, stack->src_set, stack->src_way));
 		esim_schedule_event(EV_MOD_NMOESI_EVICT_FINISH, stack, 0);
@@ -3156,11 +3126,11 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 	if (event == EV_MOD_NMOESI_INSERT_MEMORY_CONTROLLER)
 	{
 
-		mem_debug("  %lld %lld 0x%x %s insert request in mem. controller\n", esim_cycle, stack->id, stack->addr&~mod->cache->block_mask, mod->name);
+		mem_debug("  %lld %lld 0x%x %s insert request in mem. controller\n", esim_time, stack->id, stack->addr&~mod->cache->block_mask, mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:insert request in MC (pref=%d)\"\n", stack->id,mod->name , stack->prefetch);
 
 		/* Statistics */
-		time = esim_cycle - mem_controller->last_cycle;
+		time = esim_time - mem_controller->last_cycle;
 		mem_controller->accesses++;
 
 		for (int i = 0; i < num_queues; i++)
@@ -3179,10 +3149,10 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 
 
 			/* if(linked_list_count(normal_queue->queue)== size_queue)
-			        normal_queue->instant_begin_full=esim_cycle;
+			        normal_queue->instant_begin_full=esim_time;
 
 			if(linked_list_count(pref_queue->queue)== size_queue)
-			        pref_queue->instant_begin_full=esim_cycle;
+			        pref_queue->instant_begin_full=esim_time;
 
 			if(linked_list_count(normal_queue)>= size_queue)
 			        mem_controller->t_normal_queue_full+=cycles_proc_by_bus;
@@ -3193,7 +3163,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 		}
 		mem_controller->n_times_queue_examined += time; //se podria cambiar dividinto x esim al final
 		/* Update last cycle queue will be examined */
-		mem_controller->last_cycle = esim_cycle;
+		mem_controller->last_cycle = esim_time;
 
 
 
@@ -3225,7 +3195,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 		if (mem_controller_stacks_normalQueues_count(mem_controller) + mem_controller_stacks_prefQueues_count(mem_controller) == 1) //this request is the only one in the queue
 		{
 			/* Calcul when is the next cycle of bus */
-			int when = esim_cycle % mem_controller->cycles_proc_bus;
+			int when = esim_time % mem_controller->cycles_proc_bus;
 
 			/*Stadistics*/
 			mem_controller->t_wait+=when;
@@ -3256,7 +3226,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 			can_acces_bank = row_buffer_find_row(mem_controller,new_stack->mod, new_stack->addr, &new_stack->channel, &new_stack->rank,
 				&new_stack->bank, &new_stack->row, & new_stack->tag, &new_stack->state_main_memory);
 			mem_trace("mem.access name=\"A-%lld\" state=\"%s:examine queue MC\"\n", new_stack->id, new_stack->mod->name);
-			mem_debug("  %lld %lld 0x%x %s examine queue MC (row=%d bank=%d rank=%d channel=%d)\n", esim_cycle, new_stack->id,
+			mem_debug("  %lld %lld 0x%x %s examine queue MC (row=%d bank=%d rank=%d channel=%d)\n", esim_time, new_stack->id,
 				new_stack->addr&~new_stack->mod->cache->block_mask, new_stack->mod->name, new_stack->row, new_stack->bank,
 				new_stack->rank, new_stack->channel);
 
@@ -3289,7 +3259,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 				/* Reserve the acces */
 				if(!mem_controller->photonic_net) //if we use a photonic net, it can tranfer in full directions
 					channel[new_stack->channel].state = channel_state_busy;
-				
+
 				channel[new_stack->channel].regs_rank[new_stack->rank].regs_bank[new_stack->bank].is_been_accesed = 1;
 				channel[new_stack->channel].regs_rank[new_stack->rank].is_been_accesed = 1;
 
@@ -3298,7 +3268,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 
 
 				/* Stadistics */
-				time = esim_cycle - mem_controller->last_cycle;
+				time = esim_time - mem_controller->last_cycle;
 				if (linked_list_count(pref_queue->queue) < size_queue)
 					pref_queue->total_requests += linked_list_count(pref_queue->queue) * time;
 				else // queue full, add the limit
@@ -3307,7 +3277,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 					normal_queue->total_requests += linked_list_count(normal_queue->queue) * time;
 				else // queue full, add the limit
 					normal_queue->total_requests += size_queue * time;
-				mem_controller->last_cycle=esim_cycle;
+				mem_controller->last_cycle=esim_time;
 				mem_controller->n_times_queue_examined += time; //se podria cambiar dividinto x esim al final
 				mem_controller->t_acces_main_memory += mem_controller->t_send_request*cycles_proc_by_bus;
 
@@ -3318,9 +3288,9 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 
 				/* Delete the request in the MC queue */
 				if (mem_controller_remove(new_stack, normal_queue)&&linked_list_count(normal_queue->queue) == size_queue - 1)
-					normal_queue->t_full += esim_cycle - normal_queue->instant_begin_full;
+					normal_queue->t_full += esim_time - normal_queue->instant_begin_full;
 				else if (mem_controller_remove(new_stack, pref_queue)&&linked_list_count(pref_queue->queue)==size_queue - 1)
-					pref_queue->t_full += esim_cycle - pref_queue->instant_begin_full;
+					pref_queue->t_full += esim_time - pref_queue->instant_begin_full;
 
 				/* Send the request to the bank */
 				esim_schedule_event(EV_MOD_NMOESI_ACCES_BANK, new_stack, mem_controller->t_send_request*cycles_proc_by_bus);
@@ -3518,7 +3488,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 				&new_stack->rank, &new_stack->bank, &new_stack->row, & new_stack->tag, &new_stack->state_main_memory);
 			mem_trace("mem.access name=\"A-%lld\" state=\"%s:examine queue MC\"\n", new_stack->id,new_stack->mod->name);
 			mem_debug("  %lld %lld 0x%x %s examine queue MC (row=%d bank=%d rank=%d channel=%d)\n",
-				esim_cycle, new_stack->id, new_stack->addr&~new_stack->mod->cache->block_mask,
+				esim_time, new_stack->id, new_stack->addr&~new_stack->mod->cache->block_mask,
 				new_stack->mod->name, new_stack->row, new_stack->bank, new_stack->rank, new_stack->channel);
 			assert(dir_bank == new_stack->bank);
 			assert( dir_rank == new_stack->rank);
@@ -3534,7 +3504,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 				channel[new_stack->channel].regs_rank[new_stack->rank].is_been_accesed = 1;
 
 				/* Stadistics */
-				time = esim_cycle - mem_controller->last_cycle;
+				time = esim_time - mem_controller->last_cycle;
 				for (int i = 0; i < num_queues; i++)
 				{
 					struct mem_controller_queue_t* preq_aux = mem_controller->pref_queue[i];
@@ -3551,13 +3521,13 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 				}
 				mem_controller->n_times_queue_examined += time; //se podria cambiar dividinto x esim al final
 				/* Update last cycle queue will be examined */
-				mem_controller->last_cycle = esim_cycle;
+				mem_controller->last_cycle = esim_time;
 
 				/* Delete the request in the MC queue */
 				if (mem_controller_remove(new_stack, normal_queue)&&linked_list_count(normal_queue->queue) == size_queue - 1)
-					normal_queue->t_full += esim_cycle - normal_queue->instant_begin_full;
+					normal_queue->t_full += esim_time - normal_queue->instant_begin_full;
 				else if (mem_controller_remove(new_stack,pref_queue)&&linked_list_count(pref_queue->queue) == size_queue - 1)
-					pref_queue->t_full += esim_cycle - pref_queue->instant_begin_full;
+					pref_queue->t_full += esim_time - pref_queue->instant_begin_full;
 
 				/*Coalesce stacks whose bocks will be in the row buffer
 				  when stack will get its block from row buffer*/
@@ -3567,11 +3537,11 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 
 					n_coalesce=mem_controller_coalesce_acces_row_buffer(new_stack, pref_queue->queue);
 					if (mem_controller_remove(new_stack,pref_queue)&&linked_list_count(pref_queue->queue) == size_queue -n_coalesce)
-						pref_queue->t_full += esim_cycle - pref_queue->instant_begin_full;
+						pref_queue->t_full += esim_time - pref_queue->instant_begin_full;
 
 					n_coalesce=mem_controller_coalesce_acces_row_buffer(new_stack, normal_queue->queue);
 					if (mem_controller_remove(new_stack, normal_queue)&&linked_list_count(normal_queue->queue) == size_queue-n_coalesce)
-						normal_queue->t_full += esim_cycle - normal_queue->instant_begin_full;
+						normal_queue->t_full += esim_time - normal_queue->instant_begin_full;
 
 
 				}
@@ -3684,7 +3654,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 		int n_coalesce= stack->coalesced_stacks!=NULL ? linked_list_count(stack->coalesced_stacks): 0;
 		bank = mem_controller->regs_channel[stack->channel].regs_rank[stack->rank].regs_bank;
 
-		mem_debug("  %lld %lld 0x%x %s acces bank\n", esim_cycle, stack->id, stack->addr & ~mod->cache->block_mask, mod->name);
+		mem_debug("  %lld %lld 0x%x %s acces bank\n", esim_time, stack->id, stack->addr & ~mod->cache->block_mask, mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:acces bank\"\n", stack->id, mod->name);
 
 
@@ -3696,7 +3666,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 		if (stack->state_main_memory == row_buffer_hit)
 		{
 			/* HIT */
-			mem_debug("  %lld %lld 0x%x %s hit row buffer acces bank\n", esim_cycle, stack->id,
+			mem_debug("  %lld %lld 0x%x %s hit row buffer acces bank\n", esim_time, stack->id,
 				stack->addr&~mod->cache->block_mask, mod->name);
 			esim_schedule_event(EV_MOD_NMOESI_TRANSFER_FROM_BANK, stack, bank[stack->bank].t_row_buffer_hit);
 
@@ -3746,7 +3716,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 		}
 		else    /* MISS */
 		{
-			mem_debug("  %lld %lld 0x%x %s miss row buffer acces bank\n", esim_cycle, stack->id,
+			mem_debug("  %lld %lld 0x%x %s miss row buffer acces bank\n", esim_time, stack->id,
 				stack->addr&~mod->cache->block_mask, mod->name);
 			esim_schedule_event(EV_MOD_NMOESI_TRANSFER_FROM_BANK, stack, bank[stack->bank].t_row_buffer_miss);
 
@@ -3840,7 +3810,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 
 		if (channel[stack->channel].state == channel_state_free)
 		{
-			mem_debug("  %lld %lld 0x%x %s transfer from bank\n", esim_cycle, stack->id,stack->addr&~mod->cache->block_mask, mod->name);
+			mem_debug("  %lld %lld 0x%x %s transfer from bank\n", esim_time, stack->id,stack->addr&~mod->cache->block_mask, mod->name);
 			/* Busy the channel */
 			if(!mem_controller->photonic_net) //if we use a photonic net, it can tranfer in full directions
 				channel[stack->channel].state = channel_state_busy;
@@ -3924,7 +3894,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 		}
 		else
 		{
-			mem_debug("  %lld %lld 0x%x %s wait for transfer from bank\n", esim_cycle, stack->id, stack->addr&~mod->cache->block_mask, mod->name);
+			mem_debug("  %lld %lld 0x%x %s wait for transfer from bank\n", esim_time, stack->id, stack->addr&~mod->cache->block_mask, mod->name);
 
 			/* We can't transfer the block because the channed is busy, so we have to wait */
 			esim_schedule_event(EV_MOD_NMOESI_TRANSFER_FROM_BANK, stack, 1);
@@ -3973,14 +3943,14 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 		unsigned int max_block;
 		unsigned int current_block;
 
-		mem_debug("  %lld %lld 0x%x %s remove request in MC\n ",esim_cycle,stack->id, stack->addr&~mod->cache->block_mask,mod->name);
+		mem_debug("  %lld %lld 0x%x %s remove request in MC\n ",esim_time,stack->id, stack->addr&~mod->cache->block_mask,mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:remove request in MC\"\n", stack->id, mod->name);
 
 		if(mem_controller->photonic_net) // all blocks arrive at the same tiem
 			t_trans=0;
 		else
 			t_trans=mod->cache->block_size/(channel[stack->channel].bandwith*2)*cycles_proc_by_bus;
-			
+
 
 		/*Free when all coalesced request have arrived*/
 		if(stack->coalesced_stacks==NULL || linked_list_count(stack->coalesced_stacks)==0)
@@ -4014,11 +3984,11 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 
 			n_coalesce=mem_controller_coalesce_acces_between_blocks(stack,mem_controller->pref_queue[q]->queue, min_block,max_block);
 			if (linked_list_count(mem_controller->pref_queue[q]->queue) == size_queue - n_coalesce &&n_coalesce>0)
-				mem_controller->pref_queue[q]->t_full += esim_cycle - mem_controller->pref_queue[q]->instant_begin_full;
+				mem_controller->pref_queue[q]->t_full += esim_time - mem_controller->pref_queue[q]->instant_begin_full;
 
 			n_coalesce=mem_controller_coalesce_acces_between_blocks(stack,mem_controller->normal_queue[q]->queue, min_block,max_block);
 			if (linked_list_count(mem_controller->normal_queue[q]->queue) == size_queue - n_coalesce &&n_coalesce>0)
-				mem_controller->normal_queue[q]->t_full += esim_cycle - mem_controller->normal_queue[q]->instant_begin_full;
+				mem_controller->normal_queue[q]->t_full += esim_time - mem_controller->normal_queue[q]->instant_begin_full;
 
 
 
@@ -4026,7 +3996,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 			mem_controller_sort_by_block(stack);
 
 			/*Stadistics*/
-			time = esim_cycle - mem_controller->last_cycle;
+			time = esim_time - mem_controller->last_cycle;
 			for (int i = 0; i < num_queues; i++)
 			{
 				normq_aux = mem_controller->normal_queue[i];
@@ -4044,7 +4014,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 					prefq_aux->total_requests += size_queue * time;
 			}
 			mem_controller->n_times_queue_examined += time; //se podria cambiar dividinto x esim al final
-			mem_controller->last_cycle = esim_cycle;
+			mem_controller->last_cycle = esim_time;
 
 
 		}
@@ -4152,7 +4122,7 @@ void mod_handler_nmoesi_invalidate_slot(int event, void *data)
 
 	if (event == EV_MOD_NMOESI_INVALIDATE_SLOT)
 	{
-		mem_debug("%lld %lld 0x%x %s invalidate slot\n", esim_cycle, stack->id, stack->addr, mod->name);
+		mem_debug("%lld %lld 0x%x %s invalidate slot\n", esim_time, stack->id, stack->addr, mod->name);
 		mem_trace("mem.new_access name=\"A-%lld\" type=\"invalidate_slot\" state=\"%s:invalidate_slot\" addr=0x%x\n", stack->id, mod->name, stack->addr);
 
 		/* Next event */
@@ -4163,11 +4133,11 @@ void mod_handler_nmoesi_invalidate_slot(int event, void *data)
 
 	if (event == EV_MOD_NMOESI_INVALIDATE_SLOT_LOCK)
 	{
-		mem_debug("  %lld %lld 0x%x %s invalidate slot lock\n", esim_cycle, stack->id, stack->addr, mod->name);
+		mem_debug("  %lld %lld 0x%x %s invalidate slot lock\n", esim_time, stack->id, stack->addr, mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:invalidate_slot_lock\"\n", stack->id, mod->name);
 
 		/* Call pref find and lock */
-		new_stack = mod_stack_create(stack->id, mod, stack->addr, EV_MOD_NMOESI_INVALIDATE_SLOT_ACTION, stack, stack->core, stack->thread, stack->prefetch);
+		new_stack = mod_stack_create(stack->id, mod, stack->addr, EV_MOD_NMOESI_INVALIDATE_SLOT_ACTION, stack, stack->prefetch);
 		new_stack->blocking = 1;
 		new_stack->retry = stack->retry;
 		new_stack->pref_stream = stack->pref_stream;
@@ -4183,7 +4153,7 @@ void mod_handler_nmoesi_invalidate_slot(int event, void *data)
 	{
 		int retry_lat;
 
-		mem_debug("  %lld %lld 0x%x %s invalidate slot action\n", esim_cycle, stack->id, stack->addr, mod->name);
+		mem_debug("  %lld %lld 0x%x %s invalidate slot action\n", esim_time, stack->id, stack->addr, mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:invalidate_slot_action\"\n", stack->id, mod->name);
 
 		/* Error locking */
@@ -4204,7 +4174,7 @@ void mod_handler_nmoesi_invalidate_slot(int event, void *data)
 
 	if (event == EV_MOD_NMOESI_INVALIDATE_SLOT_UNLOCK)
 	{
-		mem_debug("  %lld %lld 0x%x %s invalidate slot unlock\n", esim_cycle, stack->id, stack->addr, mod->name);
+		mem_debug("  %lld %lld 0x%x %s invalidate slot unlock\n", esim_time, stack->id, stack->addr, mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:invalidate_slot_unlock\"\n", stack->id, mod->name);
 
 		/* Unlock directory entry */
@@ -4218,7 +4188,7 @@ void mod_handler_nmoesi_invalidate_slot(int event, void *data)
 
 	if (event == EV_MOD_NMOESI_INVALIDATE_SLOT_FINISH)
 	{
-		mem_debug("%lld %lld 0x%x %s invalidate slot finish\n", esim_cycle, stack->id, stack->addr, mod->name);
+		mem_debug("%lld %lld 0x%x %s invalidate slot finish\n", esim_time, stack->id, stack->addr, mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:load_finish\"\n", stack->id, mod->name);
 		mem_trace("mem.end_access name=\"A-%lld\"\n", stack->id);
 
@@ -4294,7 +4264,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 
 		if (stack->request_dir == mod_request_up_down &&
 			target_mod->kind == mod_kind_main_memory && mem_controller->enabled)
-			stack->t_access_net=esim_cycle;
+			stack->t_access_net=esim_time;
 
 		/* Send message */
 		stack->msg = net_try_send_ev(net, src_node, dst_node, 8,
@@ -4312,7 +4282,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 
 		/* Is mem controller queue busy? */
 		if(target_mod->kind == mod_kind_main_memory &&
-			mod_request_up_down && 
+			mod_request_up_down &&
 			mem_controller_get_size_queue(stack) >= mem_controller->size_queue)
 		{
 			esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST_RECEIVE, stack, 1);
@@ -4340,7 +4310,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 
 		/* Find and lock */
 		new_stack = mod_stack_create(stack->id, target_mod, stack->addr,
-			EV_MOD_NMOESI_READ_REQUEST_ACTION, stack);
+			EV_MOD_NMOESI_READ_REQUEST_ACTION, stack, stack->prefetch);
 		new_stack->blocking = stack->request_dir == mod_request_down_up;
 		new_stack->read = 1;
 		new_stack->retry = stack->retry; //VVV
@@ -4536,7 +4506,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 
 			/* The prefetcher may have prefetched this earlier and hence
 			 * this is a hit now. Let the prefetcher know of this hit
-			 * since without the prefetcher, this may have been a miss. 
+			 * since without the prefetcher, this may have been a miss.
 			 * TODO: I'm not sure how relavant this is here for all states. */
 			prefetcher_access_hit(stack, target_mod);
 		}
@@ -4605,7 +4575,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 				wb_block = linked_list_get(target_cache->wb.blocks);
 				if (wb_block->tag == stack->tag)
 				{
-					cache_set_block(target_cache, stack->set, stack->way, stack->tag, wb_block->state, 0);
+					cache_set_block(target_cache, stack->set, stack->way, stack->tag, wb_block->state);
 					mod_stack_wake_up_write_buffer(wb_block);
 					linked_list_remove(target_cache->wb.blocks);
 					free(wb_block);
@@ -4623,7 +4593,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 				LIST_FOR_EACH(mem_system->mm_mod_list, i)
 				{
 					struct mod_t *mm_mod = list_get(mem_system->mm_mod_list, i);
-					if (mod_serves_address(mm_mod, stack->addr) && esim_cycle - stack->stream_retried_cycle < mm_mod->latency / 3)
+					if (mod_serves_address(mm_mod, stack->addr) && esim_time - stack->stream_retried_cycle < mm_mod->latency / 3)
 						target_mod->effective_useful_prefetches++;
 				}
 			}
@@ -4636,7 +4606,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 		{
 			struct stream_block_t *block = cache_get_pref_block(target_mod->cache, stack->pref_stream, stack->pref_slot);
 			assert(stack->tag == block->tag);
-			cache_set_block(target_mod->cache, stack->set, stack->way, block->tag, block->state, 0);
+			cache_set_block(target_mod->cache, stack->set, stack->way, block->tag, block->state);
 			block->state = cache_block_invalid;
 			block->tag = -1;
 			struct stream_buffer_t *sb = &target_mod->cache->prefetch.streams[stack->pref_stream];
@@ -4651,7 +4621,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 				LIST_FOR_EACH(mem_system->mm_mod_list, i)
 				{
 					struct mod_t *mm_mod = list_get(mem_system->mm_mod_list, i);
-					if (mod_serves_address(mm_mod, stack->addr) && esim_cycle - stack->stream_retried_cycle < mm_mod->latency / 3)
+					if (mod_serves_address(mm_mod, stack->addr) && esim_time - stack->stream_retried_cycle < mm_mod->latency / 3)
 						target_mod->effective_useful_prefetches++;
 				}
 			}
@@ -4666,7 +4636,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			* that comes from a read request into the next cache level.
 			* Also set the tag of the block. */
 			cache_set_block(target_mod->cache, stack->set, stack->way, stack->tag,
-				stack->shared ? cache_block_shared : cache_block_exclusive, 0);
+				stack->shared ? cache_block_shared : cache_block_exclusive);
 		}
 
 		esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST_UPDOWN_FINISH, stack, 0);
@@ -4691,7 +4661,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			stack->tag, target_mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:read_request_updown_finish\"\n",
 			stack->id, target_mod->name);
-		
+
 		/* If another module has not given the block,
 		access main memory */
 		if(target_mod->kind == mod_kind_main_memory &&
@@ -4699,10 +4669,10 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			stack->reply != reply_ack_data_sent_to_peer)
 		{
 			assert(stack->t_access_net >= 0);
-			mem_controller->t_inside_net += esim_cycle-stack->t_access_net;
+			mem_controller->t_inside_net += esim_time-stack->t_access_net;
 			stack->t_access_net =- 1;
 			new_stack = mod_stack_create(stack->id, target_mod, stack->addr,
-				EV_MOD_NMOESI_READ_REQUEST_UPDOWN_FINISH_UPDATE_DIRECTORY, stack, stack->core, stack->thread, stack->prefetch);
+				EV_MOD_NMOESI_READ_REQUEST_UPDOWN_FINISH_UPDATE_DIRECTORY, stack, stack->prefetch);
 			new_stack->blocking = stack->request_dir == mod_request_down_up;
 			new_stack->read = 1;
 			new_stack->retry = 0;
@@ -4716,17 +4686,17 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			/* If blocks were sent directly to the peer, the reply size would
 			 * have been decreased.  Based on the final size, we can tell whether
 			 * to send more data or simply ack */
-			if (stack->reply_size == 8) 
+			if (stack->reply_size == 8)
 				mod_stack_set_reply(ret, reply_ack);
 			else if (stack->reply_size > 8)
 				mod_stack_set_reply(ret, reply_ack_data);
-			else 
+			else
 				fatal("Invalid reply size: %d", stack->reply_size);
 		}
 
 		if(stack->fast_resume)
 		{
-			latency = stack->reply == reply_ack_data_sent_to_peer ? 0 : target_mod->latency;
+			int latency = stack->reply == reply_ack_data_sent_to_peer ? 0 : target_mod->latency;
 			mod_access_finish(target_mod, stack);
 			esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST_REPLY, stack, latency);
 			return;
@@ -4863,7 +4833,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 
 			stack->pending++;
 			new_stack = mod_stack_create(stack->id, target_mod, dir_entry_tag,
-				EV_MOD_NMOESI_READ_REQUEST_DOWNUP_WAIT_FOR_REQS, stack);
+				EV_MOD_NMOESI_READ_REQUEST_DOWNUP_WAIT_FOR_REQS, stack, stack->prefetch);
 			new_stack->target_mod = owner;
 			new_stack->request_dir = mod_request_down_up;
 			esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST, new_stack, 0);
@@ -4890,7 +4860,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 		{
 			/* Send this block (or subblock) to the peer */
 			new_stack = mod_stack_create(stack->id, target_mod, stack->tag,
-				EV_MOD_NMOESI_READ_REQUEST_DOWNUP_FINISH, stack);
+				EV_MOD_NMOESI_READ_REQUEST_DOWNUP_FINISH, stack, stack->prefetch);
 			new_stack->peer = mod_stack_set_peer(stack->peer, stack->state);
 			new_stack->target_mod = stack->target_mod;
 			esim_schedule_event(EV_MOD_NMOESI_PEER_SEND, new_stack, 0);
@@ -4931,7 +4901,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 					dir_entry_tag = stack->tag + z * target_mod->sub_block_size;
 					assert(dir_entry_tag < stack->tag + target_mod->block_size);
 					dir_entry = dir_entry_get(dir, stack->set, stack->way, z);
-					dir_entry_set_owner(dir, stack->set, stack->way, z, 
+					dir_entry_set_owner(dir, stack->set, stack->way, z,
 						DIR_ENTRY_OWNER_NONE);
 				}
 
@@ -4949,8 +4919,8 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			else
 			{
 				/* Set state to shared */
-				cache_set_block(target_mod->cache, stack->set, stack->way, 
-					stack->tag, cache_block_shared, stack->prefetch);
+				cache_set_block(target_mod->cache, stack->set, stack->way,
+					stack->tag, cache_block_shared);
 
 				/* State is changed to shared, set owner of sub-blocks to 0. */
 				dir = target_mod->dir;
@@ -4959,7 +4929,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 					dir_entry_tag = stack->tag + z * target_mod->sub_block_size;
 					assert(dir_entry_tag < stack->tag + target_mod->block_size);
 					dir_entry = dir_entry_get(dir, stack->set, stack->way, z);
-					dir_entry_set_owner(dir, stack->set, stack->way, z, 
+					dir_entry_set_owner(dir, stack->set, stack->way, z,
 						DIR_ENTRY_OWNER_NONE);
 				}
 
@@ -4973,8 +4943,8 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			stack->reply_size = 8;
 
 			/* Set state to shared */
-			cache_set_block(target_mod->cache, stack->set, stack->way, 
-				stack->tag, cache_block_shared, stack->prefetch);
+			cache_set_block(target_mod->cache, stack->set, stack->way,
+				stack->tag, cache_block_shared);
 
 			/* State is changed to shared, set owner of sub-blocks to 0. */
 			dir = target_mod->dir;
@@ -4983,7 +4953,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 				dir_entry_tag = stack->tag + z * target_mod->sub_block_size;
 				assert(dir_entry_tag < stack->tag + target_mod->block_size);
 				dir_entry = dir_entry_get(dir, stack->set, stack->way, z);
-				dir_entry_set_owner(dir, stack->set, stack->way, z, 
+				dir_entry_set_owner(dir, stack->set, stack->way, z,
 					DIR_ENTRY_OWNER_NONE);
 			}
 
@@ -5007,7 +4977,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 		{
 			/* This block is not present in any higher level caches */
 
-			if (stack->peer) 
+			if (stack->peer)
 			{
 				stack->reply_size = 8;
 				mod_stack_set_reply(ret, reply_ack_data_sent_to_peer);
@@ -5030,19 +5000,19 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 					ret->retain_owner = 1;
 
 					/* Set block to owned */
-					cache_set_block(target_mod->cache, stack->set, stack->way, 
-						stack->tag, cache_block_owned, stack->prefetch);
+					cache_set_block(target_mod->cache, stack->set, stack->way,
+						stack->tag, cache_block_owned);
 				}
-				else 
+				else
 				{
 					/* Set block to shared */
-					cache_set_block(target_mod->cache, stack->set, stack->way, 
-						stack->tag, cache_block_shared, stack->prefetch);
+					cache_set_block(target_mod->cache, stack->set, stack->way,
+						stack->tag, cache_block_shared);
 				}
 			}
-			else 
+			else
 			{
-				if (stack->state == cache_block_exclusive || 
+				if (stack->state == cache_block_exclusive ||
 					stack->state == cache_block_shared)
 				{
 					stack->reply_size = 8;
@@ -5050,7 +5020,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 
 				}
 				else if (stack->state == cache_block_owned ||
-					stack->state == cache_block_modified || 
+					stack->state == cache_block_modified ||
 					stack->state == cache_block_noncoherent)
 				{
 					/* No peer exists, so data is returned to mod */
@@ -5098,13 +5068,12 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 				}
 				else if(stack->state)
 				{
-					/* FIX: El estat prefetch es posa mal */
 					cache_set_block(target_mod->cache, stack->set, stack->way,
-						stack->tag, cache_block_shared, stack->prefetch);
+						stack->tag, cache_block_shared);
 				}
 			}
 		}
-		else 
+		else
 		{
 			fatal("Unexpected reply type: %d\n", stack->reply);
 		}
@@ -5179,7 +5148,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			mem_controller->enabled)
 		{
 			assert(stack->t_access_net >= 0);
-			mem_controller->t_inside_net += esim_cycle-stack->t_access_net;
+			mem_controller->t_inside_net += esim_time-stack->t_access_net;
 			stack->t_access_net = -1;
 		}
 
@@ -5200,6 +5169,8 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 
 	struct mod_t *mod = stack->mod;
 	struct mod_t *target_mod = stack->target_mod;
+
+	struct mem_controller_t *mem_controller = target_mod->mem_controller;
 
 	struct dir_t *dir;
 	struct dir_entry_t *dir_entry;
@@ -5223,7 +5194,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 
 		/* For write requests, we need to set the initial reply size because
 		 * in updown, peer transfers must be allowed to decrease this value
-		 * (during invalidate). If the request turns out to be downup, then 
+		 * (during invalidate). If the request turns out to be downup, then
 		 * these values will get overwritten. */
 		stack->reply_size = mod->block_size + 8;
 		mod_stack_set_reply(stack, reply_ack_data);
@@ -5252,7 +5223,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 		if (stack->request_dir == mod_request_up_down &&
 			target_mod->kind == mod_kind_main_memory &&
 			mem_controller->enabled)
-			stack->t_access_net = esim_cycle;
+			stack->t_access_net = esim_time;
 
 		/* Send message */
 		stack->msg = net_try_send_ev(net, src_node, dst_node, 8,
@@ -5269,7 +5240,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 
 		/* Is mem controller queue busy? */
 		if(target_mod->kind == mod_kind_main_memory &&
-			mod_request_up_down && 
+			mod_request_up_down &&
 			mem_controller_get_size_queue(stack) >= mem_controller->size_queue)
 		{
 			esim_schedule_event(EV_MOD_NMOESI_WRITE_REQUEST_RECEIVE, stack, 1);
@@ -5281,7 +5252,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			net_receive(target_mod->high_net, target_mod->high_net_node, stack->msg);
 		else
 			net_receive(target_mod->low_net, target_mod->low_net_node, stack->msg);
-		
+
 		if (stack->request_dir == mod_request_up_down &&
 			target_mod->kind != mod_kind_main_memory &&
 			target_mod->cache->prefetch_policy)
@@ -5406,7 +5377,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			(!stack->stream_hit && !stack->state && stack->request_dir == mod_request_down_up))
 		{
 			mem_debug("  %lld %lld 0x%x %s write prefetch hit direction %d\n",
-				esim_cycle, stack->id, stack->tag, target_mod->name,
+				esim_time, stack->id, stack->tag, target_mod->name,
 				stack->request_dir == mod_request_up_down);
 			assert(target_mod->kind != mod_kind_main_memory);
 
@@ -5503,7 +5474,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 				prefetcher_access_miss(stack, target_mod);
 			}
 		}
-		else 
+		else
 		{
 			fatal("Invalid cache block state: %d\n", stack->state);
 		}
@@ -5512,7 +5483,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 		{
 			/* The prefetcher may have prefetched this earlier and hence
 			 * this is a hit now. Let the prefetcher know of this hit
-			 * since without the prefetcher, this may been a miss. 
+			 * since without the prefetcher, this may been a miss.
 			 * TODO: I'm not sure how relavant this is here for all states. */
 			prefetcher_access_hit(stack, target_mod);
 		}
@@ -5526,7 +5497,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			stack->tag, target_mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:write_request_updown_finish\"\n",
 			stack->id, target_mod->name);
-		
+
 		/* If another module has not given the block,
 		access main memory */
 		if (target_mod->kind == mod_kind_main_memory &&
@@ -5534,7 +5505,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			stack->reply != reply_ack_data_sent_to_peer)
 		{
 			assert(stack->t_access_net >= 0);
-			mem_controller->t_inside_net+=esim_cycle-stack->t_access_net;
+			mem_controller->t_inside_net+=esim_time-stack->t_access_net;
 			stack->t_access_net=-1;
 			new_stack = mod_stack_create(stack->id, target_mod, stack->addr,
 				EV_MOD_NMOESI_WRITE_REQUEST_UPDOWN_FINISH, stack, stack->prefetch);
@@ -5618,7 +5589,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 				LIST_FOR_EACH(mem_system->mm_mod_list, i)
 				{
 					struct mod_t *mm_mod = list_get(mem_system->mm_mod_list, i);
-					if (mod_serves_address(mm_mod, stack->addr) && esim_cycle - stack->stream_retried_cycle < mm_mod->latency / 3)
+					if (mod_serves_address(mm_mod, stack->addr) && esim_time - stack->stream_retried_cycle < mm_mod->latency / 3)
 						target_mod->effective_useful_prefetches++;
 				}
 			}
@@ -5644,7 +5615,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 				LIST_FOR_EACH(mem_system->mm_mod_list, i)
 				{
 					struct mod_t *mm_mod = list_get(mem_system->mm_mod_list, i);
-					if (mod_serves_address(mm_mod, stack->addr) && esim_cycle - stack->stream_retried_cycle < mm_mod->latency / 3)
+					if (mod_serves_address(mm_mod, stack->addr) && esim_time - stack->stream_retried_cycle < mm_mod->latency / 3)
 						target_mod->effective_useful_prefetches++;
 				}
 			}
@@ -5654,18 +5625,18 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 
 		/* Set states O/E/S/I->E */
 		cache_set_block(target_mod->cache, stack->set, stack->way,
-			stack->tag, cache_block_exclusive, stack->prefetch);
+			stack->tag, cache_block_exclusive);
 
 		/* If blocks were sent directly to the peer, the reply size would
 		 * have been decreased.  Based on the final size, we can tell whether
 		 * to send more data up or simply ack */
 		if(!stack->background)
 		{
-			if (stack->reply_size == 8) 
+			if (stack->reply_size == 8)
 				mod_stack_set_reply(ret, reply_ack);
 			else if (stack->reply_size > 8)
 				mod_stack_set_reply(ret, reply_ack_data);
-			else 
+			else
 				fatal("Invalid reply size: %d", stack->reply_size);
 		}
 
@@ -5685,11 +5656,11 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 
 		int latency = stack->reply == reply_ack_data_sent_to_peer ? 0 : target_mod->latency;
 		esim_schedule_event(EV_MOD_NMOESI_WRITE_REQUEST_REPLY, stack, latency);
-		
+
 		if (stack->request_dir == mod_request_up_down &&
 			target_mod->kind == mod_kind_main_memory &&
 			mem_controller->enabled)
-			stack->t_access_net=esim_cycle;
+			stack->t_access_net=esim_time;
 
 		return;
 	}
@@ -5720,38 +5691,38 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			stack->reply_size = target_mod->block_size + 8;
 			mod_stack_set_reply(ret, reply_ack_data);
 		}
-		else if (stack->state == cache_block_modified || 
+		else if (stack->state == cache_block_modified ||
 			stack->state == cache_block_owned)
 		{
-			if (stack->peer) 
+			if (stack->peer)
 			{
-				/* Modified or owned entries send data directly to peer 
+				/* Modified or owned entries send data directly to peer
 				 * if it exists */
 				mod_stack_set_reply(ret, reply_ack_data_sent_to_peer);
 				stack->reply_size = 8;
 
-				/* This control path uses an intermediate stack that disappears, so 
+				/* This control path uses an intermediate stack that disappears, so
 				 * we have to update the return stack of the return stack */
 				ret->ret_stack->reply_size -= target_mod->block_size;
 				assert(ret->ret_stack->reply_size >= 8);
 
 				/* Send data to the peer */
 				new_stack = mod_stack_create(stack->id, target_mod, stack->tag,
-					EV_MOD_NMOESI_WRITE_REQUEST_DOWNUP_FINISH, stack);
-				new_stack->peer = mod_stack_set_peer(stack->peer, stack->state, stack->prefetch);
+					EV_MOD_NMOESI_WRITE_REQUEST_DOWNUP_FINISH, stack, stack->prefetch);
+				new_stack->peer = mod_stack_set_peer(stack->peer, stack->state);
 				new_stack->target_mod = stack->target_mod;
 
 				esim_schedule_event(EV_MOD_NMOESI_PEER_SEND, new_stack, 0);
 				return;
 			}
-			else 
+			else
 			{
 				/* If peer does not exist, data is returned to mod */
 				mod_stack_set_reply(ret, reply_ack_data);
 				stack->reply_size = target_mod->block_size + 8;
 			}
 		}
-		else 
+		else
 		{
 			fatal("Invalid cache block state: %d\n", stack->state);
 		}
@@ -5781,7 +5752,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 		}
 		else if(stack->state) /* Sols fem això si no ha hagut un down_up miss degut als streams */
 		{
-			cache_set_block(target_mod->cache, stack->set, stack->way, 0, cache_block_invalid, 0);
+			cache_set_block(target_mod->cache, stack->set, stack->way, 0, cache_block_invalid);
 			dir_entry_unlock(target_mod->dir, stack->set, stack->way);
 		}
 
@@ -5843,7 +5814,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			mem_controller->enabled)
 		{
 			assert(stack->t_access_net>=0);
-			mem_controller->t_inside_net+=esim_cycle-stack->t_access_net;
+			mem_controller->t_inside_net+=esim_time-stack->t_access_net;
 			stack->t_access_net=-1;
 
 		}
@@ -5863,7 +5834,7 @@ void mod_handler_nmoesi_peer(int event, void *data)
 	struct mod_t *src = stack->target_mod;
 	struct mod_t *peer = stack->peer;
 
-	if (event == EV_MOD_NMOESI_PEER_SEND) 
+	if (event == EV_MOD_NMOESI_PEER_SEND)
 	{
 		mem_debug("  %lld %lld 0x%x %s %s peer send\n", esim_time, stack->id,
 			stack->tag, src->name, peer->name);
@@ -5871,13 +5842,13 @@ void mod_handler_nmoesi_peer(int event, void *data)
 			stack->id, src->name);
 
 		/* Send message from src to peer */
-		stack->msg = net_try_send_ev(src->low_net, src->low_net_node, peer->low_net_node, 
+		stack->msg = net_try_send_ev(src->low_net, src->low_net_node, peer->low_net_node,
 			src->block_size + 8, EV_MOD_NMOESI_PEER_RECEIVE, stack, event, stack);
 
 		return;
 	}
 
-	if (event == EV_MOD_NMOESI_PEER_RECEIVE) 
+	if (event == EV_MOD_NMOESI_PEER_RECEIVE)
 	{
 		mem_debug("  %lld %lld 0x%x %s %s peer receive\n", esim_time, stack->id,
 			stack->tag, src->name, peer->name);
@@ -5892,7 +5863,7 @@ void mod_handler_nmoesi_peer(int event, void *data)
 		return;
 	}
 
-	if (event == EV_MOD_NMOESI_PEER_REPLY) 
+	if (event == EV_MOD_NMOESI_PEER_REPLY)
 	{
 		mem_debug("  %lld %lld 0x%x %s %s peer reply ack\n", esim_time, stack->id,
 			stack->tag, src->name, peer->name);
@@ -5900,13 +5871,13 @@ void mod_handler_nmoesi_peer(int event, void *data)
 			stack->id, peer->name);
 
 		/* Send ack from peer to src */
-		stack->msg = net_try_send_ev(peer->low_net, peer->low_net_node, src->low_net_node, 
-				8, EV_MOD_NMOESI_PEER_FINISH, stack, event, stack); 
+		stack->msg = net_try_send_ev(peer->low_net, peer->low_net_node, src->low_net_node,
+				8, EV_MOD_NMOESI_PEER_FINISH, stack, event, stack);
 
 		return;
 	}
 
-	if (event == EV_MOD_NMOESI_PEER_FINISH) 
+	if (event == EV_MOD_NMOESI_PEER_FINISH)
 	{
 		mem_debug("  %lld %lld 0x%x %s %s peer finish\n", esim_time, stack->id,
 			stack->tag, src->name, peer->name);
@@ -5952,7 +5923,7 @@ void mod_handler_nmoesi_invalidate(int event, void *data)
 
 		/* At least one pending reply */
 		stack->pending = 1;
-		
+
 		/* Send write request to all upper level sharers except 'except_mod' */
 		dir = mod->dir;
 		for (z = 0; z < dir->zsize; z++)
@@ -5963,7 +5934,7 @@ void mod_handler_nmoesi_invalidate(int event, void *data)
 			for (i = 0; i < dir->num_nodes; i++)
 			{
 				struct net_node_t *node;
-				
+
 				/* Skip non-sharers and 'except_mod' */
 				if (!dir_entry_is_sharer(dir, stack->set, stack->way, z, i))
 					continue;
@@ -6066,7 +6037,7 @@ void mod_handler_nmoesi_message(int event, void *data)
 
 		/* Receive message */
 		net_receive(target_mod->high_net, target_mod->high_net_node, stack->msg);
-		
+
 		/* Find and lock */
 		new_stack = mod_stack_create(stack->id, target_mod, stack->addr,
 			EV_MOD_NMOESI_MESSAGE_ACTION, stack, stack->prefetch);
@@ -6106,7 +6077,7 @@ void mod_handler_nmoesi_message(int event, void *data)
 					/* Clear the owner */
 					dir_entry = dir_entry_get(dir, stack->set, stack->way, z);
 					assert(dir_entry->owner == mod->low_net_node->index);
-					dir_entry_set_owner(dir, stack->set, stack->way, z, 
+					dir_entry_set_owner(dir, stack->set, stack->way, z,
 						DIR_ENTRY_OWNER_NONE);
 				}
 			}
@@ -6179,7 +6150,7 @@ void mod_handler_nmoesi_find_and_lock_mem_controller(int event, void *data)
 	if (event == EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER)
 	{
 		mem_debug("  %lld %lld 0x%x %s find and lock memory controller (blocking=%d)\n",
-			esim_cycle, stack->id, stack->addr, mod->name, stack->blocking);
+			esim_time, stack->id, stack->addr, mod->name, stack->blocking);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:find_and_lock_mem_controller\"\n",
 			stack->id, mod->name);
 
@@ -6197,10 +6168,9 @@ void mod_handler_nmoesi_find_and_lock_mem_controller(int event, void *data)
 	{
 		struct mod_port_t *port = stack->port;
 		struct dir_lock_t *dir_lock;
-		int prefetch;
 
 		assert(stack->port);
-		mem_debug("  %lld %lld 0x%x %s find and lock memory controller port \n", esim_cycle, stack->id,
+		mem_debug("  %lld %lld 0x%x %s find and lock memory controller port \n", esim_time, stack->id,
 			stack->addr, mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:find_and_lock_mem_controller_port\"\n",
 			stack->id, mod->name);
@@ -6211,7 +6181,7 @@ void mod_handler_nmoesi_find_and_lock_mem_controller(int event, void *data)
 		ret->port_locked = 1;
 
 		/* Look for block */
-		stack->hit = mod_find_block(mod, stack->addr, &stack->set, &stack->way, &stack->tag, &stack->state, &prefetch);
+		stack->hit = mod_find_block(mod, stack->addr, &stack->set, &stack->way, &stack->tag, &stack->state);
 
 		//assert(!prefetch);
 
@@ -6223,8 +6193,6 @@ void mod_handler_nmoesi_find_and_lock_mem_controller(int event, void *data)
 		if (stack->hit)
 		{
 			mod->hits++;
-			if(stack->prefetch)
-				mod->hits_pref++;
 		}
 
 		if (stack->read)
@@ -6312,9 +6280,6 @@ void mod_handler_nmoesi_find_and_lock_mem_controller(int event, void *data)
 
 		if (!stack->hit)
 		{
-			/////////////////////////////////////////////////////
-			mem_system->faults[mod->level]++;		/////
-			/////////////////////////////////////////////////////
 			if (stack->way < 0)
 				stack->way = cache_replace_block(mod->cache, stack->set);
 
@@ -6367,7 +6332,7 @@ void mod_handler_nmoesi_find_and_lock_mem_controller(int event, void *data)
 		struct mod_port_t *port = stack->port;
 
 		assert(port);
-		mem_debug("  %lld %lld 0x%x %s find and lock mem controller action\n", esim_cycle, stack->id,stack->tag, mod->name);
+		mem_debug("  %lld %lld 0x%x %s find and lock mem controller action\n", esim_time, stack->id,stack->tag, mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:find_and_lock_mem_controller_action\"\n",stack->id, mod->name);
 
 		/* Release port */
@@ -6378,7 +6343,7 @@ void mod_handler_nmoesi_find_and_lock_mem_controller(int event, void *data)
 		if (!stack->hit && stack->state)
 		{
 			stack->eviction = 1;
-			new_stack = mod_stack_create(stack->id, mod, 0, EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER_FINISH, stack, stack->core,stack->thread, stack->prefetch);
+			new_stack = mod_stack_create(stack->id, mod, 0, EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER_FINISH, stack, stack->prefetch);
 			new_stack->set = stack->set;
 			new_stack->way = stack->way;
 			esim_schedule_event(EV_MOD_NMOESI_EVICT, new_stack, 0);
@@ -6393,7 +6358,7 @@ void mod_handler_nmoesi_find_and_lock_mem_controller(int event, void *data)
 
 	if (event == EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER_FINISH)
 	{
-		mem_debug("  %lld %lld 0x%x %s find and lock memory controller finish (err=%d fr=%d bg=%d)\n", esim_cycle, stack->id,stack->tag, mod->name, stack->err, stack->fast_resume, stack->background);
+		mem_debug("  %lld %lld 0x%x %s find and lock memory controller finish (err=%d fr=%d bg=%d)\n", esim_time, stack->id,stack->tag, mod->name, stack->err, stack->fast_resume, stack->background);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:find_and_lock_mem_controller_finish\"\n",stack->id, mod->name);
 
 		/* If evict produced err, return err */
@@ -6420,7 +6385,7 @@ void mod_handler_nmoesi_find_and_lock_mem_controller(int event, void *data)
 		if (!stack->state) // MIRAR-------------------
 		{
 			stack->state = cache_block_exclusive;
-			cache_set_block(mod->cache, stack->set, stack->way, stack->tag, stack->state, 0);
+			cache_set_block(mod->cache, stack->set, stack->way, stack->tag, stack->state);
 		}
 
 		/* Return */

@@ -20,6 +20,7 @@
 
 #include <arch/common/arch.h>
 #include <arch/southern-islands/timing/gpu.h>
+#include <arch/x86/timing/cpu.h>
 #include <lib/esim/esim.h>
 #include <lib/esim/trace.h>
 #include <lib/mhandle/mhandle.h>
@@ -36,6 +37,7 @@
 #include "cache.h"
 #include "command.h"
 #include "directory.h"
+#include "mem-controller.h"
 #include "mem-system.h"
 #include "mmu.h"
 #include "module.h"
@@ -253,8 +255,8 @@ static char *mem_err_config_note =
 	"\ta description of the memory system configuration file format.\n";
 
 static char *err_mem_config_net =
-	"\tNetwork identifiers need to be declared either in the cache\n" 
-	"\tconfiguration file, or in the network configuration file (option\n" 
+	"\tNetwork identifiers need to be declared either in the cache\n"
+	"\tconfiguration file, or in the network configuration file (option\n"
 	"\t'--net-config').\n";
 
 static char *err_mem_levels =
@@ -264,8 +266,8 @@ static char *err_mem_levels =
 	"\tincrease variable MEM_SYSTEM_MAX_LEVELS in '" __FILE__ "'\n";
 
 static char *err_mem_block_size =
-	"\tBlock size in a cache must be greater or equal than its\n" 
-	"\tlower-level cache for correct behavior of directories and\n" 
+	"\tBlock size in a cache must be greater or equal than its\n"
+	"\tlower-level cache for correct behavior of directories and\n"
 	"\tcoherence protocols.\n";
 
 static char *err_mem_connect =
@@ -274,7 +276,7 @@ static char *err_mem_connect =
 	"\tadd the necessary links in the network configuration file.\n";
 
 static char *err_mem_disjoint =
-	"\tIn current versions of Multi2Sim, it is not allowed having a\n" 
+	"\tIn current versions of Multi2Sim, it is not allowed having a\n"
 	"\tmemory module shared for different architectures. Please make sure\n"
 	"\tthat the sets of modules accessible by different architectures\n"
 	"\tare disjoint.\n";
@@ -331,14 +333,14 @@ static void mem_config_read_general(struct config_t *config)
 			mem_config_file_name, mem_err_config_note);
 
 	/* Page size */
-	mmu_page_size = config_read_int(config, section, "PageSize", 
+	mmu_page_size = config_read_int(config, section, "PageSize",
 			mmu_page_size);
 	if ((mmu_page_size & (mmu_page_size - 1)))
 		fatal("%s: page size must be power of 2.\n%s",
 			mem_config_file_name, mem_err_config_note);
 
 	/* Peer transfers */
-	mem_peer_transfers = config_read_bool(config, section, 
+	mem_peer_transfers = config_read_bool(config, section,
 		"PeerTransfers", 1);
 }
 
@@ -353,7 +355,7 @@ static void mem_config_read_networks(struct config_t *config)
 
 	/* Create networks */
 	mem_debug("Creating internal networks:\n");
-	for (section = config_section_first(config); section; 
+	for (section = config_section_first(config); section;
 		section = config_section_next(config))
 	{
 		char *net_name;
@@ -370,8 +372,8 @@ static void mem_config_read_networks(struct config_t *config)
 	}
 	mem_debug("\n");
 
-	/* Add network pointers to configuration file. This needs to be done 
-	 * separately, because configuration file writes alter enumeration of 
+	/* Add network pointers to configuration file. This needs to be done
+	 * separately, because configuration file writes alter enumeration of
 	 * sections. Also check integrity of sections. */
 	for (i = 0; i < list_count(mem_system->net_list); i++)
 	{
@@ -429,35 +431,35 @@ static void mem_config_insert_module_in_network(struct config_t *config,
 			mod->name, mem_err_config_note);
 
 	/* Read buffer sizes from network */
-	def_input_buffer_size = config_read_int(config, buf, 
+	def_input_buffer_size = config_read_int(config, buf,
 		"DefaultInputBufferSize", 0);
-	def_output_buffer_size = config_read_int(config, buf, 
+	def_output_buffer_size = config_read_int(config, buf,
 		"DefaultOutputBufferSize", 0);
 	if (!def_input_buffer_size)
 	{
 		fatal("%s: network %s: variable 'DefaultInputBufferSize' "
-			"missing.\n%s", mem_config_file_name, net->name, 
+			"missing.\n%s", mem_config_file_name, net->name,
 			mem_err_config_note);
 	}
 	if (!def_output_buffer_size)
 	{
 		fatal("%s: network %s: variable 'DefaultOutputBufferSize' "
-			"missing.\n%s", mem_config_file_name, net->name, 
+			"missing.\n%s", mem_config_file_name, net->name,
 			mem_err_config_note);
 	}
 	if (def_input_buffer_size < mod->block_size + 8)
 	{
 		fatal("%s: network %s: minimum input buffer size is %d for "
-			"cache '%s'.\n%s", mem_config_file_name, net->name, 
+			"cache '%s'.\n%s", mem_config_file_name, net->name,
 			mod->block_size + 8, mod->name, mem_err_config_note);
 	}
 	if (def_output_buffer_size < mod->block_size + 8)
 		fatal("%s: network %s: minimum output buffer size is %d for "
-			"cache '%s'.\n%s", mem_config_file_name, net->name, 
+			"cache '%s'.\n%s", mem_config_file_name, net->name,
 			mod->block_size + 8, mod->name, mem_err_config_note);
 
 	/* Insert module in network */
-	node = net_add_end_node(net, def_input_buffer_size, 
+	node = net_add_end_node(net, def_input_buffer_size,
 		def_output_buffer_size, mod->name, mod);
 
 	/* Return */
@@ -507,7 +509,7 @@ try_external_network:
 }
 
 
-static struct mod_t *mem_config_read_cache(struct config_t *config, 
+static struct mod_t *mem_config_read_cache(struct config_t *config,
 	char *section)
 {
 	char buf[MAX_STRING_SIZE];
@@ -528,9 +530,23 @@ static struct mod_t *mem_config_read_cache(struct config_t *config,
 	int enable_prefetcher;
 	char *prefetcher_type_str;
 	enum prefetcher_type_t prefetcher_type;
+
+	/* Global History Buffer prefetcher */
 	int prefetcher_ghb_size;
 	int prefetcher_it_size;
 	int prefetcher_lookup_depth;
+
+	/* Czone Streams prefetcher */
+	int prefetcher_num_streams;
+	int prefetcher_num_slots;
+	int prefetcher_czone_bits;
+
+	/* Adaptative prefetch */
+	char *prefetcher_adp_policy_str;
+	enum adapt_pref_policy_t prefetcher_adp_policy = adapt_pref_policy_none;
+	char *prefetcher_adp_interval_kind_str;
+	enum interval_kind_t prefetcher_adp_interval_kind;
+	long long prefetcher_adp_interval;
 
 	char *net_name;
 	char *net_node_name;
@@ -559,16 +575,28 @@ static struct mod_t *mem_config_read_cache(struct config_t *config,
 	policy_str = config_read_string(config, buf, "Policy", "LRU");
 	mshr_size = config_read_int(config, buf, "MSHR", 16);
 	num_ports = config_read_int(config, buf, "Ports", 2);
-	enable_prefetcher = config_read_bool(config, buf, 
+	enable_prefetcher = config_read_bool(config, buf,
 		"EnablePrefetcher", 0);
-	prefetcher_type_str = config_read_string(config, buf, 
-		"PrefetcherType", "GHB_PC_CS");
-	prefetcher_ghb_size = config_read_int(config, buf, 
+	prefetcher_type_str = config_read_string(config, buf,
+		"PrefetcherType", "CZone_Streams");
+	prefetcher_ghb_size = config_read_int(config, buf,
 		"PrefetcherGHBSize", 256);
-	prefetcher_it_size = config_read_int(config, buf, 
+	prefetcher_it_size = config_read_int(config, buf,
 		"PrefetcherITSize", 64);
-	prefetcher_lookup_depth = config_read_int(config, buf, 
+	prefetcher_lookup_depth = config_read_int(config, buf,
 		"PrefetcherLookupDepth", 2);
+	prefetcher_num_streams = config_read_int(config, buf,
+		"PrefetcherStreams", 4);
+	prefetcher_num_slots = config_read_int(config, buf,
+		"PrefetcherSlots", 4);
+	prefetcher_czone_bits = config_read_int(config, buf,
+		"PrefetcherCZoneBits", 13);
+	prefetcher_adp_policy_str = config_read_string(config, buf,
+		"PrefetcherAdpPolicy", "none");
+	prefetcher_adp_interval = config_read_llint(config, buf,
+		"PrefetcherAdpInterval", 500000);
+	prefetcher_adp_interval_kind_str = config_read_string(config, buf,
+		"PrefetcherAdpIntervalKind", "cycles");
 
 	/* Checks */
 	policy = str_map_string_case(&cache_policy_map, policy_str);
@@ -578,19 +606,19 @@ static struct mod_t *mem_config_read_cache(struct config_t *config,
 			policy_str, mem_err_config_note);
 	if (num_sets < 1 || (num_sets & (num_sets - 1)))
 		fatal("%s: cache %s: number of sets must be a power of two "
-			"greater than 1.\n%s", mem_config_file_name, mod_name, 
+			"greater than 1.\n%s", mem_config_file_name, mod_name,
 			mem_err_config_note);
 	if (assoc < 1 || (assoc & (assoc - 1)))
 		fatal("%s: cache %s: associativity must be power of two "
-			"and > 1.\n%s", mem_config_file_name, mod_name, 
+			"and > 1.\n%s", mem_config_file_name, mod_name,
 			mem_err_config_note);
 	if (block_size < 4 || (block_size & (block_size - 1)))
 		fatal("%s: cache %s: block size must be power of two and "
-			"at least 4.\n%s", mem_config_file_name, mod_name, 
+			"at least 4.\n%s", mem_config_file_name, mod_name,
 			mem_err_config_note);
 	if (dir_latency < 1)
 		fatal("%s: cache %s: invalid value for variable "
-			"'DirectoryLatency'.\n%s", mem_config_file_name, 
+			"'DirectoryLatency'.\n%s", mem_config_file_name,
 			mod_name, mem_err_config_note);
 	if (latency < 1)
 		fatal("%s: cache %s: invalid value for variable 'Latency'.\n%s",
@@ -601,26 +629,67 @@ static struct mod_t *mem_config_read_cache(struct config_t *config,
 	if (num_ports < 1)
 		fatal("%s: cache %s: invalid value for variable 'Ports'.\n%s",
 			mem_config_file_name, mod_name, mem_err_config_note);
+
 	if (enable_prefetcher)
 	{
-		prefetcher_type = str_map_string_case(&prefetcher_type_map, 
+		prefetcher_type = str_map_string_case(&prefetcher_type_map,
 			prefetcher_type_str);
-		if (prefetcher_ghb_size < 1 || prefetcher_it_size < 1 ||
-		    prefetcher_type == prefetcher_type_invalid || 
-		    prefetcher_lookup_depth < 2 || 
-		    prefetcher_lookup_depth > PREFETCHER_LOOKUP_DEPTH_MAX)
+
+		if (prefetcher_type == prefetcher_type_invalid)
 		{
-			fatal("%s: cache %s: invalid prefetcher "
-				"configuration.\n%s",
-				mem_config_file_name, mod_name, 
-				mem_err_config_note);
+			fatal("%s: cache %s: invalid prefetcher type. Valid "
+				"values are {ghb_pc_cs ghb_pc_dc czone_streams}.\n%s",
+				mem_config_file_name, mod_name, mem_err_config_note);
 		}
+		else if (prefetcher_type == prefetcher_type_czone_streams)
+		{
+			if (prefetcher_num_streams < 1)
+				fatal("%s: cache %s: invalid value for variable 'PrefetcherStreams'.\n%s",
+					mem_config_file_name, mod_name, mem_err_config_note);
+
+			if (prefetcher_num_slots < 1)
+				fatal("%s: cache %s: invalid value for variable 'PrefetcherSlots'.\n%s",
+					mem_config_file_name, mod_name, mem_err_config_note);
+		}
+		else
+		{
+			if (prefetcher_ghb_size < 1 || prefetcher_it_size < 1 ||
+		    	prefetcher_lookup_depth < 2 ||
+		    	prefetcher_lookup_depth > PREFETCHER_LOOKUP_DEPTH_MAX)
+			{
+				fatal("%s: cache %s: invalid prefetcher "
+					"configuration.\n%s",
+					mem_config_file_name, mod_name,
+					mem_err_config_note);
+			}
+		}
+
+		/* Apdaptative prefetch policy */
+		prefetcher_adp_policy = str_map_string_case(&adapt_pref_policy_map,
+			prefetcher_adp_policy_str);
+		if (!prefetcher_adp_policy && strcasecmp(prefetcher_adp_policy_str, "none"))
+		fatal("%s: cache %s: %s: invalid adaptative prefetch policy. "
+			"Valid values are {None Misses Misses_Enhanced}.\n%s",
+			mem_config_file_name, mod_name,
+			prefetcher_adp_policy_str, mem_err_config_note);
+		if (prefetcher_adp_policy)
+		{
+			/* Interval kind (instructions or cycles) */
+			prefetcher_adp_interval_kind = str_map_string_case(&interval_kind_map,
+				prefetcher_adp_interval_kind_str);
+			if(!prefetcher_adp_interval_kind)
+				fatal("%s: cache %s: %s: invalid adaptative prefetch interval kind. "
+					"Valid values are {Cycles Instructions}.\n%s",
+					mem_config_file_name, mod_name,
+					prefetcher_adp_policy_str, mem_err_config_note);
+		}
+
 	}
 
 	/* Create module */
 	mod = mod_create(mod_name, mod_kind_cache, num_ports,
 		block_size, latency);
-	
+
 	/* Initialize */
 	mod->mshr_size = mshr_size;
 	mod->dir_assoc = assoc;
@@ -630,7 +699,7 @@ static struct mod_t *mem_config_read_cache(struct config_t *config,
 
 	/* High network */
 	net_name = config_read_string(config, section, "HighNetwork", "");
-	net_node_name = config_read_string(config, section, 
+	net_node_name = config_read_string(config, section,
 		"HighNetworkNode", "");
 	mem_config_insert_module_in_network(config, mod, net_name, net_node_name,
 		&net, &net_node);
@@ -639,22 +708,34 @@ static struct mod_t *mem_config_read_cache(struct config_t *config,
 
 	/* Low network */
 	net_name = config_read_string(config, section, "LowNetwork", "");
-	net_node_name = config_read_string(config, section, 
+	net_node_name = config_read_string(config, section,
 		"LowNetworkNode", "");
-	mem_config_insert_module_in_network(config, mod, net_name, 
+	mem_config_insert_module_in_network(config, mod, net_name,
 		net_node_name, &net, &net_node);
 	mod->low_net = net;
 	mod->low_net_node = net_node;
 
 	/* Create cache */
-	mod->cache = cache_create(mod->name, num_sets, block_size, assoc, 
+	mod->cache = cache_create(mod->name, num_sets, prefetcher_num_streams, prefetcher_num_slots, block_size, assoc,
 		policy);
 
+
+	/* Schedule adaptative prefetch */
+	if(prefetcher_adp_policy)
+		mod_adapt_pref_schedule(mod);
+
 	/* Fill in prefetcher parameters */
+	mod->cache->pref_enabled = enable_prefetcher;
 	if (enable_prefetcher)
 	{
-		mod->cache->prefetcher = prefetcher_create(prefetcher_ghb_size, 
-			prefetcher_it_size, prefetcher_lookup_depth, 
+		mod->cache->prefetch_policy = prefetcher_type;
+		mod->cache->prefetch.adapt_policy = prefetcher_adp_policy;
+		mod->cache->prefetch.adapt_interval = prefetcher_adp_interval;
+		mod->cache->prefetch.adapt_interval_kind = prefetcher_adp_interval_kind;
+		mod->cache->prefetch.stream_mask = ~(-1 << prefetcher_czone_bits);
+
+		mod->cache->prefetcher = prefetcher_create(prefetcher_ghb_size,
+			prefetcher_it_size, prefetcher_lookup_depth,
 			prefetcher_type);
 	}
 
@@ -663,7 +744,7 @@ static struct mod_t *mem_config_read_cache(struct config_t *config,
 }
 
 
-static struct mod_t *mem_config_read_main_memory(struct config_t *config, 
+static struct mod_t *mem_config_read_main_memory(struct config_t *config,
 	char *section)
 {
 	char mod_name[MAX_STRING_SIZE];
@@ -673,6 +754,28 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config,
 	int num_ports;
 	int dir_size;
 	int dir_assoc;
+
+	/* MC */
+	int channels;
+	int ranks;
+	int banks;
+	int row_size;
+	int t_send_request;
+	int t_acces_bank_hit;
+	int t_acces_bank_miss;
+	int bandwith;
+	int cycles_proc_bus;
+	int queue_per_bank;
+	int enabled_mc;
+	int photonic;
+	long long threshold;
+	long long size_queue;
+	char * policy;
+	char * priority;
+	char * coalesce;
+	enum policy_mc_queue_t policy_type;
+	enum priority_t prio_type;
+	enum policy_coalesce_t coalesce_type;
 
 	char *net_name;
 	char *net_node_name;
@@ -690,6 +793,25 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config,
 	num_ports = config_read_int(config, section, "Ports", 2);
 	dir_size = config_read_int(config, section, "DirectorySize", 1024);
 	dir_assoc = config_read_int(config, section, "DirectoryAssoc", 8);
+	/////////////////////////////////////////////////////////////////////
+	enabled_mc = config_read_int(config, section, "MemoryControllerEnabled", 0);
+	row_size = config_read_int(config, section, "RowSize", 4096);
+	ranks = config_read_int(config, section, "Ranks", 1);
+	banks = config_read_int(config, section, "Banks", 8);
+	channels = config_read_int(config, section, "Channels", 1);
+	t_send_request = config_read_int(config, section, "CyclesSendRequest", 1);
+	t_acces_bank_hit = config_read_int(config, section, "CyclesRowBufferHit", 4);
+	t_acces_bank_miss = config_read_int(config, section, "CyclesRowBufferMiss", 20);
+	bandwith = config_read_int(config, section, "Bandwith", 64);
+	cycles_proc_bus = config_read_int(config, section, "CyclesProcByCyclesBus", 4);
+	policy = config_read_string(config, section, "PolicyMCQueues", "PrefetchNormalQueue");
+	coalesce = config_read_string(config, section, "Coalesce", "Disabled");
+	priority = config_read_string(config, section, "PriorityMCQueues", "Threshold-Normal-Prefetch");
+	threshold = config_read_llint(config, section, "Threshold", 100000000000);
+	size_queue = config_read_llint(config, section, "SizeQueue", 100000000000);
+	queue_per_bank = config_read_llint(config, section, "QueuePerBank", 0);
+	photonic = config_read_llint(config, section, "PhotonicNet", 0);
+	/////////////////////////////////////////////////////////////////////
 
 	/* Check parameters */
 	if (block_size < 1 || (block_size & (block_size - 1)))
@@ -706,11 +828,106 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config,
 			mem_config_file_name, mod_name, mem_err_config_note);
 	if (dir_assoc < 1 || (dir_assoc & (dir_assoc - 1)))
 		fatal("%s: %s: directory associativity must be a power of "
-			"two.\n%s", mem_config_file_name, mod_name, 
+			"two.\n%s", mem_config_file_name, mod_name,
 			mem_err_config_note);
 	if (dir_assoc > dir_size)
 		fatal("%s: %s: invalid directory associativity.\n%s",
 			mem_config_file_name, mod_name, mem_err_config_note);
+//////////////////////////////////////////////////////////////////////
+	if (ranks < 1 || (ranks & (ranks - 1)))
+		fatal("%s: %s: ranks must be power of two.\n%s",
+			mem_config_file_name, mod_name, mem_err_config_note);
+	if (banks < 1 || (banks & (banks - 1)))
+		fatal("%s: %s: banks must be power of two.\n%s",
+			mem_config_file_name, mod_name, mem_err_config_note);
+	if (row_size < 1 || (row_size & (row_size - 1)))
+		fatal("%s: %s: row size must be power of two.\n%s",
+			mem_config_file_name, mod_name, mem_err_config_note);
+	if (channels < 1 || (channels & (channels - 1)))
+		fatal("%s: %s: channels size must be power of two.\n%s",
+			mem_config_file_name, mod_name, mem_err_config_note);
+	if (t_send_request < 1 )
+		fatal("%s: %s: invalid value for variable 'CyclesSendRequest'.\n%s",
+			mem_config_file_name, mod_name, mem_err_config_note);
+	if (t_acces_bank_hit < 1 )
+		fatal("%s: %s: invalid value for variable 'CyclesRowBufferHit'.\n%s",
+			mem_config_file_name, mod_name, mem_err_config_note);
+	if (t_acces_bank_miss < 1 )
+		fatal("%s: %s: invalid value for variable 'CyclesRowBufferMiss'.\n%s",
+			mem_config_file_name, mod_name, mem_err_config_note);
+	if (bandwith < 1 || (bandwith & (bandwith - 1)))
+		fatal("%s: %s: bandwith must be power of two.\n%s",
+			mem_config_file_name, mod_name, mem_err_config_note);
+	if (cycles_proc_bus < 0)
+		fatal("%s: %s:invalid value for variable 'CyclesProcByCyclesBus'.\n%s",
+			mem_config_file_name, mod_name, mem_err_config_note);
+	if (threshold < 0)
+		fatal("%s: %s:invalid value for variable 'Threshold'.\n%s",
+			mem_config_file_name, mod_name, mem_err_config_note);
+	if (strcmp(policy, "FCFSOneQueue") == 0)
+		policy_type = policy_one_queue_FCFS;
+	else if (strcmp(policy, "PrefetchNormalQueue") == 0)
+		policy_type = policy_prefetch_normal_queues;
+	else
+		fatal("%s: %s:invalid value for variable 'PolicyMCQueues'.\n%s",
+			mem_config_file_name, mod_name, mem_err_config_note);
+
+	if(photonic<0 || photonic>1)
+		fatal("%s: %s:invalid value for variable 'PhotonicNet'.\n%s",
+			mem_config_file_name, mod_name, mem_err_config_note);
+
+	if(strcmp(coalesce, "Disabled") == 0)
+	{
+		coalesce_type = policy_coalesce_disabled;
+	}
+	else if(strcmp(coalesce, "Coalesce") == 0)
+	{
+		coalesce_type = policy_coalesce;
+		if(!queue_per_bank)
+		{
+			warning(" Coalesced option is just compatible with a queue for each bank\n");
+			queue_per_bank=1;
+		}
+	}
+	else if(strcmp(coalesce, "CoalesceUsefulBlocks") == 0)
+	{
+		coalesce_type = policy_coalesce_useful_blocks;
+		if(!queue_per_bank)
+		{
+			warning(" Coalesced option is just compatible with a queue for each bank\n");
+			queue_per_bank=1;
+		}
+
+	}
+	else if(strcmp(coalesce, "CoalesceDelayedRequest") == 0)
+	{
+		coalesce_type = policy_coalesce_delayed_request;
+		if(!queue_per_bank)
+		{
+			warning(" Coalesced option is just compatible with a queue for each bank\n");
+			queue_per_bank=1;
+		}
+	}else
+		fatal("%s: %s: invalid value for variable 'Coalesce'.\n%s",
+			mem_config_file_name, mod_name, mem_err_config_note);
+	if (size_queue <= 0)
+		fatal("%s: %s:invalid value for variable 'SizeQueue'.\n%s",
+			mem_config_file_name, mod_name, mem_err_config_note);
+	if (strcmp(priority, "Threshold-Normal-Prefetch") == 0)
+		prio_type = prio_threshold_normal_pref;
+	else if (strcmp(priority, "Threshold-RowBufferHit-FCFS") == 0)
+		prio_type = prio_threshold_RowBufHit_FCFS;
+	else
+		fatal("%s: %s: invalid value for variable 'PriorityMCQueues'.\n%s",
+			mem_config_file_name, mod_name, mem_err_config_note);
+
+	if (queue_per_bank < 0 || queue_per_bank > 1)
+		fatal("%s: %s: invalid value for variable 'QueuePerBank'.\n%s",
+			mem_config_file_name, mod_name, mem_err_config_note);
+	if (enabled_mc < 0 || enabled_mc > 1)
+		fatal("%s: %s: invalid value for variable 'MemoryControllerEnabled'.\n%s",
+			mem_config_file_name, mod_name, mem_err_config_note);
+	//////////////////////////////////////////////////////////////////////
 
 	/* Create module */
 	mod = mod_create(mod_name, mod_kind_main_memory, num_ports,
@@ -724,14 +941,23 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config,
 	/* High network */
 	net_name = config_read_string(config, section, "HighNetwork", "");
 	net_node_name = config_read_string(config, section, "HighNetworkNode", "");
-	mem_config_insert_module_in_network(config, mod, net_name, 
+	mem_config_insert_module_in_network(config, mod, net_name,
 		net_node_name, &net, &net_node);
 	mod->high_net = net;
 	mod->high_net_node = net_node;
 
 	/* Create cache and directory */
-	mod->cache = cache_create(mod->name, dir_size / dir_assoc, block_size,
+	mod->cache = cache_create(mod->name, dir_size / dir_assoc, 0, 0, block_size,
 		dir_assoc, cache_policy_lru);
+
+	/* MC */
+	mod->regs_rank = regs_rank_create(ranks, banks, t_acces_bank_hit, t_acces_bank_miss );
+	mod->num_regs_rank = ranks;
+	mod->mem_controller = mem_controller_create();
+	mem_controller_init_main_memory(mod->mem_controller, channels, ranks, banks, t_send_request, row_size, block_size, cycles_proc_bus, policy_type, prio_type, size_queue, threshold, queue_per_bank, coalesce_type, mod->regs_rank, bandwith);
+	mod->mem_controller->photonic_net = photonic;
+	mod->mem_controller->enabled = enabled_mc;
+	list_add(mem_system->mem_controllers, mod->mem_controller);
 
 	/* Return */
 	return mod;
@@ -779,7 +1005,7 @@ static void mem_config_read_module_address_range(struct config_t *config,
 				mem_config_file_name, mod->name, token);
 		if (mod->range.bounds.low % mod->block_size)
 			fatal("%s: %s: low address bound must be a multiple "
-				"of block size.\n%s", mem_config_file_name, 
+				"of block size.\n%s", mem_config_file_name,
 				mod->name, mem_err_config_note);
 
 		/* High bound */
@@ -791,8 +1017,8 @@ static void mem_config_read_module_address_range(struct config_t *config,
 				mem_config_file_name, mod->name, token);
 		if ((mod->range.bounds.high + 1) % mod->block_size)
 			fatal("%s: %s: high address bound must be a multiple "
-				"of block size minus 1.\n%s", 
-				mem_config_file_name, mod->name, 
+				"of block size minus 1.\n%s",
+				mem_config_file_name, mod->name,
 				mem_err_config_note);
 
 		/* No more tokens */
@@ -882,7 +1108,7 @@ static void mem_config_read_modules(struct config_t *config)
 
 	/* Create modules */
 	mem_debug("Creating modules:\n");
-	for (section = config_section_first(config); section; 
+	for (section = config_section_first(config); section;
 		section = config_section_next(config))
 	{
 		/* Section for a module */
@@ -912,8 +1138,8 @@ static void mem_config_read_modules(struct config_t *config)
 	/* Debug */
 	mem_debug("\n");
 
-	/* Add module pointers to configuration file. This needs to be done 
-	 * separately, because configuration file writes alter enumeration of 
+	/* Add module pointers to configuration file. This needs to be done
+	 * separately, because configuration file writes alter enumeration of
 	 * sections.  Also check integrity of sections. */
 	for (i = 0; i < list_count(mem_system->mod_list); i++)
 	{
@@ -926,7 +1152,7 @@ static void mem_config_read_modules(struct config_t *config)
 }
 
 
-static void mem_config_check_route_to_main_memory(struct mod_t *mod, 
+static void mem_config_check_route_to_main_memory(struct mod_t *mod,
 	int block_size, int level)
 {
 	struct mod_t *low_mod;
@@ -1068,7 +1294,7 @@ static void mem_config_read_entries(struct config_t *config)
 			fatal("%s: section [%s]: Variable 'Type' is obsolete, use 'Arch' instead.\n%s",
 				mem_config_file_name, section, mem_err_config_note);
 
-		/* Read architecture in variable 'Arch' */ 
+		/* Read architecture in variable 'Arch' */
 		arch_name = config_read_string(config, section, "Arch", NULL);
 		if (!arch_name)
 			fatal("%s: section [%s]: Variable 'Arch' is missing.\n%s",
@@ -1332,7 +1558,8 @@ static void mem_config_calculate_sub_block_sizes(void)
 
 		/* Create directory */
 		mod->num_sub_blocks = mod->block_size / mod->sub_block_size;
-		mod->dir = dir_create(mod->name, mod->dir_num_sets, mod->dir_assoc, mod->num_sub_blocks, num_nodes);
+		mod->dir = dir_create(mod->name, mod->dir_num_sets, mod->dir_assoc,
+			mod->num_sub_blocks, mod->cache->prefetch.num_streams, mod->cache->prefetch.aggressivity, num_nodes);
 		mem_debug("\t%s - %dx%dx%d (%dx%dx%d effective) - %d entries, %d sub-blocks\n",
 			mod->name, mod->dir_num_sets, mod->dir_assoc, num_nodes,
 			mod->dir_num_sets, mod->dir_assoc, linked_list_count(mod->high_mod_list),
@@ -1379,7 +1606,7 @@ static void mem_config_calculate_mod_levels(void)
 {
 	struct mod_t *mod;
 	int i;
-	
+
 	/* Start recursive level assignment with L1 modules (entries to memory)
 	 * for all architectures. */
 	arch_for_each(mem_config_calculate_mod_levels_arch, NULL);
@@ -1503,6 +1730,38 @@ static void mem_config_read_commands(struct config_t *config)
 }
 
 
+/* Constructs for a given core thread pair a list with all the reachable mods with adaptative prefetch. It also constructs in each module a list of (core, thread) tuples from wich it's reachable. */
+static void mem_config_fill_adapt_pref_lists(int core, int thread, struct mod_t *mod)
+{
+	struct mod_t *low_mod;
+	struct core_thread_tuple_t *tuple;
+
+	if(mod->visited)
+		return;
+	mod->visited = 1;
+
+	/* Add (core, thread) to the mod's list */
+	tuple = xcalloc(1, sizeof(struct core_thread_tuple_t));
+	tuple->core = core;
+	tuple->thread = thread;
+	linked_list_add(mod->threads, tuple);
+
+	/* Add mod to the list of mods with adapt pref enabled */
+	if(mod->cache->prefetch.adapt_policy)
+	{
+		assert(mod->cache->prefetch_policy);
+		list_add(X86_THREAD.adapt_pref_modules, mod);
+	}
+	/* Explore lower modules */
+	for (linked_list_head(mod->low_mod_list); !linked_list_is_end(mod->low_mod_list);
+		linked_list_next(mod->low_mod_list))
+	{
+		low_mod = linked_list_get(mod->low_mod_list);
+		mem_config_fill_adapt_pref_lists(core, thread, low_mod);
+	}
+}
+
+
 
 
 /*
@@ -1512,6 +1771,8 @@ static void mem_config_read_commands(struct config_t *config)
 void mem_config_read(void)
 {
 	struct config_t *config;
+	int core;
+	int thread;
 
 	/* Load memory system configuration file. If no file name has been given
 	 * by the user, create a default configuration for each architecture. */
@@ -1561,6 +1822,13 @@ void mem_config_read(void)
 
 	/* Compute cache levels relative to the CPU/GPU entry points */
 	mem_config_calculate_mod_levels();
+
+	X86_CORE_FOR_EACH X86_THREAD_FOR_EACH
+	{
+		mem_config_fill_adapt_pref_lists(core, thread, X86_THREAD.data_mod);
+		mem_config_fill_adapt_pref_lists(core, thread, X86_THREAD.inst_mod);
+	}
+
 
 	/* Dump configuration to trace file */
 	mem_config_trace();

@@ -31,8 +31,11 @@ struct mem_system_t
 	struct list_t *mod_list;
 	struct list_t *net_list;
 
+ 	/* Main memory modules */
+	struct list_t *mm_mod_list;
+
 	/* List of Memory Controllers */
-	struct linked_list_t *mem_controllers;
+	struct list_t *mem_controllers;
 	int num_mc; /* TODO: Remove */
 };
 

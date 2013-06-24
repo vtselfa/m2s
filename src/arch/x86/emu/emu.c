@@ -33,6 +33,7 @@
 #include <lib/util/debug.h>
 #include <lib/util/misc.h>
 #include <lib/util/string.h>
+#include <mem-system/mem-system.h>
 #include <mem-system/memory.h>
 
 #include "context.h"
@@ -92,22 +93,22 @@ void x86_emu_init(void)
 	/* Initialize */
 	x86_sys_init();
 	x86_isa_init();
-	
+
 	/* Event for context IPC reports */
-	EV_X86_CTX_IPC_REPORT = esim_register_event_with_name(x86_ctx_ipc_report_handler, "x86_ctx_ipc_report");
+	EV_X86_CTX_IPC_REPORT = esim_register_event_with_name(x86_ctx_ipc_report_handler, mem_domain_index, "x86_ctx_ipc_report");
 
 	/* Event for context misc reports */
-	EV_X86_CTX_MISC_REPORT = esim_register_event_with_name(x86_ctx_misc_report_handler, "x86_ctx_misc_report");
+	EV_X86_CTX_MISC_REPORT = esim_register_event_with_name(x86_ctx_misc_report_handler, mem_domain_index, "x86_ctx_misc_report");
 
 	/* Event for context mc reports */
-	EV_X86_CTX_MC_REPORT = esim_register_event_with_name(x86_ctx_mc_report_handler, "x86_ctx_mc_report");
+	EV_X86_CTX_MC_REPORT = esim_register_event_with_name(x86_ctx_mc_report_handler, mem_domain_index, "x86_ctx_mc_report");
 
 	/* Event for context cpu reports */
-	EV_X86_CTX_CPU_REPORT = esim_register_event_with_name(x86_ctx_cpu_report_handler, "x86_ctx_cpu_report");
+	EV_X86_CTX_CPU_REPORT = esim_register_event_with_name(x86_ctx_cpu_report_handler, mem_domain_index, "x86_ctx_cpu_report");
 
 	/* Initialize */
 	x86_emu->current_pid = 100;  /* Initial assigned pid */
-	
+
 	/* Initialize mutex for variables controlling calls to 'x86_emu_process_events()' */
 	pthread_mutex_init(&x86_emu->process_events_mutex, NULL);
 
@@ -147,7 +148,7 @@ void x86_emu_done(void)
 	/* Free contexts */
 	while (x86_emu->context_list_head)
 		x86_ctx_free(x86_emu->context_list_head);
-	
+
 	/* Free */
 	free(x86_emu);
 

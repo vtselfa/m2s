@@ -31,6 +31,7 @@
 #include "config.h"
 #include "local-mem-protocol.h"
 #include "mem-system.h"
+#include "mem-controller.h"
 #include "module.h"
 #include "nmoesi-protocol.h"
 
@@ -99,61 +100,60 @@ void main_memory_dump_report(char * main_mem_report_file_name)
 {
 	FILE *f;
 	struct mod_t * mod;
-	
+
 	/* TODO: cambiar per a varios mc */
-	linked_list_head(mem_system->mem_controllers);
-	struct mem_controller_t * mem_controller = linked_list_get(mem_system->mem_controllers);
-	 double total_bank_parallelism=0;
-        double total_rank_parallelism=0;
-	long long total_acces=0;
-	long long total_normal_acces=0;
-	long long total_pref_acces=0;
-	long long total_bursts=0;
-	long long total_burst_accesses=0;
+	struct mem_controller_t *mem_controller = list_head(mem_system->mem_controllers);
+	double total_bank_parallelism = 0;
+	double total_rank_parallelism = 0;
+	long long total_acces = 0;
+	long long total_normal_acces = 0;
+	long long total_pref_acces = 0;
+	long long total_bursts = 0;
+	long long total_burst_accesses = 0;
 
-        /* Open file */
-        f = file_open_for_write(main_mem_report_file_name);
-        if (!f)
-                return;
+	/* Open file */
+	f = file_open_for_write(main_mem_report_file_name);
+	if (!f)
+		return;
 
-        /* Intro */
-        fprintf(f, ";Report for channels, banks, ranks and row buffer\n");
-        fprintf(f, ";    AvgTimeAccesMM- Average time per access to acces to MM, depends of row buffer hit/miss and time to send a request \n");
-        fprintf(f, ";    AvgTimeWaitMCQueue- Average time waiting per access to acces to main memory in mem controller queue \n");
-        fprintf(f, ";    AvgTimeTransferFromMM- Average time per access to transfer a block from MM, including acces channel delay\n");
-        fprintf(f, ";    Conflicts - Total number of attempts to acces to bank when this bank is busy\n");
-        fprintf(f, ";    AvgTimeWaitRequestSend - Average Cycles per access waiting until channel and bank are free and request can be sent to MM\n");
-        fprintf(f, ";    AvgTimeWaitRequestTransfer - Average Cycles per access waiting until channel is free and block can be transfered from MM\n");
+	/* Intro */
+	fprintf(f, ";Report for channels, banks, ranks and row buffer\n");
+	fprintf(f, ";    AvgTimeAccesMM- Average time per access to acces to MM, depends of row buffer hit/miss and time to send a request \n");
+	fprintf(f, ";    AvgTimeWaitMCQueue- Average time waiting per access to acces to main memory in mem controller queue \n");
+	fprintf(f, ";    AvgTimeTransferFromMM- Average time per access to transfer a block from MM, including acces channel delay\n");
+	fprintf(f, ";    Conflicts - Total number of attempts to acces to bank when this bank is busy\n");
+	fprintf(f, ";    AvgTimeWaitRequestSend - Average Cycles per access waiting until channel and bank are free and request can be sent to MM\n");
+	fprintf(f, ";    AvgTimeWaitRequestTransfer - Average Cycles per access waiting until channel is free and block can be transfered from MM\n");
 	fprintf(f, ";    AvgTimeRequestTransfer - Average Cycles per access which is needed to transfer a block to MC from MM\n");
-        fprintf(f, ";    AvgTimeWaitBankBusy- Average time which the bank is being accessed and requests have to wait \n");
-        fprintf(f, ";    AvgTimeWaitequestSendChannelBusy- Average time per access waiting until channel is free \n");
+	fprintf(f, ";    AvgTimeWaitBankBusy- Average time which the bank is being accessed and requests have to wait \n");
+	fprintf(f, ";    AvgTimeWaitequestSendChannelBusy- Average time per access waiting until channel is free \n");
 	fprintf(f, ";    RowBufferHitPercent- Percent of accesses which hit in row buffer bank \n");
 	fprintf(f, ";    AvgNumRequest - Average number of requests inside a queue every cycle \n");
 	fprintf(f, ";    TimeFullPercent - Percent of time which queue is full \n");
-        fprintf(f, "\n\n");
+	fprintf(f, "\n\n");
 
 
-	 /*Select main memory module*/
-        for (int m = 0; m < list_count(mem_system->mod_list); m++)
-        {
-                mod = list_get(mem_system->mod_list, m);
-                if(mod->kind!=mod_kind_main_memory)
-                        continue;
+	/* Select main memory module */
+	for (int m = 0; m < list_count(mem_system->mod_list); m++)
+	{
+		mod = list_get(mem_system->mod_list, m);
+		if(mod->kind!=mod_kind_main_memory)
+			continue;
 
 		mem_controller=mod->mem_controller;
 
 		for(int c=0; c<mem_controller->num_regs_channel;c++)
-		 {
-		        total_acces+=mem_controller->regs_channel[c].acceses;
+		{
+			total_acces+=mem_controller->regs_channel[c].acceses;
 			total_pref_acces+=mem_controller->regs_channel[c].pref_accesses;
 			total_normal_acces+=mem_controller->regs_channel[c].normal_accesses;
-		        for(int r=0;r<mem_controller->regs_channel[c].num_regs_rank;r++)
-		        {
-		                total_rank_parallelism+=mem_controller->regs_channel[c].regs_rank[r].parallelism;
-		                for(int b=0; b<mem_controller->regs_channel[c].regs_rank[r].num_regs_bank;b++)
-		                        total_bank_parallelism+=mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].parallelism;
-		        }
-		 }
+			for(int r=0;r<mem_controller->regs_channel[c].num_regs_rank;r++)
+			{
+				total_rank_parallelism+=mem_controller->regs_channel[c].regs_rank[r].parallelism;
+				for(int b=0; b<mem_controller->regs_channel[c].regs_rank[r].num_regs_bank;b++)
+					total_bank_parallelism+=mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].parallelism;
+			}
+		}
 
 		for(int i=0; i<mem_controller->row_buffer_size/mod->cache->block_size;i++)
 		{
@@ -161,11 +161,11 @@ void main_memory_dump_report(char * main_mem_report_file_name)
 			total_burst_accesses+=mem_controller->burst_size[i]*(i+1);
 		}
 
-	 	fprintf(f, "[MAIN-MEMORY-%s]\n",mod->name);
+		fprintf(f, "[MAIN-MEMORY-%s]\n",mod->name);
 		fprintf(f, "TotalTime = %f\n",mem_controller->accesses ? (double) (mem_controller->t_wait+
-				mem_controller->t_acces_main_memory+mem_controller->t_transfer+mem_controller->t_inside_net)/mem_controller->accesses:0.0);
+					mem_controller->t_acces_main_memory+mem_controller->t_transfer+mem_controller->t_inside_net)/mem_controller->accesses:0.0);
 		fprintf(f, "AvgTimeWaitMCQueue = %f\n",mem_controller->accesses ? (double)
-				 mem_controller->t_wait/mem_controller->accesses:0.0);
+				mem_controller->t_wait/mem_controller->accesses:0.0);
 		fprintf(f, "AvgTimeAccesMM = %f\n",mem_controller->accesses ? (double)
 				mem_controller->t_acces_main_memory/mem_controller->accesses :0.0);
 		fprintf(f, "AvgTimeTransferFromMM = %f\n",mem_controller->accesses?(double)
@@ -183,33 +183,33 @@ void main_memory_dump_report(char * main_mem_report_file_name)
 
 		/*Normal requests*/
 		fprintf(f, "TotalTimeNormal = %f\n",mem_controller->normal_accesses ? (double) (mem_controller->t_normal_wait+
-			mem_controller->t_normal_acces_main_memory+mem_controller->t_normal_transfer)/mem_controller->normal_accesses:0.0);
+					mem_controller->t_normal_acces_main_memory+mem_controller->t_normal_transfer)/mem_controller->normal_accesses:0.0);
 		fprintf(f, "AvgTimeNormalWaitMCQueueN = %f\n",mem_controller->normal_accesses ? (double)
-			mem_controller->t_normal_wait/mem_controller->normal_accesses:0.0);
+				mem_controller->t_normal_wait/mem_controller->normal_accesses:0.0);
 		fprintf(f, "AvgTimeNormalAccesMM = %f\n",mem_controller->normal_accesses ? (double)
-			mem_controller->t_normal_acces_main_memory/mem_controller->normal_accesses :0.0);
+				mem_controller->t_normal_acces_main_memory/mem_controller->normal_accesses :0.0);
 		fprintf(f,"AvgTimeNormalTransferFromMM = %f\n",mem_controller->normal_accesses?(double)
-			mem_controller->t_normal_transfer/mem_controller->normal_accesses:0.0 );
+				mem_controller->t_normal_transfer/mem_controller->normal_accesses:0.0 );
 		fprintf(f,"TotalNormalAccessesMC = %lld\n", mem_controller->normal_accesses);
 
 		fprintf(f,"\n");
 
 		/*Prefetch requests*/
 		fprintf(f, "TotalTimePrefetch = %f\n",mem_controller->pref_accesses ? (double) (mem_controller->t_pref_wait+
-			mem_controller->t_pref_acces_main_memory+mem_controller->t_pref_transfer)/mem_controller->pref_accesses:0.0);
+					mem_controller->t_pref_acces_main_memory+mem_controller->t_pref_transfer)/mem_controller->pref_accesses:0.0);
 		fprintf(f, "AvgTimePrefetchWaitMCQueueN = %f\n",mem_controller->pref_accesses ? (double)
-			mem_controller->t_pref_wait/mem_controller->pref_accesses:0.0);
+				mem_controller->t_pref_wait/mem_controller->pref_accesses:0.0);
 		fprintf(f, "AvgTimePrefetchAccesMM = %f\n",mem_controller->pref_accesses?(double)
-			mem_controller->t_pref_acces_main_memory/mem_controller->pref_accesses :0.0);
+				mem_controller->t_pref_acces_main_memory/mem_controller->pref_accesses :0.0);
 		fprintf(f,"AvgTimePrefetchTransferFromMM = %f\n",mem_controller->pref_accesses?(double)
-			mem_controller->t_pref_transfer/mem_controller->pref_accesses:0.0 );
+				mem_controller->t_pref_transfer/mem_controller->pref_accesses:0.0 );
 		fprintf(f,"TotalPrefetchAccessesMC = %lld\n", mem_controller->pref_accesses);
 
 		fprintf(f,"\n");
 
 		for(int i=0; i<mem_controller->row_buffer_size/mod->cache->block_size;i++)
 			fprintf(f,"PercentAccessesBurst%dSize = %f\n",i+1,total_burst_accesses>0 ? (float)
-				(mem_controller->burst_size[i]*(i+1))/total_burst_accesses: 0);
+					(mem_controller->burst_size[i]*(i+1))/total_burst_accesses: 0);
 		fprintf(f,"\n");
 
 		for(int i=0; i<mem_controller->row_buffer_size/mod->cache->block_size;i++)
@@ -217,146 +217,138 @@ void main_memory_dump_report(char * main_mem_report_file_name)
 			fprintf(f,"PercentTimesBurst%dSize = %f\n", i+1,total_bursts>0?(float)mem_controller->burst_size[i]/total_bursts: 0);
 			for(int j=0; j<=i;j++)
 				fprintf(f,"	PercentTimes%dSuccessiveHitsInBurst%d = %f\n", j+1,i+1, mem_controller->burst_size[i]>0 ?
-					 (float)mem_controller->successive_hit[i][j]/mem_controller->burst_size[i]: 0);
+						(float)mem_controller->successive_hit[i][j]/mem_controller->burst_size[i]: 0);
 		}
 		fprintf(f,"\n\n");
 
 
 		for(int c=0; c<mem_controller->num_regs_channel;c++)
 		{
-		        fprintf(f, "[Channel-%d (%s)]\n", c,mod->name);
+			fprintf(f, "[Channel-%d (%s)]\n", c,mod->name);
 
-		        fprintf(f, "RowBufferHitPercent = %F\n", mem_controller->regs_channel[c].acceses?
-				 (double)mem_controller->regs_channel[c].row_buffer_hits/mem_controller->regs_channel[c].acceses : 0.0);
-		        fprintf(f, "AvgTimeWaitRequestSend = %f\n",mem_controller->regs_channel[c].acceses?
-				 (double)mem_controller->regs_channel[c].t_wait_send_request/mem_controller->regs_channel[c].acceses : 0.0);
-		        fprintf(f, "AvgTimeWaitRequestSendChannelBusy = %f\n",mem_controller->regs_channel[c].num_requests_transfered ?
-				(double)mem_controller->regs_channel[c].t_wait_channel_busy/
-				mem_controller->regs_channel[c].num_requests_transfered : 0.0);
-		        fprintf(f, "AvgTimeWaitRequestTransfer = %f\n",mem_controller->regs_channel[c].num_requests_transfered?
-				(double) mem_controller->regs_channel[c].t_wait_transfer_request/
-				mem_controller->regs_channel[c].num_requests_transfered : 0.0);
-		        fprintf(f, "AvgTimeRequestTransfer = %f\n",mem_controller->regs_channel[c].num_requests_transfered ?(double)
-				mem_controller->regs_channel[c].t_transfer/mem_controller->regs_channel[c].num_requests_transfered : 0.0);
+			fprintf(f, "RowBufferHitPercent = %F\n", mem_controller->regs_channel[c].acceses?
+					(double)mem_controller->regs_channel[c].row_buffer_hits/mem_controller->regs_channel[c].acceses : 0.0);
+			fprintf(f, "AvgTimeWaitRequestSend = %f\n",mem_controller->regs_channel[c].acceses?
+					(double)mem_controller->regs_channel[c].t_wait_send_request/mem_controller->regs_channel[c].acceses : 0.0);
+			fprintf(f, "AvgTimeWaitRequestSendChannelBusy = %f\n",mem_controller->regs_channel[c].num_requests_transfered ?
+					(double)mem_controller->regs_channel[c].t_wait_channel_busy/
+					mem_controller->regs_channel[c].num_requests_transfered : 0.0);
+			fprintf(f, "AvgTimeWaitRequestTransfer = %f\n",mem_controller->regs_channel[c].num_requests_transfered?
+					(double) mem_controller->regs_channel[c].t_wait_transfer_request/
+					mem_controller->regs_channel[c].num_requests_transfered : 0.0);
+			fprintf(f, "AvgTimeRequestTransfer = %f\n",mem_controller->regs_channel[c].num_requests_transfered ?(double)
+					mem_controller->regs_channel[c].t_transfer/mem_controller->regs_channel[c].num_requests_transfered : 0.0);
 			fprintf(f,"\n");
 
 			/*Normal requests*/
 			fprintf(f, "NormalRowBufferHitPercent = %F\n", mem_controller->regs_channel[c].normal_accesses?(double)
-				mem_controller->regs_channel[c].row_buffer_hits_normal/mem_controller->regs_channel[c].normal_accesses : 0);
-		        fprintf(f, "AvgTimeNormalWaitRequestSend = %f\n",mem_controller->regs_channel[c].normal_accesses?(double)
-				mem_controller->regs_channel[c].t_normal_wait_send_request/
-				mem_controller->regs_channel[c].normal_accesses:0);
-		        fprintf(f, "AvgTimeNormalWaitRequestSendChannelBusy = %f\n",
-				mem_controller->regs_channel[c].num_normal_requests_transfered ? (double)
-				mem_controller->regs_channel[c].t_normal_wait_channel_busy/
-				mem_controller->regs_channel[c].num_normal_requests_transfered : 0.0);
-		        fprintf(f, "AvgTimeNormalWaitRequestTransfer = %f\n",mem_controller->regs_channel[c].num_normal_requests_transfered?
-				(double)mem_controller->regs_channel[c].t_normal_wait_transfer_request/
-				mem_controller->regs_channel[c].num_normal_requests_transfered: 0.0);
+					mem_controller->regs_channel[c].row_buffer_hits_normal/mem_controller->regs_channel[c].normal_accesses : 0);
+			fprintf(f, "AvgTimeNormalWaitRequestSend = %f\n",mem_controller->regs_channel[c].normal_accesses?(double)
+					mem_controller->regs_channel[c].t_normal_wait_send_request/
+					mem_controller->regs_channel[c].normal_accesses:0);
+			fprintf(f, "AvgTimeNormalWaitRequestSendChannelBusy = %f\n",
+					mem_controller->regs_channel[c].num_normal_requests_transfered ? (double)
+					mem_controller->regs_channel[c].t_normal_wait_channel_busy/
+					mem_controller->regs_channel[c].num_normal_requests_transfered : 0.0);
+			fprintf(f, "AvgTimeNormalWaitRequestTransfer = %f\n",mem_controller->regs_channel[c].num_normal_requests_transfered?
+					(double)mem_controller->regs_channel[c].t_normal_wait_transfer_request/
+					mem_controller->regs_channel[c].num_normal_requests_transfered: 0.0);
 			fprintf(f,"\n");
 
 			/*Prefetch requests*/
 			fprintf(f, "PrefetchRowBufferHitPercent = %F\n", mem_controller->regs_channel[c].pref_accesses?(double)
-				mem_controller->regs_channel[c].row_buffer_hits_pref/mem_controller->regs_channel[c].pref_accesses : 0.0);
-		        fprintf(f, "AvgTimePrefetchWaitRequestSend = %f\n",mem_controller->regs_channel[c].pref_accesses?(double)
-				mem_controller->regs_channel[c].t_pref_wait_send_request/mem_controller->regs_channel[c].pref_accesses : 0);
-		        fprintf(f, "AvgTimePrefetchWaitRequestSendChannelBusy = %f\n",
-				mem_controller->regs_channel[c].num_pref_requests_transfered ?(double)
-				mem_controller->regs_channel[c].t_pref_wait_channel_busy/
-				mem_controller->regs_channel[c].num_pref_requests_transfered : 0.0);
-		        fprintf(f, "AvgTimePrefetchWaitRequestTransfer = %f\n",mem_controller->regs_channel[c].num_pref_requests_transfered?
-				(double)mem_controller->regs_channel[c].t_pref_wait_transfer_request/
-				mem_controller->regs_channel[c].num_pref_requests_transfered: 0.0);
+					mem_controller->regs_channel[c].row_buffer_hits_pref/mem_controller->regs_channel[c].pref_accesses : 0.0);
+			fprintf(f, "AvgTimePrefetchWaitRequestSend = %f\n",mem_controller->regs_channel[c].pref_accesses?(double)
+					mem_controller->regs_channel[c].t_pref_wait_send_request/mem_controller->regs_channel[c].pref_accesses : 0);
+			fprintf(f, "AvgTimePrefetchWaitRequestSendChannelBusy = %f\n",
+					mem_controller->regs_channel[c].num_pref_requests_transfered ?(double)
+					mem_controller->regs_channel[c].t_pref_wait_channel_busy/
+					mem_controller->regs_channel[c].num_pref_requests_transfered : 0.0);
+			fprintf(f, "AvgTimePrefetchWaitRequestTransfer = %f\n",mem_controller->regs_channel[c].num_pref_requests_transfered?
+					(double)mem_controller->regs_channel[c].t_pref_wait_transfer_request/
+					mem_controller->regs_channel[c].num_pref_requests_transfered: 0.0);
 
 
 			fprintf(f,"\n");
-		        for(int r=0; r<mem_controller->regs_channel[c].num_regs_rank; r++){
-
-		                fprintf(f, "[Rank-%d  (Channel-%d %s)]\n", r, c,mod->name);
-		                fprintf(f, "RowBufferHitPercent = %f\n",mem_controller->regs_channel[c].regs_rank[r].acceses ?(double)
-					mem_controller->regs_channel[c].regs_rank[r].row_buffer_hits/
-					mem_controller->regs_channel[c].regs_rank[r].acceses:0.0);
+			for(int r=0; r<mem_controller->regs_channel[c].num_regs_rank; r++){
+				fprintf(f, "[Rank-%d  (Channel-%d %s)]\n", r, c,mod->name);
+				fprintf(f, "RowBufferHitPercent = %f\n",mem_controller->regs_channel[c].regs_rank[r].acceses ?(double)
+						mem_controller->regs_channel[c].regs_rank[r].row_buffer_hits/
+						mem_controller->regs_channel[c].regs_rank[r].acceses:0.0);
 				fprintf(f, "NormalRowBufferHitPercent = %f\n",mem_controller->regs_channel[c].regs_rank[r].normal_accesses ?
-					(double)mem_controller->regs_channel[c].regs_rank[r].row_buffer_hits_normal/
-					mem_controller->regs_channel[c].regs_rank[r].normal_accesses:0.0);
+						(double)mem_controller->regs_channel[c].regs_rank[r].row_buffer_hits_normal/
+						mem_controller->regs_channel[c].regs_rank[r].normal_accesses:0.0);
 				fprintf(f, "PrefetchRowBufferHitPercent = %f\n",mem_controller->regs_channel[c].regs_rank[r].pref_accesses ?
-					(double)mem_controller->regs_channel[c].regs_rank[r].row_buffer_hits_pref/
-					mem_controller->regs_channel[c].regs_rank[r].pref_accesses:0.0);
-		                fprintf(f, "ParallelismPercent = %f\n\n",total_rank_parallelism ?
-					(double)mem_controller->regs_channel[c].regs_rank[r].parallelism/total_rank_parallelism : 0.0);
+						(double)mem_controller->regs_channel[c].regs_rank[r].row_buffer_hits_pref/
+						mem_controller->regs_channel[c].regs_rank[r].pref_accesses:0.0);
+				fprintf(f, "ParallelismPercent = %f\n\n",total_rank_parallelism ?
+						(double)mem_controller->regs_channel[c].regs_rank[r].parallelism/total_rank_parallelism : 0.0);
 
-		                for(int b=0; b<mem_controller->regs_channel[c].regs_rank[r].num_regs_bank;b++)
+				for(int b=0; b<mem_controller->regs_channel[c].regs_rank[r].num_regs_bank;b++)
 				{
 
-		                        fprintf(f, "[Bank-%d  (Rank-%d Channel-%d %s)]\n", b,r,c,mod->name);
-		                        fprintf(f, "RowBufferHitPercent = %f\n",
-						mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].acceses ?
-						(double)mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].row_buffer_hits/
-		                                mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].acceses: 0.0);
+					fprintf(f, "[Bank-%d  (Rank-%d Channel-%d %s)]\n", b,r,c,mod->name);
+					fprintf(f, "RowBufferHitPercent = %f\n",
+							mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].acceses ?
+							(double)mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].row_buffer_hits/
+							mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].acceses: 0.0);
 					fprintf(f, "NormalRowBufferHitPercent = %f\n",
-						mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].normal_accesses ?
-						(double)mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].row_buffer_hits_normal/
-		                                mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].normal_accesses: 0.0);
+							mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].normal_accesses ?
+							(double)mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].row_buffer_hits_normal/
+							mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].normal_accesses: 0.0);
 					fprintf(f, "PrefetchRowBufferHitPercent = %f\n",
-						mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].pref_accesses ?
-						(double)mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].row_buffer_hits_pref/
-		                                mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].pref_accesses: 0.0);
-		                        fprintf(f, "ParallelismPercent = %f\n", total_bank_parallelism ?(double)
-						mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].parallelism/
-						total_bank_parallelism:0);
-		                        fprintf(f, "Conflicts = %lld\n",mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].conflicts);
-		                        fprintf(f, "AvgTimeWaitBankBusy = %f\n",
-						mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].acceses ?
-						(double)mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].t_wait/
-		                                mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].acceses:0.0);
+							mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].pref_accesses ?
+							(double)mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].row_buffer_hits_pref/
+							mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].pref_accesses: 0.0);
+					fprintf(f, "ParallelismPercent = %f\n", total_bank_parallelism ?(double)
+							mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].parallelism/
+							total_bank_parallelism:0);
+					fprintf(f, "Conflicts = %lld\n",mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].conflicts);
+					fprintf(f, "AvgTimeWaitBankBusy = %f\n",
+							mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].acceses ?
+							(double)mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].t_wait/
+							mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].acceses:0.0);
 					fprintf(f,"AvgTimeNormalWaitBankBusy = %f\n",
-						mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].normal_accesses?
-						(double)mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].t_normal_wait/
-		                                mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].normal_accesses:0.0);
+							mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].normal_accesses?
+							(double)mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].t_normal_wait/
+							mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].normal_accesses:0.0);
 					fprintf(f,"AvgTimePrefetchWaitBankBusy = %f\n",
-						mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].pref_accesses?
-						(double)mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].t_pref_wait/
-		                                mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].pref_accesses:0.0);
+							mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].pref_accesses?
+							(double)mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].t_pref_wait/
+							mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].pref_accesses:0.0);
 					fprintf(f,"\n");
-
-
-		                }
-
-
-		        }
-
-
+				}
+			}
 		}
-
-
 
 		fprintf(f, "\n[QUEUES-MEMORY-CONTROLLER (%s)]\n\n",mod->name);
 		for(int i=0; i<mem_controller->num_queues;i++)
 		{
 			struct mem_controller_queue_t *normal = mem_controller->normal_queue[i];
 			fprintf(f, "[Normal-Queue-%d]\n",i);
-	       		fprintf(f, "AvgNumRequests = %f\n",mem_controller->n_times_queue_examined?(double)
-				normal->total_requests/ esim_cycle:0);
-			fprintf(f, "TimeFullPercent = %f\n", esim_cycle ? (double)normal->t_full/esim_cycle:0.0);
-			float avg_req=mem_controller->n_times_queue_examined ? (double)
-				normal->total_requests/mem_controller->n_times_queue_examined:0.0;
+			fprintf(f, "AvgNumRequests = %f\n",mem_controller->n_times_queue_examined?
+				(double) normal->total_requests / esim_cycle() : 0.0);
+			fprintf(f, "TimeFullPercent = %f\n", esim_cycle() ?
+				(double) normal->t_full / esim_cycle() : 0.0);
+			float avg_req = mem_controller->n_times_queue_examined ?
+				(double) normal->total_requests / mem_controller->n_times_queue_examined : 0.0;
 			fprintf(f, "TimeResponse = %f\n\n ",normal->total_insertions?(double)
-				(avg_req*esim_cycle)/normal->total_insertions:0);
+				(avg_req*esim_cycle())/normal->total_insertions:0);
 
 			fprintf(f, "[Prefetch-Queue-%i]\n",i);
 			fprintf(f, "AvgNumRequests = %f\n",mem_controller->n_times_queue_examined?(double)
 				mem_controller->pref_queue[i]->total_requests/mem_controller->n_times_queue_examined:0.0);
-		        fprintf(f, "TimeFullPercent = %f\n", esim_cycle ? (double)mem_controller->pref_queue[i]->t_full/esim_cycle:0.0);
+			fprintf(f, "TimeFullPercent = %f\n", esim_cycle() ? (double)mem_controller->pref_queue[i]->t_full/esim_cycle():0.0);
 			avg_req=mem_controller->n_times_queue_examined ? (double)
 				mem_controller->pref_queue[i]->total_requests/mem_controller->n_times_queue_examined:0.0;
-		        fprintf(f, "TimeResponse = %f\n\n ", normal->total_insertions ? (double)
-				(avg_req*esim_cycle)/normal->total_insertions :0.0);
+			fprintf(f, "TimeResponse = %f\n\n ", normal->total_insertions ? (double)
+				(avg_req*esim_cycle())/normal->total_insertions : 0.0);
 		}
 		fprintf(f, "\n\n\n");
 	}
 
-        /* Done */
-        fclose(f);
+	/* Done */
+	fclose(f);
 }
 
 /*
@@ -384,7 +376,7 @@ void mem_system_init(void)
 	if (mem_config_file_name && *mem_config_file_name && !count)
 		fatal("memory configuration file given, but no timing simulation.\n%s",
 				mem_err_timing);
-	
+
 	/* Create trace category. This needs to be done before reading the
 	 * memory configuration file with 'mem_config_read', since the latter
 	 * function generates the trace headers. */
@@ -438,7 +430,7 @@ void mem_system_init(void)
 			mem_domain_index, "mod_nmoesi_store_unlock");
 	EV_MOD_NMOESI_STORE_FINISH = esim_register_event_with_name(mod_handler_nmoesi_store,
 			mem_domain_index, "mod_nmoesi_store_finish");
-	
+
 	EV_MOD_NMOESI_NC_STORE = esim_register_event_with_name(mod_handler_nmoesi_nc_store,
 			mem_domain_index, "mod_nmoesi_nc_store");
 	EV_MOD_NMOESI_NC_STORE_LOCK = esim_register_event_with_name(mod_handler_nmoesi_nc_store,
@@ -468,46 +460,42 @@ void mem_system_init(void)
 			mem_domain_index, "mod_nmoesi_prefetch_finish");
 
 	/* Streams prefetch */
-	EV_MOD_PREF = esim_register_event(mod_handler_pref);
-	EV_MOD_PREF_LOCK = esim_register_event(mod_handler_pref);
-	EV_MOD_PREF_ACTION = esim_register_event(mod_handler_pref);
-	EV_MOD_PREF_MISS = esim_register_event(mod_handler_pref);
-	EV_MOD_PREF_UNLOCK = esim_register_event(mod_handler_pref);
-	EV_MOD_PREF_FINISH = esim_register_event(mod_handler_pref);
+	EV_MOD_PREF = esim_register_event_with_name(mod_handler_pref, mem_domain_index, "mod_nmoesi_prefetch_streams");
+	EV_MOD_PREF_LOCK = esim_register_event_with_name(mod_handler_pref, mem_domain_index, "mod_nmoesi_prefetch_streams_lock");
+	EV_MOD_PREF_ACTION = esim_register_event_with_name(mod_handler_pref, mem_domain_index, "mod_nmoesi_prefetch_streams_action");
+	EV_MOD_PREF_MISS = esim_register_event_with_name(mod_handler_pref, mem_domain_index, "mod_nmoesi_prefetch_streams_miss");
+	EV_MOD_PREF_UNLOCK = esim_register_event_with_name(mod_handler_pref, mem_domain_index, "mod_nmoesi_prefetch_streams_unlock");
+	EV_MOD_PREF_FINISH = esim_register_event_with_name(mod_handler_pref, mem_domain_index, "mod_nmoesi_prefetch_streams_finish");
 
-	EV_MOD_NMOESI_PREF_FIND_AND_LOCK = esim_register_event_with_name(mod_handler_nmoesi_pref_find_and_lock, "mod_nmoesi_pref_find_and_lock");
-	EV_MOD_NMOESI_PREF_FIND_AND_LOCK_PORT = esim_register_event_with_name(mod_handler_nmoesi_pref_find_and_lock, "mod_nmoesi_pref_find_and_lock_port");
-	EV_MOD_NMOESI_PREF_FIND_AND_LOCK_ACTION = esim_register_event_with_name(mod_handler_nmoesi_pref_find_and_lock, "mod_nmoesi_pref_find_and_lock_action");
-	EV_MOD_NMOESI_PREF_FIND_AND_LOCK_FINISH = esim_register_event_with_name(mod_handler_nmoesi_pref_find_and_lock, "mod_nmoesi_pref_find_and_lock_finish");
+	EV_MOD_NMOESI_PREF_FIND_AND_LOCK = esim_register_event_with_name(mod_handler_nmoesi_pref_find_and_lock, mem_domain_index,"mod_nmoesi_pref_find_and_lock");
+	EV_MOD_NMOESI_PREF_FIND_AND_LOCK_PORT = esim_register_event_with_name(mod_handler_nmoesi_pref_find_and_lock, mem_domain_index,"mod_nmoesi_pref_find_and_lock_port");
+	EV_MOD_NMOESI_PREF_FIND_AND_LOCK_ACTION = esim_register_event_with_name(mod_handler_nmoesi_pref_find_and_lock, mem_domain_index,"mod_nmoesi_pref_find_and_lock_action");
+	EV_MOD_NMOESI_PREF_FIND_AND_LOCK_FINISH = esim_register_event_with_name(mod_handler_nmoesi_pref_find_and_lock, mem_domain_index,"mod_nmoesi_pref_find_and_lock_finish");
 
-	EV_MOD_NMOESI_INVALIDATE_SLOT = esim_register_event_with_name( mod_handler_nmoesi_invalidate_slot, "mod_nmoesi_invalidate_slot");
-	EV_MOD_NMOESI_INVALIDATE_SLOT_LOCK = esim_register_event_with_name( mod_handler_nmoesi_invalidate_slot, "mod_nmoesi_invalidate_slot_lock");
-	EV_MOD_NMOESI_INVALIDATE_SLOT_ACTION = esim_register_event_with_name( mod_handler_nmoesi_invalidate_slot, "mod_nmoesi_invalidate_slot_action");
-	EV_MOD_NMOESI_INVALIDATE_SLOT_UNLOCK = esim_register_event_with_name( mod_handler_nmoesi_invalidate_slot, "mod_nmoesi_invalidate_slot_unlock");
-	EV_MOD_NMOESI_INVALIDATE_SLOT_FINISH = esim_register_event_with_name( mod_handler_nmoesi_invalidate_slot, "mod_nmoesi_invalidate_slot_finish");
-
-
-	/* OBL prefetch */
-	EV_MOD_NMOESI_PREF_OBL = esim_register_event(mod_handler_nmoesi_pref_obl);
-	EV_MOD_NMOESI_PREF_OBL_LOCK = esim_register_event(mod_handler_nmoesi_pref_obl);
-	EV_MOD_NMOESI_PREF_OBL_ACTION = esim_register_event(mod_handler_nmoesi_pref_obl);
-	EV_MOD_NMOESI_PREF_OBL_MISS = esim_register_event(mod_handler_nmoesi_pref_obl);
-	EV_MOD_NMOESI_PREF_OBL_UNLOCK = esim_register_event(mod_handler_nmoesi_pref_obl);
-	EV_MOD_NMOESI_PREF_OBL_FINISH = esim_register_event(mod_handler_nmoesi_pref_obl);
+	EV_MOD_NMOESI_INVALIDATE_SLOT = esim_register_event_with_name(mod_handler_nmoesi_invalidate_slot,
+	mem_domain_index, "mod_nmoesi_invalidate_slot");
+	EV_MOD_NMOESI_INVALIDATE_SLOT_LOCK = esim_register_event_with_name(mod_handler_nmoesi_invalidate_slot,
+	 mem_domain_index, "mod_nmoesi_invalidate_slot_lock");
+	EV_MOD_NMOESI_INVALIDATE_SLOT_ACTION = esim_register_event_with_name(mod_handler_nmoesi_invalidate_slot,
+	 mem_domain_index, "mod_nmoesi_invalidate_slot_action");
+	EV_MOD_NMOESI_INVALIDATE_SLOT_UNLOCK = esim_register_event_with_name(mod_handler_nmoesi_invalidate_slot,
+	 mem_domain_index, "mod_nmoesi_invalidate_slot_unlock");
+	EV_MOD_NMOESI_INVALIDATE_SLOT_FINISH = esim_register_event_with_name(mod_handler_nmoesi_invalidate_slot,
+	 mem_domain_index, "mod_nmoesi_invalidate_slot_finish");
 
 	/* Main memory */
-	EV_MOD_NMOESI_EXAMINE_ONLY_ONE_QUEUE_REQUEST=esim_register_event(mod_handler_nmoesi_request_main_memory);
-	EV_MOD_NMOESI_EXAMINE_QUEUE_REQUEST=esim_register_event(mod_handler_nmoesi_request_main_memory);
-	EV_MOD_NMOESI_ACCES_BANK = esim_register_event(mod_handler_nmoesi_request_main_memory);
-	EV_MOD_NMOESI_TRANSFER_FROM_BANK=esim_register_event(mod_handler_nmoesi_request_main_memory);
-	EV_MOD_NMOESI_REMOVE_MEMORY_CONTROLLER=esim_register_event(mod_handler_nmoesi_request_main_memory);
-	EV_MOD_NMOESI_INSERT_MEMORY_CONTROLLER=esim_register_event(mod_handler_nmoesi_request_main_memory);
+	EV_MOD_NMOESI_EXAMINE_ONLY_ONE_QUEUE_REQUEST=esim_register_event(mod_handler_nmoesi_request_main_memory, mem_domain_index);
+	EV_MOD_NMOESI_EXAMINE_QUEUE_REQUEST=esim_register_event(mod_handler_nmoesi_request_main_memory, mem_domain_index);
+	EV_MOD_NMOESI_ACCES_BANK = esim_register_event(mod_handler_nmoesi_request_main_memory, mem_domain_index);
+	EV_MOD_NMOESI_TRANSFER_FROM_BANK=esim_register_event(mod_handler_nmoesi_request_main_memory, mem_domain_index);
+	EV_MOD_NMOESI_REMOVE_MEMORY_CONTROLLER=esim_register_event(mod_handler_nmoesi_request_main_memory, mem_domain_index);
+	EV_MOD_NMOESI_INSERT_MEMORY_CONTROLLER=esim_register_event(mod_handler_nmoesi_request_main_memory, mem_domain_index);
 
 	/* Memory controller */
-	EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER = esim_register_event(mod_handler_nmoesi_find_and_lock_mem_controller);
-	EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER_PORT = esim_register_event(mod_handler_nmoesi_find_and_lock_mem_controller);
-	EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER_ACTION = esim_register_event(mod_handler_nmoesi_find_and_lock_mem_controller);
-	EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER_FINISH = esim_register_event(mod_handler_nmoesi_find_and_lock_mem_controller);
+	EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER = esim_register_event(mod_handler_nmoesi_find_and_lock_mem_controller, mem_domain_index);
+	EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER_PORT = esim_register_event(mod_handler_nmoesi_find_and_lock_mem_controller, mem_domain_index);
+	EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER_ACTION = esim_register_event(mod_handler_nmoesi_find_and_lock_mem_controller, mem_domain_index);
+	EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER_FINISH = esim_register_event(mod_handler_nmoesi_find_and_lock_mem_controller, mem_domain_index);
 
 	EV_MOD_NMOESI_FIND_AND_LOCK = esim_register_event_with_name(mod_handler_nmoesi_find_and_lock,
 			mem_domain_index, "mod_nmoesi_find_and_lock");
@@ -543,8 +531,6 @@ void mem_system_init(void)
 			mem_domain_index, "mod_nmoesi_write_request");
 	EV_MOD_NMOESI_WRITE_REQUEST_RECEIVE = esim_register_event_with_name(mod_handler_nmoesi_write_request,
 			mem_domain_index, "mod_nmoesi_write_request_receive");
-	EV_MOD_NMOESI_WRITE_REQUEST_LOCK = esim_register_event_with_name(mod_handler_nmoesi_write_request,
-			mem_domain_index, "mod_nmoesi_write_request_lock");	
 	EV_MOD_NMOESI_WRITE_REQUEST_ACTION = esim_register_event_with_name(mod_handler_nmoesi_write_request,
 			mem_domain_index, "mod_nmoesi_write_request_action");
 	EV_MOD_NMOESI_WRITE_REQUEST_EXCLUSIVE = esim_register_event_with_name(mod_handler_nmoesi_write_request,
@@ -566,8 +552,6 @@ void mem_system_init(void)
 			mem_domain_index, "mod_nmoesi_read_request");
 	EV_MOD_NMOESI_READ_REQUEST_RECEIVE = esim_register_event_with_name(mod_handler_nmoesi_read_request,
 			mem_domain_index, "mod_nmoesi_read_request_receive");
-	EV_MOD_NMOESI_READ_REQUEST_LOCK = esim_register_event_with_name(mod_handler_nmoesi_read_request,
-			mem_domain_index, "mod_nmoesi_read_request_lock");		
 	EV_MOD_NMOESI_READ_REQUEST_ACTION = esim_register_event_with_name(mod_handler_nmoesi_read_request,
 			mem_domain_index, "mod_nmoesi_read_request_action");
 	EV_MOD_NMOESI_READ_REQUEST_UPDOWN = esim_register_event_with_name(mod_handler_nmoesi_read_request,
@@ -760,8 +744,6 @@ void mem_system_dump_report(void)
 		fprintf(f, "NoRetryNCWriteMisses = %lld\n", mod->no_retry_nc_writes
 			- mod->no_retry_nc_write_hits);
 		fprintf(f, "\n");
-
-		fprintf(f, "HitsPref = %lld\n", mod->hits_pref);
 		fprintf(f, "\n");
 
 		fprintf(f, "ProgrammedPrefetches = %lld\n", mod->programmed_prefetches);

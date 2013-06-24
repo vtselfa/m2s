@@ -20,6 +20,7 @@
 
 #include <lib/esim/trace.h>
 #include <lib/mhandle/mhandle.h>
+#include <lib/util/linked-list.h>
 #include <lib/util/misc.h>
 #include <lib/util/string.h>
 
@@ -154,7 +155,7 @@ static void cache_update_waylist(struct cache_set_t *set,
  */
 
 
-struct cache_t *cache_create(char *name, unsigned int num_sets, unsigned int block_size,
+struct cache_t *cache_create(char *name, unsigned int num_sets, int num_streams, int pref_aggr, unsigned int block_size,
 	unsigned int assoc, enum cache_policy_t policy)
 {
 	struct cache_t *cache;
@@ -180,23 +181,23 @@ struct cache_t *cache_create(char *name, unsigned int num_sets, unsigned int blo
 
 	/* Create matrix of prefetched blocks */
 	cache->prefetch.streams = xcalloc(num_streams, sizeof(struct stream_buffer_t));
-	for(stream=0; stream<num_streams; stream++)
+	for(int stream = 0; stream < num_streams; stream++)
 		cache->prefetch.streams[stream].blocks = xcalloc(pref_aggr, sizeof(struct stream_block_t));
 
 	/* Initialize streams */
-	cache->prefetch.stream_mask = 0x1FFF; /* 13 bits */
 	cache->prefetch.stream_head = &cache->prefetch.streams[0];
 	cache->prefetch.stream_tail = &cache->prefetch.streams[num_streams - 1];
-	for (stream = 0; stream < num_streams; stream++)
+	for (int stream = 0; stream < num_streams; stream++)
 	{
-		sb = &cache->prefetch.streams[stream];
+		struct stream_buffer_t *sb = &cache->prefetch.streams[stream];
 		sb->stream = stream;
 		sb->stream_tag = -1; /* 0xFFFF...FFFF */
 		sb->stream_transcient_tag = -1; /* 0xFFFF...FFFF */
 		sb->num_slots = pref_aggr;
 		sb->stream_prev = stream ? &cache->prefetch.streams[stream-1] : NULL;
-		sb->stream_next = stream<num_streams-1 ? &cache->prefetch.streams[stream+1] : NULL;
-		for(slot = 0; slot < pref_aggr; slot++)
+		sb->stream_next = stream < num_streams - 1 ?
+			&cache->prefetch.streams[stream + 1] : NULL;
+		for(int slot = 0; slot < pref_aggr; slot++)
 			sb->blocks[slot].slot = slot;
 	}
 
@@ -278,9 +279,7 @@ int cache_detect_stride(struct cache_t *cache, int addr)
 		free(camp);
 		linked_list_remove(sd);
 	}
-	camp = calloc(1, sizeof(struct stride_detector_camp_t));
-	if(!camp)
-		fatal("%s: out of memory", __FUNCTION__);
+	camp = xcalloc(1, sizeof(struct stride_detector_camp_t));
 	camp->last_addr = addr;
 	camp->tag = tag;
 	linked_list_add(sd, camp);
@@ -386,6 +385,7 @@ void cache_set_block(struct cache_t *cache, int set, int way, int tag, int state
 			cache_waylist_head);
 	cache->sets[set].blocks[way].tag = tag;
 	cache->sets[set].blocks[way].state = state;
+	cache->sets[set].blocks[way].prefetched = 0; /* Reset prefetched state */
 }
 
 

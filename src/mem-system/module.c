@@ -18,6 +18,7 @@
 
 #include <assert.h>
 
+#include <arch/x86/timing/cpu.h>
 #include <lib/esim/esim.h>
 #include <lib/mhandle/mhandle.h>
 #include <lib/util/debug.h>
@@ -57,9 +58,7 @@ int EV_CACHE_ADAPT_PREF;
 struct reg_bank_t* regs_bank_create( int num_banks, int t_row_hit, int t_row_miss)
 {
 	struct reg_bank_t *banks;
-	banks = calloc( num_banks, sizeof(struct reg_bank_t));
-	if (!banks)
-		fatal("%s: out of memory", __FUNCTION__);
+	banks = xcalloc( num_banks, sizeof(struct reg_bank_t));
 
 	for(int i=0; i<num_banks;i++)
 	{
@@ -75,9 +74,7 @@ struct reg_bank_t* regs_bank_create( int num_banks, int t_row_hit, int t_row_mis
 struct reg_rank_t* regs_rank_create( int num_ranks, int num_banks, int t_row_hit, int t_row_miss)
 {
 	struct reg_rank_t * ranks;
-	ranks = calloc(num_ranks, sizeof(struct reg_rank_t));
-	if (!ranks)
-		fatal("%s: out of memory", __FUNCTION__);
+	ranks = xcalloc(num_ranks, sizeof(struct reg_rank_t));
 
 	for(int i=0; i<num_ranks;i++)
 	{
@@ -91,9 +88,8 @@ struct reg_rank_t* regs_rank_create( int num_ranks, int num_banks, int t_row_hit
 struct reg_channel_t* regs_channel_create( int num_channels, int num_ranks, int num_banks, int bandwith, struct reg_rank_t *regs_rank)
 {
 	struct reg_channel_t * channels;
-	channels = calloc(num_channels, sizeof(struct reg_channel_t));
-	if (!channels)
-		fatal("%s: out of memory", __FUNCTION__);
+	channels = xcalloc(num_channels, sizeof(struct reg_channel_t));
+
 	for(int i=0; i<num_channels;i++){
 		channels[i].state=channel_state_free;
 		channels[i].num_regs_rank=num_ranks;
@@ -137,7 +133,7 @@ struct mod_t *mod_create(char *name, enum mod_kind_t kind, int num_ports,
 	/* Lists */
 	mod->low_mod_list = linked_list_create();
 	mod->high_mod_list = linked_list_create();
-	mod->threads = list_create();
+	mod->threads = linked_list_create();
 
 	/* Block size */
 	mod->block_size = block_size;
@@ -154,21 +150,20 @@ void mod_free(struct mod_t *mod)
 {
 	linked_list_free(mod->low_mod_list);
 	linked_list_free(mod->high_mod_list);
-	
+
 	/* Free the queue containing the threads that can access this module */
-	list_head(mod->threads);
-	while (list_count(mod->threads))
+	LINKED_LIST_FOR_EACH(mod->threads)
 	{
-		struct core_thread_tuple_t *tuple = list_pop(mod->threads);
+		struct core_thread_tuple_t *tuple = linked_list_get(mod->threads);
 		free(tuple);
 	}
-	list_free(mod->threads);	
+	linked_list_free(mod->threads);
 
 	if (mod->cache)
 		cache_free(mod->cache);
 	if (mod->dir)
 		dir_free(mod->dir);
-	
+
 	/* Main Memory module */
 	if(mod->regs_rank)
 		reg_rank_free(mod->regs_rank, mod->num_regs_rank);
@@ -312,7 +307,7 @@ int mod_find_block_in_stream(struct mod_t *mod, unsigned int addr, int stream)
 /* Return {set, way, tag, state} for an address.
  * The function returns TRUE on hit, FALSE on miss. */
 int mod_find_block(struct mod_t *mod, unsigned int addr, int *set_ptr,
-	int *way_ptr, int *tag_ptr, int *state_ptr, int *prefetched_ptr)
+	int *way_ptr, int *tag_ptr, int *state_ptr)
 {
 	struct cache_t *cache = mod->cache;
 	struct cache_block_t *blk;
@@ -362,7 +357,6 @@ int mod_find_block(struct mod_t *mod, unsigned int addr, int *set_ptr,
 	/* Hit */
 	PTR_ASSIGN(way_ptr, way);
 	PTR_ASSIGN(state_ptr, cache->sets[set].blocks[way].state);
-	PTR_ASSIGN(prefetched_ptr, cache->sets[set].blocks[way].prefetched);
 	return 1;
 }
 
@@ -511,7 +505,7 @@ void mod_lock_port(struct mod_t *mod, struct mod_stack_t *stack, int event)
 	mod->num_locked_ports++;
 
 	/* Debug */
-	mem_debug("  %lld stack %lld %s port %d locked\n", esim_cycle, stack->id, mod->name, i);
+	mem_debug("  %lld stack %lld %s port %d locked\n", esim_cycle(), stack->id, mod->name, i);
 
 	/* Schedule event */
 	esim_schedule_event(event, stack, 0);
@@ -534,7 +528,7 @@ void mod_unlock_port(struct mod_t *mod, struct mod_port_t *port,
 	mod->num_locked_ports--;
 
 	/* Debug */
-	mem_debug("  %lld %lld %s port unlocked\n", esim_cycle,
+	mem_debug("  %lld %lld %s port unlocked\n", esim_cycle(),
 		stack->id, mod->name);
 
 	/* Check if there was any access waiting for free port */
@@ -888,9 +882,7 @@ void mod_adapt_pref_schedule(struct mod_t *mod)
 	struct cache_t *cache = mod->cache;
 
 	/* Create new stack */
-	stack = calloc(1, sizeof(struct mod_adapt_pref_stack_t));
-	if (!stack)
-		fatal("%s: out of memory", __FUNCTION__);
+	stack = xcalloc(1, sizeof(struct mod_adapt_pref_stack_t));
 	stack->mod = mod;
 	mod->adapt_pref_stack = stack;
 
@@ -909,7 +901,6 @@ void mod_adapt_pref_handler(int event, void *data)
 	struct mod_t *mod = stack->mod;
 	struct cache_t *cache = mod->cache;
 	struct core_thread_tuple_t *tuple;
-	int i;
 
 	/* If simulation has ended, no more
 	 * events to schedule. */
@@ -934,10 +925,10 @@ void mod_adapt_pref_handler(int event, void *data)
 	long long cycles_stalled_int;
 	{
 		int cores = 0;
-		int *cores_presence_vector = calloc(x86_cpu_num_cores, sizeof(int));
-		LIST_FOR_EACH(mod->threads, i)
+		int *cores_presence_vector = xcalloc(x86_cpu_num_cores, sizeof(int));
+		LINKED_LIST_FOR_EACH(mod->threads)
 		{
-			tuple = (struct core_thread_tuple_t *) list_get(mod->threads, i);
+			tuple = (struct core_thread_tuple_t *) linked_list_get(mod->threads);
 			if(!cores_presence_vector[tuple->core])
 			{
 				cycles_stalled += x86_cpu->core[tuple->core].dispatch_stall_cycles_rob_mem;
@@ -949,12 +940,12 @@ void mod_adapt_pref_handler(int event, void *data)
 		cycles_stalled /= cores;
 		cycles_stalled_int = cycles_stalled - stack->last_cycles_stalled;
 	}
-	double percentage_cycles_stalled = esim_cycle - stack->last_cycle > 0 ? (double)
-		100 * cycles_stalled_int / (esim_cycle - stack->last_cycle) : 0.0;
+	double percentage_cycles_stalled = esim_cycle() - stack->last_cycle > 0 ? (double)
+		100 * cycles_stalled_int / (esim_cycle() - stack->last_cycle) : 0.0;
 
 	/* Mean IPC for all the contexts accessing this module */
 	double ipc_int = (double) (stack->inst_count - stack->last_inst_count) /
-		(esim_cycle - stack->last_cycle);
+		(esim_cycle() - stack->last_cycle);
 
 	/* Strides detected */
 	long long strides_detected_int = cache->prefetch.stride_detector.strides_detected -
@@ -984,7 +975,7 @@ void mod_adapt_pref_handler(int event, void *data)
 				break;
 		}
 		if(!mod->cache->pref_enabled)
-			stack->last_cycle_pref_disabled = esim_cycle;
+			stack->last_cycle_pref_disabled = esim_cycle();
 	}
 
 	/* Enable prefetch */
@@ -1016,7 +1007,7 @@ void mod_adapt_pref_handler(int event, void *data)
 		}
 	}
 
-	stack->last_cycle = esim_cycle;
+	stack->last_cycle = esim_cycle();
 	stack->last_cycles_stalled = cycles_stalled;
 	stack->last_useful_prefetches = mod->useful_prefetches;
 	stack->last_no_retry_accesses = mod->no_retry_accesses;
@@ -1041,6 +1032,12 @@ struct mod_client_info_t *mod_client_info_create(struct mod_t *mod)
 
 	/* Create object */
 	client_info = repos_create_object(mod->client_info_repos);
+
+	client_info->core = -1;
+	client_info->thread = -1;
+
+	client_info->stream = -1;
+	client_info->slot = -1;
 
 	/* Return */
 	return client_info;

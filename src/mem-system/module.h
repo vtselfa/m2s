@@ -71,10 +71,18 @@ enum mod_kind_t
 };
 
 /* Any info that clients (cpu/gpu) can pass
- * to the memory system when mod_access() 
+ * to the memory system when mod_access()
  * is called. */
 struct mod_client_info_t
 {
+	int core;
+	int thread;
+
+	/* Fields used by stream prefetchers */
+	int stream;
+	int slot;
+	int invalidate;
+
 	/* This field is for use by the prefetcher. It is set
 	 * to the PC of the instruction accessing the module */
 	unsigned int prefetcher_eip;
@@ -118,7 +126,7 @@ struct mod_t
 	int dir_latency;
 	int mshr_size;
 
-	struct list_t *threads; /* List of (core, thread) tuples that can access this module */
+	struct linked_list_t *threads; /* List of (core, thread) tuples that can access this module */
 
 	/* Main memory module */
 	struct reg_rank_t *regs_rank; // ranks which this channels connects with
@@ -225,6 +233,12 @@ struct mod_t
 	 * allowed to have multiple architectures sharing the same subset of the
 	 * memory hierarchy, the field is used to check this restriction. */
 	struct arch_t *arch;
+
+	/* For constructing a list with all the modules with adaptative prefetch */
+	int visited;
+
+	/* Stack for activate/deactivate prefetch at intervals */
+	struct mod_adapt_pref_stack_t *adapt_pref_stack;
 
 	/* Statistics */
 	long long accesses;
@@ -426,8 +440,8 @@ long long mod_access(struct mod_t *mod, enum mod_access_kind_t access_kind,
 	void *event_queue_item, struct mod_client_info_t *client_info);
 int mod_can_access(struct mod_t *mod, unsigned int addr);
 
-int mod_find_block(struct mod_t *mod, unsigned int addr, int *set_ptr, int *way_ptr, 
-	int *tag_ptr, int *state_ptr, int *prefetched);
+int mod_find_block(struct mod_t *mod, unsigned int addr, int *set_ptr, int *way_ptr,
+	int *tag_ptr, int *state_ptr);
 
 void mod_block_set_prefetched(struct mod_t *mod, unsigned int addr, int val);
 int mod_block_get_prefetched(struct mod_t *mod, unsigned int addr);

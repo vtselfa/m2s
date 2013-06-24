@@ -126,6 +126,7 @@ enum x86_dispatch_stall_t
 	x86_dispatch_stall_spec,  /* Used with a speculative inst. */
 	x86_dispatch_stall_uop_queue,  /* No instruction in the uop queue */
 	x86_dispatch_stall_rob,  /* No space in the rob */
+	x86_dispatch_stall_rob_mem,  /* No space in the rob because a memory instruction */
 	x86_dispatch_stall_iq,  /* No space in the iq */
 	x86_dispatch_stall_lsq,  /* No space in the lsq */
 	x86_dispatch_stall_rename,  /* No free physical register */
@@ -282,6 +283,9 @@ struct x86_core_t
 
 	/* Stats */
 	long long dispatch_stall[x86_dispatch_stall_max];
+	long long dispatch_stall_cycles_rob;
+	long long dispatch_stall_cycles_rob_mem;
+	long long last_dispatch_stall_cycles_rob_mem;
 	long long num_dispatched_uinst_array[x86_uinst_opcode_count];
 	long long num_issued_uinst_array[x86_uinst_opcode_count];
 	long long num_committed_uinst_array[x86_uinst_opcode_count];
@@ -340,7 +344,7 @@ struct x86_cpu_t
 	 * execution quantum has expired. These variables are updated by calling
 	 * 'x86_cpu_update_min_alloc_cycle' */
 	long long min_alloc_cycle;
-	
+
 	/* List containing uops that need to report an 'end_inst' trace event */
 	struct linked_list_t *uop_trace_list;
 
