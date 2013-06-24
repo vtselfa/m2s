@@ -27,6 +27,11 @@
 struct bit_map_t;
 struct x86_ctx_t;
 
+/* Event scheduled periodically to dump IPC statistics for a context */
+extern int EV_X86_CTX_IPC_REPORT;
+extern int EV_X86_CTX_MISC_REPORT;
+extern int EV_X86_CTX_MC_REPORT;
+extern int EV_X86_CTX_CPU_REPORT;
 
 
 #define x86_ctx_debug(...) debug(x86_ctx_debug_category, __VA_ARGS__)
@@ -34,6 +39,15 @@ extern int x86_ctx_debug_category;
 
 typedef int (*x86_ctx_can_wakeup_callback_func_t)(struct x86_ctx_t *ctx, void *data);
 typedef void (*x86_ctx_wakeup_callback_func_t)(struct x86_ctx_t *ctx, void *data);
+
+
+struct x86_ctx_report_stack_t
+{
+        int pid;
+        long long inst_count;
+        long long last_cycle;
+};
+
 
 struct x86_ctx_t
 {
@@ -160,6 +174,12 @@ struct x86_ctx_t
 	/* Thread affinity mask */
 	struct bit_map_t *affinity;
 
+	/* Report stacks */
+        struct x86_ctx_report_stack_t *ipc_report_stack;
+        struct x86_ctx_report_stack_t *mc_report_stack;
+        struct x86_ctx_report_stack_t *misc_report_stack;
+        struct x86_ctx_report_stack_t *cpu_report_stack;
+
 
 	/* Statistics */
 
@@ -230,6 +250,19 @@ void x86_ctx_exit_robust_list(struct x86_ctx_t *ctx);
 
 void x86_ctx_gen_proc_self_maps(struct x86_ctx_t *ctx, char *path, int size);
 void x86_ctx_gen_proc_cpuinfo(struct x86_ctx_t *ctx, char *path, int size);
+
+void x86_ctx_ipc_report_schedule(struct x86_ctx_t *ctx);
+void x86_ctx_ipc_report_handler(int event, void *data);
+
+void x86_ctx_misc_report_schedule(struct x86_ctx_t *ctx);
+void x86_ctx_misc_report_handler(int event, void *data);
+
+void x86_ctx_mc_report_schedule(struct x86_ctx_t *ctx);
+void x86_ctx_mc_report_handler(int event, void *data);
+
+void x86_ctx_cpu_report_schedule(struct x86_ctx_t *ctx);
+void x86_ctx_cpu_report_handler(int event, void *data);
+
 
 #endif
 

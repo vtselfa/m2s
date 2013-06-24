@@ -20,9 +20,12 @@
 #ifndef ARCH_X86_EMU_LOADER_H
 #define ARCH_X86_EMU_LOADER_H
 
+#include <mem-system/mem-controller.h>
+
 /* Forward type declarations */
 struct config_t;
 
+extern struct str_map_t interval_kind_map;
 
 struct x86_loader_t
 {
@@ -38,6 +41,26 @@ struct x86_loader_t
 	char *cwd;  /* Current working directory */
 	char *stdin_file;  /* File name for stdin */
 	char *stdout_file;  /* File name for stdout */
+
+	/* IPC report (for detailed simulation) */
+        FILE *ipc_report_file;
+        int ipc_report_interval;
+
+        /* Misc report (for detailed simulation) */
+        FILE *misc_report_file;
+        int misc_report_interval;
+
+        /* MC (memory controller) report (for detailed simulation) */
+        FILE *mc_report_file;
+        int mc_report_interval;
+
+        /* CPU report (for detailed simulation) */
+        FILE *cpu_report_file;
+        int cpu_report_interval;
+
+        /* Tells if interval is in cycles or in instructions */
+        enum interval_kind_t interval_kind;
+
 
 	/* Stack */
 	unsigned int stack_base;

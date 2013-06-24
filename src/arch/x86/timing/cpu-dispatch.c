@@ -45,15 +45,26 @@ static enum x86_dispatch_stall_t x86_cpu_can_dispatch_thread(int core, int threa
 			x86_dispatch_stall_ctx : x86_dispatch_stall_uop_queue;
 
 	/* If iq/lq/sq/rob full, done */
-	if (!x86_rob_can_enqueue(uop))
-		return x86_dispatch_stall_rob;
-	if (!(uop->flags & X86_UINST_MEM) && !x86_iq_can_insert(uop))
-		return x86_dispatch_stall_iq;
-	if ((uop->flags & X86_UINST_MEM) && !x86_lsq_can_insert(uop))
-		return x86_dispatch_stall_lsq;
-	if (!x86_reg_file_can_rename(uop))
-		return x86_dispatch_stall_rename;
-	
+	 if (!x86_rob_can_enqueue(uop)){
+                struct x86_uop_t *head=x86_rob_head(core, thread);
+                if(head->flags & X86_UINST_MEM)
+                	X86_CORE.dispatch_stall_cycles_rob_mem++;
+                X86_CORE.dispatch_stall_cycles_rob++;
+                return x86_dispatch_stall_rob;
+        }
+        if (!(uop->flags & X86_UINST_MEM) && !x86_iq_can_insert(uop)){
+                X86_CORE.dispatch_stall_cycles_iq++;
+                return x86_dispatch_stall_iq;
+        }
+        if ((uop->flags & X86_UINST_MEM) && !x86_lsq_can_insert(uop)){
+                X86_CORE.dispatch_stall_cycles_lsq++;
+                return x86_dispatch_stall_lsq;
+        }
+        if (!x86_reg_file_can_rename(uop)){
+                X86_CORE.dispatch_stall_cycles_rename++;
+                return x86_dispatch_stall_rename;
+        }
+        
 	return x86_dispatch_stall_used;
 }
 

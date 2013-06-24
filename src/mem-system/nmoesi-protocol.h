@@ -17,9 +17,10 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+
 #ifndef MEM_SYSTEM_NMOESI_PROTOCOL_H
 #define MEM_SYSTEM_NMOESI_PROTOCOL_H
-
+#include <stdio.h>
 
 /* NMOESI Event-Driven Simulation */
 
@@ -75,6 +76,7 @@ extern int EV_MOD_NMOESI_WRITE_REQUEST_UPDOWN_FINISH;
 extern int EV_MOD_NMOESI_WRITE_REQUEST_DOWNUP;
 extern int EV_MOD_NMOESI_WRITE_REQUEST_DOWNUP_FINISH;
 extern int EV_MOD_NMOESI_WRITE_REQUEST_REPLY;
+extern int EV_MOD_NMOESI_WRITE_REQUEST_UPDOWN_FINISH_UPDATE_DIRECTORY;
 extern int EV_MOD_NMOESI_WRITE_REQUEST_FINISH;
 
 extern int EV_MOD_NMOESI_READ_REQUEST;
@@ -88,6 +90,7 @@ extern int EV_MOD_NMOESI_READ_REQUEST_DOWNUP_WAIT_FOR_REQS;
 extern int EV_MOD_NMOESI_READ_REQUEST_DOWNUP_FINISH;
 extern int EV_MOD_NMOESI_READ_REQUEST_REPLY;
 extern int EV_MOD_NMOESI_READ_REQUEST_FINISH;
+extern int EV_MOD_NMOESI_READ_REQUEST_UPDOWN_FINISH_UPDATE_DIRECTORY;
 
 extern int EV_MOD_NMOESI_INVALIDATE;
 extern int EV_MOD_NMOESI_INVALIDATE_FINISH;
@@ -102,6 +105,27 @@ extern int EV_MOD_NMOESI_MESSAGE_RECEIVE;
 extern int EV_MOD_NMOESI_MESSAGE_ACTION;
 extern int EV_MOD_NMOESI_MESSAGE_REPLY;
 extern int EV_MOD_NMOESI_MESSAGE_FINISH;
+
+
+/*Main memory*/
+//////////////////////////////////////////////////////////
+extern int EV_MOD_NMOESI_EXAMINE_ONLY_ONE_QUEUE_REQUEST;//
+extern int EV_MOD_NMOESI_EXAMINE_QUEUE_REQUEST;         //
+extern int EV_MOD_NMOESI_ACCES_BANK;                    //
+extern int EV_MOD_NMOESI_TRANSFER_FROM_BANK;            //
+extern int EV_MOD_NMOESI_REMOVE_MEMORY_CONTROLLER;      //
+extern int EV_MOD_NMOESI_INSERT_MEMORY_CONTROLLER;      //
+
+/*Memory controller*/
+extern int EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER;
+extern int EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER_PORT;
+extern int EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER_ACTION;
+extern int EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER_FINISH;
+
+
+void mod_handler_nmoesi_request_main_memory(int event, void *data);
+void mod_handler_nmoesi_find_and_lock_mem_controller(int event, void *data);
+/////////////////////////////////////////////////////////////////////
 
 
 void mod_handler_nmoesi_find_and_lock(int event, void *data);

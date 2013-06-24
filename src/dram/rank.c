@@ -17,12 +17,20 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#include <assert.h>
+#include <stdlib.h>
 
+#include <lib/esim/trace.h>
 #include <lib/mhandle/mhandle.h>
+#include <lib/util/debug.h>
+#include <lib/util/misc.h>
+#include <lib/util/string.h>
+
+
 
 
 #include "rank.h"
-
+#include "bank.h"
 /*
  * Rank
  */
@@ -30,7 +38,7 @@
 struct reg_rank_t* regs_rank_create( int num_ranks, int num_banks, int t_row_hit, int t_row_miss){
 
         struct reg_rank_t * ranks;
-        ranks = calloc(num_ranks, sizeof(struct reg_rank_t));
+        ranks = xcalloc(num_ranks, sizeof(struct reg_rank_t));
         if (!ranks)
                 fatal("%s: out of memory", __FUNCTION__);
 

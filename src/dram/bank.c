@@ -17,8 +17,15 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#include <assert.h>
+#include <stdlib.h>
 
+#include <lib/esim/trace.h>
 #include <lib/mhandle/mhandle.h>
+#include <lib/util/debug.h>
+#include <lib/util/misc.h>
+#include <lib/util/string.h>
+
 
 #include "bank.h"
 
@@ -30,7 +37,7 @@
 struct reg_bank_t* regs_bank_create( int num_banks, int t_row_hit, int t_row_miss){
 
         struct reg_bank_t * banks;
-        banks = calloc( num_banks, sizeof(struct reg_bank_t));
+        banks = xcalloc( num_banks, sizeof(struct reg_bank_t));
         if (!banks)
                 fatal("%s: out of memory", __FUNCTION__);
 

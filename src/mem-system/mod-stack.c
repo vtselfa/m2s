@@ -23,6 +23,7 @@
 #include <lib/mhandle/mhandle.h>
 #include <lib/util/misc.h>
 #include <lib/util/debug.h>
+#include <lib/util/linked-list.h>
 
 #include "cache.h"
 #include "mem-system.h"
@@ -30,6 +31,8 @@
 
 
 long long mod_stack_id;
+
+
 
 struct mod_stack_t *mod_stack_create(long long id, struct mod_t *mod,
 	unsigned int addr, int ret_event, struct mod_stack_t *ret_stack)
@@ -62,7 +65,17 @@ void mod_stack_return(struct mod_stack_t *stack)
 	/* Wake up dependent accesses */
 	mod_stack_wakeup_stack(stack);
 
-	/* Free */
+	 /* Free */
+        if(stack->coalesced_stacks!=NULL)
+        {
+                linked_list_free(stack->coalesced_stacks);
+                stack->coalesced_stacks=NULL;
+                //assert(stack->coalesced_stacks!=NULL);
+
+        }
+
+
+	
 	free(stack);
 	esim_schedule_event(ret_event, ret_stack, 0);
 }

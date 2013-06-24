@@ -23,6 +23,7 @@
 #include <lib/util/debug.h>
 #include <lib/util/file.h>
 #include <lib/util/list.h>
+#include <lib/util/linked-list.h>
 #include <lib/util/string.h>
 #include <network/network.h>
 
@@ -34,6 +35,10 @@
 #include "module.h"
 #include "nmoesi-protocol.h"
 
+#include "bank.h"
+#include "channel.h"
+#include "mem-controller.h"
+#include "rank.h"
 
 /*
  * Global Variables
@@ -76,15 +81,8 @@ struct mem_system_t *mem_system_create(void)
 
 void mem_system_free(struct mem_system_t *mem_system)
 {
-	/* Free memory modules */
-	while (list_count(mem_system->mod_list))
-		mod_free(list_pop(mem_system->mod_list));
-	list_free(mem_system->mod_list);
-
-	/* Free networks */
-	while (list_count(mem_system->net_list))
-		net_free(list_pop(mem_system->net_list));
-	list_free(mem_system->net_list);
+	struct mem_controller_t * mem_controller;
+	
 
 	////////////////////////////////////////////////////
         /*Free memory controller*/                        //
@@ -105,6 +103,18 @@ void mem_system_free(struct mem_system_t *mem_system)
 	}
 	free(mem_system->pref_into_normal);
         ////////////////////////////////////////////////////
+
+	/* Free memory modules */
+	while (list_count(mem_system->mod_list))
+		mod_free(list_pop(mem_system->mod_list));
+	list_free(mem_system->mod_list);
+
+	/* Free networks */
+	while (list_count(mem_system->net_list))
+		net_free(list_pop(mem_system->net_list));
+	list_free(mem_system->net_list);
+
+	
 
 	/* Free memory system */
 	free(mem_system);
@@ -270,6 +280,8 @@ void mem_system_init(void)
 			mem_domain_index, "mod_nmoesi_write_request_reply");
 	EV_MOD_NMOESI_WRITE_REQUEST_FINISH = esim_register_event_with_name(mod_handler_nmoesi_write_request,
 			mem_domain_index, "mod_nmoesi_write_request_finish");
+	EV_MOD_NMOESI_WRITE_REQUEST_UPDOWN_FINISH_UPDATE_DIRECTORY = esim_register_event_with_name(mod_handler_nmoesi_write_request,
+			mem_domain_index, "mod_nmoesi_write_request_updown_finish_update_directory");
 
 	EV_MOD_NMOESI_READ_REQUEST = esim_register_event_with_name(mod_handler_nmoesi_read_request,
 			mem_domain_index, "mod_nmoesi_read_request");
@@ -293,6 +305,8 @@ void mem_system_init(void)
 			mem_domain_index, "mod_nmoesi_read_request_reply");
 	EV_MOD_NMOESI_READ_REQUEST_FINISH = esim_register_event_with_name(mod_handler_nmoesi_read_request,
 			mem_domain_index, "mod_nmoesi_read_request_finish");
+	EV_MOD_NMOESI_READ_REQUEST_UPDOWN_FINISH_UPDATE_DIRECTORY = esim_register_event_with_name(mod_handler_nmoesi_read_request,
+			mem_domain_index, "mod_nmoesi_read_request_updown_finish_update_directory");
 
 	EV_MOD_NMOESI_INVALIDATE = esim_register_event_with_name(mod_handler_nmoesi_invalidate,
 			mem_domain_index, "mod_nmoesi_invalidate");
@@ -346,21 +360,21 @@ void mem_system_init(void)
 
 	//////////////////////////////////////////////////////////////////////////////////////////////////////////
 	/*Main memory*/
-	EV_MOD_NMOESI_EXAMINE_ONLY_ONE_QUEUE_REQUEST=esim_register_event(mod_handler_nmoesi_request_main_memory);
-        EV_MOD_NMOESI_EXAMINE_QUEUE_REQUEST=esim_register_event(mod_handler_nmoesi_request_main_memory);
-        EV_MOD_NMOESI_ACCES_BANK = esim_register_event(mod_handler_nmoesi_request_main_memory);
-        EV_MOD_NMOESI_TRANSFER_FROM_BANK=esim_register_event(mod_handler_nmoesi_request_main_memory);
-        EV_MOD_NMOESI_REMOVE_MEMORY_CONTROLLER=esim_register_event(mod_handler_nmoesi_request_main_memory);
-        EV_MOD_NMOESI_INSERT_MEMORY_CONTROLLER=esim_register_event(mod_handler_nmoesi_request_main_memory);
+	EV_MOD_NMOESI_EXAMINE_ONLY_ONE_QUEUE_REQUEST=esim_register_event(mod_handler_nmoesi_request_main_memory,mem_domain_index);
+        EV_MOD_NMOESI_EXAMINE_QUEUE_REQUEST=esim_register_event(mod_handler_nmoesi_request_main_memory,mem_domain_index);
+        EV_MOD_NMOESI_ACCES_BANK = esim_register_event(mod_handler_nmoesi_request_main_memory, mem_domain_index);
+        EV_MOD_NMOESI_TRANSFER_FROM_BANK=esim_register_event(mod_handler_nmoesi_request_main_memory,mem_domain_index);
+        EV_MOD_NMOESI_REMOVE_MEMORY_CONTROLLER=esim_register_event(mod_handler_nmoesi_request_main_memory,mem_domain_index);
+        EV_MOD_NMOESI_INSERT_MEMORY_CONTROLLER=esim_register_event(mod_handler_nmoesi_request_main_memory,mem_domain_index);
 
 	/*Memory controller*/
-	EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER = esim_register_event(mod_handler_nmoesi_find_and_lock_mem_controller);
-	EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER_PORT = esim_register_event(mod_handler_nmoesi_find_and_lock_mem_controller);
-	EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER_ACTION = esim_register_event(mod_handler_nmoesi_find_and_lock_mem_controller);
-	EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER_FINISH = esim_register_event(mod_handler_nmoesi_find_and_lock_mem_controller);
+	EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER = esim_register_event(mod_handler_nmoesi_find_and_lock_mem_controller,mem_domain_index);
+	EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER_PORT = esim_register_event(mod_handler_nmoesi_find_and_lock_mem_controller,mem_domain_index);
+	EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER_ACTION = esim_register_event(mod_handler_nmoesi_find_and_lock_mem_controller,mem_domain_index);
+	EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER_FINISH = esim_register_event(mod_handler_nmoesi_find_and_lock_mem_controller,mem_domain_index);
 
 	/*Adaptative*/
-	EV_MEM_CONTROLLER_ADAPT = esim_register_event(mem_controller_adapt_handler);	
+	EV_MEM_CONTROLLER_ADAPT = esim_register_event(mem_controller_adapt_handler,mem_domain_index);	
         //////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 }
@@ -372,21 +386,21 @@ void mem_system_done(void)
 	mem_system_dump_report();
 
 	/* Dump main memory report*/
-	mem_controller_dump_report(char * main_mem_report_file_name);
+	mem_controller_dump_report();
 
 	/* Free memory system */
 	mem_system_free(mem_system);
 }
 
 //////////////////////////////////////////////////////////////
-void mem_controller_dump_report(char * main_mem_report_file_name)
+void mem_controller_dump_report()
 {
 
         FILE *f;
         struct mod_t * mod;
 	/*TODO cambiasr per a varios mc*/
 	//linked_list_head(mem_system->mem_controllers);
-	//struct mem_controller_t * mem_controller = linked_list_get(mem_system->mem_controllers);
+	struct mem_controller_t * mem_controller;// = linked_list_get(mem_system->mem_controllers);
 	 double total_bank_parallelism=0;
         double total_rank_parallelism=0;
 	long long total_acces=0;
@@ -619,22 +633,21 @@ void mem_controller_dump_report(char * main_mem_report_file_name)
 		{
 			struct mem_controller_queue_t *normal = mem_controller->normal_queue[i];
 			fprintf(f, "[Normal-Queue-%d]\n",i);
-	       		fprintf(f, "AvgNumRequests = %f\n",mem_controller->n_times_queue_examined?(double)
-				normal->total_requests/ esim_cycle:0);
-			fprintf(f, "TimeFullPercent = %f\n", esim_cycle ? (double)normal->t_full/esim_cycle:0.0);
+	       		fprintf(f, "AvgNumRequests = %f\n",esim_cycle() ? (double)normal->total_requests/ esim_cycle():0);
+			fprintf(f, "TimeFullPercent = %f\n", esim_cycle() ? (double)normal->t_full/esim_cycle():0.0);
 			float avg_req=mem_controller->n_times_queue_examined ? (double)
 				normal->total_requests/mem_controller->n_times_queue_examined:0.0;
 			fprintf(f, "TimeResponse = %f\n\n ",normal->total_insertions?(double)
-				(avg_req*esim_cycle)/normal->total_insertions:0);
+				(avg_req*esim_cycle())/normal->total_insertions:0);
 
 			fprintf(f, "[Prefetch-Queue-%i]\n",i);
 			fprintf(f, "AvgNumRequests = %f\n",mem_controller->n_times_queue_examined?(double)
 				mem_controller->pref_queue[i]->total_requests/mem_controller->n_times_queue_examined:0.0);
-		        fprintf(f, "TimeFullPercent = %f\n", esim_cycle ? (double)mem_controller->pref_queue[i]->t_full/esim_cycle:0.0);
+		        fprintf(f, "TimeFullPercent = %f\n", esim_cycle() ? (double)mem_controller->pref_queue[i]->t_full/esim_cycle():0.0);
 			avg_req=mem_controller->n_times_queue_examined ? (double)
 				mem_controller->pref_queue[i]->total_requests/mem_controller->n_times_queue_examined:0.0;
 		        fprintf(f, "TimeResponse = %f\n\n ", normal->total_insertions ? (double)
-				(avg_req*esim_cycle)/normal->total_insertions :0.0);
+				(avg_req*esim_cycle())/normal->total_insertions :0.0);
 		}
 		fprintf(f, "\n\n\n");
 	}

@@ -21,8 +21,7 @@
 #define MEM_SYSTEM_MODULE_H
 
 #include <stdio.h>
-#include <rank.h>
-#include <bank.h>
+
 /* Port */
 struct mod_port_t
 {
@@ -200,7 +199,12 @@ struct mod_t
 
 	/* Statistics */
 	long long accesses;
-	long long hits;
+        long long last_accesses;
+        long long hits;
+        long long last_hits;
+        long long last_misses_int; /* Misses in last interval */
+
+        long long hits_pref; /* Hits de stacks de prefetch en els moduls inferiors */
 
 	long long reads;
 	long long effective_reads;
@@ -238,6 +242,47 @@ struct mod_t
 	long long no_retry_write_hits;
 	long long no_retry_nc_writes;
 	long long no_retry_nc_write_hits;
+	long long no_retry_stream_hits;
+
+	/* Prefetch */
+        long long programmed_prefetches;
+        long long completed_prefetches;
+        long long last_completed_prefetches;
+        long long canceled_prefetches;
+        long long useful_prefetches;
+        long long last_useful_prefetches;
+        long long effective_useful_prefetches; /* Useful prefetches with less delay hit cicles than 1/3 of the delay of accesing MM */
+        long long last_effective_useful_prefetches;
+
+        long long prefetch_retries;
+
+        long long stream_hits;
+        long long last_stream_hits;
+        long long delayed_hits; /* Hit on a block being brougth by a prefetch */
+        long long last_delayed_hits;
+        long long delayed_hit_cycles; /* Cicles lost due delayed hits */
+        long long last_delayed_hit_cycles;
+        long long delayed_hits_cycles_counted; /* Number of delayed hits whose lost cycles has been counted */
+
+        long long single_prefetches; /* Prefetches on hit */
+        long long group_prefetches; /* Number of GROUPS */
+        long long canceled_prefetch_groups;
+
+        long long canceled_prefetches_end_stream;
+        long long canceled_prefetches_mshr;
+
+        long long up_down_hits;
+        long long up_down_head_hits;
+        long long down_up_read_hits;
+        long long down_up_write_hits;
+
+        long long fast_resumed_accesses;
+        long long write_buffer_read_hits;
+        long long write_buffer_write_hits;
+        long long write_buffer_prefetch_hits;
+
+        long long stream_evictions;
+
 };
 
 struct mod_t *mod_create(char *name, enum mod_kind_t kind, int num_ports,

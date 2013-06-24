@@ -11,8 +11,8 @@ libdram_a_SOURCES = \
 	mem-controller.c \
 	mem-controller.h \
 	\
-	request.c \
-	request.h
+	rank.c \
+	rank.h
 
 INCLUDES = @M2S_INCLUDES@
 

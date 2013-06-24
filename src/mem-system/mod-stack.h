@@ -51,10 +51,38 @@ enum mod_message_type_t
 	message_clear_owner
 };
 
+////////////////////////////
+/* Request types */
+enum mod_request_type_t
+{
+        none_request = 0,
+        read_request,
+        write_request,
+        eviction_request
+};
+///////////////////////////////
+
+
+/* Prefetching */
+enum pref_kind_t {INVALID=0, SINGLE, GROUP, PREF_OBL, PREF_OBL_STRIDE};
+
+struct pref_data_t
+{
+        /* Common camps */
+        enum pref_kind_t kind;
+        struct mod_t *mod;
+        int dest_stream;
+        int dest_slot;
+        /* Group only camps */
+        int invalidating : 1;
+};
+
 /* Stack */
 struct mod_stack_t
 {
 	long long id;
+	int core;
+	int thread;
 	enum mod_access_kind_t access_kind;
 	int *witness_ptr;
 
@@ -78,6 +106,27 @@ struct mod_stack_t
 	int src_set;
 	int src_way;
 	int src_tag;
+
+	/*Mem controller/main mem*/
+	int state_main_memory; // when the request is thrown by MC, the state of this request in main memory
+        int priority; // dynamic priority MC
+        unsigned int channel;
+        unsigned int bank;
+        unsigned int rank;
+        unsigned int row;
+        enum mod_request_type_t request_type; // (eviction,read request, write request )
+        long long threshold; //cycles that a request can be waiting in the MC queue befaore to be throw to the bank
+	 struct linked_list_t * coalesced_stacks; //stacks which caolesce with this in memory controller
+        long long t_access_net;
+
+
+	 /* Prefetch */
+        int pref_stream;
+        int pref_slot;
+        int stride;
+        struct pref_data_t pref;
+        long long stream_retried_cycle;
+
 
 	enum mod_request_dir_t request_dir;
 	enum mod_message_type_t message;
