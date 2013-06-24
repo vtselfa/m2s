@@ -59,6 +59,10 @@ int x86_emu_process_prefetch_hints = 0;
 
 struct x86_emu_t *x86_emu;
 
+/* Frequency domain, as returned by function 'esim_new_domain'. */
+int report_frequency = 1000;
+int report_domain_index;
+
 
 
 
@@ -94,17 +98,20 @@ void x86_emu_init(void)
 	x86_sys_init();
 	x86_isa_init();
 
+	/* Create Frequency domain for reports */
+	report_domain_index = esim_new_domain(report_frequency);
+
 	/* Event for context IPC reports */
-	EV_X86_CTX_IPC_REPORT = esim_register_event_with_name(x86_ctx_ipc_report_handler, mem_domain_index, "x86_ctx_ipc_report");
+	EV_X86_CTX_IPC_REPORT = esim_register_event_with_name(x86_ctx_ipc_report_handler, report_domain_index, "x86_ctx_ipc_report");
 
 	/* Event for context misc reports */
-	EV_X86_CTX_MISC_REPORT = esim_register_event_with_name(x86_ctx_misc_report_handler, mem_domain_index, "x86_ctx_misc_report");
+	EV_X86_CTX_MISC_REPORT = esim_register_event_with_name(x86_ctx_misc_report_handler, report_domain_index, "x86_ctx_misc_report");
 
 	/* Event for context mc reports */
-	EV_X86_CTX_MC_REPORT = esim_register_event_with_name(x86_ctx_mc_report_handler, mem_domain_index, "x86_ctx_mc_report");
+	EV_X86_CTX_MC_REPORT = esim_register_event_with_name(x86_ctx_mc_report_handler, report_domain_index, "x86_ctx_mc_report");
 
 	/* Event for context cpu reports */
-	EV_X86_CTX_CPU_REPORT = esim_register_event_with_name(x86_ctx_cpu_report_handler, mem_domain_index, "x86_ctx_cpu_report");
+	EV_X86_CTX_CPU_REPORT = esim_register_event_with_name(x86_ctx_cpu_report_handler, report_domain_index, "x86_ctx_cpu_report");
 
 	/* Initialize */
 	x86_emu->current_pid = 100;  /* Initial assigned pid */
