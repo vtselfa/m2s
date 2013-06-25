@@ -1,0 +1,41 @@
+# Compiled Object files
+*.slo
+*.lo
+*.o
+
+# Compiled Dynamic libraries
+*.so
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+
+# Extra
+*.Po
+Makefile
+Makefile.in
+config.status
+config.log
+autom4te.cache/*
+TAGS
+tags
+src/results/*
+m2s
+test
+configure
+aclocal.m4
+*.ipc
+benchmarks
+*~
+*.bak
+*.swp
+*.c.*
+*.h.*
+*.ghc
+*.orig
+.clang_complete
+INSTALL
+depcomp
+install-sh
+missing

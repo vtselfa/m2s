@@ -131,7 +131,7 @@ static int x86_cpu_issue_lq(int core, int thread, int quant)
 		assert(load->uinst->opcode == x86_uinst_load);
 		x86_lq_remove(core, thread);
 
-		/* create and fill the mod_client_info_t object */
+		/* Create and fill the mod_client_info_t object */
 		client_info = mod_client_info_create(X86_THREAD.data_mod);
 		client_info->prefetcher_eip = load->eip;
 
@@ -145,7 +145,7 @@ static int x86_cpu_issue_lq(int core, int thread, int quant)
 		load->in_event_queue = 1;
 		load->issued = 1;
 		load->issue_when = arch_x86->cycle;
-		
+	
 		/* Statistics */
 		X86_CORE.num_issued_uinst_array[load->uinst->opcode]++;
 		X86_CORE.lsq_reads++;
@@ -197,9 +197,9 @@ static int x86_cpu_issue_preq(int core, int thread, int quant)
 		 * prefetches, its still helpful to avoid going to the memory (cache). 
 		 */
 		if (prefetch_history_is_redundant(X86_CORE.prefetch_history,
-							   X86_THREAD.data_mod, prefetch->phy_addr))
+				X86_THREAD.data_mod, prefetch->phy_addr))
 		{
-			/* remove from queue. do not prefetch. */
+			/* Remove from queue. Do not prefetch. */
 			assert(prefetch->uinst->opcode == x86_uinst_prefetch);
 			x86_preq_remove(core, thread);
 			prefetch->completed = 1;
@@ -282,7 +282,7 @@ static int x86_cpu_issue_iq(int core, int thread, int quant)
 			continue;
 		}
 		uop->ready = 1;  /* avoid next call to 'x86_reg_file_ready' */
-		
+
 		/* Run the instruction in its corresponding functional unit.
 		 * If the instruction does not require a functional unit, 'x86_fu_reserve'
 		 * returns 1 cycle latency. If there is no functional unit available,
@@ -293,11 +293,11 @@ static int x86_cpu_issue_iq(int core, int thread, int quant)
 			linked_list_next(iq);
 			continue;
 		}
-		
+
 		/* Instruction was issued to the corresponding fu.
 		 * Remove it from IQ */
 		x86_iq_remove(core, thread);
-		
+
 		/* Schedule inst in Event Queue */
 		assert(!uop->in_event_queue);
 		assert(lat > 0);
@@ -305,7 +305,7 @@ static int x86_cpu_issue_iq(int core, int thread, int quant)
 		uop->issue_when = arch_x86->cycle;
 		uop->when = arch_x86->cycle + lat;
 		x86_event_queue_insert(X86_CORE.event_queue, uop);
-		
+
 		/* Statistics */
 		X86_CORE.num_issued_uinst_array[uop->uinst->opcode]++;
 		X86_CORE.iq_reads++;
@@ -326,7 +326,7 @@ static int x86_cpu_issue_iq(int core, int thread, int quant)
 		x86_trace("x86.inst id=%lld core=%d stg=\"i\"\n",
 			uop->id_in_core, uop->core);
 	}
-	
+
 	return quant;
 }
 
@@ -354,7 +354,7 @@ static void x86_cpu_issue_core(int core)
 
 	switch (x86_cpu_issue_kind)
 	{
-	
+
 	case x86_cpu_issue_kind_shared:
 	{
 		/* Issue LSQs */
@@ -374,10 +374,10 @@ static void x86_cpu_issue_core(int core)
 			quant = x86_cpu_issue_thread_iq(core, X86_CORE.issue_current, quant);
 			skip--;
 		} while (skip && quant);
-		
+
 		break;
 	}
-	
+
 	case x86_cpu_issue_kind_timeslice:
 	{
 		/* Issue LSQs */

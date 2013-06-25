@@ -1,0 +1,129 @@
+[ Network.mesh ] 
+  DefaultInputBufferSize = 128 
+  DefaultOutputBufferSize = 128 
+  DefaultBandwidth = 8
+
+;;;;;;;;;; NODES ;;;;;;;;;; 
+
+[ Network.mesh.Node.n0 ] 
+Type = EndNode 
+
+[ Network.mesh.Node.n1 ] 
+Type = EndNode 
+
+[ Network.mesh.Node.n2 ] 
+Type = EndNode 
+
+[ Network.mesh.Node.n3 ] 
+Type = EndNode 
+
+[ Network.mesh.Node.n4 ] 
+Type = EndNode 
+
+;;;;;;;; SWITCHES ;;;;;;;; 
+
+[ Network.mesh.Node.s0 ] 
+Type = Switch 
+
+[ Network.mesh.Node.s1 ] 
+Type = Switch 
+
+[ Network.mesh.Node.s2 ] 
+Type = Switch 
+
+[ Network.mesh.Node.s3 ] 
+Type = Switch 
+
+;;;;;;;;;; LINKS ;;;;;;;;;; 
+
+[ Network.mesh.Link.s0s1 ] 
+  Source = s0 
+  Dest = s1 
+  Type = Bidirectional 
+
+[ Network.mesh.Link.s0s2 ] 
+  Source = s0 
+  Dest = s2 
+  Type = Bidirectional 
+
+[ Network.mesh.Link.s1s3 ] 
+  Source = s1
+  Dest = s3
+  Type = Bidirectional 
+
+[ Network.mesh.Link.s2s3 ] 
+  Source = s2
+  Dest = s3
+  Type = Bidirectional 
+
+[ Network.mesh.Link.n0s0 ] 
+  Source = n0 
+  Dest = s0 
+  Type = Bidirectional 
+
+[ Network.mesh.Link.n1s1] 
+  Source = n1 
+  Dest = s1 
+  Type = Bidirectional 
+
+[ Network.mesh.Link.n2s2 ] 
+  Source = n2 
+  Dest = s2 
+  Type = Bidirectional 
+
+[ Network.mesh.Link.n3s3 ] 
+  Source = n3 
+  Dest = s3 
+  Type = Bidirectional 
+
+[ Network.mesh.Link.n4s0 ] 
+  Source = n4 
+  Dest = s0 
+  Type = Bidirectional 
+
+ 
+[ Network.mesh.Routes ]
+  n0.to.n1 = s0
+  n0.to.n2 = s0
+  n0.to.n3 = s0
+  n0.to.n4 = s0
+  
+  n1.to.n0 = s1
+  n1.to.n2 = s1
+  n1.to.n3 = s1
+  n1.to.n4 = s1
+  
+  n2.to.n0 = s2
+  n2.to.n1 = s2
+  n2.to.n3 = s2
+  n2.to.n4 = s2
+  
+  n3.to.n0 = s3
+  n3.to.n1 = s3
+  n3.to.n2 = s3
+  n3.to.n4 = s3
+  
+  n4.to.n0 = s0
+  n4.to.n1 = s0
+  n4.to.n2 = s0
+  n4.to.n3 = s0
+  
+  s0.to.n1 = s1
+  s0.to.n2 = s2
+  s0.to.n3 = s1
+  
+  s1.to.n0 = s0
+  s1.to.n2 = s0
+  s1.to.n3 = s3
+  s1.to.n4 = s0
+  
+  s2.to.n0 = s0
+  s2.to.n1 = s3
+  s2.to.n3 = s3
+  s2.to.n4 = s0
+  
+  s3.to.n0 = s2
+  s3.to.n1 = s1
+  s3.to.n2 = s2
+  s3.to.n4 = s2
+  

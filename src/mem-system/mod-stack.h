@@ -106,6 +106,8 @@ struct mod_stack_t
 	int src_set;
 	int src_way;
 	int src_tag;
+	int src_pref_stream;
+	int src_pref_slot;
 
 	/*Mem controller/main mem*/
 	int state_main_memory; // when the request is thrown by MC, the state of this request in main memory
@@ -118,14 +120,6 @@ struct mod_stack_t
         long long threshold; //cycles that a request can be waiting in the MC queue befaore to be throw to the bank
 	 struct linked_list_t * coalesced_stacks; //stacks which caolesce with this in memory controller
         long long t_access_net;
-
-
-	 /* Prefetch */
-        int pref_stream;
-        int pref_slot;
-        int stride;
-        struct pref_data_t pref;
-        long long stream_retried_cycle;
 
 
 	enum mod_request_dir_t request_dir;
@@ -154,13 +148,30 @@ struct mod_stack_t
 	int read : 1;
 	int write : 1;
 	int nc_write : 1;
-	int prefetch : 1;
 	int blocking : 1;
 	int writeback : 1;
 	int eviction : 1;
-	int retry : 1;
 	int coalesced : 1;
 	int port_locked : 1;
+
+	/* Pref flags */
+	int stream_hit : 1;
+	int stream_head_hit : 1;
+	int pref_eviction : 1;
+	int fast_resume : 1; /* La stack ha fet hit al buffer i retorna inmediatament, deixant un altra stack encarregada de la coherència */
+	int background : 1;
+	int wb_hit : 1;
+	int stream_retried : 1; /* Tells if this stack id has tried to lock a stream entry and has failed. */
+
+	/* Prefetch */
+	int prefetch;
+	int pref_stream;
+	int pref_slot;
+	int stride;
+	struct pref_data_t pref;
+	long long stream_retried_cycle;
+
+	int retry;
 
 	/* Message sent through interconnect */
 	struct net_msg_t *msg;
@@ -212,6 +223,9 @@ void mod_stack_wait_in_stack(struct mod_stack_t *stack,
 	struct mod_stack_t *master_stack, int event);
 void mod_stack_wakeup_stack(struct mod_stack_t *master_stack);
 
+struct write_buffer_block_t;
+void mod_stack_wait_in_write_buffer(struct mod_stack_t *stack, struct write_buffer_block_t *block, int event);
+void mod_stack_wake_up_write_buffer(struct write_buffer_block_t *block);
 
 #endif
 

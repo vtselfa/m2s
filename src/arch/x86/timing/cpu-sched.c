@@ -183,7 +183,6 @@ static void x86_cpu_map_context(struct x86_ctx_t *ctx)
 		arch_x86->cycle, ctx->pid, core, thread);
 }
 
-
 /* Unmap a context from a node, i.e., remove it from the list of contexts mapped
  * to the node. A context is unmapped from a node either because it lost
  * affinity with the node, or because it finished execution.
@@ -267,7 +266,6 @@ static void x86_cpu_evict_context_signal(struct x86_ctx_t *ctx)
 	 * happen straight away. */
 	if (x86_cpu_pipeline_empty(core, thread))
 		x86_cpu_evict_context(core, thread);
-
 }
 
 

@@ -81,6 +81,12 @@ static int x86_cpu_dispatch_thread(int core, int thread, int quant)
 		if (stall != x86_dispatch_stall_used)
 		{
 			X86_CORE.dispatch_stall[stall] += quant;
+			if (x86_dispatch_stall_rob)
+			{
+				struct x86_uop_t *head = x86_rob_head(core, thread);
+				if(head->flags & X86_UINST_MEM)
+					X86_CORE.dispatch_stall[x86_dispatch_stall_rob_mem] += quant;
+			}
 			break;
 		}
 	

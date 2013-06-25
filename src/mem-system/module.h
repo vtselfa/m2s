@@ -22,6 +22,14 @@
 
 #include <stdio.h>
 
+/* Adaptative prefetch */
+extern int EV_CACHE_ADAPT_PREF;
+struct core_thread_tuple_t
+{
+	int core;
+	int thread;
+};
+
 /* Port */
 struct mod_port_t
 {
@@ -47,7 +55,10 @@ enum mod_access_kind_t
 	mod_access_load,
 	mod_access_store,
 	mod_access_nc_store,
-	mod_access_prefetch
+	mod_access_prefetch,
+	mod_access_read_request,
+	mod_access_write_request,
+	mod_access_invalidate //VVV
 };
 
 /* Module types */
@@ -64,6 +75,14 @@ enum mod_kind_t
  * is called. */
 struct mod_client_info_t
 {
+	int core;
+	int thread;
+
+	/* Fields used by stream prefetchers */
+	int stream;
+	int slot;
+	int invalidate;
+
 	/* This field is for use by the prefetcher. It is set
 	 * to the PC of the instruction accessing the module */
 	unsigned int prefetcher_eip;
@@ -75,6 +94,22 @@ enum mod_range_kind_t
 	mod_range_invalid = 0,
 	mod_range_bounds,
 	mod_range_interleaved
+};
+
+struct mod_adapt_pref_stack_t
+{
+	struct mod_t *mod;
+	long long inst_count;
+	long long last_inst_count;
+	long long last_cycle;
+	long long last_useful_prefetches;
+	long long last_no_retry_accesses;
+	long long last_no_retry_hits;
+	long long last_cycles_stalled;
+	long long last_misses_int;
+	long long last_strides_detected;
+	long long last_cycle_pref_disabled;
+	double last_ipc_int;
 };
 
 #define MOD_ACCESS_HASH_TABLE_SIZE  17
@@ -90,6 +125,8 @@ struct mod_t
 	int latency;
 	int dir_latency;
 	int mshr_size;
+
+	struct linked_list_t *threads; /* List of (core, thread) tuples that can access this module */
 
 	/* Main memory module */
 	struct reg_rank_t * regs_rank; // ranks which this channels connects with
@@ -197,14 +234,18 @@ struct mod_t
 	 * memory hierarchy, the field is used to check this restriction. */
 	struct arch_t *arch;
 
+	/* For constructing a list with all the modules with adaptative prefetch */
+	int visited;
+
+	/* Stack for activate/deactivate prefetch at intervals */
+	struct mod_adapt_pref_stack_t *adapt_pref_stack;
+
 	/* Statistics */
 	long long accesses;
-        long long last_accesses;
-        long long hits;
-        long long last_hits;
-        long long last_misses_int; /* Misses in last interval */
-
-        long long hits_pref; /* Hits de stacks de prefetch en els moduls inferiors */
+	long long last_accesses;
+	long long hits;
+	long long last_hits;
+	long long last_misses_int; /* Misses in last interval */
 
 	long long reads;
 	long long effective_reads;
@@ -245,44 +286,50 @@ struct mod_t
 	long long no_retry_stream_hits;
 
 	/* Prefetch */
-        long long programmed_prefetches;
-        long long completed_prefetches;
-        long long last_completed_prefetches;
-        long long canceled_prefetches;
-        long long useful_prefetches;
-        long long last_useful_prefetches;
-        long long effective_useful_prefetches; /* Useful prefetches with less delay hit cicles than 1/3 of the delay of accesing MM */
-        long long last_effective_useful_prefetches;
+	long long programmed_prefetches;
+	long long completed_prefetches;
+	long long last_completed_prefetches;
+	long long canceled_prefetches;
+	long long useful_prefetches;
+	long long last_useful_prefetches;
+	long long effective_useful_prefetches; /* Useful prefetches with less delay hit cicles than 1/3 of the delay of accesing MM */
+	long long last_effective_useful_prefetches;
 
-        long long prefetch_retries;
+	long long prefetch_retries;
 
-        long long stream_hits;
-        long long last_stream_hits;
-        long long delayed_hits; /* Hit on a block being brougth by a prefetch */
-        long long last_delayed_hits;
-        long long delayed_hit_cycles; /* Cicles lost due delayed hits */
-        long long last_delayed_hit_cycles;
-        long long delayed_hits_cycles_counted; /* Number of delayed hits whose lost cycles has been counted */
+	long long stream_hits;
+	long long last_stream_hits;
+	long long delayed_hits; /* Hit on a block being brougth by a prefetch */
+	long long last_delayed_hits;
+	long long delayed_hit_cycles; /* Cicles lost due delayed hits */
+	long long last_delayed_hit_cycles;
+	long long delayed_hits_cycles_counted; /* Number of delayed hits whose lost cycles has been counted */
 
-        long long single_prefetches; /* Prefetches on hit */
-        long long group_prefetches; /* Number of GROUPS */
-        long long canceled_prefetch_groups;
+	long long single_prefetches; /* Prefetches on hit */
+	long long group_prefetches; /* Number of GROUPS */
+	long long canceled_prefetch_groups;
 
-        long long canceled_prefetches_end_stream;
-        long long canceled_prefetches_mshr;
+	long long canceled_prefetches_end_stream;
+	long long canceled_prefetches_mshr;
 
-        long long up_down_hits;
-        long long up_down_head_hits;
-        long long down_up_read_hits;
-        long long down_up_write_hits;
+	long long up_down_hits;
+	long long up_down_head_hits;
+	long long down_up_read_hits;
+	long long down_up_write_hits;
 
-        long long fast_resumed_accesses;
-        long long write_buffer_read_hits;
-        long long write_buffer_write_hits;
-        long long write_buffer_prefetch_hits;
+	long long fast_resumed_accesses;
+	long long write_buffer_read_hits;
+	long long write_buffer_write_hits;
+	long long write_buffer_prefetch_hits;
 
-        long long stream_evictions;
+	long long stream_evictions;
 
+	/* Silent replacement */
+	long long down_up_read_misses;
+	long long down_up_write_misses;
+	long long block_already_here;
+
+	long long faults_mem_without_pref;
 };
 
 struct mod_t *mod_create(char *name, enum mod_kind_t kind, int num_ports,
@@ -330,6 +377,13 @@ void mod_coalesce(struct mod_t *mod, struct mod_stack_t *master_stack,
 
 struct mod_client_info_t *mod_client_info_create(struct mod_t *mod);
 void mod_client_info_free(struct mod_t *mod, struct mod_client_info_t *client_info);
+
+/* Prefetch */
+int mod_find_pref_block(struct mod_t *mod, unsigned int addr, int *pref_stream_ptr, int* pref_slot_ptr);
+int mod_find_block_in_stream(struct mod_t *mod, unsigned int addr, int stream);
+
+void mod_adapt_pref_schedule(struct mod_t *mod);
+void mod_adapt_pref_handler(int event, void *data);
 
 #endif
 

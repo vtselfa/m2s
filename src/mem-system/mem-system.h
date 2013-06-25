@@ -43,7 +43,6 @@ struct mem_system_t
 
 
 
-
 /*
  * Global Variables
  */
@@ -83,7 +82,6 @@ void mem_system_init(void);
 void mem_system_done(void);
 
 void mem_system_dump_report(void);
-
 
 struct mod_t *mem_system_get_mod(char *mod_name);
 struct net_t *mem_system_get_net(char *net_name);

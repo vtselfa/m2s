@@ -37,6 +37,7 @@
 #include <mem-system/mem-system.h>
 #include <mem-system/memory.h>
 #include <mem-system/mmu.h>
+#include <mem-system/module.h>
 #include <mem-system/rank.h>
 #include <mem-system/spec-mem.h>
 
@@ -949,70 +950,73 @@ void x86_ctx_gen_proc_cpuinfo(struct x86_ctx_t *ctx, char *path, int size)
 }
 
 
+
 /*
  * IPC report
  */
 
 void x86_ctx_ipc_report_schedule(struct x86_ctx_t *ctx)
 {
-        struct x86_ctx_report_stack_t *stack;
-        FILE *f = ctx->loader->ipc_report_file;
-        int i;
+	struct x86_ctx_report_stack_t *stack;
+	FILE *f = ctx->loader->ipc_report_file;
+	int i;
 
         /* Create new stack */
         stack = xcalloc(1, sizeof(struct x86_ctx_report_stack_t));
         if (!stack)
                 fatal("%s: out of memory", __FUNCTION__);
 
-        /* Initialize */
-        assert(ctx->loader->ipc_report_file);
-        assert(ctx->loader->ipc_report_interval > 0);
-        stack->pid = ctx->pid;
+	/* Initialize */
+	assert(ctx->loader->ipc_report_file);
+	assert(ctx->loader->ipc_report_interval > 0);
+	stack->pid = ctx->pid;
 
-        /* Print header */
-        fprintf(f, "%s", help_x86_ctx_ipc_report);
-        fprintf(f, "%10s %10s %8s %10s %10s\n", "cycle", "inst", "inst-int", "ipc-glob", "ipc-int");
-        for (i = 0; i < 43; i++)
-                fprintf(f, "-");
-        fprintf(f, "\n");
+	/* Print header */
+	fprintf(f, "%s", help_x86_ctx_ipc_report);
+	fprintf(f, "%10s %10s %8s %10s %10s\n", "cycle", "inst", "inst-int", "ipc-glob", "ipc-int");
+	for (i = 0; i < 43; i++)
+		fprintf(f, "-");
+	fprintf(f, "\n");
 
-        ctx->ipc_report_stack = stack;
+	ctx->ipc_report_stack = stack;
 
-        /* Schedule first event */
-        if(ctx->loader->interval_kind == interval_kind_cycles)
-                esim_schedule_event(EV_X86_CTX_IPC_REPORT, stack, ctx->loader->ipc_report_interval);
+	/* Schedule first event */
+	if(ctx->loader->interval_kind == interval_kind_cycles)
+		esim_schedule_event(EV_X86_CTX_IPC_REPORT, stack, ctx->loader->ipc_report_interval);
 }
+
 
 void x86_ctx_ipc_report_handler(int event, void *data)
 {
-        struct x86_ctx_report_stack_t *stack = data;
-        struct x86_ctx_t *ctx;
+	struct x86_ctx_report_stack_t *stack = data;
+	struct x86_ctx_t *ctx;
 
-        long long inst_count;
-        double ipc_interval;
-        double ipc_global;
+	long long inst_count;
+	double ipc_interval;
+	double ipc_global;
 
-        /* Get context. If it does not exist anymore, no more
-         * events to schedule. */
-        ctx = x86_ctx_get(stack->pid);
-        if (!ctx || x86_ctx_get_state(ctx, x86_ctx_finished) || esim_finish)
-                return;
+	/* Get context. If it does not exist anymore, no more
+	 * events to schedule. */
+	ctx = x86_ctx_get(stack->pid);
+	if (!ctx || x86_ctx_get_state(ctx, x86_ctx_finished) || esim_finish)
+		return;
 
-        /* Dump new IPC */
-        assert(ctx->loader->ipc_report_interval);
-        inst_count = ctx->inst_count - stack->inst_count;
-        ipc_global = esim_cycle() ? (double) ctx->inst_count / esim_cycle() : 0.0;
-        ipc_interval = (double) inst_count / (esim_cycle() - stack->last_cycle);
-        fprintf(ctx->loader->ipc_report_file, "%10lld %10lld %8lld %10.4f %10.4f\n",
-                esim_cycle(), ctx->inst_count, inst_count, ipc_global, ipc_interval);
+	/* Dump new IPC */
+	assert(ctx->loader->ipc_report_interval);
+	inst_count = ctx->inst_count - stack->inst_count;
+	ipc_global = esim_cycle() ? (double) ctx->inst_count / esim_cycle() : 0.0;
+	ipc_interval = (double) inst_count / (esim_cycle() - stack->last_cycle);
+	fprintf(ctx->loader->ipc_report_file, "%10lld %10lld %8lld %10.4f %10.4f\n",
+		esim_cycle(), ctx->inst_count, inst_count, ipc_global, ipc_interval);
 
-        stack->inst_count = ctx->inst_count;
-        stack->last_cycle = esim_cycle();
+	stack->inst_count = ctx->inst_count;
+	stack->last_cycle = esim_cycle();
 
-        /* Schedule new event */
-        if(ctx->loader->interval_kind == interval_kind_cycles)
-                esim_schedule_event(event, stack, ctx->loader->ipc_report_interval);
+	/* Schedule new event */
+	if(ctx->loader->interval_kind == interval_kind_cycles)
+		esim_schedule_event(event, stack, ctx->loader->ipc_report_interval);
 }
+
 
 
 /*
@@ -1021,129 +1025,131 @@ void x86_ctx_ipc_report_handler(int event, void *data)
 
 void x86_ctx_misc_report_schedule(struct x86_ctx_t *ctx)
 {
-        struct x86_ctx_report_stack_t *stack;
-        FILE *f = ctx->loader->misc_report_file;
-        int i;
+	struct x86_ctx_report_stack_t *stack;
+	FILE *f = ctx->loader->misc_report_file;
+	int i;
 
         /* Create new stack */
         stack = xcalloc(1, sizeof(struct x86_ctx_report_stack_t));
         if (!stack)
                 fatal("%s: out of memory", __FUNCTION__);
 
-        /* Initialize */
-        assert(ctx->loader->misc_report_file);
-        assert(ctx->loader->misc_report_interval > 0);
-        stack->pid = ctx->pid;
+	/* Initialize */
+	assert(ctx->loader->misc_report_file);
+	assert(ctx->loader->misc_report_interval > 0);
+	stack->pid = ctx->pid;
 
-        /* Print header */
-        fprintf(f, "%s", help_x86_ctx_misc_report);
-        fprintf(f, "%10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s\n", "cycle", "inst", "inst-int", "module", "completed-prefetches-int", "completed-prefetches-glob", "prefetch-accuracy-int", "delayed-hits-int", "delayed-hit-avg-lost-cycles-int", "misses-int", "stream-hits-int", "effective-prefetch-accuracy-int", "mpki-int", "pseudocoverage-int", "prefetch-active-int","strides-detected-int");
-        for (i = 0; i < 43; i++)
-                fprintf(f, "-");
-        fprintf(f, "\n");
+	/* Print header */
+	fprintf(f, "%s", help_x86_ctx_misc_report);
+	fprintf(f, "%10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s\n", "cycle", "inst", "inst-int", "module", "completed-prefetches-int", "completed-prefetches-glob", "prefetch-accuracy-int", "delayed-hits-int", "delayed-hit-avg-lost-cycles-int", "misses-int", "stream-hits-int", "effective-prefetch-accuracy-int", "mpki-int", "pseudocoverage-int", "prefetch-active-int","strides-detected-int");
+	for (i = 0; i < 43; i++)
+		fprintf(f, "-");
+	fprintf(f, "\n");
 
-        ctx->misc_report_stack = stack;
+	ctx->misc_report_stack = stack;
 
-        /* Schedule first event */
-        if(ctx->loader->interval_kind == interval_kind_cycles)
-                esim_schedule_event(EV_X86_CTX_MISC_REPORT, stack, ctx->loader->misc_report_interval);
+	/* Schedule first event */
+	if(ctx->loader->interval_kind == interval_kind_cycles)
+		esim_schedule_event(EV_X86_CTX_MISC_REPORT, stack, ctx->loader->misc_report_interval);
 }
+
 
 void x86_ctx_misc_report_handler(int event, void *data)
 {
-        struct x86_ctx_report_stack_t *stack = data;
-        struct x86_ctx_t *ctx;
-        struct mod_t * mod;
-        long long inst_count;
-        int i;
+	struct x86_ctx_report_stack_t *stack = data;
+	struct x86_ctx_t *ctx;
+	struct mod_t * mod;
+	long long inst_count;
+	int i;
 
-        /* Get context. If it does not exist anymore, no more
-         * events to schedule. */
-        ctx = x86_ctx_get(stack->pid);
-        if (!ctx || x86_ctx_get_state(ctx, x86_ctx_finished) || esim_finish)
-                return;
+	/* Get context. If it does not exist anymore, no more
+	 * events to schedule. */
+	ctx = x86_ctx_get(stack->pid);
+	if (!ctx || x86_ctx_get_state(ctx, x86_ctx_finished) || esim_finish)
+		return;
 
-        /* Compute statistics */
-        inst_count = ctx->inst_count - stack->inst_count;
-        LIST_FOR_EACH(mem_system->mod_list, i)
-        {
-                mod = list_get(mem_system->mod_list, i);
+	/* Compute statistics */
+	inst_count = ctx->inst_count - stack->inst_count;
+	LIST_FOR_EACH(mem_system->mod_list, i)
+	{
+		mod = list_get(mem_system->mod_list, i);
 
-                /* Main memory */
-                if(mod->kind == mod_kind_main_memory)
-                {
-                        /* Nothing for now */
-                }
+		/* Main memory */
+		if(mod->kind == mod_kind_main_memory)
+		{
+			/* Nothing for now */
+		}
 
-                /* Cache */
-                else if(strcmp(mod->name, "l2-0") == 0 || strcmp(mod->name, "l2-1") == 0) //TODO: Açò és una cutror...
-                {
-                        /* Prefetch accuracy */
-                        long long completed_prefetches_int = mod->completed_prefetches -
-                                mod->last_completed_prefetches;
-                        long long useful_prefetches_int = mod->useful_prefetches -
-                                mod->last_useful_prefetches;
-                        double prefetch_accuracy_int = completed_prefetches_int ?
-                                (double) useful_prefetches_int / completed_prefetches_int : 0.0;
-                        prefetch_accuracy_int = prefetch_accuracy_int > 1 ? 1 : prefetch_accuracy_int; /* May be slightly greather than 1 due bad timing with cycles */
+		/* Cache */
+		else if(strcmp(mod->name, "l2-0") == 0 || strcmp(mod->name, "l2-1") == 0) //TODO: Açò és una cutror...
+		{
+			/* Prefetch accuracy */
+			long long completed_prefetches_int = mod->completed_prefetches -
+				mod->last_completed_prefetches;
+			long long useful_prefetches_int = mod->useful_prefetches -
+				mod->last_useful_prefetches;
+			double prefetch_accuracy_int = completed_prefetches_int ?
+				(double) useful_prefetches_int / completed_prefetches_int : 0.0;
+			prefetch_accuracy_int = prefetch_accuracy_int > 1 ? 1 : prefetch_accuracy_int; /* May be slightly greather than 1 due bad timing with cycles */
 
 			/* Delayed hits */
-                        long long delayed_hits_int = mod->delayed_hits -
-                                mod->last_delayed_hits;
-                        long long delayed_hit_cycles_int = mod->delayed_hit_cycles -
-                                mod->last_delayed_hit_cycles;
-                        double delayed_hit_avg_lost_cycles_int = delayed_hits_int ?
-                                (double) delayed_hit_cycles_int / delayed_hits_int : 0.0;
+			long long delayed_hits_int = mod->delayed_hits -
+				mod->last_delayed_hits;
+			long long delayed_hit_cycles_int = mod->delayed_hit_cycles -
+				mod->last_delayed_hit_cycles;
+			double delayed_hit_avg_lost_cycles_int = delayed_hits_int ?
+				(double) delayed_hit_cycles_int / delayed_hits_int : 0.0;
 
-                        /* Cache misses */
-                        long long accesses_int = mod->no_retry_accesses - mod->last_accesses;
-                        long long hits_int = mod->no_retry_hits - mod->last_hits;
-                        long long misses_int = accesses_int - hits_int;
+			/* Cache misses */
+			long long accesses_int = mod->no_retry_accesses - mod->last_accesses;
+			long long hits_int = mod->no_retry_hits - mod->last_hits;
+			long long misses_int = accesses_int - hits_int;
 
-                        /* Stream hits */
-                        long long stream_hits_int = mod->no_retry_stream_hits - mod->last_stream_hits;
+			/* Stream hits */
+			long long stream_hits_int = mod->no_retry_stream_hits - mod->last_stream_hits;
 
-                        /* Effective prefetch accuracy */
-                        long long effective_useful_prefetches_int = mod->effective_useful_prefetches -
-                                mod->last_effective_useful_prefetches;
-                        double effective_prefetch_accuracy_int = completed_prefetches_int ?
-                                (double) effective_useful_prefetches_int / completed_prefetches_int : 0.0;
-                        effective_prefetch_accuracy_int = effective_prefetch_accuracy_int > 1 ? 1 : effective_prefetch_accuracy_int; /* May be slightly greather than 1 due bad timing with cycles */
+			/* Effective prefetch accuracy */
+			long long effective_useful_prefetches_int = mod->effective_useful_prefetches -
+				mod->last_effective_useful_prefetches;
+			double effective_prefetch_accuracy_int = completed_prefetches_int ?
+				(double) effective_useful_prefetches_int / completed_prefetches_int : 0.0;
+			effective_prefetch_accuracy_int = effective_prefetch_accuracy_int > 1 ? 1 : effective_prefetch_accuracy_int; /* May be slightly greather than 1 due bad timing with cycles */
 
-                        /* MPKI */
-                        double mpki_int = (double) misses_int / (inst_count / 1000.0);
+			/* MPKI */
+			double mpki_int = (double) misses_int / (inst_count / 1000.0);
 
-                        /* Pseudocoverage */
-                        double pseudocoverage_int = (misses_int + useful_prefetches_int) ?
-                                (double) useful_prefetches_int / (misses_int + useful_prefetches_int) : 0.0;
+			/* Pseudocoverage */
+			double pseudocoverage_int = (misses_int + useful_prefetches_int) ?
+				(double) useful_prefetches_int / (misses_int + useful_prefetches_int) : 0.0;
 
-                        /* Detected strides */
-                        long long detected_strides_int = mod->cache->prefetch.stride_detector.strides_detected - mod->cache->prefetch.stride_detector.last_strides_detected;
+			/* Detected strides */
+			long long detected_strides_int = mod->cache->prefetch.stride_detector.strides_detected - mod->cache->prefetch.stride_detector.last_strides_detected;
 
-                        /* Dump stats */
-                        fprintf(ctx->loader->misc_report_file, "%10lld %10lld %8lld %8s %8lld %8lld %10.4f %8lld %10.4f %8lld %8lld %10.4f %10.4f %10.4f %8u %8lld\n", esim_cycle(), ctx->inst_count, inst_count, mod->name, completed_prefetches_int, mod->completed_prefetches, prefetch_accuracy_int, delayed_hits_int, delayed_hit_avg_lost_cycles_int, misses_int, stream_hits_int, effective_prefetch_accuracy_int, mpki_int, pseudocoverage_int, mod->cache->pref_enabled, detected_strides_int);
+			/* Dump stats */
+			fprintf(ctx->loader->misc_report_file, "%10lld %10lld %8lld %8s %8lld %8lld %10.4f %8lld %10.4f %8lld %8lld %10.4f %10.4f %10.4f %8u %8lld\n", esim_cycle(), ctx->inst_count, inst_count, mod->name, completed_prefetches_int, mod->completed_prefetches, prefetch_accuracy_int, delayed_hits_int, delayed_hit_avg_lost_cycles_int, misses_int, stream_hits_int, effective_prefetch_accuracy_int, mpki_int, pseudocoverage_int, mod->cache->pref_enabled, detected_strides_int);
 
 			mod->last_delayed_hits = mod->delayed_hits;
-                        mod->last_delayed_hit_cycles = mod->delayed_hit_cycles;
-                        mod->last_useful_prefetches = mod->useful_prefetches;
-                        mod->last_completed_prefetches = mod->completed_prefetches;
-                        mod->last_accesses = mod->no_retry_accesses;
-                        mod->last_hits = mod->no_retry_hits;
-                        mod->last_stream_hits = mod->no_retry_stream_hits;
-                        mod->last_effective_useful_prefetches = mod->effective_useful_prefetches;
-                        mod->last_misses_int = misses_int;
-                        mod->cache->prefetch.stride_detector.last_strides_detected =
-                                mod->cache->prefetch.stride_detector.strides_detected;
-                }
-        }
+			mod->last_delayed_hit_cycles = mod->delayed_hit_cycles;
+			mod->last_useful_prefetches = mod->useful_prefetches;
+			mod->last_completed_prefetches = mod->completed_prefetches;
+			mod->last_accesses = mod->no_retry_accesses;
+			mod->last_hits = mod->no_retry_hits;
+			mod->last_stream_hits = mod->no_retry_stream_hits;
+			mod->last_effective_useful_prefetches = mod->effective_useful_prefetches;
+			mod->last_misses_int = misses_int;
+			mod->cache->prefetch.stride_detector.last_strides_detected =
+				mod->cache->prefetch.stride_detector.strides_detected;
+		}
+	}
 
-        /* Schedule new event */
-        assert(ctx->loader->ipc_report_interval);
-        stack->inst_count = ctx->inst_count;
+	/* Schedule new event */
+	assert(ctx->loader->ipc_report_interval);
+	stack->inst_count = ctx->inst_count;
 
-        if(ctx->loader->interval_kind == interval_kind_cycles)
-                esim_schedule_event(event, stack, ctx->loader->misc_report_interval);
+	if(ctx->loader->interval_kind == interval_kind_cycles)
+		esim_schedule_event(event, stack, ctx->loader->misc_report_interval);
 }
+
 
 
 /*
@@ -1152,19 +1158,19 @@ void x86_ctx_misc_report_handler(int event, void *data)
 
 void x86_ctx_mc_report_schedule(struct x86_ctx_t *ctx)
 {
-        struct x86_ctx_report_stack_t *stack;
-        FILE *f = ctx->loader->mc_report_file;
-        int i;
+	struct x86_ctx_report_stack_t *stack;
+	FILE *f = ctx->loader->mc_report_file;
+	int i;
 
         /* Create new stack */
         stack = xcalloc(1, sizeof(struct x86_ctx_report_stack_t));
         if (!stack)
                 fatal("%s: out of memory", __FUNCTION__);
 
-        /* Initialize */
-        assert(ctx->loader->mc_report_file);
-        assert(ctx->loader->mc_report_interval > 0);
-        stack->pid = ctx->pid;
+	/* Initialize */
+	assert(ctx->loader->mc_report_file);
+	assert(ctx->loader->mc_report_interval > 0);
+	stack->pid = ctx->pid;
 
         /* Print header */
         fprintf(f, "%s", help_x86_ctx_mc_report);
@@ -1173,12 +1179,13 @@ void x86_ctx_mc_report_schedule(struct x86_ctx_t *ctx)
                 fprintf(f, "-");
         fprintf(f, "\n");
 
-        ctx->mc_report_stack = stack;
+	ctx->mc_report_stack = stack;
 
-        /* Schedule first event */
-        if(ctx->loader->interval_kind == interval_kind_cycles)
-                esim_schedule_event(EV_X86_CTX_MC_REPORT, stack, ctx->loader->mc_report_interval);
+	/* Schedule first event */
+	if(ctx->loader->interval_kind == interval_kind_cycles)
+		esim_schedule_event(EV_X86_CTX_MC_REPORT, stack, ctx->loader->mc_report_interval);
 }
+
 
 void x86_ctx_mc_report_handler(int event, void *data)
 {
@@ -1200,11 +1207,11 @@ void x86_ctx_mc_report_handler(int event, void *data)
         int lived_streams=0;
         struct tuple_adapt_t * tuple;
 
-        /* Get context. If it does not exist anymore, no more
-         * events to schedule. */
-        ctx = x86_ctx_get(stack->pid);
-        if (!ctx || x86_ctx_get_state(ctx, x86_ctx_finished) || esim_finish)
-                return;
+	/* Get context. If it does not exist anymore, no more
+	 * events to schedule. */
+	ctx = x86_ctx_get(stack->pid);
+	if (!ctx || x86_ctx_get_state(ctx, x86_ctx_finished) || esim_finish)
+		return;
 
         LINKED_LIST_FOR_EACH(mem_system->mem_controllers)
         {
@@ -1305,72 +1312,68 @@ void x86_ctx_mc_report_handler(int event, void *data)
 
 void x86_ctx_cpu_report_schedule(struct x86_ctx_t *ctx)
 {
-        struct x86_ctx_report_stack_t *stack;
-        FILE *f = ctx->loader->cpu_report_file;
-        int i;
+	struct x86_ctx_report_stack_t *stack;
+	FILE *f = ctx->loader->cpu_report_file;
+	int i;
 
         /* Create new stack */
         stack = xcalloc(1, sizeof(struct x86_ctx_report_stack_t));
         if (!stack)
                 fatal("%s: out of memory", __FUNCTION__);
 
-        /* Initialize */
-        assert(ctx->loader->cpu_report_file);
-        assert(ctx->loader->cpu_report_interval > 0);
-        stack->pid = ctx->pid;
+	/* Initialize */
+	assert(ctx->loader->cpu_report_file);
+	assert(ctx->loader->cpu_report_interval > 0);
+	stack->pid = ctx->pid;
 
-        /* Print header */
-        fprintf(f, "%s", help_x86_ctx_cpu_report);
-        fprintf(f, "%10s %10s %8s %8s %10s\n", "cycle", "inst", "inst-int", "core", "%_stalled_due_mem_inst");
-        for (i = 0; i < 43; i++)
-                fprintf(f, "-");
-        fprintf(f, "\n");
+	/* Print header */
+	fprintf(f, "%s", help_x86_ctx_cpu_report);
+	fprintf(f, "%10s %10s %8s %8s %10s\n", "cycle", "inst", "inst-int", "core", "%_stalled_due_mem_inst");
+	for (i = 0; i < 43; i++)
+		fprintf(f, "-");
+	fprintf(f, "\n");
 
-        ctx->cpu_report_stack = stack;
+	ctx->cpu_report_stack = stack;
 
-        /* Schedule first event */
-        if(ctx->loader->interval_kind == interval_kind_cycles)
-                esim_schedule_event(EV_X86_CTX_CPU_REPORT, stack, ctx->loader->cpu_report_interval);
+	/* Schedule first event */
+	if(ctx->loader->interval_kind == interval_kind_cycles)
+		esim_schedule_event(EV_X86_CTX_CPU_REPORT, stack, ctx->loader->cpu_report_interval);
 }
+
 
 void x86_ctx_cpu_report_handler(int event, void *data)
 {
-        struct x86_ctx_report_stack_t *stack = data;
-        struct x86_ctx_t *ctx;
-        long long inst_count;
-        int core;
-        float cycles_stalled;
+	struct x86_ctx_report_stack_t *stack = data;
+	struct x86_ctx_t *ctx;
+	long long inst_count;
+	int core;
+	float cycles_stalled;
 
-        /* Get context. If it does not exist anymore, no more
-         * events to schedule. */
-        ctx = x86_ctx_get(stack->pid);
-        if (!ctx || x86_ctx_get_state(ctx, x86_ctx_finished) || esim_finish)
-                return;
+	/* Get context. If it does not exist anymore, no more
+	 * events to schedule. */
+	ctx = x86_ctx_get(stack->pid);
+	if (!ctx || x86_ctx_get_state(ctx, x86_ctx_finished) || esim_finish)
+		return;
 
-        X86_CORE_FOR_EACH
-        {
-                cycles_stalled = esim_cycle() - stack->last_cycle > 0 ? (double)
-                        100 * (X86_CORE.dispatch_stall_cycles_rob_mem - X86_CORE.last_dispatch_stall_cycles_rob_mem) /
-                        (esim_cycle() - stack->last_cycle) : 0.0;
+	X86_CORE_FOR_EACH
+	{
+		cycles_stalled = esim_cycle - stack->last_cycle > 0 ? (double)
+			100 * (X86_CORE.dispatch_stall_cycles_rob_mem - X86_CORE.last_dispatch_stall_cycles_rob_mem) /
+			(esim_cycle() - stack->last_cycle) : 0.0;
 
-                /* Dump new MC stat */
-                assert(ctx->loader->cpu_report_interval);
-                inst_count = ctx->inst_count - stack->inst_count;
-                fprintf(ctx->loader->cpu_report_file, "%10lld %10lld %8lld %d %10.4f\n", esim_cycle(), ctx->inst_count, inst_count, core, cycles_stalled);
-        }
+		/* Dump new MC stat */
+		assert(ctx->loader->cpu_report_interval);
+		inst_count = ctx->inst_count - stack->inst_count;
+		fprintf(ctx->loader->cpu_report_file, "%10lld %10lld %8lld %d %10.4f\n", esim_cycle(), ctx->inst_count, inst_count, core, cycles_stalled);
+	}
 
-        /* Update intermediate results */
-        stack->last_cycle = esim_cycle();
-        X86_CORE_FOR_EACH
-                X86_CORE.last_dispatch_stall_cycles_rob_mem = X86_CORE.dispatch_stall_cycles_rob_mem;
+	/* Update intermediate results */
+	stack->last_cycle = esim_cycle();
+	X86_CORE_FOR_EACH
+		X86_CORE.last_dispatch_stall_cycles_rob_mem = X86_CORE.dispatch_stall_cycles_rob_mem;
 
-        /* Schedule new event */
-        stack->inst_count = ctx->inst_count;
-        if(ctx->loader->interval_kind == interval_kind_cycles)
-                esim_schedule_event(event, stack, ctx->loader->cpu_report_interval);
+	/* Schedule new event */
+	stack->inst_count = ctx->inst_count;
+	if(ctx->loader->interval_kind == interval_kind_cycles)
+		esim_schedule_event(event, stack, ctx->loader->cpu_report_interval);
 }
-
-
-
-
-

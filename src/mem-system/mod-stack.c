@@ -35,7 +35,7 @@ long long mod_stack_id;
 
 
 struct mod_stack_t *mod_stack_create(long long id, struct mod_t *mod,
-	unsigned int addr, int ret_event, struct mod_stack_t *ret_stack)
+	unsigned int addr, int ret_event, struct mod_stack_t *ret_stack, int prefetch)
 {
 	struct mod_stack_t *stack;
 
@@ -51,6 +51,9 @@ struct mod_stack_t *mod_stack_create(long long id, struct mod_t *mod,
 	stack->way = -1;
 	stack->set = -1;
 	stack->tag = -1;
+	stack->pref_stream = -1;
+	stack->pref_slot = -1;
+	stack->prefetch = prefetch;
 
 	/* Return */
 	return stack;
@@ -144,6 +147,55 @@ void mod_stack_wait_in_stack(struct mod_stack_t *stack,
 
 	stack->waiting_list_event = event;
 	DOUBLE_LINKED_LIST_INSERT_TAIL(master_stack, waiting, stack);
+}
+
+
+void mod_stack_wait_in_write_buffer(struct mod_stack_t *stack, struct write_buffer_block_t *block, int event)
+{
+	struct mod_stack_t *queue_iter;
+
+	/* Enqueue the stack to the end of the lock queue */
+	stack->dir_lock_next = NULL;
+	stack->dir_lock_event = event;
+
+	/* Special case: queue is empty */
+	if (!block->wait_queue)
+		block->wait_queue = stack;
+
+	else
+	{
+		queue_iter = block->wait_queue;
+
+		while (stack->id > queue_iter->id)
+		{
+			if (!queue_iter->dir_lock_next)
+				break;
+
+			queue_iter = queue_iter->dir_lock_next;
+		}
+
+		/* Stack goes at end of queue */
+		if (!queue_iter->dir_lock_next)
+			queue_iter->dir_lock_next = stack;
+
+		/* Stack goes in front or middle of queue */
+		else
+		{
+			stack->dir_lock_next = queue_iter->dir_lock_next;
+			queue_iter->dir_lock_next = stack;
+		}
+	}
+}
+
+
+void mod_stack_wake_up_write_buffer(struct write_buffer_block_t *block)
+{
+	while (block->wait_queue)
+	{
+		esim_schedule_event(block->wait_queue->dir_lock_event, block->wait_queue, 1);
+		mem_debug("    0x%x access with id %lld waiting in wb resumed\n", block->tag, block->wait_queue->id);
+		block->wait_queue = block->wait_queue->dir_lock_next;
+	}
 }
 
 

@@ -126,6 +126,7 @@ enum x86_dispatch_stall_t
 	x86_dispatch_stall_spec,  /* Used with a speculative inst. */
 	x86_dispatch_stall_uop_queue,  /* No instruction in the uop queue */
 	x86_dispatch_stall_rob,  /* No space in the rob */
+	x86_dispatch_stall_rob_mem,  /* No space in the rob because a memory instruction */
 	x86_dispatch_stall_iq,  /* No space in the iq */
 	x86_dispatch_stall_lsq,  /* No space in the lsq */
 	x86_dispatch_stall_rename,  /* No free physical register */
@@ -184,6 +185,10 @@ struct x86_thread_t
 	/* Entries to the memory system */
 	struct mod_t *data_mod;  /* Entry for data */
 	struct mod_t *inst_mod;  /* Entry for instructions */
+
+	/* List of modules with adaptative prefetch reachables from this thread
+	 * which status must be updated at a fixed instruction interval */
+	struct list_t *adapt_pref_modules;
 
 	/* Cycle in which last micro-instruction committed */
 	long long last_commit_cycle;

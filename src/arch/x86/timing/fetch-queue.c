@@ -110,4 +110,3 @@ void x86_fetch_queue_recover(int core, int thread)
 		x86_uop_free_if_not_queued(uop);
 	}
 }
-

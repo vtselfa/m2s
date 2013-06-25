@@ -146,4 +146,3 @@ void x86_event_queue_recover(int core, int thread)
 		linked_list_next(event_queue);
 	}
 }
-

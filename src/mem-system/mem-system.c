@@ -114,8 +114,6 @@ void mem_system_free(struct mem_system_t *mem_system)
 		net_free(list_pop(mem_system->net_list));
 	list_free(mem_system->net_list);
 
-	
-
 	/* Free memory system */
 	free(mem_system);
 }
@@ -230,6 +228,31 @@ void mem_system_init(void)
 	EV_MOD_NMOESI_PREFETCH_FINISH = esim_register_event_with_name(mod_handler_nmoesi_prefetch,
 			mem_domain_index, "mod_nmoesi_prefetch_finish");
 
+	/* Streams prefetch */
+	EV_MOD_PREF = esim_register_event_with_name(mod_handler_pref, mem_domain_index, "mod_nmoesi_prefetch_streams");
+	EV_MOD_PREF_LOCK = esim_register_event_with_name(mod_handler_pref, mem_domain_index, "mod_nmoesi_prefetch_streams_lock");
+	EV_MOD_PREF_ACTION = esim_register_event_with_name(mod_handler_pref, mem_domain_index, "mod_nmoesi_prefetch_streams_action");
+	EV_MOD_PREF_MISS = esim_register_event_with_name(mod_handler_pref, mem_domain_index, "mod_nmoesi_prefetch_streams_miss");
+	EV_MOD_PREF_UNLOCK = esim_register_event_with_name(mod_handler_pref, mem_domain_index, "mod_nmoesi_prefetch_streams_unlock");
+	EV_MOD_PREF_FINISH = esim_register_event_with_name(mod_handler_pref, mem_domain_index, "mod_nmoesi_prefetch_streams_finish");
+
+	EV_MOD_NMOESI_PREF_FIND_AND_LOCK = esim_register_event_with_name(mod_handler_nmoesi_pref_find_and_lock, mem_domain_index,"mod_nmoesi_pref_find_and_lock");
+	EV_MOD_NMOESI_PREF_FIND_AND_LOCK_PORT = esim_register_event_with_name(mod_handler_nmoesi_pref_find_and_lock, mem_domain_index,"mod_nmoesi_pref_find_and_lock_port");
+	EV_MOD_NMOESI_PREF_FIND_AND_LOCK_ACTION = esim_register_event_with_name(mod_handler_nmoesi_pref_find_and_lock, mem_domain_index,"mod_nmoesi_pref_find_and_lock_action");
+	EV_MOD_NMOESI_PREF_FIND_AND_LOCK_FINISH = esim_register_event_with_name(mod_handler_nmoesi_pref_find_and_lock, mem_domain_index,"mod_nmoesi_pref_find_and_lock_finish");
+
+	EV_MOD_NMOESI_INVALIDATE_SLOT = esim_register_event_with_name(mod_handler_nmoesi_invalidate_slot,
+	mem_domain_index, "mod_nmoesi_invalidate_slot");
+	EV_MOD_NMOESI_INVALIDATE_SLOT_LOCK = esim_register_event_with_name(mod_handler_nmoesi_invalidate_slot,
+	 mem_domain_index, "mod_nmoesi_invalidate_slot_lock");
+	EV_MOD_NMOESI_INVALIDATE_SLOT_ACTION = esim_register_event_with_name(mod_handler_nmoesi_invalidate_slot,
+	 mem_domain_index, "mod_nmoesi_invalidate_slot_action");
+	EV_MOD_NMOESI_INVALIDATE_SLOT_UNLOCK = esim_register_event_with_name(mod_handler_nmoesi_invalidate_slot,
+	 mem_domain_index, "mod_nmoesi_invalidate_slot_unlock");
+	EV_MOD_NMOESI_INVALIDATE_SLOT_FINISH = esim_register_event_with_name(mod_handler_nmoesi_invalidate_slot,
+	 mem_domain_index, "mod_nmoesi_invalidate_slot_finish");
+
+	
 	EV_MOD_NMOESI_FIND_AND_LOCK = esim_register_event_with_name(mod_handler_nmoesi_find_and_lock,
 			mem_domain_index, "mod_nmoesi_find_and_lock");
 	EV_MOD_NMOESI_FIND_AND_LOCK_PORT = esim_register_event_with_name(mod_handler_nmoesi_find_and_lock,
@@ -689,6 +712,14 @@ void mem_system_dump_report(void)
 	fprintf(f, ";    Reads, Writes, NCWrites - Total read/write accesses\n");
 	fprintf(f, ";    BlockingReads, BlockingWrites, BlockingNCWrites - Reads/writes coming from lower-level cache\n");
 	fprintf(f, ";    NonBlockingReads, NonBlockingWrites, NonBlockingNCWrites - Coming from upper-level cache\n");
+	fprintf(f, ";    Programmed Prefetches - Number of programmed prefetch accesses\n");
+	fprintf(f, ";    Completed Prefetches - Number of completed prefetch accesses\n");
+	fprintf(f, ";    Canceled Prefetches - Number of canceled prefetch accesses\n");
+	fprintf(f, ";    Useful Prefetches - Number of useful prefetches\n");
+	fprintf(f, ";    Delayed hits - Number of loads that access a block with is being fetched by a prefetch\n");
+	fprintf(f, ";    Prefetch Accuracy - Useful prefetches / total completed prefetches\n");
+	fprintf(f, ";    Prefetch Coverage - Useful prefetches / Faults if we dont use prefetch\n");
+	fprintf(f, ";    MPKI - Misses / commited instructions\n");
 	fprintf(f, "\n\n");
 	
 	/* Report for each cache */
@@ -761,6 +792,46 @@ void mem_system_dump_report(void)
 		fprintf(f, "NoRetryNCWriteHits = %lld\n", mod->no_retry_nc_write_hits);
 		fprintf(f, "NoRetryNCWriteMisses = %lld\n", mod->no_retry_nc_writes
 			- mod->no_retry_nc_write_hits);
+		fprintf(f, "\n");
+		fprintf(f, "\n");
+
+		fprintf(f, "ProgrammedPrefetches = %lld\n", mod->programmed_prefetches);
+		fprintf(f, "CompletedPrefetches = %lld\n", mod->completed_prefetches);
+		fprintf(f, "CanceledPrefetches = %lld\n", mod->canceled_prefetches);
+		fprintf(f, "CanceledPrefetchEndStream = %lld\n", mod->canceled_prefetches_end_stream);
+		fprintf(f, "CanceledPrefetchMSHR = %lld\n", mod->canceled_prefetches_mshr);
+		fprintf(f, "PrefetchRetries = %lld\n", mod->prefetch_retries);
+		fprintf(f, "\n");
+
+		fprintf(f, "UsefulPrefetches = %lld\n", mod->useful_prefetches);
+		fprintf(f, "PrefetchAccuracy = %.4g\n", mod->completed_prefetches ? (double) mod->useful_prefetches / mod->completed_prefetches : 0.0);
+		fprintf(f, "\n");
+
+		fprintf(f, "SinglePrefetches = %lld\n", mod->single_prefetches);
+		fprintf(f, "GroupPrefetches = %lld\n", mod->group_prefetches);
+		fprintf(f, "CanceledPrefetchGroups = %lld\n", mod->canceled_prefetch_groups);
+
+		fprintf(f, "\n");
+		fprintf(f, "DelayedHits = %lld\n", mod->delayed_hits);
+		fprintf(f, "DelayedHitsCyclesCounted = %lld\n", mod->delayed_hits_cycles_counted);
+		fprintf(f, "DelayedHitAvgLostCycles = %.4g\n", mod->delayed_hits_cycles_counted? mod->delayed_hit_cycles / (double) mod->delayed_hits_cycles_counted : 0.0);
+		fprintf(f, "\n");
+
+		fprintf(f, "StreamHits = %lld\n", mod->stream_hits);
+
+		fprintf(f, "PrefetchHits (rw)(up_down) = %lld\n", mod->up_down_hits);
+		fprintf(f, "PrefetchHeadHits (rw)(up_down) = %lld\n", mod->up_down_head_hits);
+		fprintf(f, "PrefetchHits(r)(down_up) = %lld\n", mod->down_up_read_hits);
+		fprintf(f, "PrefetchHits(w)(down_up) = %lld\n", mod->down_up_write_hits);
+		fprintf(f, "\n");
+		fprintf(f, "FastResumedAccesses  = %lld\n", mod->fast_resumed_accesses);
+		fprintf(f, "WriteBufferReadHits = %lld\n", mod->write_buffer_read_hits);
+		fprintf(f, "WriteBufferWriteHits = %lld\n", mod->write_buffer_read_hits);
+		fprintf(f, "\n");
+		fprintf(f, "StreamEvictions = %lld\n", mod->stream_evictions);
+		fprintf(f, "DownUpReadMisses = %lld\n", mod->down_up_read_misses);
+		fprintf(f, "DownUpWriteMisses = %lld\n", mod->down_up_write_misses);
+		fprintf(f, "BlocksAlreadyHere = %lld\n", mod->block_already_here);
 		fprintf(f, "\n\n");
 	}
 

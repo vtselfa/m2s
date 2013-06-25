@@ -23,6 +23,9 @@ libmemsystem_a_SOURCES = \
 	memory.c \
 	memory.h \
 	\
+	mem-controller.c \
+	mem-controller.h \
+	\
 	mmu.c \
 	mmu.h \
 	\

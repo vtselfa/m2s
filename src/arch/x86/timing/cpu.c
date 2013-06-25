@@ -361,7 +361,7 @@ static void x86_cpu_config_dump(FILE *f)
 
 	/* Functional units */
 	x86_fu_config_dump(f);
-	
+
 	/* Branch Predictor */
 	fprintf(f, "[ Config.BranchPredictor ]\n");
 	fprintf(f, "Kind = %s\n", x86_bpred_kind_map[x86_bpred_kind]);
@@ -460,14 +460,14 @@ static void x86_cpu_dump_report(void)
 	f = file_open_for_write(x86_cpu_report_file_name);
 	if (!f)
 		return;
-	
+
 	/* Get CPU timer value */
 	now = m2s_timer_get_value(arch_x86->timer);
 
 	/* Dump CPU configuration */
 	fprintf(f, ";\n; CPU Configuration\n;\n\n");
 	x86_cpu_config_dump(f);
-	
+
 	/* Report for the complete processor */
 	fprintf(f, ";\n; Simulation Statistics\n;\n\n");
 	fprintf(f, "; Global statistics\n");
@@ -503,7 +503,7 @@ static void x86_cpu_dump_report(void)
 	fprintf(f, "Commit.PredAcc = %.4g\n", x86_cpu->num_branch_uinst ?
 		(double) (x86_cpu->num_branch_uinst - x86_cpu->num_mispred_branch_uinst) / x86_cpu->num_branch_uinst : 0.0);
 	fprintf(f, "\n");
-	
+
 	/* Report for each core */
 	X86_CORE_FOR_EACH
 	{
@@ -852,7 +852,7 @@ void x86_cpu_dump(FILE *f)
 {
 	int core;
 	int thread;
-	
+
 	/* General information */
 	fprintf(f, "\n");
 	fprintf(f, "LastDump = %lld   ; Cycle of last dump\n", x86_cpu->last_dump);
@@ -868,7 +868,7 @@ void x86_cpu_dump(FILE *f)
 		fprintf(f, "-------\n");
 		fprintf(f, "Core %d\n", core);
 		fprintf(f, "-------\n\n");
-		
+
 		fprintf(f, "Event Queue:\n");
 		x86_uop_linked_list_dump(X86_CORE.event_queue, f);
 
@@ -880,7 +880,7 @@ void x86_cpu_dump(FILE *f)
 			fprintf(f, "----------------------\n");
 			fprintf(f, "Thread %d (in core %d)\n", thread, core);
 			fprintf(f, "----------------------\n\n");
-			
+
 			fprintf(f, "Fetch queue:\n");
 			x86_uop_list_dump(X86_THREAD.fetch_queue, f);
 
@@ -899,7 +899,7 @@ void x86_cpu_dump(FILE *f)
 			x86_reg_file_dump(core, thread, f);
 			if (X86_THREAD.ctx)
 				fprintf(f, "MappedContext = %d\n", X86_THREAD.ctx->pid);
-			
+
 			fprintf(f, "\n");
 		}
 	}
@@ -1077,6 +1077,17 @@ int x86_cpu_run(void)
 	/* Stop if maximum number of cycles exceeded */
 	if (x86_emu_max_cycles && arch_x86->cycle >= x86_emu_max_cycles)
 		esim_finish = esim_finish_x86_max_cycles;
+
+	/* Stop if minimum number of instructions has been exceeded by all contexts */
+	if(x86_emu_min_inst_per_ctx)
+	{
+		struct x86_ctx_t *ctx;
+		for (ctx = x86_emu->running_list_head; ctx; ctx = ctx->running_list_next)
+			if(ctx->inst_count < x86_emu_min_inst_per_ctx)
+				break;
+		if(!ctx)
+			esim_finish = esim_finish_x86_min_inst_per_ctx;
+	}
 
 	/* Stop if any previous reason met */
 	if (esim_finish)

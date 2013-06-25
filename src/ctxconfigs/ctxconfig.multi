@@ -1,0 +1,37 @@
+[ Context 0 ]
+exe = gcc_base.i386
+args = 166.i -o 166.s
+cwd = /home/crigore/trabajo-AAV/multi2sim/src/benchmarks/spec2006/403.gcc
+
+[ Context 1 ]
+exe = bzip2_base.i386
+args = input.source 280
+cwd = /home/crigore/trabajo-AAV/multi2sim/src/benchmarks/spec2006/401.bzip2
+
+[ Context 2 ]
+exe = povray_base.i386
+args = SPEC-benchmark-ref.ini
+cwd = /home/crigore/trabajo-AAV/multi2sim/src/benchmarks/spec2006/453.povray
+
+[ Context 3 ]
+exe = mcf_base.i386
+args = inp.in
+cwd = /home/crigore/trabajo-AAV/multi2sim/src/benchmarks/spec2006/429.mcf
+
+[ Context 4 ]
+exe = xalancbmk_base.i386
+args = -v t5.xml xalanc.xsl
+cwd = /home/crigore/trabajo-AAV/multi2sim/src/benchmarks/spec2006/483.xalancbmk
+
+[ Context 5 ]
+exe = tonto_base.i386
+cwd = /home/crigore/trabajo-AAV/multi2sim/src/benchmarks/spec2006/465.tonto
+
+[ Context 6 ]
+exe = dealII_base.i386
+args = 23
+cwd = /home/crigore/trabajo-AAV/multi2sim/src/benchmarks/spec2006/447.dealII
+
+[ Context 7 ]
+exe = GemsFDTD_base.i386
+cwd = /home/crigore/trabajo-AAV/multi2sim/src/benchmarks/spec2006/459.GemsFDTD

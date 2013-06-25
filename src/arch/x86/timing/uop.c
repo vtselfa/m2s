@@ -129,4 +129,3 @@ void x86_uop_linked_list_check_if_ready(struct linked_list_t *uop_list)
 		uop->ready = 1;
 	}
 }
-

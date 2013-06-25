@@ -140,6 +140,8 @@ static char *mem_debug_file_name = "";
 
 static char *net_debug_file_name = "";
 
+static char *main_mem_report_file_name="";
+
 static long long m2s_max_time;  /* Max. simulation time in seconds (0 = no limit) */
 static long long m2s_loop_iter;  /* Number of iterations in main simulation loop */
 static char m2s_sim_id[10];  /* Pseudo-unique simulation ID (5 alpha-numeric digits) */
@@ -266,6 +268,13 @@ static char *m2s_help =
 		"\n"
 		"  --x86-max-inst <inst>\n"
 		"      Maximum number of x86 instructions. On x86 functional simulation, this\n"
+		"      limit is given in number of emulated instructions. On x86 detailed\n"
+		"      simulation, it is given as the number of committed (non-speculative)\n"
+		"      instructions. Use 0 (default) for unlimited.\n"
+		"\n"
+		"  --x86-min-inst-per-ctx <inst>\n"
+		"      Minimum number of x86 instructions that every ctx must execute in order\n"
+		"      to stop the simulation. On x86 functional simulation, this\n"
 		"      limit is given in number of emulated instructions. On x86 detailed\n"
 		"      simulation, it is given as the number of committed (non-speculative)\n"
 		"      instructions. Use 0 (default) for unlimited.\n"
@@ -805,6 +814,18 @@ static void m2s_read_command_line(int *argc_ptr, char **argv)
 			continue;
 		}
 
+		/* Minimum number of instructions per context */
+		if (!strcmp(argv[argi], "--x86-min-inst-per-ctx"))
+		{
+			m2s_need_argument(argc, argv, argi);
+			x86_emu_min_inst_per_ctx = str_to_llint(argv[argi + 1], &err);
+			if (err)
+				fatal("option %s, value '%s': %s", argv[argi],
+						argv[argi + 1], str_error(err));
+			argi++;
+			continue;
+		}
+
 		/* File name to save checkpoint */
 		if (!strcmp(argv[argi], "--x86-save-checkpoint"))
 		{
@@ -1322,6 +1343,14 @@ static void m2s_read_command_line(int *argc_ptr, char **argv)
 			continue;
 		}
 
+		/* Option dump main memory and row buffer statistics */
+		if (!strcmp(argv[argi], "--main-mem-report"))
+		{
+			m2s_need_argument(argc, argv, argi);
+			main_mem_report_file_name = argv[++argi];
+			continue;
+		}
+
 		/* Memory hierarchy report */
 		if (!strcmp(argv[argi], "--mem-report"))
 		{
@@ -1620,6 +1649,11 @@ static void m2s_dump_summary(FILE *f)
 {
 	double time_in_sec;
 	long long cycles;
+	long long useful_prefetches = 0;
+	long long delayed_hits = 0;
+	long long prefetches = 0;
+	double accuracy = 0;
+	int i;
 
 	/* No summary dumped if no simulation was run */
 	if (m2s_loop_iter < 2)
@@ -1635,10 +1669,25 @@ static void m2s_dump_summary(FILE *f)
 	/* Calculate statistics */
 	time_in_sec = (double) esim_real_time() / 1.0e6;
 
+	LIST_FOR_EACH(mem_system->mod_list, i)
+	{
+		struct mod_t *mod = list_get(mem_system->mod_list, i);
+		useful_prefetches += mod->useful_prefetches;
+		prefetches += mod->completed_prefetches;
+		delayed_hits += mod->delayed_hits;
+	}
+
+	if(prefetches > 0)
+		accuracy = (double) useful_prefetches / prefetches;
+
 	/* General statistics */
 	fprintf(f, "[ General ]\n");
 	fprintf(f, "RealTime = %.2f [s]\n", time_in_sec);
 	fprintf(f, "SimEnd = %s\n", str_map_value(&esim_finish_map, esim_finish));
+
+	fprintf(f, "GlobalDelayedHits = %lld\n", delayed_hits);
+	fprintf(f, "GlobalUsefulPrefetches = %lld\n", useful_prefetches);
+	fprintf(f, "GlobalAccuracy = %f\n", accuracy);
 
 	/* General detailed simulation statistics */
 	if (esim_time)

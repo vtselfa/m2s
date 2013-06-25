@@ -130,4 +130,3 @@ void x86_iq_recover(int core, int thread)
 		linked_list_next(iq);
 	}
 }
-

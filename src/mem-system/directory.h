@@ -25,6 +25,7 @@ struct dir_lock_t
 {
 	int lock;
 	long long stack_id;
+	int prefetch_stack : 1; /* Tells if the stack locking is a prefetch. For statistics. */
 	struct mod_stack_t *lock_queue;
 };
 
@@ -53,16 +54,22 @@ struct dir_t
 	 * that fit within a block. */
 	int xsize, ysize, zsize;
 
+	/* Number of streams and prefetch aggressivity */
+	int ssize, asize;
+
 	/* Array of xsize * ysize locks. Each lock corresponds to a
 	 * block, i.e. a set of zsize directory entries */
 	struct dir_lock_t *dir_lock;
+
+	/* Array of locks for prefetched blocks */
+	struct dir_lock_t *pref_dir_lock;
 
 	/* Last field. This is an array of xsize*ysize*zsize elements of type
 	 * dir_entry_t, which have likewise variable size. */
 	unsigned char data[0];
 };
 
-struct dir_t *dir_create(char *name, int xsize, int ysize, int zsize, int num_nodes);
+struct dir_t *dir_create(char *name, int xsize, int ysize, int zsize, int psize, int pref_aggressivity, int num_nodes);
 void dir_free(struct dir_t *dir);
 
 struct dir_entry_t *dir_entry_get(struct dir_t *dir, int x, int y, int z);
@@ -81,5 +88,9 @@ int dir_entry_lock(struct dir_t *dir, int x, int y, int event, struct mod_stack_
 void dir_entry_unlock(struct dir_t *dir, int x, int y);
 
 
-#endif
+/* Prefetch */
+struct dir_lock_t *dir_pref_lock_get(struct dir_t *dir, int pref_stream, int pref_slot);
+int dir_pref_entry_lock(struct dir_t *dir, int pref_stream, int pref_slot, int event, struct mod_stack_t *stack);
+void dir_pref_entry_unlock(struct dir_t *dir, int pref_stream, int pref_slot);
 
+#endif

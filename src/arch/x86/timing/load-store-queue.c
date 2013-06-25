@@ -221,6 +221,7 @@ void x86_sq_remove(int core, int thread)
 	X86_THREAD.lsq_count--;
 }
 
+
 /* Remove an uop in the current position of the prefetch queue */
 void x86_preq_remove(int core, int thread)
 {

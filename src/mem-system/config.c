@@ -20,6 +20,7 @@
 
 #include <arch/common/arch.h>
 #include <arch/southern-islands/timing/gpu.h>
+#include <arch/x86/timing/cpu.h>
 #include <lib/esim/esim.h>
 #include <lib/esim/trace.h>
 #include <lib/mhandle/mhandle.h>
@@ -536,6 +537,18 @@ static struct mod_t *mem_config_read_cache(struct config_t *config,
 	int prefetcher_it_size;
 	int prefetcher_lookup_depth;
 
+	/* Czone Streams prefetcher */
+	int prefetcher_num_streams;
+	int prefetcher_num_slots;
+	int prefetcher_czone_bits;
+
+	/* Adaptative prefetch */
+	char *prefetcher_adp_policy_str;
+	enum adapt_pref_policy_t prefetcher_adp_policy = adapt_pref_policy_none;
+	char *prefetcher_adp_interval_kind_str;
+	enum interval_kind_t prefetcher_adp_interval_kind;
+	long long prefetcher_adp_interval;
+
 	char *net_name;
 	char *net_node_name;
 
@@ -565,14 +578,26 @@ static struct mod_t *mem_config_read_cache(struct config_t *config,
 	num_ports = config_read_int(config, buf, "Ports", 2);
 	enable_prefetcher = config_read_bool(config, buf, 
 		"EnablePrefetcher", 0);
-	prefetcher_type_str = config_read_string(config, buf, 
-		"PrefetcherType", "GHB_PC_CS");
-	prefetcher_ghb_size = config_read_int(config, buf, 
+	prefetcher_type_str = config_read_string(config, buf,
+		"PrefetcherType", "CZone_Streams");
+	prefetcher_ghb_size = config_read_int(config, buf,
 		"PrefetcherGHBSize", 256);
 	prefetcher_it_size = config_read_int(config, buf, 
 		"PrefetcherITSize", 64);
 	prefetcher_lookup_depth = config_read_int(config, buf, 
 		"PrefetcherLookupDepth", 2);
+	prefetcher_num_streams = config_read_int(config, buf,
+		"PrefetcherStreams", 4);
+	prefetcher_num_slots = config_read_int(config, buf,
+		"PrefetcherSlots", 4);
+	prefetcher_czone_bits = config_read_int(config, buf,
+		"PrefetcherCZoneBits", 13);
+	prefetcher_adp_policy_str = config_read_string(config, buf,
+		"PrefetcherAdpPolicy", "none");
+	prefetcher_adp_interval = config_read_llint(config, buf,
+		"PrefetcherAdpInterval", 500000);
+	prefetcher_adp_interval_kind_str = config_read_string(config, buf,
+		"PrefetcherAdpIntervalKind", "cycles");
 
 	/* Checks */
 	policy = str_map_string_case(&cache_policy_map, policy_str);
@@ -607,18 +632,58 @@ static struct mod_t *mem_config_read_cache(struct config_t *config,
 			mem_config_file_name, mod_name, mem_err_config_note);
 	if (enable_prefetcher)
 	{
-		prefetcher_type = str_map_string_case(&prefetcher_type_map, 
+		prefetcher_type = str_map_string_case(&prefetcher_type_map,
 			prefetcher_type_str);
-		if (prefetcher_ghb_size < 1 || prefetcher_it_size < 1 ||
-		    prefetcher_type == prefetcher_type_invalid || 
-		    prefetcher_lookup_depth < 2 || 
-		    prefetcher_lookup_depth > PREFETCHER_LOOKUP_DEPTH_MAX)
+
+		if (prefetcher_type == prefetcher_type_invalid)
 		{
-			fatal("%s: cache %s: invalid prefetcher "
-				"configuration.\n%s",
-				mem_config_file_name, mod_name, 
-				mem_err_config_note);
+			fatal("%s: cache %s: invalid prefetcher type. Valid "
+				"values are {ghb_pc_cs ghb_pc_dc czone_streams}.\n%s",
+				mem_config_file_name, mod_name, mem_err_config_note);
 		}
+		else if (prefetcher_type == prefetcher_type_czone_streams)
+		{
+			if (prefetcher_num_streams < 1)
+				fatal("%s: cache %s: invalid value for variable 'PrefetcherStreams'.\n%s",
+					mem_config_file_name, mod_name, mem_err_config_note);
+
+			if (prefetcher_num_slots < 1)
+				fatal("%s: cache %s: invalid value for variable 'PrefetcherSlots'.\n%s",
+					mem_config_file_name, mod_name, mem_err_config_note);
+		}
+		else
+		{
+			if (prefetcher_ghb_size < 1 || prefetcher_it_size < 1 ||
+		    	prefetcher_lookup_depth < 2 ||
+		    	prefetcher_lookup_depth > PREFETCHER_LOOKUP_DEPTH_MAX)
+			{
+				fatal("%s: cache %s: invalid prefetcher "
+					"configuration.\n%s",
+					mem_config_file_name, mod_name,
+					mem_err_config_note);
+			}
+		}
+
+		/* Apdaptative prefetch policy */
+		prefetcher_adp_policy = str_map_string_case(&adapt_pref_policy_map,
+			prefetcher_adp_policy_str);
+		if (!prefetcher_adp_policy && strcasecmp(prefetcher_adp_policy_str, "none"))
+		fatal("%s: cache %s: %s: invalid adaptative prefetch policy. "
+			"Valid values are {None Misses Misses_Enhanced}.\n%s",
+			mem_config_file_name, mod_name,
+			prefetcher_adp_policy_str, mem_err_config_note);
+		if (prefetcher_adp_policy)
+		{
+			/* Interval kind (instructions or cycles) */
+			prefetcher_adp_interval_kind = str_map_string_case(&interval_kind_map,
+				prefetcher_adp_interval_kind_str);
+			if(!prefetcher_adp_interval_kind)
+				fatal("%s: cache %s: %s: invalid adaptative prefetch interval kind. "
+					"Valid values are {Cycles Instructions}.\n%s",
+					mem_config_file_name, mod_name,
+					prefetcher_adp_policy_str, mem_err_config_note);
+		}
+
 	}
 
 	/* Create module */
@@ -654,11 +719,23 @@ static struct mod_t *mem_config_read_cache(struct config_t *config,
 	mod->cache = cache_create(mod->name, num_sets, block_size, assoc, 
 		policy);
 
+
+	/* Schedule adaptative prefetch */
+	if(prefetcher_adp_policy)
+		mod_adapt_pref_schedule(mod);
+
 	/* Fill in prefetcher parameters */
+	mod->cache->pref_enabled = enable_prefetcher;
 	if (enable_prefetcher)
 	{
-		mod->cache->prefetcher = prefetcher_create(prefetcher_ghb_size, 
-			prefetcher_it_size, prefetcher_lookup_depth, 
+		mod->cache->prefetch_policy = prefetcher_type;
+		mod->cache->prefetch.adapt_policy = prefetcher_adp_policy;
+		mod->cache->prefetch.adapt_interval = prefetcher_adp_interval;
+		mod->cache->prefetch.adapt_interval_kind = prefetcher_adp_interval_kind;
+		mod->cache->prefetch.stream_mask = ~(-1 << prefetcher_czone_bits);
+
+		mod->cache->prefetcher = prefetcher_create(prefetcher_ghb_size,
+			prefetcher_it_size, prefetcher_lookup_depth,
 			prefetcher_type);
 	}
 
@@ -1565,7 +1642,8 @@ static void mem_config_calculate_sub_block_sizes(void)
 
 		/* Create directory */
 		mod->num_sub_blocks = mod->block_size / mod->sub_block_size;
-		mod->dir = dir_create(mod->name, mod->dir_num_sets, mod->dir_assoc, mod->num_sub_blocks, num_nodes);
+		mod->dir = dir_create(mod->name, mod->dir_num_sets, mod->dir_assoc,
+			mod->num_sub_blocks, mod->cache->prefetch.num_streams, mod->cache->prefetch.aggressivity, num_nodes);
 		mem_debug("\t%s - %dx%dx%d (%dx%dx%d effective) - %d entries, %d sub-blocks\n",
 			mod->name, mod->dir_num_sets, mod->dir_assoc, num_nodes,
 			mod->dir_num_sets, mod->dir_assoc, linked_list_count(mod->high_mod_list),
@@ -1736,6 +1814,38 @@ static void mem_config_read_commands(struct config_t *config)
 }
 
 
+/* Constructs for a given core thread pair a list with all the reachable mods with adaptative prefetch. It also constructs in each module a list of (core, thread) tuples from wich it's reachable. */
+static void mem_config_fill_adapt_pref_lists(int core, int thread, struct mod_t *mod)
+{
+	struct mod_t *low_mod;
+	struct core_thread_tuple_t *tuple;
+
+	if(mod->visited)
+		return;
+	mod->visited = 1;
+
+	/* Add (core, thread) to the mod's list */
+	tuple = xcalloc(1, sizeof(struct core_thread_tuple_t));
+	tuple->core = core;
+	tuple->thread = thread;
+	linked_list_add(mod->threads, tuple);
+
+	/* Add mod to the list of mods with adapt pref enabled */
+	if(mod->cache->prefetch.adapt_policy)
+	{
+		assert(mod->cache->prefetch_policy);
+		list_add(X86_THREAD.adapt_pref_modules, mod);
+	}
+	/* Explore lower modules */
+	for (linked_list_head(mod->low_mod_list); !linked_list_is_end(mod->low_mod_list);
+		linked_list_next(mod->low_mod_list))
+	{
+		low_mod = linked_list_get(mod->low_mod_list);
+		mem_config_fill_adapt_pref_lists(core, thread, low_mod);
+	}
+}
+
+
 
 
 /*
@@ -1745,6 +1855,8 @@ static void mem_config_read_commands(struct config_t *config)
 void mem_config_read(void)
 {
 	struct config_t *config;
+	int core;
+	int thread;
 
 	/* Load memory system configuration file. If no file name has been given
 	 * by the user, create a default configuration for each architecture. */
@@ -1794,6 +1906,13 @@ void mem_config_read(void)
 
 	/* Compute cache levels relative to the CPU/GPU entry points */
 	mem_config_calculate_mod_levels();
+
+	X86_CORE_FOR_EACH X86_THREAD_FOR_EACH
+	{
+		mem_config_fill_adapt_pref_lists(core, thread, X86_THREAD.data_mod);
+		mem_config_fill_adapt_pref_lists(core, thread, X86_THREAD.inst_mod);
+	}
+
 
 	/* Dump configuration to trace file */
 	mem_config_trace();

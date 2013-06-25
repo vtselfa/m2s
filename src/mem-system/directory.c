@@ -36,7 +36,7 @@
 	((X) * dir->ysize * dir->zsize + (Y) * dir->zsize + (Z))))
 
 
-struct dir_t *dir_create(char *name, int xsize, int ysize, int zsize, int num_nodes)
+struct dir_t *dir_create(char *name, int xsize, int ysize, int zsize, int num_pref_streams, int pref_aggressivity, int num_nodes)
 {
 	struct dir_t *dir;
 	struct dir_entry_t *dir_entry;
@@ -44,10 +44,10 @@ struct dir_t *dir_create(char *name, int xsize, int ysize, int zsize, int num_no
 	int dir_size;
 	int dir_entry_size;
 
-	int x;
-	int y;
-	int z;
-	
+	int x; /* Set */
+	int y; /* Way */
+	int z; /* Subblock */
+
 	/* Calculate sizes */
 	assert(num_nodes > 0);
 	dir_entry_size = sizeof(struct dir_entry_t) + (num_nodes + 7) / 8;
@@ -57,10 +57,13 @@ struct dir_t *dir_create(char *name, int xsize, int ysize, int zsize, int num_no
 	dir = xcalloc(1, dir_size);
 	dir->name = xstrdup(name);
 	dir->dir_lock = xcalloc(xsize * ysize, sizeof(struct dir_lock_t));
+	dir->pref_dir_lock = xcalloc(num_pref_streams * pref_aggressivity, sizeof(struct dir_lock_t));
 	dir->num_nodes = num_nodes;
 	dir->xsize = xsize;
 	dir->ysize = ysize;
 	dir->zsize = zsize;
+	dir->ssize = num_pref_streams;
+	dir->asize = pref_aggressivity;
 
 	/* Reset all owners */
 	for (x = 0; x < xsize; x++)
@@ -82,8 +85,17 @@ struct dir_t *dir_create(char *name, int xsize, int ysize, int zsize, int num_no
 
 void dir_free(struct dir_t *dir)
 {
+	#ifndef NDEBUG
+	int i;
+	for (i = 0; i < dir->ssize * dir->asize; i++)
+		assert(!dir->pref_dir_lock[i].lock_queue);
+	for (i = 0; i < dir->xsize * dir->ysize; i++)
+		assert(!dir->dir_lock[i].lock_queue);
+	#endif
+
 	free(dir->name);
 	free(dir->dir_lock);
+	free(dir->pref_dir_lock);
 	free(dir);
 }
 
@@ -209,6 +221,16 @@ int dir_entry_group_shared_or_owned(struct dir_t *dir, int x, int y)
 }
 
 
+struct dir_lock_t *dir_pref_lock_get(struct dir_t *dir, int pref_stream, int pref_slot)
+{
+	struct dir_lock_t *dir_lock;
+	assert(IN_RANGE(pref_stream, 0, dir->ssize - 1));
+	assert(IN_RANGE(pref_slot, 0, dir->asize - 1));
+	dir_lock = &dir->pref_dir_lock[pref_stream * dir->asize + pref_slot];
+	return dir_lock;
+}
+
+
 struct dir_lock_t *dir_lock_get(struct dir_t *dir, int x, int y)
 {
 	struct dir_lock_t *dir_lock;
@@ -217,6 +239,62 @@ struct dir_lock_t *dir_lock_get(struct dir_t *dir, int x, int y)
 	dir_lock = &dir->dir_lock[x * dir->ysize + y];
 	mem_debug("  dir_lock retrieve\n");
 	return dir_lock;
+}
+
+
+int dir_pref_entry_lock(struct dir_t *dir, int pref_stream, int pref_slot, int event,
+	struct mod_stack_t *stack)
+{
+	struct dir_lock_t *dir_lock;
+	struct mod_stack_t *lock_queue_iter;
+
+	assert(IN_RANGE(pref_stream, 0, dir->ssize - 1));
+	assert(IN_RANGE(pref_slot, 0, dir->asize - 1));
+	dir_lock = &dir->pref_dir_lock[pref_stream * dir->asize + pref_slot];
+
+	/* If the entry is already locked, enqueue a new waiter and
+	 * return failure to lock. */
+	if (dir_lock->lock){
+		assert(dir_lock->stack_id != stack->id);
+
+		/* Enqueue the stack to the end of the lock queue */
+		stack->dir_lock_next = NULL;
+		stack->dir_lock_event = event;
+		stack->ret_stack->way = stack->way;
+
+		if (!dir_lock->lock_queue){
+			/* Special case: queue is empty */
+			dir_lock->lock_queue = stack;
+		} else {
+			lock_queue_iter = dir_lock->lock_queue;
+
+			while (stack->id > lock_queue_iter->id){
+				if (!lock_queue_iter->dir_lock_next)
+					break;
+				lock_queue_iter = lock_queue_iter->dir_lock_next;
+			}
+
+			if (!lock_queue_iter->dir_lock_next) {
+				/* Stack goes at end of queue */
+				lock_queue_iter->dir_lock_next = stack;
+			} else {
+				/* Stack goes in front or middle of queue */
+				stack->dir_lock_next = lock_queue_iter->dir_lock_next;
+				lock_queue_iter->dir_lock_next = stack;
+			}
+		}
+		mem_debug("    0x%x access suspended\n", stack->tag);
+		return 0;
+	}
+
+	/* Trace */
+	mem_trace("mem.new_access_block cache=\"%s\" access=\"A-%lld\" pref_stream=%d pref_slot=%d\n", dir->name, stack->id, pref_stream, pref_slot);
+
+	/* Lock entry */
+	dir_lock->lock = 1;
+	dir_lock->stack_id = stack->id;
+	dir_lock->prefetch_stack = stack->access_kind == mod_access_prefetch? 1 : 0;
+	return 1;
 }
 
 
@@ -243,7 +321,7 @@ int dir_entry_lock(struct dir_t *dir, int x, int y, int event, struct mod_stack_
 			/* Special case: queue is empty */
 			dir_lock->lock_queue = stack;
 		}
-		else 
+		else
 		{
 			lock_queue_iter = dir_lock->lock_queue;
 
@@ -264,15 +342,18 @@ int dir_entry_lock(struct dir_t *dir, int x, int y, int event, struct mod_stack_
 			 * But this seems to be what this function was doing before, isn't it? Why
 			 * weren't we happy with this policy? */
 			while (lock_queue_iter->dir_lock_next)
+			{
+				assert(lock_queue_iter->id != stack->id);
 				lock_queue_iter = lock_queue_iter->dir_lock_next;
+			}
 			/* ------------------------------------------------------------------------ */
 
-			if (!lock_queue_iter->dir_lock_next) 
+			if (!lock_queue_iter->dir_lock_next)
 			{
 				/* Stack goes at end of queue */
 				lock_queue_iter->dir_lock_next = stack;
 			}
-			else 
+			else
 			{
 				/* Stack goes in front or middle of queue */
 				stack->dir_lock_next = lock_queue_iter->dir_lock_next;
@@ -290,6 +371,7 @@ int dir_entry_lock(struct dir_t *dir, int x, int y, int event, struct mod_stack_
 	/* Lock entry */
 	dir_lock->lock = 1;
 	dir_lock->stack_id = stack->id;
+	dir_lock->prefetch_stack = stack->access_kind == mod_access_prefetch? 1 : 0;
 	return 1;
 }
 
@@ -336,3 +418,28 @@ void dir_entry_unlock(struct dir_t *dir, int x, int y)
 	dir_lock->lock = 0;
 }
 
+
+void dir_pref_entry_unlock(struct dir_t *dir, int pref_stream, int pref_slot)
+{
+	struct dir_lock_t *dir_lock;
+	int num_accesses = 0;
+
+	assert(IN_RANGE(pref_stream, 0, dir->ssize - 1));
+	assert(IN_RANGE(pref_slot, 0, dir->asize - 1));
+	dir_lock = &dir->pref_dir_lock[pref_stream * dir->asize + pref_slot];
+
+	while (dir_lock->lock_queue)
+	{
+		num_accesses++;
+		esim_schedule_event(dir_lock->lock_queue->dir_lock_event, dir_lock->lock_queue, 1);
+		mem_debug("    0x%x access resumed\n", dir_lock->lock_queue->tag);
+		dir_lock->lock_queue = dir_lock->lock_queue->dir_lock_next;
+	}
+	mem_debug("    %d accesses waiting in stream %d slot %d resumed\n", num_accesses, pref_stream, pref_slot);
+
+	/* Trace */
+	mem_trace("mem.end_access_block cache=\"%s\" access=\"A-%lld\" pref_stream=%d pref_slot=%d\n", dir->name, dir_lock->stack_id, pref_stream, pref_slot);
+
+	/* Unlock entry */
+	dir_lock->lock = 0;
+}

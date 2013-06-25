@@ -17,7 +17,6 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-
 #ifndef MEM_SYSTEM_NMOESI_PROTOCOL_H
 #define MEM_SYSTEM_NMOESI_PROTOCOL_H
 #include <stdio.h>
@@ -54,6 +53,7 @@ extern int EV_MOD_NMOESI_PREFETCH_FINISH;
 
 extern int EV_MOD_NMOESI_FIND_AND_LOCK;
 extern int EV_MOD_NMOESI_FIND_AND_LOCK_PORT;
+extern int EV_MOD_NMOESI_FIND_AND_LOCK_PREF_STREAM;
 extern int EV_MOD_NMOESI_FIND_AND_LOCK_ACTION;
 extern int EV_MOD_NMOESI_FIND_AND_LOCK_FINISH;
 
@@ -107,6 +107,33 @@ extern int EV_MOD_NMOESI_MESSAGE_REPLY;
 extern int EV_MOD_NMOESI_MESSAGE_FINISH;
 
 
+/* Stream prefetch */
+extern int EV_MOD_PREF;
+extern int EV_MOD_PREF_LOCK;
+extern int EV_MOD_PREF_ACTION;
+extern int EV_MOD_PREF_MISS;
+extern int EV_MOD_PREF_UNLOCK;
+extern int EV_MOD_PREF_FINISH;
+
+/* OBL prefetch */
+extern int EV_MOD_NMOESI_PREF_OBL;
+extern int EV_MOD_NMOESI_PREF_OBL_LOCK;
+extern int EV_MOD_NMOESI_PREF_OBL_ACTION;
+extern int EV_MOD_NMOESI_PREF_OBL_MISS;
+extern int EV_MOD_NMOESI_PREF_OBL_UNLOCK;
+extern int EV_MOD_NMOESI_PREF_OBL_FINISH;
+
+extern int EV_MOD_NMOESI_INVALIDATE_SLOT;
+extern int EV_MOD_NMOESI_INVALIDATE_SLOT_LOCK;
+extern int EV_MOD_NMOESI_INVALIDATE_SLOT_ACTION;
+extern int EV_MOD_NMOESI_INVALIDATE_SLOT_UNLOCK;
+extern int EV_MOD_NMOESI_INVALIDATE_SLOT_FINISH;
+
+extern int EV_MOD_NMOESI_PREF_FIND_AND_LOCK;
+extern int EV_MOD_NMOESI_PREF_FIND_AND_LOCK_PORT;
+extern int EV_MOD_NMOESI_PREF_FIND_AND_LOCK_ACTION;
+extern int EV_MOD_NMOESI_PREF_FIND_AND_LOCK_FINISH;
+
 /*Main memory*/
 //////////////////////////////////////////////////////////
 extern int EV_MOD_NMOESI_EXAMINE_ONLY_ONE_QUEUE_REQUEST;//
@@ -139,6 +166,14 @@ void mod_handler_nmoesi_read_request(int event, void *data);
 void mod_handler_nmoesi_invalidate(int event, void *data);
 void mod_handler_nmoesi_peer(int event, void *data);
 void mod_handler_nmoesi_message(int event, void *data);
+
+/* Prefetch */
+void mod_handler_pref(int event, void *data);
+void mod_handler_nmoesi_pref_obl(int event, void *data);
+void mod_handler_nmoesi_pref_evict(int event, void *data);
+void mod_handler_nmoesi_invalidate_slot(int event, void *data);
+void mod_handler_nmoesi_pref_find_and_lock(int event, void *data);
+
 
 
 #endif

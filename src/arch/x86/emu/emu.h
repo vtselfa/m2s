@@ -83,6 +83,7 @@ extern struct x86_emu_t *x86_emu;
 
 extern long long x86_emu_max_cycles;
 extern long long x86_emu_max_inst;
+extern long long x86_emu_min_inst_per_ctx;
 extern char x86_emu_last_inst_bytes[20];
 extern int x86_emu_last_inst_size;
 extern int x86_emu_process_prefetch_hints;

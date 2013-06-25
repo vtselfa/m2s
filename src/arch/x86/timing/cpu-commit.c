@@ -27,8 +27,11 @@
 #include <lib/esim/trace.h>
 #include <lib/util/debug.h>
 #include <lib/util/linked-list.h>
+#include <lib/util/list.h>
+#include <mem-system/cache.h>
 #include <mem-system/mem-controller.h>
 #include <mem-system/mem-system.h>
+#include <mem-system/module.h>
 
 #include "bpred.h"
 #include "cpu.h"
@@ -90,6 +93,7 @@ static void x86_cpu_commit_thread(int core, int thread, int quant)
 	struct x86_ctx_t *ctx = X86_THREAD.ctx;
 	struct x86_uop_t *uop;
 	int recover = 0;
+	int i;
 
 	/* Commit stage for thread */
 	assert(ctx);
@@ -130,40 +134,6 @@ static void x86_cpu_commit_thread(int core, int thread, int quant)
 		x86_cpu->num_committed_uinst_array[uop->uinst->opcode]++;
 		x86_cpu->num_committed_uinst++;
 		ctx->inst_count++;
-
-
-		/* Adaptative mem controller. Update commited inst counters and launch handlers if necessary. */
-                LINKED_LIST_FOR_EACH(mem_system->mem_controllers)
-                {
-                        struct mem_controller_t *mc = linked_list_get(mem_system->mem_controllers);
-                        if(mc->adapt_interval_kind == interval_kind_instructions && x86_cpu->num_committed_uinst % mc->adapt_interval == 0)
-                        {
-                                struct mem_controller_adapt_stack_t *stack = xcalloc(1, sizeof(struct mem_controller_adapt_stack_t));
-                                if (!stack)
-                                        fatal("%s: out of memory", __FUNCTION__);
-
-                                stack->mem_controller=mc;
-                                mem_controller_adapt_handler(EV_MEM_CONTROLLER_ADAPT, stack);
-                        }
-                }
-
-
-		/* Interval stats */
-                if(ctx->loader->interval_kind == interval_kind_instructions)
-                {
-                        if(ctx->ipc_report_stack && ctx->inst_count % ctx->loader->ipc_report_interval == 0)
-                                x86_ctx_ipc_report_handler(EV_X86_CTX_IPC_REPORT, ctx->ipc_report_stack);
-
-                     
-
-                        if(ctx->mc_report_stack && ctx->inst_count % ctx->loader->mc_report_interval == 0)
-                                x86_ctx_mc_report_handler(EV_X86_CTX_MC_REPORT, ctx->mc_report_stack);
-
-                        if(ctx->cpu_report_stack && ctx->inst_count % ctx->loader->cpu_report_interval == 0)
-                                x86_ctx_cpu_report_handler(EV_X86_CTX_CPU_REPORT, ctx->cpu_report_stack);
-                }
-
-
 		if (uop->trace_cache)
 			X86_THREAD.trace_cache->num_committed_uinst++;
 		if (!uop->mop_index)
@@ -180,6 +150,48 @@ static void x86_cpu_commit_thread(int core, int thread, int quant)
 				x86_cpu->num_mispred_branch_uinst++;
 			}
 		}
+
+		/* Adaptative pref. Update commited inst counters and launch handlers if necessary. */
+		LIST_FOR_EACH(X86_THREAD.adapt_pref_modules, i)
+		{
+			struct mod_t *mod = (struct mod_t*) list_get(X86_THREAD.adapt_pref_modules, i);
+			mod->adapt_pref_stack->inst_count++;
+			if(mod->cache->prefetch.adapt_interval_kind == interval_kind_instructions && mod->adapt_pref_stack->inst_count % mod->cache->prefetch.adapt_interval == 0)
+				mod_adapt_pref_handler(EV_CACHE_ADAPT_PREF, (void *) mod->adapt_pref_stack);
+		}
+
+		/* Interval stats */
+		if(ctx->loader->interval_kind == interval_kind_instructions)
+		{
+			if(ctx->ipc_report_stack && ctx->inst_count % ctx->loader->ipc_report_interval == 0)
+				x86_ctx_ipc_report_handler(EV_X86_CTX_IPC_REPORT, ctx->ipc_report_stack);
+
+			if(ctx->misc_report_stack && ctx->inst_count % ctx->loader->misc_report_interval == 0)
+				x86_ctx_misc_report_handler(EV_X86_CTX_MISC_REPORT, ctx->misc_report_stack);
+
+			if(ctx->mc_report_stack && ctx->inst_count % ctx->loader->mc_report_interval == 0)
+				x86_ctx_mc_report_handler(EV_X86_CTX_MC_REPORT, ctx->mc_report_stack);
+
+			if(ctx->cpu_report_stack && ctx->inst_count % ctx->loader->cpu_report_interval == 0)
+				x86_ctx_cpu_report_handler(EV_X86_CTX_CPU_REPORT, ctx->cpu_report_stack);
+		}
+
+		/* Adaptative mem controller. Update commited inst counters and launch handlers if necessary. */
+        LINKED_LIST_FOR_EACH(mem_system->mem_controllers)
+        {
+                struct mem_controller_t *mc = linked_list_get(mem_system->mem_controllers);
+                if(mc->adapt_interval_kind == interval_kind_instructions && x86_cpu->num_committed_uinst % mc->adapt_interval == 0)
+                {
+                        struct mem_controller_adapt_stack_t *stack = xcalloc(1, sizeof(struct mem_controller_adapt_stack_t));
+                        if (!stack)
+                                fatal("%s: out of memory", __FUNCTION__);
+
+                        stack->mem_controller=mc;
+                        mem_controller_adapt_handler(EV_MEM_CONTROLLER_ADAPT, stack);
+                }
+        }
+
+
 
 		/* Trace */
 		if (x86_tracing())

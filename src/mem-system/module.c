@@ -18,6 +18,7 @@
 
 #include <assert.h>
 
+#include <arch/x86/timing/cpu.h>
 #include <lib/esim/esim.h>
 #include <lib/mhandle/mhandle.h>
 #include <lib/util/debug.h>
@@ -45,12 +46,74 @@ struct str_map_t mod_access_kind_map =
 	}
 };
 
-
+/* Event used for updating the state of adaptative prefetch policy */
+int EV_CACHE_ADAPT_PREF;
 
 
 /*
  * Public Functions
  */
+
+
+struct reg_bank_t* regs_bank_create( int num_banks, int t_row_hit, int t_row_miss)
+{
+	struct reg_bank_t *banks;
+	banks = xcalloc( num_banks, sizeof(struct reg_bank_t));
+
+	for(int i=0; i<num_banks;i++)
+	{
+		banks[i].row_buffer=-1;
+		banks[i].row_is_been_accesed=-1;
+		banks[i].t_row_buffer_miss=t_row_miss;
+		banks[i].t_row_buffer_hit=t_row_hit;
+	}
+	return banks;
+}
+
+
+struct reg_rank_t* regs_rank_create( int num_ranks, int num_banks, int t_row_hit, int t_row_miss)
+{
+	struct reg_rank_t * ranks;
+	ranks = xcalloc(num_ranks, sizeof(struct reg_rank_t));
+
+	for(int i=0; i<num_ranks;i++)
+	{
+		ranks[i].num_regs_bank=num_banks;
+		ranks[i].regs_bank=regs_bank_create(num_banks, t_row_hit, t_row_miss);
+	}
+	return ranks;
+}
+
+
+struct reg_channel_t* regs_channel_create( int num_channels, int num_ranks, int num_banks, int bandwith, struct reg_rank_t *regs_rank)
+{
+	struct reg_channel_t * channels;
+	channels = xcalloc(num_channels, sizeof(struct reg_channel_t));
+
+	for(int i=0; i<num_channels;i++){
+		channels[i].state=channel_state_free;
+		channels[i].num_regs_rank=num_ranks;
+		channels[i].bandwith=bandwith;
+		channels[i].regs_rank= regs_rank;
+	}
+	return channels;
+}
+
+void reg_channel_free(struct reg_channel_t *channels, int num_channels)
+{
+	for(int c=0; c<num_channels;c++)
+		reg_rank_free(channels[c].regs_rank, channels[c].num_regs_rank);
+	free(channels);
+}
+
+void reg_rank_free(struct reg_rank_t * rank, int num_ranks)
+{
+
+	for(int r=0; r<num_ranks;r++ )
+		free(rank[r].regs_bank);
+	free(rank);
+}
+
 
 struct mod_t *mod_create(char *name, enum mod_kind_t kind, int num_ports,
 	int block_size, int latency)
@@ -70,6 +133,7 @@ struct mod_t *mod_create(char *name, enum mod_kind_t kind, int num_ports,
 	/* Lists */
 	mod->low_mod_list = linked_list_create();
 	mod->high_mod_list = linked_list_create();
+	mod->threads = linked_list_create();
 
 	/* Block size */
 	mod->block_size = block_size;
@@ -86,10 +150,25 @@ void mod_free(struct mod_t *mod)
 {
 	linked_list_free(mod->low_mod_list);
 	linked_list_free(mod->high_mod_list);
+
+	/* Free the queue containing the threads that can access this module */
+	LINKED_LIST_FOR_EACH(mod->threads)
+	{
+		struct core_thread_tuple_t *tuple = linked_list_get(mod->threads);
+		free(tuple);
+	}
+	linked_list_free(mod->threads);
+
 	if (mod->cache)
 		cache_free(mod->cache);
 	if (mod->dir)
 		dir_free(mod->dir);
+
+	/* Main Memory module */
+	if(mod->regs_rank)
+		reg_rank_free(mod->regs_rank, mod->num_regs_rank);
+
+	free(mod->adapt_pref_stack);
 	free(mod->ports);
 	repos_free(mod->client_info_repos);
 	free(mod->name);
@@ -106,7 +185,7 @@ void mod_dump(struct mod_t *mod, FILE *f)
  * Variable 'witness', if specified, will be increased when the access completes.
  * The function returns a unique access ID.
  */
-long long mod_access(struct mod_t *mod, enum mod_access_kind_t access_kind, 
+long long mod_access(struct mod_t *mod, enum mod_access_kind_t access_kind,
 	unsigned int addr, int *witness_ptr, struct linked_list_t *event_queue,
 	void *event_queue_item, struct mod_client_info_t *client_info)
 {
@@ -116,7 +195,7 @@ long long mod_access(struct mod_t *mod, enum mod_access_kind_t access_kind,
 	/* Create module stack with new ID */
 	mod_stack_id++;
 	stack = mod_stack_create(mod_stack_id,
-		mod, addr, ESIM_EV_NONE, NULL);
+		mod, addr, ESIM_EV_NONE, NULL, access_kind == mod_access_prefetch);
 
 	/* Initialize */
 	stack->witness_ptr = witness_ptr;
@@ -141,9 +220,16 @@ long long mod_access(struct mod_t *mod, enum mod_access_kind_t access_kind,
 		}
 		else if (access_kind == mod_access_prefetch)
 		{
-			event = EV_MOD_NMOESI_PREFETCH;
+			if(mod->cache->prefetch_policy == prefetch_policy_streams)
+				event = EV_MOD_PREF;
+			else if(mod->cache->prefetch_policy == prefetch_policy_obl)
+				event = EV_MOD_NMOESI_PREF_OBL;
+			else if(mod->cache->prefetch_policy == prefetch_policy_obl_stride)
+				event = EV_MOD_NMOESI_PREF_OBL;
+			else
+				event = EV_MOD_NMOESI_PREFETCH;
 		}
-		else 
+		else
 		{
 			panic("%s: invalid access kind", __FUNCTION__);
 		}
@@ -198,6 +284,26 @@ int mod_can_access(struct mod_t *mod, unsigned int addr)
 }
 
 
+/* Search for a block in a stream and return the slot where the block is found or -1 if the block is not in the stream */
+int mod_find_block_in_stream(struct mod_t *mod, unsigned int addr, int stream)
+{
+	struct cache_t *cache = mod->cache;
+	struct stream_buffer_t *sb = &cache->prefetch.streams[stream];
+	struct stream_block_t *block;
+	int tag = addr & ~cache->block_mask;
+	int i, slot, count;
+
+	count = sb->head + sb->num_slots;
+	for(i = sb->head; i < count; i++){
+		slot = i % sb->num_slots;
+		block = cache_get_pref_block(cache, sb->stream, slot);
+		if(block->tag == tag && block->state)
+			return slot;
+	}
+	return -1;
+}
+
+
 /* Return {set, way, tag, state} for an address.
  * The function returns TRUE on hit, FALSE on miss. */
 int mod_find_block(struct mod_t *mod, unsigned int addr, int *set_ptr,
@@ -223,7 +329,7 @@ int mod_find_block(struct mod_t *mod, unsigned int addr, int *set_ptr,
 	{
 		set = (tag >> cache->log_block_size) % cache->num_sets;
 	}
-	else 
+	else
 	{
 		panic("%s: invalid range kind (%d)", __FUNCTION__, mod->range_kind);
 	}
@@ -246,19 +352,89 @@ int mod_find_block(struct mod_t *mod, unsigned int addr, int *set_ptr,
 
 	/* Miss */
 	if (way == cache->assoc)
-	{
-	/*
-		PTR_ASSIGN(way_ptr, 0);
-		PTR_ASSIGN(state_ptr, 0);
-	*/
 		return 0;
-	}
 
 	/* Hit */
 	PTR_ASSIGN(way_ptr, way);
 	PTR_ASSIGN(state_ptr, cache->sets[set].blocks[way].state);
 	return 1;
 }
+
+
+/* Look for a block in prefetch buffer.
+ * The function returns 0 on miss, 1 if hit on head and 2 if hit in the middle of the stream. */
+int mod_find_pref_block(struct mod_t *mod, unsigned int addr, int *pref_stream_ptr, int *pref_slot_ptr)
+{
+	struct cache_t *cache = mod->cache;
+	struct stream_block_t *blk;
+	struct dir_lock_t *dir_lock;
+	struct stream_buffer_t *sb;
+
+	/* A transient tag is considered a hit if the block is
+	 * locked in the corresponding directory */
+	int tag = addr & ~cache->block_mask;
+
+	unsigned int stream_tag = addr & ~cache->prefetch.stream_mask;
+	int stream, slot;
+	int num_streams = cache->prefetch.num_streams;
+	for(stream=0; stream<num_streams; stream++)
+	{
+		int i, count;
+		sb = &cache->prefetch.streams[stream];
+
+		/* Block can't be in this stream */
+		/*if(!sb->stream_tag == stream_tag)
+			continue;*/
+
+		count = sb->head + sb->num_slots;
+		for(i = sb->head; i < count; i++)
+		{
+			slot = i % sb->num_slots;
+			blk = cache_get_pref_block(cache, stream, slot);
+
+			/* Increment any invalid unlocked head */
+			if(slot == sb->head && !blk->state)
+			{
+				dir_lock = dir_pref_lock_get(mod->dir, stream, slot);
+				if(!dir_lock->lock)
+				{
+					sb->head = (sb->head + 1) % sb->num_slots;
+					continue;
+				}
+			}
+
+			/* Tag hit */
+			if (blk->tag == tag && blk->state)
+				goto hit;
+
+			/* Locked block and transient tag hit */
+			if (blk->transient_tag == tag)
+			{
+				dir_lock = dir_pref_lock_get(mod->dir, stream, slot);
+				if (dir_lock->lock)
+					goto hit;
+			}
+		}
+	}
+
+	/* Miss */
+	if (stream == num_streams)
+	{
+		PTR_ASSIGN(pref_stream_ptr, -1);
+		PTR_ASSIGN(pref_slot_ptr, -1);
+		return 0;
+	}
+
+hit:
+	assert(sb->stream_tag == stream_tag || sb->stream_transcient_tag == stream_tag); /* Assegurem-nos de que el bloc estava on tocava */
+	PTR_ASSIGN(pref_stream_ptr, stream);
+	PTR_ASSIGN(pref_slot_ptr, slot);
+	if(sb->head == slot)
+		return 1; //Hit in head
+	else
+		return 2; //Hit in the middle of the stream
+}
+
 
 void mod_block_set_prefetched(struct mod_t *mod, unsigned int addr, int val)
 {
@@ -270,6 +446,7 @@ void mod_block_set_prefetched(struct mod_t *mod, unsigned int addr, int val)
 		mod->cache->sets[set].blocks[way].prefetched = val;
 	}
 }
+
 
 int mod_block_get_prefetched(struct mod_t *mod, unsigned int addr)
 {
@@ -283,6 +460,7 @@ int mod_block_get_prefetched(struct mod_t *mod, unsigned int addr)
 
 	return 0;
 }
+
 
 /* Lock a port, and schedule event when done.
  * If there is no free port, the access is enqueued in the port
@@ -298,13 +476,13 @@ void mod_lock_port(struct mod_t *mod, struct mod_stack_t *stack, int event)
 	{
 		assert(!DOUBLE_LINKED_LIST_MEMBER(mod, port_waiting, stack));
 
-		/* If the request to lock the port is down-up, give it priority since 
+		/* If the request to lock the port is down-up, give it priority since
 		 * it is possibly holding up a large portion of the memory hierarchy */
 		if (stack->request_dir == mod_request_down_up)
 		{
 			DOUBLE_LINKED_LIST_INSERT_HEAD(mod, port_waiting, stack);
 		}
-		else 
+		else
 		{
 			DOUBLE_LINKED_LIST_INSERT_TAIL(mod, port_waiting, stack);
 		}
@@ -327,7 +505,7 @@ void mod_lock_port(struct mod_t *mod, struct mod_stack_t *stack, int event)
 	mod->num_locked_ports++;
 
 	/* Debug */
-	mem_debug("  %lld stack %lld %s port %d locked\n", esim_time, stack->id, mod->name, i);
+	mem_debug("  %lld stack %lld %s port %d locked\n", esim_cycle(), stack->id, mod->name, i);
 
 	/* Schedule event */
 	esim_schedule_event(event, stack, 0);
@@ -350,7 +528,7 @@ void mod_unlock_port(struct mod_t *mod, struct mod_port_t *port,
 	mod->num_locked_ports--;
 
 	/* Debug */
-	mem_debug("  %lld %lld %s port unlocked\n", esim_time,
+	mem_debug("  %lld %lld %s port unlocked\n", esim_cycle(),
 		stack->id, mod->name);
 
 	/* Check if there was any access waiting for free port */
@@ -557,8 +735,7 @@ int mod_get_retry_latency(struct mod_t *mod)
  * be coalesced with any in-flight access.
  * If it can, return the access that it would be coalesced with. Otherwise,
  * return NULL. */
-struct mod_stack_t *mod_can_coalesce(struct mod_t *mod,
-	enum mod_access_kind_t access_kind, unsigned int addr,
+struct mod_stack_t *mod_can_coalesce(struct mod_t *mod,enum mod_access_kind_t access_kind, unsigned int addr,
 	struct mod_stack_t *older_than_stack)
 {
 	struct mod_stack_t *stack;
@@ -567,7 +744,10 @@ struct mod_stack_t *mod_can_coalesce(struct mod_t *mod,
 	/* For efficiency, first check in the hash table of accesses
 	 * whether there is an access in flight to the same block. */
 	assert(access_kind);
-	if (!mod_in_flight_address(mod, addr, older_than_stack))
+	/* En el cas dels prefetch a L2+ no podem usar la id per saber
+	 * si ha arribat o no abans al mòdul, per tant no podem usar
+	 * la funció mod_in_flight_address. Es pot millorar. */
+	if ((!mod->cache->prefetch_policy || mod->level == 1) && !mod_in_flight_address(mod, addr, older_than_stack))
 		return NULL;
 
 	/* Get youngest access older than 'older_than_stack' */
@@ -582,7 +762,7 @@ struct mod_stack_t *mod_can_coalesce(struct mod_t *mod,
 	{
 		for (stack = tail; stack; stack = stack->access_list_prev)
 		{
-			/* Only coalesce with groups of reads or prefetches at the tail */
+			/* Only coalesce with groups of loads or prefetches at the tail */
 			if (stack->access_kind != mod_access_load &&
 			    stack->access_kind != mod_access_prefetch)
 				return NULL;
@@ -639,8 +819,10 @@ struct mod_stack_t *mod_can_coalesce(struct mod_t *mod,
 		/* Coalesce */
 		return stack->master_stack ? stack->master_stack : stack;
 	}
+
 	case mod_access_prefetch:
-		/* At this point, we know that there is another access (load/store)
+	{
+		/* At this point, we know that there is another access (load/store/read/write)
 		 * to the same block already in flight. Just find and return it.
 		 * The caller may abort the prefetch since the block is already
 		 * being fetched. */
@@ -652,7 +834,7 @@ struct mod_stack_t *mod_can_coalesce(struct mod_t *mod,
 		}
 		assert(!"Hash table wrongly reported another access to same block.\n");
 		break;
-
+	}
 
 	default:
 		panic("%s: invalid access type", __FUNCTION__);
@@ -681,12 +863,168 @@ void mod_coalesce(struct mod_t *mod, struct mod_stack_t *master_stack,
 
 	/* Set slave stack as a coalesced access */
 	stack->coalesced = 1;
-	stack->master_stack = master_stack;
+
+	/* If master stack is a prefetch only this access will coalesce with it.
+	 * Next accesses will coalesce with this access. */
+	if(master_stack->access_kind != mod_access_prefetch) //VVV
+		stack->master_stack = master_stack;
+
 	assert(mod->access_list_coalesced_count <= mod->access_list_count);
 
 	/* Record in-flight coalesced access in module */
 	mod->access_list_coalesced_count++;
 }
+
+
+void mod_adapt_pref_schedule(struct mod_t *mod)
+{
+	struct mod_adapt_pref_stack_t *stack;
+	struct cache_t *cache = mod->cache;
+
+	/* Create new stack */
+	stack = xcalloc(1, sizeof(struct mod_adapt_pref_stack_t));
+	stack->mod = mod;
+	mod->adapt_pref_stack = stack;
+
+	if (cache->prefetch.adapt_interval_kind == interval_kind_cycles)
+	{
+		/* Schedule first event */
+		assert(mod->cache->prefetch.adapt_interval);
+		esim_schedule_event(EV_CACHE_ADAPT_PREF, stack, mod->cache->prefetch.adapt_interval);
+	}
+}
+
+
+void mod_adapt_pref_handler(int event, void *data)
+{
+	struct mod_adapt_pref_stack_t *stack = data;
+	struct mod_t *mod = stack->mod;
+	struct cache_t *cache = mod->cache;
+	struct core_thread_tuple_t *tuple;
+
+	/* If simulation has ended, no more
+	 * events to schedule. */
+	if (esim_finish)
+		return;
+
+	/* Useful prefetches */
+	long long useful_prefetches_int = mod->useful_prefetches -
+		stack->last_useful_prefetches;
+
+	/* Cache misses */
+	long long accesses_int = mod->no_retry_accesses - stack->last_no_retry_accesses;
+	long long hits_int = mod->no_retry_hits - stack->last_no_retry_hits;
+	long long misses_int = accesses_int - hits_int;
+
+	/* Pseudocoverage */
+	double pseudocoverage_int = (misses_int + useful_prefetches_int) ?
+		(double) useful_prefetches_int / (misses_int + useful_prefetches_int) : 0.0;
+
+	/* ROB % stalled cicles due a memory instruction */
+	long long cycles_stalled;
+	long long cycles_stalled_int;
+	{
+		int cores = 0;
+		int *cores_presence_vector = xcalloc(x86_cpu_num_cores, sizeof(int));
+		LINKED_LIST_FOR_EACH(mod->threads)
+		{
+			tuple = (struct core_thread_tuple_t *) linked_list_get(mod->threads);
+			if(!cores_presence_vector[tuple->core])
+			{
+				cycles_stalled += x86_cpu->core[tuple->core].dispatch_stall_cycles_rob_mem;
+				cores_presence_vector[tuple->core] = 1;
+				cores++;
+			}
+		}
+		free(cores_presence_vector);
+		cycles_stalled /= cores;
+		cycles_stalled_int = cycles_stalled - stack->last_cycles_stalled;
+	}
+	double percentage_cycles_stalled = esim_cycle() - stack->last_cycle > 0 ? (double)
+		100 * cycles_stalled_int / (esim_cycle() - stack->last_cycle) : 0.0;
+
+	/* Mean IPC for all the contexts accessing this module */
+	double ipc_int = (double) (stack->inst_count - stack->last_inst_count) /
+		(esim_cycle() - stack->last_cycle);
+
+	/* Strides detected */
+	long long strides_detected_int = cache->prefetch.stride_detector.strides_detected -
+		stack->last_strides_detected;
+
+	/* Disable prefetch */
+	if(mod->cache->pref_enabled)
+	{
+		switch(mod->cache->prefetch.adapt_policy)
+		{
+			case adapt_pref_policy_none:
+				break;
+
+			case adapt_pref_policy_misses:
+			case adapt_pref_policy_misses_enhanced:
+				if((double) misses_int / (misses_int + useful_prefetches_int) > 0.8)
+					mod->cache->pref_enabled = 0;
+				break;
+
+			case adapt_pref_policy_pseudocoverage:
+				if(pseudocoverage_int < 0.2)
+					mod->cache->pref_enabled = 0;
+				break;
+
+			default:
+				fatal("Invalid adaptative prefetch policy");
+				break;
+		}
+		if(!mod->cache->pref_enabled)
+			stack->last_cycle_pref_disabled = esim_cycle();
+	}
+
+	/* Enable prefetch */
+	else
+	{
+		switch(mod->cache->prefetch.adapt_policy)
+		{
+			case adapt_pref_policy_none:
+				break;
+
+			case adapt_pref_policy_misses:
+				if (misses_int > stack->last_misses_int * 1.1)
+					mod->cache->pref_enabled = 1;
+
+			break;
+
+			case adapt_pref_policy_misses_enhanced:
+				if ((misses_int > stack->last_misses_int * 1.1) ||
+					(percentage_cycles_stalled > 0.4 && strides_detected_int > 250) ||
+					(stack->last_cycle_pref_disabled == stack->last_cycle && ipc_int < 0.9 * stack->last_ipc_int))
+				{
+					mod->cache->pref_enabled = 1;
+				}
+				break;
+
+			default:
+				fatal("Invalid adaptative prefetch policy");
+				break;
+		}
+	}
+
+	stack->last_cycle = esim_cycle();
+	stack->last_cycles_stalled = cycles_stalled;
+	stack->last_useful_prefetches = mod->useful_prefetches;
+	stack->last_no_retry_accesses = mod->no_retry_accesses;
+	stack->last_no_retry_hits = mod->no_retry_hits;
+	stack->last_misses_int = misses_int;
+	stack->last_strides_detected = cache->prefetch.stride_detector.strides_detected;
+	stack->last_inst_count = stack->inst_count;
+	stack->last_ipc_int = ipc_int;
+
+	if (cache->prefetch.adapt_interval_kind == interval_kind_cycles)
+	{
+		/* Schedule new event */
+		assert(mod->cache->prefetch.adapt_interval);
+		esim_schedule_event(event, stack, mod->cache->prefetch.adapt_interval);
+	}
+}
+
 
 struct mod_client_info_t *mod_client_info_create(struct mod_t *mod)
 {
@@ -694,6 +1032,12 @@ struct mod_client_info_t *mod_client_info_create(struct mod_t *mod)
 
 	/* Create object */
 	client_info = repos_create_object(mod->client_info_repos);
+
+	client_info->core = -1;
+	client_info->thread = -1;
+
+	client_info->stream = -1;
+	client_info->slot = -1;
 
 	/* Return */
 	return client_info;
