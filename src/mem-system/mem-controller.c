@@ -287,7 +287,7 @@ void mem_controller_normal_queue_add(struct mod_stack_t * stack){
 
 	/*Now queue is full?*/
 	 if(linked_list_count(mem_controller->normal_queue[bank]->queue)==mem_controller->size_queue)
-         	mem_controller->normal_queue[bank]->instant_begin_full=esim_cycle;
+         	mem_controller->normal_queue[bank]->instant_begin_full=esim_cycle();
 
  	mem_controller->normal_queue[bank]->total_insertions++;
 
@@ -334,7 +334,7 @@ void mem_controller_prefetch_queue_add(struct mod_stack_t * stack){
 
 	/*Now queue is full?*/
 	 if(linked_list_count(mem_controller->pref_queue[bank]->queue)==mem_controller->size_queue)
-         	mem_controller->pref_queue[bank]->instant_begin_full=esim_cycle;
+         	mem_controller->pref_queue[bank]->instant_begin_full=esim_cycle();
 
 	mem_controller->pref_queue[bank]->total_insertions++;
 

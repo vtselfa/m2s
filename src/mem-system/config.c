@@ -716,8 +716,9 @@ static struct mod_t *mem_config_read_cache(struct config_t *config,
 	mod->low_net_node = net_node;
 
 	/* Create cache */
-	mod->cache = cache_create(mod->name, num_sets, block_size, assoc, 
-		policy);
+	mod->cache = cache_create(mod->name, num_sets, prefetcher_num_streams, prefetcher_num_slots, block_size, assoc,
+                policy);
+
 
 
 	/* Schedule adaptative prefetch */
@@ -1009,8 +1010,8 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config,
 	mod->high_net_node = net_node;
 
 	/* Create cache and directory */
-	mod->cache = cache_create(mod->name, dir_size / dir_assoc, block_size,
-		dir_assoc, cache_policy_lru);
+	mod->cache = cache_create(mod->name, dir_size/dir_assoc, 0, 0, block_size, dir_assoc,
+                cache_policy_lru);
 
 	 /*Create main memory*/
         ///////////////////////////////////////////////////

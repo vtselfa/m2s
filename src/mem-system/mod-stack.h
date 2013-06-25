@@ -208,7 +208,7 @@ struct mod_stack_t
 };
 
 struct mod_stack_t *mod_stack_create(long long id, struct mod_t *mod,
-		unsigned int addr, int ret_event, struct mod_stack_t *ret_stack);
+		unsigned int addr, int ret_event, struct mod_stack_t *ret_stack, int prefetch);
 void mod_stack_return(struct mod_stack_t *stack);
 
 void mod_stack_wait_in_mod(struct mod_stack_t *stack,

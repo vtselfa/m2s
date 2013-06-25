@@ -70,6 +70,7 @@ struct mem_system_t *mem_system_create(void)
 	mem_system = xcalloc(1, sizeof(struct mem_system_t));
 	mem_system->net_list = list_create();
 	mem_system->mod_list = list_create();
+	mem_system->mm_mod_list = list_create();
 	////////////////////////////////////////////////////
 	mem_system->mem_controllers = linked_list_create();
 	mem_system->pref_into_normal = linked_list_create();
@@ -114,6 +115,9 @@ void mem_system_free(struct mem_system_t *mem_system)
 		net_free(list_pop(mem_system->net_list));
 	list_free(mem_system->net_list);
 
+
+	/*Free mm*/
+	list_free(mem_system->mm_mod_list);
 	/* Free memory system */
 	free(mem_system);
 }
