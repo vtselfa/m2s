@@ -181,22 +181,20 @@ void mem_controller_init_main_memory(struct mem_controller_t *mem_controller, in
 
 
 void mem_controller_free(struct mem_controller_t *mem_controller){
+	struct mod_t *mod;
 
-
-	struct mod_t * mod= list_get(mem_system->mod_list,0);
-
-
+	mod = list_get(mem_system->mod_list, 0);
+	
 	/* Free prefetch queue */
 	for(int i=0; i<mem_controller->num_queues;i++)
 		mem_controller_queue_free(mem_controller->pref_queue[i]);
-
 	free(mem_controller->pref_queue);
 
 	/* Free normal queue */
 	for(int i=0; i<mem_controller->num_queues;i++)
 		mem_controller_queue_free(mem_controller->normal_queue[i]);
-
 	free(mem_controller->normal_queue);
+
 	///////////////////////////////////////////////////////////
 	for(int i=0; i<mem_controller->row_buffer_size/mod->cache->block_size;i++)
 		free(mem_controller->successive_hit[i]);

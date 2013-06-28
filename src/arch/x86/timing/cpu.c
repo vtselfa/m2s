@@ -642,6 +642,7 @@ static void x86_cpu_dump_report(void)
 
 static void x86_cpu_thread_init(int core, int thread)
 {
+	X86_THREAD.adapt_pref_modules = linked_list_create();
 }
 
 
@@ -819,6 +820,7 @@ void x86_cpu_init(void)
 void x86_cpu_done()
 {
 	int core;
+	int thread;
 
 	/* Dump CPU report */
 	x86_cpu_dump_report();
@@ -838,6 +840,10 @@ void x86_cpu_done()
 	x86_trace_cache_done();
 	x86_reg_file_done();
 	x86_fu_done();
+
+	/* Free list of modules with adaptive prefetch */
+	X86_CORE_FOR_EACH X86_THREAD_FOR_EACH
+		linked_list_free(X86_THREAD.adapt_pref_modules);
 
 	/* Free processor */
 	X86_CORE_FOR_EACH

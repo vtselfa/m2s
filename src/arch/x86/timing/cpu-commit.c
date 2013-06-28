@@ -26,7 +26,7 @@
 #include <lib/esim/esim.h>
 #include <lib/esim/trace.h>
 #include <lib/util/debug.h>
-#include <lib/util/list.h>
+#include <lib/util/linked-list.h>
 #include <mem-system/module.h>
 
 #include "bpred.h"
@@ -89,7 +89,6 @@ static void x86_cpu_commit_thread(int core, int thread, int quant)
 	struct x86_ctx_t *ctx = X86_THREAD.ctx;
 	struct x86_uop_t *uop;
 	int recover = 0;
-	int i;
 
 	/* Commit stage for thread */
 	assert(ctx);
@@ -148,11 +147,12 @@ static void x86_cpu_commit_thread(int core, int thread, int quant)
 		}
 
 		/* Adaptative pref. Update commited inst counters and launch handlers if necessary. */
-		LIST_FOR_EACH(X86_THREAD.adapt_pref_modules, i)
+		LINKED_LIST_FOR_EACH(X86_THREAD.adapt_pref_modules)
 		{
-			struct mod_t *mod = (struct mod_t*) list_get(X86_THREAD.adapt_pref_modules, i);
+			struct mod_t *mod = (struct mod_t*) linked_list_get(X86_THREAD.adapt_pref_modules);
 			mod->adapt_pref_stack->inst_count++;
-			if(mod->cache->prefetch.adapt_interval_kind == interval_kind_instructions && mod->adapt_pref_stack->inst_count % mod->cache->prefetch.adapt_interval == 0)
+			if(mod->cache->prefetch.adapt_interval_kind == interval_kind_instructions &&
+				mod->adapt_pref_stack->inst_count % mod->cache->prefetch.adapt_interval == 0)
 				mod_adapt_pref_handler(EV_CACHE_ADAPT_PREF, (void *) mod->adapt_pref_stack);
 		}
 

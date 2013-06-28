@@ -1750,7 +1750,7 @@ static void mem_config_fill_adapt_pref_lists(int core, int thread, struct mod_t 
 	if(mod->cache->prefetch.adapt_policy)
 	{
 		assert(mod->cache->prefetch_policy);
-		list_add(X86_THREAD.adapt_pref_modules, mod);
+		linked_list_add(X86_THREAD.adapt_pref_modules, mod);
 	}
 	/* Explore lower modules */
 	for (linked_list_head(mod->low_mod_list); !linked_list_is_end(mod->low_mod_list);

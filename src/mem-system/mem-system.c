@@ -76,20 +76,21 @@ struct mem_system_t *mem_system_create(void)
 
 void mem_system_free(struct mem_system_t *mem_system)
 {
+	/* Free mem controllers */
+	while (list_count(mem_system->mem_controllers))
+		mem_controller_free(list_pop(mem_system->mem_controllers));
+	list_free(mem_system->mem_controllers);
+
 	/* Free memory modules */
 	while (list_count(mem_system->mod_list))
 		mod_free(list_pop(mem_system->mod_list));
 	list_free(mem_system->mod_list);
+	list_free(mem_system->mm_mod_list);
 
 	/* Free networks */
 	while (list_count(mem_system->net_list))
 		net_free(list_pop(mem_system->net_list));
 	list_free(mem_system->net_list);
-
-	/* Free mem controllers */
-	while (list_count(mem_system->mem_controllers))
-		net_free(list_pop(mem_system->mem_controllers));
-	list_free(mem_system->mem_controllers);
 
 	/* Free memory system */
 	free(mem_system);

@@ -62,9 +62,12 @@ struct prefetcher_t *prefetcher_create(int prefetcher_ghb_size, int prefetcher_i
 
 void prefetcher_free(struct prefetcher_t *pref)
 {
-	free(pref->ghb);
-	free(pref->index_table);
-	free(pref);
+	if (pref)
+	{
+		free(pref->ghb);
+		free(pref->index_table);
+		free(pref);
+	}
 }
 
 static void get_it_index_tag(struct prefetcher_t *pref, struct mod_stack_t *stack, 
