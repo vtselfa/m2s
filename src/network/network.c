@@ -98,7 +98,7 @@ static void net_create_from_config_route_create(struct net_t *net, struct config
 						net_get_node_by_name(net,
 								nxt_node_name);
 
-				if (name_check == 1)
+				if (name_check)
 				{
 					if (nxt_node_r == NULL)
 						fatal("Network %s:%s: Invalid node Name.\n %s",
