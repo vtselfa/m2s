@@ -54,16 +54,6 @@ struct str_map_t cache_block_state_map =
 	}
 };
 
-struct str_map_t prefetch_policy_map =
-{
-	4, {
-		{ "None", prefetch_policy_none },
-		{ "OBL", prefetch_policy_obl },
-		{ "OBL_Stride", prefetch_policy_obl_stride },
-		{ "Streams", prefetch_policy_streams }
-	}
-};
-
 struct str_map_t adapt_pref_policy_map =
 {
 	4, {

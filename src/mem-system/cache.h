@@ -20,10 +20,10 @@
 #ifndef MEM_SYSTEM_CACHE_H
 #define MEM_SYSTEM_CACHE_H
 
+#include "prefetcher.h"
 
 extern struct str_map_t cache_policy_map;
 extern struct str_map_t cache_block_state_map;
-extern struct str_map_t prefetch_policy_map;
 extern struct str_map_t adapt_pref_policy_map;
 extern struct str_map_t interval_kind_map;
 
@@ -40,14 +40,6 @@ enum cache_policy_t
 	cache_policy_lru,
 	cache_policy_fifo,
 	cache_policy_random
-};
-
-enum prefetch_policy_t
-{
-	prefetch_policy_none = 0,
-	prefetch_policy_obl,
-	prefetch_policy_obl_stride,
-	prefetch_policy_streams
 };
 
 enum adapt_pref_policy_t
@@ -151,10 +143,10 @@ struct cache_t
 	int log_block_size;
 
 	/* Prefetching */
-	enum prefetch_policy_t prefetch_policy;
 	unsigned int pref_enabled : 1;
 
 	struct {
+		enum prefetcher_type_t type; /* Type of prefetcher */
 		unsigned int num_streams; 	/* Number of streams for prefetch */
 		unsigned int aggressivity; 	/* Number of blocks per stream */
 		unsigned int stream_mask; 	/* For obtaining stream_tag */

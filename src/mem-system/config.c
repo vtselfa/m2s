@@ -719,7 +719,6 @@ static struct mod_t *mem_config_read_cache(struct config_t *config,
 	mod->cache = cache_create(mod->name, num_sets, prefetcher_num_streams, prefetcher_num_slots, block_size, assoc,
 		policy);
 
-
 	/* Schedule adaptative prefetch */
 	if(prefetcher_adp_policy)
 		mod_adapt_pref_schedule(mod);
@@ -728,7 +727,7 @@ static struct mod_t *mem_config_read_cache(struct config_t *config,
 	mod->cache->pref_enabled = enable_prefetcher;
 	if (enable_prefetcher)
 	{
-		mod->cache->prefetch_policy = prefetcher_type;
+		mod->cache->prefetch.type = prefetcher_type;
 		mod->cache->prefetch.adapt_policy = prefetcher_adp_policy;
 		mod->cache->prefetch.adapt_interval = prefetcher_adp_interval;
 		mod->cache->prefetch.adapt_interval_kind = prefetcher_adp_interval_kind;
@@ -1749,7 +1748,7 @@ static void mem_config_fill_adapt_pref_lists(int core, int thread, struct mod_t 
 	/* Add mod to the list of mods with adapt pref enabled */
 	if(mod->cache->prefetch.adapt_policy)
 	{
-		assert(mod->cache->prefetch_policy);
+		assert(mod->cache->prefetch.type);
 		linked_list_add(X86_THREAD.adapt_pref_modules, mod);
 	}
 	/* Explore lower modules */

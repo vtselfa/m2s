@@ -220,12 +220,9 @@ long long mod_access(struct mod_t *mod, enum mod_access_kind_t access_kind,
 		}
 		else if (access_kind == mod_access_prefetch)
 		{
-			if(mod->cache->prefetch_policy == prefetch_policy_streams)
+			assert(mod->cache->prefetch.type);
+			if(mod->cache->prefetch.type == prefetcher_type_czone_streams)
 				event = EV_MOD_PREF;
-			else if(mod->cache->prefetch_policy == prefetch_policy_obl)
-				event = EV_MOD_NMOESI_PREF_OBL;
-			else if(mod->cache->prefetch_policy == prefetch_policy_obl_stride)
-				event = EV_MOD_NMOESI_PREF_OBL;
 			else
 				event = EV_MOD_NMOESI_PREFETCH;
 		}
@@ -747,7 +744,7 @@ struct mod_stack_t *mod_can_coalesce(struct mod_t *mod,enum mod_access_kind_t ac
 	/* En el cas dels prefetch a L2+ no podem usar la id per saber
 	 * si ha arribat o no abans al mòdul, per tant no podem usar
 	 * la funció mod_in_flight_address. Es pot millorar. */
-	if ((!mod->cache->prefetch_policy || mod->level == 1) && !mod_in_flight_address(mod, addr, older_than_stack))
+	if ((!mod->cache->prefetch.type || mod->level == 1) && !mod_in_flight_address(mod, addr, older_than_stack))
 		return NULL;
 
 	/* Get youngest access older than 'older_than_stack' */
@@ -822,17 +819,12 @@ struct mod_stack_t *mod_can_coalesce(struct mod_t *mod,enum mod_access_kind_t ac
 
 	case mod_access_prefetch:
 	{
-		/* At this point, we know that there is another access (load/store/read/write)
-		 * to the same block already in flight. Just find and return it.
-		 * The caller may abort the prefetch since the block is already
-		 * being fetched. */
 		for (stack = tail; stack; stack = stack->access_list_prev)
 		{
 			if (stack->addr >> mod->log_block_size ==
 				addr >> mod->log_block_size)
 				return stack;
 		}
-		assert(!"Hash table wrongly reported another access to same block.\n");
 		break;
 	}
 
