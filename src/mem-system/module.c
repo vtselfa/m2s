@@ -226,6 +226,11 @@ long long mod_access(struct mod_t *mod, enum mod_access_kind_t access_kind,
 			else
 				event = EV_MOD_NMOESI_PREFETCH;
 		}
+		else if (access_kind == mod_access_invalidate_slot)
+		{
+			assert(mod->cache->prefetch.type == prefetcher_type_czone_streams);
+			event = EV_MOD_NMOESI_INVALIDATE_SLOT;
+		}
 		else
 		{
 			panic("%s: invalid access kind", __FUNCTION__);
@@ -1031,9 +1036,26 @@ struct mod_client_info_t *mod_client_info_create(struct mod_t *mod)
 	client_info->stream = -1;
 	client_info->slot = -1;
 
+	client_info->prefetcher_eip = -1;
+
 	/* Return */
 	return client_info;
 }
+
+
+struct mod_client_info_t *mod_client_info_clone(struct mod_t *mod, struct mod_client_info_t *original)
+{
+	struct mod_client_info_t *client_info;
+
+	/* Create object */
+	client_info = repos_create_object(mod->client_info_repos);
+
+	*client_info = *original;
+
+	/* Return */
+	return client_info;
+}
+
 
 void mod_client_info_free(struct mod_t *mod, struct mod_client_info_t *client_info)
 {

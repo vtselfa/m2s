@@ -293,11 +293,17 @@ static void x86_cpu_fetch_thread(int core, int thread)
 	block = X86_THREAD.fetch_neip & ~(X86_THREAD.inst_mod->block_size - 1);
 	if (block != X86_THREAD.fetch_block)
 	{
+		/* Create and fill the mod_client_info_t object */
+		struct mod_client_info_t *client_info = mod_client_info_create(X86_THREAD.inst_mod);
+		client_info->prefetcher_eip = -1; /* Set it to an "invalid" address */
+		client_info->core = core;
+		client_info->thread = thread;
+
 		phy_addr = mmu_translate(X86_THREAD.ctx->address_space_index, X86_THREAD.fetch_neip);
 		X86_THREAD.fetch_block = block;
 		X86_THREAD.fetch_address = phy_addr;
 		X86_THREAD.fetch_access = mod_access(X86_THREAD.inst_mod, 
-			mod_access_load, phy_addr, NULL, NULL, NULL, NULL);
+			mod_access_load, phy_addr, NULL, NULL, NULL, client_info);
 		X86_THREAD.btb_reads++;
 
 		/* MMU statistics */

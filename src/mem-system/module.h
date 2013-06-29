@@ -58,7 +58,7 @@ enum mod_access_kind_t
 	mod_access_prefetch,
 	mod_access_read_request,
 	mod_access_write_request,
-	mod_access_invalidate //VVV
+	mod_access_invalidate_slot
 };
 
 /* Module types */
@@ -81,7 +81,6 @@ struct mod_client_info_t
 	/* Fields used by stream prefetchers */
 	int stream;
 	int slot;
-	int invalidate;
 
 	/* This field is for use by the prefetcher. It is set
 	 * to the PC of the instruction accessing the module */
@@ -472,6 +471,7 @@ void mod_coalesce(struct mod_t *mod, struct mod_stack_t *master_stack,
 	struct mod_stack_t *stack);
 
 struct mod_client_info_t *mod_client_info_create(struct mod_t *mod);
+struct mod_client_info_t *mod_client_info_clone(struct mod_t *mod, struct mod_client_info_t *original);
 void mod_client_info_free(struct mod_t *mod, struct mod_client_info_t *client_info);
 
 /* Prefetch */

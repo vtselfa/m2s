@@ -134,6 +134,8 @@ static int x86_cpu_issue_lq(int core, int thread, int quant)
 		/* Create and fill the mod_client_info_t object */
 		client_info = mod_client_info_create(X86_THREAD.data_mod);
 		client_info->prefetcher_eip = load->eip;
+		client_info->core = core;
+		client_info->thread = thread;
 
 		/* Access memory system */
 		mod_access(X86_THREAD.data_mod, mod_access_load,
