@@ -4332,6 +4332,19 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			mod_access_start(target_mod, stack, mod_access_read_request);
 		}
 
+		esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST_LOCK, stack, 0);
+		return;
+	}
+
+	if (event == EV_MOD_NMOESI_READ_REQUEST_LOCK)
+	{
+
+		mem_controller=stack->target_mod->mem_controller;
+
+		mem_debug("  %lld %lld 0x%x %s read request lock\n", esim_time, stack->id,
+			stack->addr, target_mod->name);
+		mem_trace("mem.access name=\"A-%lld\" state=\"%s:read_request_lock\"\n",
+			stack->id, mod->name);
 
 		/* Find and lock */
 		new_stack = mod_stack_create(stack->id, target_mod, stack->addr,
@@ -5277,7 +5290,20 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			mod_access_start(target_mod, stack, mod_access_write_request);
 		}
 
-		/* Find and lock */
+		esim_schedule_event(EV_MOD_NMOESI_WRITE_REQUEST_LOCK, stack, 0);
+		return;
+	}
+
+	if (event == EV_MOD_NMOESI_WRITE_REQUEST_LOCK)
+	{
+		mem_controller=stack->target_mod->mem_controller;
+
+		mem_debug("  %lld %lld 0x%x %s write request lock\n", esim_time, stack->id,
+			stack->addr, target_mod->name);
+		mem_trace("mem.access name=\"A-%lld\" state=\"%s:write_request_lock\"\n",
+			stack->id, target_mod->name);
+
+		/* Call find and lock */
 		new_stack = mod_stack_create(stack->id, target_mod, stack->addr,
 			EV_MOD_NMOESI_WRITE_REQUEST_ACTION, stack, stack->prefetch);
 		new_stack->blocking = stack->request_dir == mod_request_down_up;

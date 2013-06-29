@@ -339,6 +339,12 @@ void x86_ctx_free(struct x86_ctx_t *ctx)
 	DOUBLE_LINKED_LIST_REMOVE(x86_emu, context, ctx);
 	x86_ctx_debug("#%lld ctx %d freed\n", arch_x86->cycle, ctx->pid);
 
+	/* Free stats reporting stacks */
+	free(ctx->ipc_report_stack);
+	free(ctx->misc_report_stack);
+	free(ctx->cpu_report_stack);
+	free(ctx->mc_report_stack);
+
 	/* Free context */
 	free(ctx);
 }
