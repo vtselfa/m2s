@@ -3,6 +3,48 @@
 #define MEM_CONTROLLER_H
 
 
+extern struct str_map_t interval_kind_map;
+
+
+
+extern int EV_MEM_CONTROLLER_ADAPT;
+char * main_mem_report_file_name;
+
+struct tuple_adapt_t
+{
+
+	struct mod_t * mod;
+	struct linked_list_t * streams;
+
+};
+
+/*States of request which  try to acces to main memory*/
+enum acces_main_memory_state_t
+{
+        row_buffer_hit = 0,
+        channel_busy,
+        bank_accesed,
+        row_buffer_miss
+
+};
+
+enum adapt_policy_t
+{
+	adapt_policy_none = 0,
+	adapt_policy_enabled
+};
+
+struct mem_controller_adapt_stack_t
+{
+	struct mem_controller_t * mem_controller;	
+};
+
+enum interval_kind_t
+{
+        interval_kind_invalid = 0,
+        interval_kind_instructions,
+        interval_kind_cycles
+};
 
 
 /* Memory controller*/
@@ -10,8 +52,22 @@
 enum priority_t
 {
 	prio_threshold_normal_pref=0,
-	prio_threshold_RowBufHit_FCFS
+	prio_threshold_RowBufHit_FCFS,
+	prio_threshold_normal_prefHit_prefGroup,
+	prio_threshold_normal_prefHit_prefGroupCoalesce,
+	prio_threshold_RowBufHit_normal_prefHit_prefGroup,
+	prio_threshold_RowBufHit_normal_prefHit_prefGroupCoalesce,
+	prio_threshold_RowBufHit_prefHit_normal_prefGroup,
+	prio_threshold_RowBufHit_prefHit_normal_prefGroupCoalesce,
+	prio_threshold_pref_normal,
+	prio_threshold_prefRBH_normalRBH_normal_pref,
+	prio_threshold_prefHit_normal_prefGroup,
+	prio_threshold_prefHit_normal_prefGroupCoalesce,
+	prio_threshold_prefHitRBH_normalRBH_normal_prefHit_prefGroup,
+	prio_threshold_prefHitRBH_normalRBH_normal_prefHit_prefGroupCoalesce,
+	prio_dynamic
 };
+
 enum priority_type_request_t
 {
 	prio_none = 0, // null priority
@@ -84,6 +140,9 @@ struct mem_controller_t
 	/*Number of stacks you can put inside*/
 	int size_queue;
 
+	/*Coalesce prefetch request into normal*/
+	int piggybacking;
+
 	/*There is a queue per bank or only one for all banks*/
 	int queue_per_bank;
 
@@ -99,6 +158,14 @@ struct mem_controller_t
 
 	/*Channels*/
 	struct reg_channel_t * regs_channel;
+
+	/*Adaptative option*/
+	int adaptative;
+	float adapt_percent;
+	int adapt_interval_kind;
+	long long adapt_interval;
+	struct linked_list_t * lived_streams;
+	struct linked_list_t * useful_streams;
 
 	/*Relation between cycles bus of main memory and cycles of processor*/
 	int cycles_proc_bus;  // 1 cycle of bus= cycles_proc_bus cycles of proc
@@ -150,6 +217,7 @@ struct mem_controller_t
 
 struct mem_controller_t * mem_controller_create(void);
 void mem_controller_free(struct mem_controller_t * mem_controller);
+void mem_controller_dump_report();
 void mem_controller_normal_queue_add(struct mod_stack_t * stack);
 void mem_controller_prefetch_queue_add(struct mod_stack_t * stack);
 int mem_controller_remove(struct mod_stack_t * stack, struct mem_controller_queue_t * queue);
@@ -159,6 +227,9 @@ void mem_controller_init_main_memory(struct mem_controller_t *mem_controller, in
 void mem_controller_update_requests_threshold(int cycles,struct mem_controller_t * mem_controller);
 int mem_controller_queue_has_consumed_threshold(struct linked_list_t * queue, long long size);
 struct mod_stack_t* mem_controller_select_request(int queues_examined, enum priority_t select, struct mem_controller_t * mem_controller);
+void mem_controller_coalesce_pref_into_normal(struct mod_stack_t* stack);
+int mem_controller_is_piggybacked(struct mod_stack_t * stack);
+int mem_controller_count_requests_same_stream(struct mod_stack_t* stack, struct linked_list_t * queue);
 //int mem_controller_queue_has_row_buffer_hit(struct linked_list_t * queue, long long size);
 
 /*Coalesce*/
@@ -178,12 +249,35 @@ void mem_controller_queue_free(struct mem_controller_queue_t * mem_controller_qu
 struct mem_controller_queue_t * mem_controller_queue_create(void);
 int mem_controller_get_bank_queue(int num_queue_examined, struct mem_controller_t * mem_controller);
 int mem_controller_get_size_queue(struct mod_stack_t* stack);
+void mem_controller_remove_in_queue(struct mod_stack_t* stack);
+void mem_controller_register_in_queue(struct mod_stack_t* stack);
 
 
-/////////////////////////////////////////////////////////////////////
+/*Policies*/
+struct mod_stack_t * mem_controller_select_prefRBH_normalRBH_normal_pref_prio(struct mem_controller_queue_t * normal_queue, struct mem_controller_queue_t * pref_queue, enum priority_t priority, struct mem_controller_t * mem_controller);
+struct mod_stack_t * mem_controller_select_prefHit_normal_prefGroup_prio(struct mem_controller_queue_t * normal_queue, struct mem_controller_queue_t * pref_queue, enum priority_t priority, struct mem_controller_t * mem_controller);
+struct mod_stack_t * mem_controller_select_prefHitRBH_normalRBH_normal_prefHit_prefGroup_prio(struct mem_controller_queue_t * normal_queue, struct mem_controller_queue_t * pref_queue, enum priority_t priority, struct mem_controller_t * mem_controller);
+struct mod_stack_t * mem_controller_select_pref_normal_prio(struct mem_controller_queue_t * normal_queue, struct mem_controller_queue_t * pref_queue, enum priority_t priority, struct mem_controller_t * mem_controller);
+struct mod_stack_t * mem_controller_select_rbh_fcfs_prio(struct mem_controller_queue_t * normal_queue,struct mem_controller_queue_t * pref_queue , enum priority_t priority, struct mem_controller_t * mem_controller);
+struct mod_stack_t * mem_controller_select_normal_pref_prio(struct mem_controller_queue_t * normal_queue,struct mem_controller_queue_t * pref_queue , enum priority_t priority, struct mem_controller_t * mem_controller);
+struct mod_stack_t * mem_controller_select_rbh_normal_prefHit_prefGroup_prio(struct mem_controller_queue_t * normal_queue,struct mem_controller_queue_t * pref_queue , enum priority_t priority, struct mem_controller_t * mem_controller);
+struct mod_stack_t * mem_controller_select_rbh_prefHit_normal_prefGroup_prio(struct mem_controller_queue_t * normal_queue,struct mem_controller_queue_t * pref_queue , enum priority_t priority, struct mem_controller_t * mem_controller);
+struct mod_stack_t * mem_controller_select_normal_prefHit_prefGroup_prio(struct mem_controller_queue_t * normal_queue,struct mem_controller_queue_t * pref_queue , enum priority_t priority, struct mem_controller_t * mem_controller);
+struct mod_stack_t * mem_controller_select_dynamic_prio(struct mem_controller_queue_t * normal_queue, struct mem_controller_queue_t * pref_queue, enum priority_t priority, struct mem_controller_t * mem_controller);
+void mem_controller_mark_requests_same_stream(struct mod_stack_t* stack, struct linked_list_t * queue);
+
 
 /*ROW BUFFER*/
 int row_buffer_find_row(struct mem_controller_t * mem_controller, struct mod_t *mod, unsigned int addr, unsigned int *channel_ptr,unsigned int *rank_ptr,
 	unsigned int *bank_ptr, unsigned int *row_ptr, int * tag_ptr, int *state_ptr);
+
+/*Adaptative*/
+void mem_controller_adapt_schedule(struct mem_controller_t * mem_controller);
+void mem_controller_adapt_handler(int event, void *data);
+void mem_controller_mark_stream(struct mod_stack_t* stack, struct linked_list_t *list);
+int mem_controller_is_useful_stream(struct mod_stack_t* stack,struct mem_controller_queue_t * queue);
+
+
+
 
 #endif

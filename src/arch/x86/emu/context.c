@@ -26,6 +26,7 @@
 #include <lib/util/bit-map.h>
 #include <lib/util/debug.h>
 #include <lib/util/list.h>
+#include <lib/util/linked-list.h>
 #include <lib/util/misc.h>
 #include <lib/util/string.h>
 #include <lib/util/timer.h>
@@ -175,6 +176,15 @@ static struct str_map_t x86_ctx_status_map =
 		{ "alloc",        x86_ctx_alloc },
 		{ "callback",     x86_ctx_callback },
 		{ "mapped",       x86_ctx_mapped }
+	}
+};
+
+
+struct str_map_t priority_mc_map =
+{
+	2, {
+		{ "Normal-Pref", prio_threshold_normal_pref },
+		{ "RowBufferHit-FCFS", prio_threshold_RowBufHit_FCFS }
 	}
 };
 
@@ -1155,7 +1165,7 @@ void x86_ctx_mc_report_schedule(struct x86_ctx_t *ctx)
 	/* Print header */
 	fprintf(f, "%s", help_x86_ctx_mc_report);
 	fprintf(f, "%10s %10s %8s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s\n", "cycle", "inst", "inst-int", "total-time-mc","normal-total-time-mc","pref-total-time-mc", "%row-buffer-hit","%normal-row-buffer-hit","%pref-row-buffer-hit","accesses","normal-accesses","prefetch-accesses","id-mc");
-	for (i = 0; i < 73; i++)
+	for (i = 0; i < 83; i++)
 		fprintf(f, "-");
 	fprintf(f, "\n");
 
@@ -1172,7 +1182,6 @@ void x86_ctx_mc_report_handler(int event, void *data)
 	struct x86_ctx_report_stack_t *stack = data;
 	struct x86_ctx_t *ctx;
 	long long inst_count;
-	/* TODO: cambiar per a varios controladors */
 	struct mem_controller_t *mem_controller;
 	double t_total_mc;
 	double t_pref_total_mc;
@@ -1183,7 +1192,10 @@ void x86_ctx_mc_report_handler(int event, void *data)
 	long long row_buffer_hits = 0;
 	long long normal_row_buffer_hits = 0;
 	long long pref_row_buffer_hits = 0;
-	int i;
+	int i = 0;
+	int useful_streams = 0;
+	int lived_streams = 0;
+	struct tuple_adapt_t *tuple;
 
 	/* Get context. If it does not exist anymore, no more
 	 * events to schedule. */
@@ -1233,37 +1245,54 @@ void x86_ctx_mc_report_handler(int event, void *data)
 			(double) (pref_row_buffer_hits - mem_controller->last_pref_row_buffer_hits) /
 			(mem_controller->pref_accesses - mem_controller->last_pref_accesses) : 0;
 
-		/* Dump new MC stat */
-		assert(ctx->loader->mc_report_interval);
-		inst_count = ctx->inst_count - stack->inst_count;
-		fprintf(ctx->loader->mc_report_file,
-		"%10lld %10lld %8lld %10.4f %10.4f %10.4f %10.4f %10.4f %10.4f %10lld %10lld %10lld %d\n",
-			esim_cycle(), ctx->inst_count, inst_count, t_total_mc,t_normal_total_mc,
-			t_pref_total_mc,rbh, normal_rbh, pref_rbh, mem_controller->accesses -
-			mem_controller->last_accesses,mem_controller->normal_accesses-
-			mem_controller->last_normal_accesses, mem_controller->pref_accesses -
-			mem_controller->last_pref_accesses, i);
+		LINKED_LIST_FOR_EACH(mem_controller->lived_streams)
+		{
+		        tuple=linked_list_get(mem_controller->lived_streams);
+		        lived_streams+=linked_list_count(tuple->streams);
+		}
+		
+		 LINKED_LIST_FOR_EACH(mem_controller->useful_streams)
+		{
+		        tuple=linked_list_get(mem_controller->useful_streams);
+		        useful_streams+=linked_list_count(tuple->streams);
+		}
 
-		/* Update intermediate results */
-		mem_controller->last_accesses = mem_controller->accesses;
-		mem_controller->last_pref_accesses = mem_controller->pref_accesses;
-		mem_controller->last_normal_accesses = mem_controller->normal_accesses;
-		mem_controller->last_t_mc_total = mem_controller->t_wait +
-			mem_controller->t_acces_main_memory + mem_controller->t_transfer;
-		mem_controller->last_t_pref_mc_total = mem_controller->t_pref_wait +
-			mem_controller->t_pref_acces_main_memory + mem_controller->t_pref_transfer;
-		mem_controller->last_t_normal_mc_total = mem_controller->t_normal_wait +
-			mem_controller->t_normal_acces_main_memory + mem_controller->t_normal_transfer;
-		mem_controller->last_row_buffer_hits = row_buffer_hits;
-		mem_controller->last_normal_row_buffer_hits = normal_row_buffer_hits;
-		mem_controller->last_pref_row_buffer_hits = pref_row_buffer_hits;
-	}
+                /* Dump new MC stat */
+                assert(ctx->loader->mc_report_interval);
+                inst_count = ctx->inst_count - stack->inst_count;
+                fprintf(ctx->loader->mc_report_file,"%10lld %10lld %8lld %10.4f %10.4f %10.4f"
+                        " %10.4f %10.4f %10.4f %10lld %10lld %10lld %d %10s %f\n",esim_cycle(),
+                        ctx->inst_count, inst_count, t_total_mc, t_normal_total_mc,      
+			t_pref_total_mc, rbh, normal_rbh, pref_rbh, mem_controller->accesses -                      	mem_controller->last_accesses, mem_controller->normal_accesses-
+                        mem_controller->last_normal_accesses, mem_controller->pref_accesses -
+                        mem_controller->last_pref_accesses, i, str_map_value(&priority_mc_map,
+                        mem_controller->priority_request_in_queue), 
+			(double)useful_streams/lived_streams);
 
-	/* Schedule new event */
-	stack->inst_count = ctx->inst_count;
-	if(ctx->loader->interval_kind == interval_kind_cycles)
-		esim_schedule_event(event, stack, ctx->loader->mc_report_interval);
+
+                /* Update intermediate results */
+                mem_controller->last_accesses = mem_controller->accesses;
+                mem_controller->last_pref_accesses = mem_controller->pref_accesses;
+                mem_controller->last_normal_accesses = mem_controller->normal_accesses;
+                mem_controller->last_t_mc_total = mem_controller->t_wait +
+                        mem_controller->t_acces_main_memory + mem_controller->t_transfer;
+                mem_controller->last_t_pref_mc_total=mem_controller->t_pref_wait +
+                        mem_controller->t_pref_acces_main_memory +mem_controller->t_pref_transfer;
+                mem_controller->last_t_normal_mc_total=mem_controller->t_normal_wait +
+                        mem_controller->t_normal_acces_main_memory+
+                        mem_controller->t_normal_transfer;
+                mem_controller->last_row_buffer_hits= row_buffer_hits;
+                mem_controller->last_normal_row_buffer_hits= normal_row_buffer_hits;
+                mem_controller->last_pref_row_buffer_hits= pref_row_buffer_hits;
+
+                i++;
+        }
+        /* Schedule new event */
+        stack->inst_count = ctx->inst_count;
+        if(ctx->loader->interval_kind == interval_kind_cycles)
+                esim_schedule_event(event, stack, ctx->loader->mc_report_interval);
 }
+
 
 
 

@@ -5,26 +5,14 @@ libdram_a_SOURCES = \
 	bank.c \
 	bank.h \
 	\
-	command.c \
-	command.h \
+	channel.c \
+	channel.h \
 	\
-	controller.c \
-	controller.h \
-	\
-	dram.c \
-	dram.h \
-	\
-	dram-system.c \
-	dram-system.h \
-	\
-	file-accessor.c \
-	file-accessor.h \
+	mem-controller.c \
+	mem-controller.h \
 	\
 	rank.c \
-	rank.h \
-	\
-	request.c \
-	request.h
+	rank.h
 
 INCLUDES = @M2S_INCLUDES@
 

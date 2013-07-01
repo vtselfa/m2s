@@ -172,6 +172,19 @@ static void x86_cpu_commit_thread(int core, int thread, int quant)
 				x86_ctx_cpu_report_handler(EV_X86_CTX_CPU_REPORT, ctx->cpu_report_stack);
 		}
 
+		/* Adaptative mem controller. Update commited inst counters and launch handlers if necessary. */
+        LINKED_LIST_FOR_EACH(mem_system->mem_controllers)
+        {
+			struct mem_controller_t *mc = linked_list_get(mem_system->mem_controllers);
+			if(mc->adapt_interval_kind == interval_kind_instructions && x86_cpu->num_committed_uinst % mc->adapt_interval == 0)
+			{
+				/* FIX: Açò no mola. Es creen moltes stacks. */
+				struct mem_controller_adapt_stack_t *stack = xcalloc(1, sizeof(struct mem_controller_adapt_stack_t));
+				stack->mem_controller = mc;
+				mem_controller_adapt_handler(EV_MEM_CONTROLLER_ADAPT, stack);
+			}
+        }
+
 		/* Trace */
 		if (x86_tracing())
 		{

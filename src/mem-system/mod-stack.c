@@ -21,8 +21,9 @@
 
 #include <lib/esim/esim.h>
 #include <lib/mhandle/mhandle.h>
-#include <lib/util/misc.h>
 #include <lib/util/debug.h>
+#include <lib/util/linked-list.h>
+#include <lib/util/misc.h>
 
 #include "cache.h"
 #include "mem-system.h"
@@ -66,6 +67,11 @@ void mod_stack_return(struct mod_stack_t *stack)
 	mod_stack_wakeup_stack(stack);
 
 	/* Free */
+	if(stack->coalesced_stacks != NULL)
+	{
+		linked_list_free(stack->coalesced_stacks);
+		stack->coalesced_stacks = NULL;
+	}
 	free(stack);
 	esim_schedule_event(ret_event, ret_stack, 0);
 }

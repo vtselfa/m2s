@@ -510,6 +510,9 @@ static char *m2s_help =
 		"      evictions, etc. This option must be used together with detailed simulation\n"
 		"      of any CPU/GPU architecture.\n"
 		"\n"
+		"  --main-mem-report\n"
+		"       File to dump the stadisitics of banks, ranks and channels.\n"
+		"\n"
 		"\n"
 		"================================================================================\n"
 		"Network Options\n"
@@ -1356,6 +1359,13 @@ static void m2s_read_command_line(int *argc_ptr, char **argv)
 			continue;
 		}
 
+		/* Option dump main memory and row buffer statistics */
+		if (!strcmp(argv[argi], "--main-mem-report"))
+		{
+			m2s_need_argument(argc, argv, argi);
+			main_mem_report_file_name = argv[++argi];
+			continue;
+		}
 
 
 

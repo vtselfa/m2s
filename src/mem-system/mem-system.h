@@ -36,7 +36,9 @@ struct mem_system_t
 
 	/* List of Memory Controllers */
 	struct list_t *mem_controllers;
-	int num_mc; /* TODO: Remove */
+
+	/* Piggybacking */
+	struct linked_list_t *pref_into_normal;
 };
 
 
