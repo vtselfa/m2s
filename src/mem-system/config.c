@@ -34,7 +34,9 @@
 #include <network/node.h>
 #include <network/routing-table.h>
 
+#include "bank.h"
 #include "cache.h"
+#include "channel.h"
 #include "command.h"
 #include "directory.h"
 #include "mem-controller.h"
@@ -42,12 +44,8 @@
 #include "mmu.h"
 #include "module.h"
 #include "prefetcher.h"
-
-/* FIX: Açò no crec que compile i si compila da igual; canviar
-#include "bank.h"
-#include "channel.h"
 #include "rank.h"
-*/
+
 
 /*
  * Global Variables
@@ -748,7 +746,7 @@ static struct mod_t *mem_config_read_cache(struct config_t *config,
 }
 
 
-static struct mod_t *mem_config_read_main_memory(struct config_t *config, 
+static struct mod_t *mem_config_read_main_memory(struct config_t *config,
 	char *section)
 {
 	char mod_name[MAX_STRING_SIZE];
@@ -948,7 +946,7 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config,
 	else
 		fatal("%s: %s: invalid value for variable 'Coalesce'.\n%s",
 			mem_config_file_name, mod_name, mem_err_config_note);
-	
+
 	if (size_queue <= 0)
 		fatal("%s: %s:invalid value for variable 'SizeQueue'.\n%s",
 			mem_config_file_name, mod_name, mem_err_config_note);
@@ -1024,7 +1022,7 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config,
 	/* Create memory controller */
 	mod->mem_controller = mem_controller_create();
 	mem_controller_init_main_memory(mod->mem_controller, channels, ranks, banks,
-	t_send_request, row_size, block_size, cycles_proc_bus, policy_type, prio_type, 
+	t_send_request, row_size, block_size, cycles_proc_bus, policy_type, prio_type,
 	size_queue, threshold, queue_per_bank, coalesce_type, mod->regs_rank, bandwith);
 	mod->mem_controller->photonic_net = photonic;
 	mod->mem_controller->piggybacking=piggybacking;

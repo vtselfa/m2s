@@ -28,6 +28,7 @@
 #include <lib/util/repos.h>
 
 #include "cache.h"
+#include "channel.h"
 #include "directory.h"
 #include "local-mem-protocol.h"
 #include "mem-system.h"
@@ -36,8 +37,8 @@
 
 /* TODO: corregir #include "mem-controller.h"
 #include "rank.h"
-#include "channel.h"
-#include "bank.h"*/
+#include "bank.h"
+*/
 
 /* String map for access type */
 struct str_map_t mod_access_kind_map =

@@ -27,7 +27,9 @@
 #include <lib/util/string.h>
 #include <network/network.h>
 
+#include "bank.h"
 #include "cache.h"
+#include "channel.h"
 #include "command.h"
 #include "config.h"
 #include "local-mem-protocol.h"
@@ -68,7 +70,7 @@ struct mem_system_t *mem_system_create(void)
 	mem_system->net_list = list_create();
 	mem_system->mod_list = list_create();
 	mem_system->mm_mod_list = list_create();
-	mem_system->mem_controllers = list_create();
+	mem_system->mem_controllers = linked_list_create();
 	mem_system->pref_into_normal = linked_list_create();
 	/* Return */
 	return mem_system;
@@ -78,14 +80,14 @@ struct mem_system_t *mem_system_create(void)
 void mem_system_free(struct mem_system_t *mem_system)
 {
 	/* Free piggybaking */
-	LINKED_LIST_FOR_EACH(mem_system->pref_into_normal))
+	LINKED_LIST_FOR_EACH(mem_system->pref_into_normal)
 		linked_list_remove(mem_system->pref_into_normal);
 	linked_list_free(mem_system->pref_into_normal);
 
 	/* Free mem controllers */
-	while (list_count(mem_system->mem_controllers))
-		mem_controller_free(list_pop(mem_system->mem_controllers));
-	list_free(mem_system->mem_controllers);
+	LINKED_LIST_FOR_EACH(mem_system->mem_controllers)
+		mem_controller_free(linked_list_get(mem_system->mem_controllers));
+	linked_list_free(mem_system->mem_controllers);
 
 	/* Free memory modules */
 	while (list_count(mem_system->mod_list))
@@ -367,8 +369,8 @@ void mem_system_init(void)
 	EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER_FINISH = esim_register_event(mod_handler_nmoesi_find_and_lock_mem_controller, mem_domain_index);
 
 	/* Adaptative */
-	EV_MEM_CONTROLLER_ADAPT = esim_register_event(mem_controller_adapt_handler,mem_domain_index);	
-  
+	EV_MEM_CONTROLLER_ADAPT = esim_register_event(mem_controller_adapt_handler,mem_domain_index);
+
 
 	/* Local memory event driven simulation */
 
@@ -416,7 +418,8 @@ void mem_controller_dump_report()
 	struct mod_t * mod;
 
 	/* TODO: cambiar per a varios mc */
-	struct mem_controller_t *mem_controller = list_head(mem_system->mem_controllers);
+	linked_list_head(mem_system->mem_controllers);
+	struct mem_controller_t *mem_controller = linked_list_get(mem_system->mem_controllers);
 	double total_bank_parallelism = 0;
 	double total_rank_parallelism = 0;
 	long long total_acces = 0;
@@ -458,7 +461,7 @@ void mem_controller_dump_report()
 
 		for(int c=0; c<mem_controller->num_regs_channel;c++)
 		{
-			total_acces+=mem_controller->regs_channel[c].acceses;
+			total_acces += mem_controller->regs_channel[c].acceses;
 			total_pref_acces+=mem_controller->regs_channel[c].pref_accesses;
 			total_normal_acces+=mem_controller->regs_channel[c].normal_accesses;
 			for(int r=0;r<mem_controller->regs_channel[c].num_regs_rank;r++)

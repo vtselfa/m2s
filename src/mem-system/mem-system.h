@@ -35,7 +35,7 @@ struct mem_system_t
 	struct list_t *mm_mod_list;
 
 	/* List of Memory Controllers */
-	struct list_t *mem_controllers;
+	struct linked_list_t *mem_controllers;
 
 	/* Piggybacking */
 	struct linked_list_t *pref_into_normal;

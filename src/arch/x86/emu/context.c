@@ -31,6 +31,7 @@
 #include <lib/util/string.h>
 #include <lib/util/timer.h>
 
+#include <mem-system/channel.h>
 #include <mem-system/mem-controller.h>
 #include <mem-system/mem-system.h>
 #include <mem-system/memory.h>
@@ -1203,9 +1204,9 @@ void x86_ctx_mc_report_handler(int event, void *data)
 	if (!ctx || x86_ctx_get_state(ctx, x86_ctx_finished) || esim_finish)
 		return;
 
-	LIST_FOR_EACH(mem_system->mem_controllers, i)
+	LINKED_LIST_FOR_EACH(mem_system->mem_controllers)
 	{
-		mem_controller = list_get(mem_system->mem_controllers, i);
+		mem_controller = linked_list_get(mem_system->mem_controllers);
 
 		for(int c = 0; c < mem_controller->num_regs_channel; c++)
 		{
@@ -1250,7 +1251,7 @@ void x86_ctx_mc_report_handler(int event, void *data)
 		        tuple=linked_list_get(mem_controller->lived_streams);
 		        lived_streams+=linked_list_count(tuple->streams);
 		}
-		
+
 		 LINKED_LIST_FOR_EACH(mem_controller->useful_streams)
 		{
 		        tuple=linked_list_get(mem_controller->useful_streams);
@@ -1262,11 +1263,11 @@ void x86_ctx_mc_report_handler(int event, void *data)
                 inst_count = ctx->inst_count - stack->inst_count;
                 fprintf(ctx->loader->mc_report_file,"%10lld %10lld %8lld %10.4f %10.4f %10.4f"
                         " %10.4f %10.4f %10.4f %10lld %10lld %10lld %d %10s %f\n",esim_cycle(),
-                        ctx->inst_count, inst_count, t_total_mc, t_normal_total_mc,      
+                        ctx->inst_count, inst_count, t_total_mc, t_normal_total_mc,
 			t_pref_total_mc, rbh, normal_rbh, pref_rbh, mem_controller->accesses -                      	mem_controller->last_accesses, mem_controller->normal_accesses-
                         mem_controller->last_normal_accesses, mem_controller->pref_accesses -
                         mem_controller->last_pref_accesses, i, str_map_value(&priority_mc_map,
-                        mem_controller->priority_request_in_queue), 
+                        mem_controller->priority_request_in_queue),
 			(double)useful_streams/lived_streams);
 
 

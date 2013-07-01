@@ -5,8 +5,6 @@
 
 extern struct str_map_t interval_kind_map;
 
-
-
 extern int EV_MEM_CONTROLLER_ADAPT;
 char * main_mem_report_file_name;
 
@@ -36,14 +34,7 @@ enum adapt_policy_t
 
 struct mem_controller_adapt_stack_t
 {
-	struct mem_controller_t * mem_controller;	
-};
-
-enum interval_kind_t
-{
-        interval_kind_invalid = 0,
-        interval_kind_instructions,
-        interval_kind_cycles
+	struct mem_controller_t * mem_controller;
 };
 
 

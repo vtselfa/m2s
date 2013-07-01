@@ -20,6 +20,7 @@
 
 #include <lib/esim/esim.h>
 #include <lib/esim/trace.h>
+#include <lib/mhandle/mhandle.h>
 #include <lib/util/debug.h>
 #include <lib/util/linked-list.h>
 #include <lib/util/list.h>
@@ -366,8 +367,8 @@ void enqueue_prefetch_on_hit(struct mod_stack_t *stack)
 	mem_debug("    Enqueued single prefetch at addr=0x%x to stream=%d with stride=0x%x(%d)\n", sb->next_address + sb->stride, sb->stream, sb->stride, sb->stride);
 
 	client_info = mod_client_info_create(mod);
-	client_info->core = stack->core;
-	client_info->thread = stack->thread;
+	client_info->core = stack->client_info->core;
+	client_info->thread = stack->client_info->thread;
 	client_info->stream = sb->stream;
 	client_info->slot = sb->tail;
 	mod_access(mod, mod_access_prefetch, sb->next_address, NULL, NULL, NULL, client_info);
@@ -1578,7 +1579,7 @@ void mod_handler_nmoesi_pref_find_and_lock(int event, void *data)
 		ret->port_locked = 1;
 
 		/* Search block in cache and stream */
-		if (stack->access_kind != mod_access_invalidate && !stack->wb_hit)
+		if (stack->access_kind != mod_access_invalidate_slot && !stack->wb_hit)
 		{
 			sb = &cache->prefetch.streams[stack->pref_stream];
 
@@ -1657,13 +1658,13 @@ void mod_handler_nmoesi_pref_find_and_lock(int event, void *data)
 		/* Entry is locked. Record the transient tag so that a subsequent lookup
 		 * detects that the block is being brought. */
 		struct stream_block_t *block = cache_get_pref_block(cache, stack->pref_stream, stack->pref_slot);
-		block->transient_tag = !stack->hit && stack->access_kind != mod_access_invalidate ?
+		block->transient_tag = !stack->hit && stack->access_kind != mod_access_invalidate_slot ?
 			stack->tag : -1; /* If cache hit, block will be removed */
 
 		mem_debug("    %lld 0x%x %s stream=%d, slot=%d, state=%s\n", stack->id, stack->tag, mod->name, stack->pref_stream, stack->pref_slot, str_map_value(&cache_block_state_map, block->state));
 
 		/* Update count */
-		if (stack->access_kind != mod_access_invalidate)
+		if (stack->access_kind != mod_access_invalidate_slot)
 		{
 			assert(sb->stream == stack->pref_stream);
 			if (!block->state && !stack->hit)
@@ -1734,7 +1735,7 @@ void mod_handler_nmoesi_pref_find_and_lock(int event, void *data)
 		{
 			mod->stream_evictions++;
 			/* Block is removed, not replaced */
-			if (stack->hit || stack->access_kind == mod_access_invalidate)
+			if (stack->hit || stack->access_kind == mod_access_invalidate_slot)
 				mod->cache->prefetch.streams[stack->src_pref_stream].count--; //COUNT
 			cache_get_pref_block_data(mod->cache, stack->pref_stream, stack->pref_slot, NULL, &stack->state);
 			assert(!stack->state);
@@ -2216,7 +2217,7 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 
 
 		/* Access latency */
-		if (!stack->hit && !stack->background && cache->prefetch_policy == prefetch_policy_streams)
+		if (!stack->hit && !stack->background && cache->prefetch.type == prefetcher_type_czone_streams)
 			esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK_PREF_STREAM, stack, 0);
 		else
 			esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK_ACTION, stack, mod->dir_latency); /* Access latency */
@@ -2916,7 +2917,7 @@ void mod_handler_nmoesi_invalidate_slot(int event, void *data)
 		new_stack->retry = stack->retry;
 		new_stack->pref_stream = stack->pref_stream;
 		new_stack->pref_slot = stack->pref_slot;
-		new_stack->access_kind = mod_access_invalidate;
+		new_stack->access_kind = mod_access_invalidate_slot;
 		new_stack->request_dir = mod_request_up_down;
 		esim_schedule_event(EV_MOD_NMOESI_PREF_FIND_AND_LOCK, new_stack, 0);
 		return;
@@ -3443,7 +3444,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			mem_controller->t_inside_net += esim_cycle() - stack->t_access_net;
 			stack->t_access_net =- 1;
 			new_stack = mod_stack_create(stack->id, target_mod, stack->addr,
-				EV_MOD_NMOESI_READ_REQUEST_UPDOWN_FINISH_UPDATE_DIRECTORY, stack, stack->prefetch);
+				EV_MOD_NMOESI_READ_REQUEST_UPDOWN_FINISH, stack, stack->prefetch);
 			new_stack->blocking = stack->request_dir == mod_request_down_up;
 			new_stack->read = 1;
 			new_stack->retry = 0;
@@ -3538,7 +3539,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 		}
 
 		/* Delete access */
-		if (target_mod->cache->prefetch_policy && target_mod->kind != mod_kind_main_memory)
+		if (target_mod->cache->prefetch.type && target_mod->kind != mod_kind_main_memory)
 			mod_access_finish(target_mod, stack);
 
 		int latency = stack->reply == reply_ack_data_sent_to_peer ? 0 : target_mod->latency;
@@ -4719,7 +4720,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 		                /*Create a new stack with default values to examine mc every cycle */
 		                new_stack=xcalloc(1,sizeof(struct mod_stack_t));
 		                new_stack->mod=stack->mod;
-				
+
 
 		                if (mem_controller->queue_per_bank)
 		                        esim_schedule_event(EV_MOD_NMOESI_EXAMINE_QUEUE_REQUEST, new_stack, when);
@@ -5155,7 +5156,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
                                 linked_list_next(pref_queue->queue);
                         }
                 }
-		
+
 		/* Update round robin to next queue */
                 mem_controller->queue_round_robin = (mem_controller->queue_round_robin + 1) % num_queues;
 
@@ -5313,7 +5314,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
                 }*/
                 return;
         }
-                                         
+
 	if (event == EV_MOD_NMOESI_TRANSFER_FROM_BANK)
         {
                 int num_blocks;
@@ -5469,7 +5470,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
                         t_trans=0;
                 else
                         t_trans=mod->cache->block_size/(channel[stack->channel].bandwith*2)*cycles_proc_by_bus;
-		
+
 		/*Free when all coalesced request have arrived*/
                 if(stack->coalesced_stacks==NULL || linked_list_count(stack->coalesced_stacks)==0)
                 {
@@ -5588,7 +5589,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
                 channel[stack->channel].acceses++;
                 mem_controller->useful_blocks_transfered++;
                 channel[stack->channel].num_requests_transfered+=1;//nked_list_count(coalesced_stacks);
-		
+
 		 if(stack->prefetch)
                 {
                         bank[stack->bank].pref_accesses++;
@@ -5629,7 +5630,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
         abort();
 }
 
-		
+
 void mod_handler_nmoesi_peer(int event, void *data)
 {
 	struct mod_stack_t *stack = data;
