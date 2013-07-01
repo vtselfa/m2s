@@ -66,6 +66,7 @@ void main (){
     fprintf(fd,"\n[ Network.mesh.Link.n%ds%d ] \n  Source = n%d \n  Dest = s%d \n  Type = Bidirectional \n",i,-mc+i,i,-mc+i);
   }
 
+   
   fprintf(fd,"\n[ Network.mesh.Routes ]\n");
 
   for(i=0;i<nodos;i++){
@@ -103,16 +104,17 @@ void main (){
 
 for(i=0;i<nodos;i++){
     	for(j=nodos;j<nodos+mc;j++){
+		int j_aux=j-mc;
 	      unsigned int next;
-	      if(i!=j && i!=-mc-1+j) {
-			if(i%columnas!=j%columnas){
-		  		if(i%columnas>j%columnas){
+	      if(i!=j_aux) {
+			if(i%columnas!=j_aux%columnas){
+		  		if(i%columnas>j_aux%columnas){
 		    			next=i-1;
 		  		}else{
 		    			next=i+1;
 		  		}
 			}else{
-		  		if(i>j){
+		  		if(i>j_aux){
 		    			next=i-columnas;
 		  		}else{
 		    			next=i+columnas;
