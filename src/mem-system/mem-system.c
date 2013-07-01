@@ -76,20 +76,21 @@ struct mem_system_t *mem_system_create(void)
 
 void mem_system_free(struct mem_system_t *mem_system)
 {
+	/* Free mem controllers */
+	while (list_count(mem_system->mem_controllers))
+		mem_controller_free(list_pop(mem_system->mem_controllers));
+	list_free(mem_system->mem_controllers);
+
 	/* Free memory modules */
 	while (list_count(mem_system->mod_list))
 		mod_free(list_pop(mem_system->mod_list));
 	list_free(mem_system->mod_list);
+	list_free(mem_system->mm_mod_list);
 
 	/* Free networks */
 	while (list_count(mem_system->net_list))
 		net_free(list_pop(mem_system->net_list));
 	list_free(mem_system->net_list);
-
-	/* Free mem controllers */
-	while (list_count(mem_system->mem_controllers))
-		net_free(list_pop(mem_system->mem_controllers));
-	list_free(mem_system->mem_controllers);
 
 	/* Free memory system */
 	free(mem_system);
@@ -459,48 +460,12 @@ void mem_system_init(void)
 	EV_MOD_NMOESI_PREFETCH_FINISH = esim_register_event_with_name(mod_handler_nmoesi_prefetch,
 			mem_domain_index, "mod_nmoesi_prefetch_finish");
 
-	/* Streams prefetch */
-	EV_MOD_PREF = esim_register_event_with_name(mod_handler_pref, mem_domain_index, "mod_nmoesi_prefetch_streams");
-	EV_MOD_PREF_LOCK = esim_register_event_with_name(mod_handler_pref, mem_domain_index, "mod_nmoesi_prefetch_streams_lock");
-	EV_MOD_PREF_ACTION = esim_register_event_with_name(mod_handler_pref, mem_domain_index, "mod_nmoesi_prefetch_streams_action");
-	EV_MOD_PREF_MISS = esim_register_event_with_name(mod_handler_pref, mem_domain_index, "mod_nmoesi_prefetch_streams_miss");
-	EV_MOD_PREF_UNLOCK = esim_register_event_with_name(mod_handler_pref, mem_domain_index, "mod_nmoesi_prefetch_streams_unlock");
-	EV_MOD_PREF_FINISH = esim_register_event_with_name(mod_handler_pref, mem_domain_index, "mod_nmoesi_prefetch_streams_finish");
-
-	EV_MOD_NMOESI_PREF_FIND_AND_LOCK = esim_register_event_with_name(mod_handler_nmoesi_pref_find_and_lock, mem_domain_index,"mod_nmoesi_pref_find_and_lock");
-	EV_MOD_NMOESI_PREF_FIND_AND_LOCK_PORT = esim_register_event_with_name(mod_handler_nmoesi_pref_find_and_lock, mem_domain_index,"mod_nmoesi_pref_find_and_lock_port");
-	EV_MOD_NMOESI_PREF_FIND_AND_LOCK_ACTION = esim_register_event_with_name(mod_handler_nmoesi_pref_find_and_lock, mem_domain_index,"mod_nmoesi_pref_find_and_lock_action");
-	EV_MOD_NMOESI_PREF_FIND_AND_LOCK_FINISH = esim_register_event_with_name(mod_handler_nmoesi_pref_find_and_lock, mem_domain_index,"mod_nmoesi_pref_find_and_lock_finish");
-
-	EV_MOD_NMOESI_INVALIDATE_SLOT = esim_register_event_with_name(mod_handler_nmoesi_invalidate_slot,
-	mem_domain_index, "mod_nmoesi_invalidate_slot");
-	EV_MOD_NMOESI_INVALIDATE_SLOT_LOCK = esim_register_event_with_name(mod_handler_nmoesi_invalidate_slot,
-	 mem_domain_index, "mod_nmoesi_invalidate_slot_lock");
-	EV_MOD_NMOESI_INVALIDATE_SLOT_ACTION = esim_register_event_with_name(mod_handler_nmoesi_invalidate_slot,
-	 mem_domain_index, "mod_nmoesi_invalidate_slot_action");
-	EV_MOD_NMOESI_INVALIDATE_SLOT_UNLOCK = esim_register_event_with_name(mod_handler_nmoesi_invalidate_slot,
-	 mem_domain_index, "mod_nmoesi_invalidate_slot_unlock");
-	EV_MOD_NMOESI_INVALIDATE_SLOT_FINISH = esim_register_event_with_name(mod_handler_nmoesi_invalidate_slot,
-	 mem_domain_index, "mod_nmoesi_invalidate_slot_finish");
-
-	/* Main memory */
-	EV_MOD_NMOESI_EXAMINE_ONLY_ONE_QUEUE_REQUEST=esim_register_event(mod_handler_nmoesi_request_main_memory, mem_domain_index);
-	EV_MOD_NMOESI_EXAMINE_QUEUE_REQUEST=esim_register_event(mod_handler_nmoesi_request_main_memory, mem_domain_index);
-	EV_MOD_NMOESI_ACCES_BANK = esim_register_event(mod_handler_nmoesi_request_main_memory, mem_domain_index);
-	EV_MOD_NMOESI_TRANSFER_FROM_BANK=esim_register_event(mod_handler_nmoesi_request_main_memory, mem_domain_index);
-	EV_MOD_NMOESI_REMOVE_MEMORY_CONTROLLER=esim_register_event(mod_handler_nmoesi_request_main_memory, mem_domain_index);
-	EV_MOD_NMOESI_INSERT_MEMORY_CONTROLLER=esim_register_event(mod_handler_nmoesi_request_main_memory, mem_domain_index);
-
-	/* Memory controller */
-	EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER = esim_register_event(mod_handler_nmoesi_find_and_lock_mem_controller, mem_domain_index);
-	EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER_PORT = esim_register_event(mod_handler_nmoesi_find_and_lock_mem_controller, mem_domain_index);
-	EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER_ACTION = esim_register_event(mod_handler_nmoesi_find_and_lock_mem_controller, mem_domain_index);
-	EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER_FINISH = esim_register_event(mod_handler_nmoesi_find_and_lock_mem_controller, mem_domain_index);
-
 	EV_MOD_NMOESI_FIND_AND_LOCK = esim_register_event_with_name(mod_handler_nmoesi_find_and_lock,
 			mem_domain_index, "mod_nmoesi_find_and_lock");
 	EV_MOD_NMOESI_FIND_AND_LOCK_PORT = esim_register_event_with_name(mod_handler_nmoesi_find_and_lock,
 			mem_domain_index, "mod_nmoesi_find_and_lock_port");
+	EV_MOD_NMOESI_FIND_AND_LOCK_PREF_STREAM = esim_register_event_with_name(mod_handler_nmoesi_find_and_lock,
+			mem_domain_index, "mod_nmoesi_find_and_lock_pref_stream");
 	EV_MOD_NMOESI_FIND_AND_LOCK_ACTION = esim_register_event_with_name(mod_handler_nmoesi_find_and_lock,
 			mem_domain_index, "mod_nmoesi_find_and_lock_action");
 	EV_MOD_NMOESI_FIND_AND_LOCK_FINISH = esim_register_event_with_name(mod_handler_nmoesi_find_and_lock,
@@ -531,6 +496,8 @@ void mem_system_init(void)
 			mem_domain_index, "mod_nmoesi_write_request");
 	EV_MOD_NMOESI_WRITE_REQUEST_RECEIVE = esim_register_event_with_name(mod_handler_nmoesi_write_request,
 			mem_domain_index, "mod_nmoesi_write_request_receive");
+	EV_MOD_NMOESI_WRITE_REQUEST_LOCK = esim_register_event_with_name(mod_handler_nmoesi_write_request,
+			mem_domain_index, "mod_nmoesi_write_request_lock");
 	EV_MOD_NMOESI_WRITE_REQUEST_ACTION = esim_register_event_with_name(mod_handler_nmoesi_write_request,
 			mem_domain_index, "mod_nmoesi_write_request_action");
 	EV_MOD_NMOESI_WRITE_REQUEST_EXCLUSIVE = esim_register_event_with_name(mod_handler_nmoesi_write_request,
@@ -552,6 +519,8 @@ void mem_system_init(void)
 			mem_domain_index, "mod_nmoesi_read_request");
 	EV_MOD_NMOESI_READ_REQUEST_RECEIVE = esim_register_event_with_name(mod_handler_nmoesi_read_request,
 			mem_domain_index, "mod_nmoesi_read_request_receive");
+	EV_MOD_NMOESI_READ_REQUEST_LOCK = esim_register_event_with_name(mod_handler_nmoesi_read_request,
+			mem_domain_index, "mod_nmoesi_read_request_lock");
 	EV_MOD_NMOESI_READ_REQUEST_ACTION = esim_register_event_with_name(mod_handler_nmoesi_read_request,
 			mem_domain_index, "mod_nmoesi_read_request_action");
 	EV_MOD_NMOESI_READ_REQUEST_UPDOWN = esim_register_event_with_name(mod_handler_nmoesi_read_request,
@@ -595,6 +564,55 @@ void mem_system_init(void)
 			mem_domain_index, "mod_nmoesi_message_reply");
 	EV_MOD_NMOESI_MESSAGE_FINISH = esim_register_event_with_name(mod_handler_nmoesi_message,
 			mem_domain_index, "mod_nmoesi_message_finish");
+
+	/* Streams prefetch */
+	EV_MOD_PREF = esim_register_event_with_name(mod_handler_pref,
+			mem_domain_index, "mod_nmoesi_prefetch_streams");
+	EV_MOD_PREF_LOCK = esim_register_event_with_name(mod_handler_pref,
+			mem_domain_index, "mod_nmoesi_prefetch_streams_lock");
+	EV_MOD_PREF_ACTION = esim_register_event_with_name(mod_handler_pref,
+			mem_domain_index, "mod_nmoesi_prefetch_streams_action");
+	EV_MOD_PREF_MISS = esim_register_event_with_name(mod_handler_pref,
+			mem_domain_index, "mod_nmoesi_prefetch_streams_miss");
+	EV_MOD_PREF_UNLOCK = esim_register_event_with_name(mod_handler_pref,
+			mem_domain_index, "mod_nmoesi_prefetch_streams_unlock");
+	EV_MOD_PREF_FINISH = esim_register_event_with_name(mod_handler_pref,
+			mem_domain_index, "mod_nmoesi_prefetch_streams_finish");
+
+	EV_MOD_NMOESI_PREF_FIND_AND_LOCK = esim_register_event_with_name(mod_handler_nmoesi_pref_find_and_lock,
+			mem_domain_index,"mod_nmoesi_pref_find_and_lock");
+	EV_MOD_NMOESI_PREF_FIND_AND_LOCK_PORT = esim_register_event_with_name(mod_handler_nmoesi_pref_find_and_lock,
+			mem_domain_index,"mod_nmoesi_pref_find_and_lock_port");
+	EV_MOD_NMOESI_PREF_FIND_AND_LOCK_ACTION = esim_register_event_with_name(mod_handler_nmoesi_pref_find_and_lock,
+			mem_domain_index,"mod_nmoesi_pref_find_and_lock_action");
+	EV_MOD_NMOESI_PREF_FIND_AND_LOCK_FINISH = esim_register_event_with_name(mod_handler_nmoesi_pref_find_and_lock,
+			mem_domain_index,"mod_nmoesi_pref_find_and_lock_finish");
+
+	EV_MOD_NMOESI_INVALIDATE_SLOT = esim_register_event_with_name(mod_handler_nmoesi_invalidate_slot,
+			mem_domain_index, "mod_nmoesi_invalidate_slot");
+	EV_MOD_NMOESI_INVALIDATE_SLOT_LOCK = esim_register_event_with_name(mod_handler_nmoesi_invalidate_slot,
+			mem_domain_index, "mod_nmoesi_invalidate_slot_lock");
+	EV_MOD_NMOESI_INVALIDATE_SLOT_ACTION = esim_register_event_with_name(mod_handler_nmoesi_invalidate_slot,
+			 mem_domain_index, "mod_nmoesi_invalidate_slot_action");
+	EV_MOD_NMOESI_INVALIDATE_SLOT_UNLOCK = esim_register_event_with_name(mod_handler_nmoesi_invalidate_slot,
+			mem_domain_index, "mod_nmoesi_invalidate_slot_unlock");
+	EV_MOD_NMOESI_INVALIDATE_SLOT_FINISH = esim_register_event_with_name(mod_handler_nmoesi_invalidate_slot,
+			mem_domain_index, "mod_nmoesi_invalidate_slot_finish");
+
+	/* Main memory */
+	EV_MOD_NMOESI_EXAMINE_ONLY_ONE_QUEUE_REQUEST=esim_register_event(mod_handler_nmoesi_request_main_memory, mem_domain_index);
+	EV_MOD_NMOESI_EXAMINE_QUEUE_REQUEST=esim_register_event(mod_handler_nmoesi_request_main_memory, mem_domain_index);
+	EV_MOD_NMOESI_ACCES_BANK = esim_register_event(mod_handler_nmoesi_request_main_memory, mem_domain_index);
+	EV_MOD_NMOESI_TRANSFER_FROM_BANK=esim_register_event(mod_handler_nmoesi_request_main_memory, mem_domain_index);
+	EV_MOD_NMOESI_REMOVE_MEMORY_CONTROLLER=esim_register_event(mod_handler_nmoesi_request_main_memory, mem_domain_index);
+	EV_MOD_NMOESI_INSERT_MEMORY_CONTROLLER=esim_register_event(mod_handler_nmoesi_request_main_memory, mem_domain_index);
+
+	/* Memory controller */
+	EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER = esim_register_event(mod_handler_nmoesi_find_and_lock_mem_controller, mem_domain_index);
+	EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER_PORT = esim_register_event(mod_handler_nmoesi_find_and_lock_mem_controller, mem_domain_index);
+	EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER_ACTION = esim_register_event(mod_handler_nmoesi_find_and_lock_mem_controller, mem_domain_index);
+	EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER_FINISH = esim_register_event(mod_handler_nmoesi_find_and_lock_mem_controller, mem_domain_index);
+
 
 	/* Local memory event driven simulation */
 
