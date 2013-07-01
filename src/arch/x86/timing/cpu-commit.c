@@ -27,6 +27,9 @@
 #include <lib/esim/trace.h>
 #include <lib/util/debug.h>
 #include <lib/util/linked-list.h>
+#include <mem-system/cache.h>
+#include <mem-system/mem-controller.h>
+#include <mem-system/mem-system.h>
 #include <mem-system/module.h>
 
 #include "bpred.h"
@@ -35,7 +38,6 @@
 #include "reg-file.h"
 #include "rob.h"
 #include "trace-cache.h"
-
 
 static char *err_x86_cpu_commit_stall =
 	"\tThe CPU commit stage has not received any instruction for 1M\n"
@@ -171,6 +173,15 @@ static void x86_cpu_commit_thread(int core, int thread, int quant)
 			if(ctx->cpu_report_stack && ctx->inst_count % ctx->loader->cpu_report_interval == 0)
 				x86_ctx_cpu_report_handler(EV_X86_CTX_CPU_REPORT, ctx->cpu_report_stack);
 		}
+
+		/* Adaptative mem controller. Update commited inst counters and launch handlers if necessary. */
+        LINKED_LIST_FOR_EACH(mem_system->mem_controllers)
+        {
+			struct mem_controller_t *mc = linked_list_get(mem_system->mem_controllers);
+			if(mc->adapt_interval_kind == interval_kind_instructions &&
+					x86_cpu->num_committed_uinst % mc->adapt_interval == 0)
+				mem_controller_adapt_handler(EV_MEM_CONTROLLER_ADAPT, mc);
+        }
 
 		/* Trace */
 		if (x86_tracing())

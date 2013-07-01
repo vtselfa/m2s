@@ -54,11 +54,20 @@ static enum x86_dispatch_stall_t x86_cpu_can_dispatch_thread(int core, int threa
 		return x86_dispatch_stall_rob;
 	}
 	if (!(uop->flags & X86_UINST_MEM) && !x86_iq_can_insert(uop))
+	{
+		X86_CORE.dispatch_stall_cycles_iq++;
 		return x86_dispatch_stall_iq;
+	}
 	if ((uop->flags & X86_UINST_MEM) && !x86_lsq_can_insert(uop))
+	{
+		X86_CORE.dispatch_stall_cycles_lsq++;
 		return x86_dispatch_stall_lsq;
+	}
 	if (!x86_reg_file_can_rename(uop))
+	{
+		X86_CORE.dispatch_stall_cycles_rename++;
 		return x86_dispatch_stall_rename;
+	}
 
 	return x86_dispatch_stall_used;
 }

@@ -51,19 +51,6 @@ enum mod_message_type_t
 	message_clear_owner
 };
 
-/* Prefetching */
-enum pref_kind_t {INVALID=0, SINGLE, GROUP, PREF_OBL, PREF_OBL_STRIDE};
-
-struct pref_data_t
-{
-	/* Common camps */
-	enum pref_kind_t kind;
-	struct mod_t *mod;
-	int dest_stream;
-	int dest_slot;
-	/* Group only camps */
-	int invalidating : 1;
-};
 
 /* Request types */
 enum mod_request_type_t
@@ -74,6 +61,18 @@ enum mod_request_type_t
         eviction_request
 };
 
+/* TODO: Deprecated. USAR client_info -- Prefetching */
+enum pref_kind_t {INVALID=0, SINGLE, GROUP, PREF_OBL, PREF_OBL_STRIDE};
+struct pref_data_t
+{
+        /* Common camps */
+        enum pref_kind_t kind;
+        struct mod_t *mod;
+        int dest_stream;
+        int dest_slot;
+        /* Group only camps */
+        int invalidating : 1;
+};
 
 /* Stack */
 struct mod_stack_t
@@ -99,7 +98,15 @@ struct mod_stack_t
 	int way;
 	int state;
 
+	int src_set;
+	int src_way;
+	int src_tag;
+	int src_pref_stream;
+	int src_pref_slot;
+
+	/* Mem controller/main mem */
 	int state_main_memory; // when the request is thrown by MC, the state of this request in main memory
+	int priority; // dynamic priority MC
 	unsigned int channel;
 	unsigned int bank;
 	unsigned int rank;
@@ -108,12 +115,6 @@ struct mod_stack_t
 	long long threshold; //cycles that a request can be waiting in the MC queue befaore to be throw to the bank
 	struct linked_list_t * coalesced_stacks; //stacks which caolesce with this in memory controller
 	long long t_access_net;
-
-	int src_set;
-	int src_way;
-	int src_tag;
-	int src_pref_stream;
-	int src_pref_slot;
 
 	enum mod_request_dir_t request_dir;
 	enum mod_message_type_t message;
@@ -198,9 +199,6 @@ struct mod_stack_t
 	/* Return stack */
 	struct mod_stack_t *ret_stack;
 	int ret_event;
-
-	int core;
-	int thread;
 };
 
 struct mod_stack_t *mod_stack_create(long long id, struct mod_t *mod,

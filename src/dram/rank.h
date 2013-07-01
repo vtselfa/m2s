@@ -27,18 +27,26 @@
  * Rank
  */
 
-struct dram_rank_t
-{
-	/* DRAM object that the rank belongs to */
-	struct dram_t *dram;
+/* Reg rank*/
+struct reg_rank_t{
 
-	/* Array of banks */
-	struct dram_bank_t **bank_array;
+        struct reg_bank_t * regs_bank;
+        int num_regs_bank;
+        int is_been_accesed; //true or false
+
+        /*Stadistics*/
+        long long parallelism;// number of acceses which acces when that rank is been accesed by others
+        long long acceses;
+	long long pref_accesses;
+	long long normal_accesses;
+        long long row_buffer_hits; // number of acceses to row buffer which are hits
+	long long row_buffer_hits_pref;
+	long long row_buffer_hits_normal;
 };
 
-struct dram_rank_t *dram_rank_create(struct dram_t *dram);
-void dram_rank_free(struct dram_rank_t *rank);
-void dram_rank_dump(struct dram_rank_t *rank, FILE *f);
+
+struct reg_rank_t* regs_rank_create( int num_ranks, int num_banks, int t_row_buffer_miss, int t_row_buffer_hit);
+void reg_rank_free(struct reg_rank_t * ranks, int num_ranks);
 
 
 #endif

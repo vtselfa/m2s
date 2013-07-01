@@ -10,10 +10,15 @@
 #include <lib/util/misc.h>
 #include <lib/util/string.h>
 
+#include "bank.h"
 #include "cache.h"
+#include "channel.h"
 #include "mem-controller.h"
 #include "mem-system.h"
 #include "mod-stack.h"
+int EV_MEM_CONTROLLER_ADAPT;
+
+
 
 int row_buffer_find_row(struct mem_controller_t * mem_controller, struct mod_t *mod, unsigned int addr, unsigned int *channel_ptr,
 	unsigned int *rank_ptr, unsigned int *bank_ptr, unsigned int *row_ptr,  int * tag_ptr, int *state_ptr)
@@ -110,9 +115,10 @@ void mem_controller_queue_free(struct mem_controller_queue_t *mem_controller_que
 struct mem_controller_t *mem_controller_create(void){
 	struct mem_controller_t *mem_controller;
 	mem_controller = xcalloc(1, sizeof(struct mem_controller_t));
+	mem_controller->lived_streams = linked_list_create();
+	mem_controller->useful_streams = linked_list_create();
 
 	return mem_controller;
-
 }
 
 
@@ -181,10 +187,11 @@ void mem_controller_init_main_memory(struct mem_controller_t *mem_controller, in
 
 
 void mem_controller_free(struct mem_controller_t *mem_controller){
-	struct mod_t *mod;
 
-	mod = list_get(mem_system->mod_list, 0);
-	
+
+	struct mod_t *mod = list_get(mem_system->mod_list,0);
+	struct tuple_adapt_t *tuple;
+
 	/* Free prefetch queue */
 	for(int i=0; i<mem_controller->num_queues;i++)
 		mem_controller_queue_free(mem_controller->pref_queue[i]);
@@ -195,8 +202,7 @@ void mem_controller_free(struct mem_controller_t *mem_controller){
 		mem_controller_queue_free(mem_controller->normal_queue[i]);
 	free(mem_controller->normal_queue);
 
-	///////////////////////////////////////////////////////////
-	for(int i=0; i<mem_controller->row_buffer_size/mod->cache->block_size;i++)
+	for(int i=0; i< mem_controller->row_buffer_size/mod->cache->block_size;i++)
 		free(mem_controller->successive_hit[i]);
 
 	free(mem_controller->successive_hit);
@@ -204,16 +210,34 @@ void mem_controller_free(struct mem_controller_t *mem_controller){
 	///////////////////////////////////////////////////
 
 	free(mem_controller->regs_channel);
+
+	linked_list_head(mem_controller->useful_streams);
+	while(!linked_list_is_end(mem_controller->useful_streams))
+	{
+		tuple=linked_list_get(mem_controller->useful_streams);
+		linked_list_remove(mem_controller->useful_streams);
+		linked_list_free(tuple->streams);
+		free(tuple);
+	}
+
+	linked_list_head(mem_controller->lived_streams);
+	while(!linked_list_is_end(mem_controller->lived_streams))
+	{
+		tuple=linked_list_get(mem_controller->lived_streams);
+		linked_list_remove(mem_controller->lived_streams);
+		linked_list_free(tuple->streams);
+		free(tuple);
+	}
+
+	linked_list_free(mem_controller->useful_streams);
+	linked_list_free(mem_controller->lived_streams);
+
 	free(mem_controller);
-
-
 }
 
 
-void mem_controller_normal_queue_add(struct mod_stack_t * stack){
-
-
-
+void mem_controller_normal_queue_add(struct mod_stack_t * stack)
+{
 	struct mem_controller_t * mem_controller=stack->mod->mem_controller;
 	//////////////////////////////////////////////////////////////////////////
 	unsigned int log2_row_size= log_base2( mem_controller->row_buffer_size);
@@ -252,15 +276,31 @@ void mem_controller_prefetch_queue_add(struct mod_stack_t * stack){
 	unsigned int log2_row_size= log_base2( mem_controller->row_buffer_size);
 	unsigned int bank;
 
-	//row_buffer = stack->addr &  mem_controller->row_buffer_size;
-	//channel=(row_buffer >>7 )%mem_controller->num_regs_channel;
-
-
 	if(mem_controller->queue_per_bank)
 		bank =((stack->addr >> log2_row_size) % (mem_controller->num_regs_bank*mem_controller->num_regs_rank));
 	else
 		bank=0;
-	//printf("bank pref=%d  %d \n", bank,(stack->addr >> log2_row_size) %mem_controller->num_regs_bank);
+
+	/*If mem controller policy is adaptative, mark useful and lived streams*/
+	if(mem_controller->adaptative  && (stack->pref.kind == GROUP || stack->pref.kind == SINGLE))
+	{
+		assert(stack->pref.dest_stream>=0);
+		mem_controller_mark_stream(stack, mem_controller->lived_streams);
+
+		/*An useful pref has to be a row buffer hit, a second stream hit and
+		another hit has to be enqueued*/
+		if(stack->pref.kind == SINGLE && mem_controller_is_useful_stream(stack, mem_controller->pref_queue[bank]))
+			mem_controller_mark_stream(stack, mem_controller->useful_streams);
+	}
+
+	/*If mem controller policy is dynamic, mark priority*/
+	if(mem_controller->priority_request_in_queue == prio_dynamic)
+	{
+		mem_controller_mark_requests_same_stream(stack,mem_controller->pref_queue[bank]->queue);
+	}
+
+
+	/*Insert*/
 	stack->threshold=mem_controller->threshold;
 	linked_list_tail(mem_controller->pref_queue[bank]->queue);
 	linked_list_add(mem_controller->pref_queue[bank]->queue, stack);
@@ -309,7 +349,8 @@ int mem_controller_get_bank_queue(int num_queue_examined,struct mem_controller_t
 }
 
 
-struct mod_stack_t * mem_controller_select_request(int n_queues_examined, enum priority_t priority, struct mem_controller_t * mem_controller)
+
+/*struct mod_stack_t * mem_controller_select_request2(int n_queues_examined, enum priority_t priority, struct mem_controller_t * mem_controller)
 {
 
 
@@ -318,6 +359,1137 @@ struct mod_stack_t * mem_controller_select_request(int n_queues_examined, enum p
 
 	struct mem_controller_queue_t * normal_queue= mem_controller->normal_queue[n_queues_examined%mem_controller->num_queues];
 	struct mem_controller_queue_t * pref_queue= mem_controller->pref_queue[n_queues_examined%mem_controller->num_queues];
+
+	*//*First priority: threshold normal
+	linked_list_head(normal_queue->queue);
+	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
+		if(stack->threshold==0)
+		{
+			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
+			if(can_acces_bank)
+				return stack;
+		}
+		linked_list_next(normal_queue->queue);
+	}
+	*/
+	/*Second priority: threshold prefetch
+	linked_list_head(pref_queue->queue);
+	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
+		if(stack->threshold==0)
+		{
+			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
+			if(can_acces_bank)
+				return stack;
+		}
+
+		linked_list_next(pref_queue->queue);
+	}
+
+	*/
+
+	/*Third priority: row buffer hit normal
+	linked_list_head(normal_queue->queue);
+	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		if(can_acces_bank&&stack->state==row_buffer_hit)
+			return stack;
+		linked_list_next(normal_queue->queue);
+	}
+
+	if(priority==prio_threshold_normal_pref)
+	{
+	*/	/*Four priority: FCFS normal
+		linked_list_head(normal_queue->queue);
+		while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
+		{
+			struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
+			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+			if(can_acces_bank)
+				return stack;
+			linked_list_next(normal_queue->queue);
+		}
+
+	*/	/*Five priority: row buffer hit prefetch
+		linked_list_head(pref_queue->queue);
+		while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
+		{
+			struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
+			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+			if(can_acces_bank&&stack->state==row_buffer_hit)
+				return stack;
+			linked_list_next(pref_queue->queue);
+		}
+
+
+	}
+	else // row buffer hit> fcfs
+	{
+	*/	/*Four priority: row buffer hit prefetch
+		linked_list_head(pref_queue->queue);
+		while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
+		{
+			struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
+			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+			if(can_acces_bank&&stack->state==row_buffer_hit)
+				return stack;
+			linked_list_next(pref_queue->queue);
+		}
+
+	*/	/*Five priority: FCFS normal
+		linked_list_head(normal_queue->queue);
+		while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
+		{
+			struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
+			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+			if(can_acces_bank)
+				return stack;
+			linked_list_next(normal_queue->queue);
+		}
+	}
+
+	*//*Six priority: FCFS pref
+	linked_list_head(pref_queue->queue);
+	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		if(can_acces_bank)
+			return stack;
+		linked_list_next(pref_queue->queue);
+	}
+	return NULL;
+
+}
+
+*/
+
+
+struct mod_stack_t * mem_controller_select_prefRBH_normalRBH_normal_pref_prio(struct mem_controller_queue_t * normal_queue, struct mem_controller_queue_t * pref_queue, enum priority_t priority, struct mem_controller_t * mem_controller)
+{
+
+
+	int can_acces_bank;
+	int size_queue=mem_controller->size_queue;
+
+
+	/*First priority: threshold normal*/
+	linked_list_head(normal_queue->queue);
+	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
+		if(stack->threshold==0)
+		{
+			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
+			if(can_acces_bank)
+				return stack;
+		}
+		linked_list_next(normal_queue->queue);
+	}
+
+	/*Second priority: threshold prefetch*/
+	linked_list_head(pref_queue->queue);
+	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
+		if(stack->threshold==0)
+		{
+			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
+			if(can_acces_bank)
+				return stack;
+		}
+
+		linked_list_next(pref_queue->queue);
+	}
+
+
+	/*Third priority: row buffer hit prefetch*/
+	linked_list_head(pref_queue->queue);
+	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		if(can_acces_bank&&stack->state==row_buffer_hit)
+			return stack;
+		linked_list_next(pref_queue->queue);
+	}
+
+	/*Four priority: row buffer hit normal*/
+	linked_list_head(normal_queue->queue);
+	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		if(can_acces_bank&&stack->state==row_buffer_hit)
+			return stack;
+		linked_list_next(normal_queue->queue);
+	}
+
+	/*Five priority: FCFS normal*/
+	linked_list_head(normal_queue->queue);
+	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		if(can_acces_bank)
+			return stack;
+		linked_list_next(normal_queue->queue);
+	}
+	/*Six priority: FCFS pref*/
+	linked_list_head(pref_queue->queue);
+	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		if(can_acces_bank)
+			return stack;
+		linked_list_next(pref_queue->queue);
+	}
+
+	return NULL;
+
+}
+
+
+
+struct mod_stack_t * mem_controller_select_prefHit_normal_prefGroup_prio(struct mem_controller_queue_t * normal_queue, struct mem_controller_queue_t * pref_queue, enum priority_t priority, struct mem_controller_t * mem_controller)
+{
+
+
+	int can_acces_bank;
+	int size_queue=mem_controller->size_queue;
+
+
+	/*First priority: threshold normal*/
+	linked_list_head(normal_queue->queue);
+	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
+		if(stack->threshold==0)
+		{
+			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
+			if(can_acces_bank)
+				return stack;
+		}
+		linked_list_next(normal_queue->queue);
+	}
+
+	/*Second priority: threshold prefetch*/
+	linked_list_head(pref_queue->queue);
+	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
+		if(stack->threshold==0)
+		{
+			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
+			if(can_acces_bank)
+				return stack;
+		}
+
+		linked_list_next(pref_queue->queue);
+	}
+
+
+	/*Third priority: row buffer hit prefetch single*/
+	linked_list_head(pref_queue->queue);
+	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		if(can_acces_bank&&stack->state==row_buffer_hit && stack->pref.kind==SINGLE)
+			return stack;
+		linked_list_next(pref_queue->queue);
+	}
+
+	/*Four priority: FCFS pref single*/
+	linked_list_head(pref_queue->queue);
+	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		if(can_acces_bank && stack->pref.kind==SINGLE)
+			return stack;
+		linked_list_next(pref_queue->queue);
+	}
+
+
+	/*Five priority: row buffer hit normal*/
+	linked_list_head(normal_queue->queue);
+	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		if(can_acces_bank&&stack->state==row_buffer_hit)
+			return stack;
+		linked_list_next(normal_queue->queue);
+	}
+
+	/*Six priority: FCFS normal*/
+	linked_list_head(normal_queue->queue);
+	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		if(can_acces_bank)
+			return stack;
+		linked_list_next(normal_queue->queue);
+	}
+	/*Seven priority: FCFS pref group*/
+	linked_list_head(pref_queue->queue);
+	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,&stack->channel, &stack->rank,
+				&stack->bank, &stack->row, & stack->tag, &stack->state_main_memory);
+		if(can_acces_bank)
+		{
+			if(priority== prio_threshold_prefHit_normal_prefGroupCoalesce)
+			{
+				mem_controller_coalesce_acces_row_buffer(stack, pref_queue->queue);
+				assert(stack->coalesced_stacks!=NULL);
+
+				LINKED_LIST_FOR_EACH(stack->coalesced_stacks) //remove current stack from coalesced
+				{
+					struct mod_stack_t * stack_aux=linked_list_get(stack->coalesced_stacks);
+					if(stack_aux->id==stack->id)
+					{
+						linked_list_remove(stack->coalesced_stacks);
+						if(linked_list_count(stack->coalesced_stacks)==0)
+						{
+							linked_list_free(stack->coalesced_stacks);
+							stack->coalesced_stacks=NULL;
+						}
+						break;
+					}
+				}
+
+			}
+			return stack;
+		}
+		linked_list_next(pref_queue->queue);
+	}
+
+
+	return NULL;
+
+}
+
+
+struct mod_stack_t * mem_controller_select_prefHitRBH_normalRBH_normal_prefHit_prefGroup_prio(struct mem_controller_queue_t * normal_queue, struct mem_controller_queue_t * pref_queue, enum priority_t priority, struct mem_controller_t * mem_controller)
+{
+
+
+	int can_acces_bank;
+	int size_queue=mem_controller->size_queue;
+
+
+	/*First priority: threshold normal*/
+	linked_list_head(normal_queue->queue);
+	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
+		if(stack->threshold==0)
+		{
+			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
+			if(can_acces_bank)
+				return stack;
+		}
+		linked_list_next(normal_queue->queue);
+	}
+
+	/*Second priority: threshold prefetch*/
+	linked_list_head(pref_queue->queue);
+	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
+		if(stack->threshold==0)
+		{
+			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
+			if(can_acces_bank)
+				return stack;
+		}
+
+		linked_list_next(pref_queue->queue);
+	}
+
+
+	/*Third priority: row buffer hit prefetch single*/
+	linked_list_head(pref_queue->queue);
+	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		if(can_acces_bank&&stack->state==row_buffer_hit && stack->pref.kind==SINGLE)
+			return stack;
+		linked_list_next(pref_queue->queue);
+	}
+
+	/*Four priority: row buffer hit normal*/
+	linked_list_head(normal_queue->queue);
+	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		if(can_acces_bank&&stack->state==row_buffer_hit)
+			return stack;
+		linked_list_next(normal_queue->queue);
+	}
+
+	/*Five priority: FCFS normal*/
+	linked_list_head(normal_queue->queue);
+	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		if(can_acces_bank)
+			return stack;
+		linked_list_next(normal_queue->queue);
+	}
+
+	/*Six priority: FCFS pref single*/
+	linked_list_head(pref_queue->queue);
+	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		if(can_acces_bank && stack->pref.kind==SINGLE)
+			return stack;
+		linked_list_next(pref_queue->queue);
+	}
+
+
+	/*Seven priority: FCFS pref group*/
+	linked_list_head(pref_queue->queue);
+	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,&stack->channel, &stack->rank,
+				&stack->bank, &stack->row, & stack->tag, &stack->state_main_memory);
+		if(can_acces_bank)
+		{
+			if(priority== prio_threshold_prefHitRBH_normalRBH_normal_prefHit_prefGroupCoalesce)
+			{
+				mem_controller_coalesce_acces_row_buffer(stack, pref_queue->queue);
+				assert(stack->coalesced_stacks!=NULL);
+
+				LINKED_LIST_FOR_EACH(stack->coalesced_stacks) //remove current stack from coalesced
+				{
+					struct mod_stack_t * stack_aux=linked_list_get(stack->coalesced_stacks);
+					if(stack_aux->id==stack->id)
+					{
+						linked_list_remove(stack->coalesced_stacks);
+						if(linked_list_count(stack->coalesced_stacks)==0)
+						{
+							linked_list_free(stack->coalesced_stacks);
+							stack->coalesced_stacks=NULL;
+						}
+						break;
+					}
+				}
+
+			}
+			return stack;
+		}
+		linked_list_next(pref_queue->queue);
+	}
+
+	return NULL;
+
+}
+
+
+struct mod_stack_t * mem_controller_select_request(int n_queues_examined, enum priority_t priority, struct mem_controller_t * mem_controller)
+{
+
+	struct mem_controller_queue_t * normal_queue= mem_controller->normal_queue[n_queues_examined%mem_controller->num_queues];
+	struct mem_controller_queue_t * pref_queue= mem_controller->pref_queue[n_queues_examined%mem_controller->num_queues];
+
+	if(priority ==prio_threshold_normal_pref)
+		return mem_controller_select_normal_pref_prio(normal_queue, pref_queue, priority, mem_controller);
+
+	else if(priority == prio_threshold_RowBufHit_FCFS)
+		return mem_controller_select_rbh_fcfs_prio(normal_queue, pref_queue, priority, mem_controller);
+	else if(priority == prio_threshold_normal_prefHit_prefGroup || priority == prio_threshold_normal_prefHit_prefGroupCoalesce )
+		return mem_controller_select_normal_prefHit_prefGroup_prio(normal_queue, pref_queue, priority, mem_controller);
+	else if(priority == prio_threshold_RowBufHit_normal_prefHit_prefGroup || priority == prio_threshold_RowBufHit_normal_prefHit_prefGroupCoalesce )
+		return mem_controller_select_rbh_normal_prefHit_prefGroup_prio(normal_queue, pref_queue, priority, mem_controller);
+	else if(priority == prio_threshold_RowBufHit_prefHit_normal_prefGroup || priority == prio_threshold_RowBufHit_prefHit_normal_prefGroupCoalesce )
+		return mem_controller_select_rbh_prefHit_normal_prefGroup_prio(normal_queue, pref_queue, priority, mem_controller);
+
+
+	else if(priority == prio_threshold_pref_normal)
+		return mem_controller_select_pref_normal_prio(normal_queue, pref_queue, priority, mem_controller);
+
+	else if(priority == prio_threshold_prefRBH_normalRBH_normal_pref)
+		return mem_controller_select_prefRBH_normalRBH_normal_pref_prio(normal_queue, pref_queue, priority, mem_controller);
+
+	else if(priority == prio_threshold_prefHit_normal_prefGroup || priority == prio_threshold_prefHit_normal_prefGroupCoalesce )
+		return mem_controller_select_prefHit_normal_prefGroup_prio(normal_queue, pref_queue, priority, mem_controller);
+
+	else if(priority == prio_threshold_prefHitRBH_normalRBH_normal_prefHit_prefGroup || priority == prio_threshold_prefHitRBH_normalRBH_normal_prefHit_prefGroupCoalesce )
+		return mem_controller_select_prefHitRBH_normalRBH_normal_prefHit_prefGroup_prio(normal_queue, pref_queue, priority, mem_controller);
+	else if(priority == prio_dynamic)
+		return mem_controller_select_dynamic_prio(normal_queue, pref_queue, priority, mem_controller);
+	else
+		fatal("Policy Mc doesnt exist");
+	return NULL;
+
+}
+
+
+
+struct mod_stack_t * mem_controller_select_dynamic_prio(struct mem_controller_queue_t * normal_queue, struct mem_controller_queue_t * pref_queue, enum priority_t priority, struct mem_controller_t * mem_controller)
+{
+	int can_acces_bank;
+	int size_queue=mem_controller->size_queue;
+
+
+	/*First priority: threshold normal*/
+	linked_list_head(normal_queue->queue);
+	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
+		if(stack->threshold==0)
+		{
+			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
+			if(can_acces_bank)
+				return stack;
+		}
+		linked_list_next(normal_queue->queue);
+	}
+
+	/*Second priority: threshold prefetch*/
+	linked_list_head(pref_queue->queue);
+	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
+		if(stack->threshold==0)
+		{
+			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
+			if(can_acces_bank)
+				return stack;
+		}
+
+		linked_list_next(pref_queue->queue);
+	}
+
+
+	/*Third priority: row buffer hit prefetch single >2*/
+	linked_list_head(pref_queue->queue);
+	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		if(can_acces_bank&&stack->state==row_buffer_hit && stack->pref.kind==SINGLE && stack->priority>=2) // 3 requests
+			return stack;
+		linked_list_next(pref_queue->queue);
+	}
+
+	/*Five priority: row buffer hit normal*/
+	linked_list_head(normal_queue->queue);
+	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		if(can_acces_bank&&stack->state==row_buffer_hit)
+			return stack;
+		linked_list_next(normal_queue->queue);
+	}
+
+	/*Third priority: row buffer hit prefetch group >3*/
+	linked_list_head(pref_queue->queue);
+	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		if(can_acces_bank&&stack->state==row_buffer_hit && stack->pref.kind==GROUP && stack->priority>=3) //4requests
+			return stack;
+		linked_list_next(pref_queue->queue);
+	}
+
+	linked_list_head(pref_queue->queue);
+	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		if(can_acces_bank&&stack->state==row_buffer_hit && stack->pref.kind==SINGLE && stack->priority>=1) // 2 requests
+			return stack;
+		linked_list_next(pref_queue->queue);
+	}
+
+	/*Third priority: row buffer hit prefetch*/
+	linked_list_head(pref_queue->queue);
+	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		if(can_acces_bank&&stack->state==row_buffer_hit && stack->pref.kind==SINGLE)
+			return stack;
+		linked_list_next(pref_queue->queue);
+	}
+
+
+
+	/*Six priority: FCFS normal*/
+	linked_list_head(normal_queue->queue);
+	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		if(can_acces_bank)
+			return stack;
+		linked_list_next(normal_queue->queue);
+	}
+
+	/*Third priority: row buffer hit prefetch*/
+	linked_list_head(pref_queue->queue);
+	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		if(can_acces_bank&&stack->state==row_buffer_hit)
+			return stack;
+		linked_list_next(pref_queue->queue);
+	}
+
+	/*Third priority: row buffer hit prefetch*/
+	linked_list_head(pref_queue->queue);
+	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		if(can_acces_bank)
+			return stack;
+		linked_list_next(pref_queue->queue);
+	}
+	return NULL;
+
+}
+
+
+struct mod_stack_t * mem_controller_select_pref_normal_prio(struct mem_controller_queue_t * normal_queue, struct mem_controller_queue_t * pref_queue, enum priority_t priority, struct mem_controller_t * mem_controller)
+{
+
+
+	int can_acces_bank;
+	int size_queue=mem_controller->size_queue;
+
+
+	/*First priority: threshold normal*/
+	linked_list_head(normal_queue->queue);
+	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
+		if(stack->threshold==0)
+		{
+			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
+			if(can_acces_bank)
+				return stack;
+		}
+		linked_list_next(normal_queue->queue);
+	}
+
+	/*Second priority: threshold prefetch*/
+	linked_list_head(pref_queue->queue);
+	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
+		if(stack->threshold==0)
+		{
+			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
+			if(can_acces_bank)
+				return stack;
+		}
+
+		linked_list_next(pref_queue->queue);
+	}
+
+
+	/*Third priority: row buffer hit prefetch*/
+	linked_list_head(pref_queue->queue);
+	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		if(can_acces_bank&&stack->state==row_buffer_hit)
+			return stack;
+		linked_list_next(pref_queue->queue);
+	}
+
+	/*Four priority: FCFS pref*/
+	linked_list_head(pref_queue->queue);
+	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		if(can_acces_bank)
+			return stack;
+		linked_list_next(pref_queue->queue);
+	}
+
+	/*Five priority: row buffer hit normal*/
+	linked_list_head(normal_queue->queue);
+	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		if(can_acces_bank&&stack->state==row_buffer_hit)
+			return stack;
+		linked_list_next(normal_queue->queue);
+	}
+
+	/*Six priority: FCFS normal*/
+	linked_list_head(normal_queue->queue);
+	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		if(can_acces_bank)
+			return stack;
+		linked_list_next(normal_queue->queue);
+	}
+
+
+	return NULL;
+
+}
+
+
+struct mod_stack_t * mem_controller_select_rbh_fcfs_prio(struct mem_controller_queue_t * normal_queue,struct mem_controller_queue_t * pref_queue , enum priority_t priority, struct mem_controller_t * mem_controller)
+{
+
+
+	int can_acces_bank;
+	int size_queue=mem_controller->size_queue;
+
+	/*First priority: threshold normal*/
+	linked_list_head(normal_queue->queue);
+	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
+		if(stack->threshold==0)
+		{
+			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
+			if(can_acces_bank)
+				return stack;
+		}
+		linked_list_next(normal_queue->queue);
+	}
+
+	/*Second priority: threshold prefetch*/
+	linked_list_head(pref_queue->queue);
+	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
+		if(stack->threshold==0)
+		{
+			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
+			if(can_acces_bank)
+				return stack;
+		}
+
+		linked_list_next(pref_queue->queue);
+	}
+
+
+
+	/*Third priority: row buffer hit normal*/
+	linked_list_head(normal_queue->queue);
+	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		if(can_acces_bank&&stack->state==row_buffer_hit)
+			return stack;
+		linked_list_next(normal_queue->queue);
+	}
+
+
+	/*Four priority: row buffer hit prefetch*/
+	linked_list_head(pref_queue->queue);
+	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		if(can_acces_bank&&stack->state==row_buffer_hit)
+			return stack;
+		linked_list_next(pref_queue->queue);
+	}
+
+	/*Five priority: FCFS normal*/
+	linked_list_head(normal_queue->queue);
+	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		if(can_acces_bank)
+			return stack;
+		linked_list_next(normal_queue->queue);
+	}
+
+
+
+
+	/*Six priority: FCFS pref*/
+	linked_list_head(pref_queue->queue);
+	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		if(can_acces_bank)
+			return stack;
+		linked_list_next(pref_queue->queue);
+	}
+	return NULL;
+
+}
+
+
+struct mod_stack_t * mem_controller_select_normal_pref_prio(struct mem_controller_queue_t * normal_queue,struct mem_controller_queue_t * pref_queue , enum priority_t priority, struct mem_controller_t * mem_controller)
+{
+
+
+	int can_acces_bank;
+	int size_queue=mem_controller->size_queue;
+
+	/*First priority: threshold normal*/
+	linked_list_head(normal_queue->queue);
+	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
+		if(stack->threshold==0)
+		{
+			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
+			if(can_acces_bank)
+				return stack;
+		}
+		linked_list_next(normal_queue->queue);
+	}
+
+	/*Second priority: threshold prefetch*/
+	linked_list_head(pref_queue->queue);
+	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
+		if(stack->threshold==0)
+		{
+			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
+			if(can_acces_bank)
+				return stack;
+		}
+
+		linked_list_next(pref_queue->queue);
+	}
+
+
+
+	/*Third priority: row buffer hit normal*/
+	linked_list_head(normal_queue->queue);
+	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		if(can_acces_bank&&stack->state==row_buffer_hit)
+			return stack;
+		linked_list_next(normal_queue->queue);
+	}
+
+
+	/*Four priority: FCFS normal*/
+	linked_list_head(normal_queue->queue);
+	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		if(can_acces_bank)
+			return stack;
+		linked_list_next(normal_queue->queue);
+	}
+
+	/*Five priority: row buffer hit prefetch*/
+	linked_list_head(pref_queue->queue);
+	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		if(can_acces_bank&&stack->state==row_buffer_hit)
+			return stack;
+		linked_list_next(pref_queue->queue);
+	}
+
+
+
+
+	/*Six priority: FCFS normal*/
+	linked_list_head(pref_queue->queue);
+	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		if(can_acces_bank)
+			return stack;
+		linked_list_next(pref_queue->queue);
+	}
+	return NULL;
+
+}
+
+
+struct mod_stack_t * mem_controller_select_normal_prefHit_prefGroup_prio(struct mem_controller_queue_t * normal_queue,struct mem_controller_queue_t * pref_queue , enum priority_t priority, struct mem_controller_t * mem_controller)
+{
+
+
+	int can_acces_bank;
+	int size_queue=mem_controller->size_queue;
+
+	/*First priority: threshold normal*/
+	linked_list_head(normal_queue->queue);
+	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
+		if(stack->threshold==0)
+		{
+			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
+			if(can_acces_bank)
+				return stack;
+		}
+		linked_list_next(normal_queue->queue);
+	}
+
+	/*Second priority: threshold prefetch*/
+	linked_list_head(pref_queue->queue);
+	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
+		if(stack->threshold==0)
+		{
+			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
+			if(can_acces_bank)
+				return stack;
+		}
+
+		linked_list_next(pref_queue->queue);
+	}
+
+
+	/*Third priority: row buffer hit normal*/
+	linked_list_head(normal_queue->queue);
+	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		if(can_acces_bank&&stack->state==row_buffer_hit)
+			return stack;
+		linked_list_next(normal_queue->queue);
+	}
+
+
+	/*Four priority: FCFS normal*/
+	linked_list_head(normal_queue->queue);
+	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		if(can_acces_bank)
+			return stack;
+		linked_list_next(normal_queue->queue);
+	}
+
+
+	/*Five priority: row buffer hit prefetch single*/
+	linked_list_head(pref_queue->queue);
+	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		if(can_acces_bank&&stack->state==row_buffer_hit && stack->pref.kind==SINGLE)
+			return stack;
+		linked_list_next(pref_queue->queue);
+	}
+
+
+
+	/*Six priority: prefetch single*/
+	linked_list_head(pref_queue->queue);
+	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		if(can_acces_bank&&stack->pref.kind==SINGLE)
+			return stack;
+		linked_list_next(pref_queue->queue);
+	}
+
+	/*Seven priority:  pref group*/
+	linked_list_head(pref_queue->queue);
+	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,&stack->channel, &stack->rank,
+				&stack->bank, &stack->row, & stack->tag, &stack->state_main_memory);
+		if(can_acces_bank)
+		{
+			if(priority== prio_threshold_normal_prefHit_prefGroupCoalesce)
+			{
+				mem_controller_coalesce_acces_row_buffer(stack, pref_queue->queue);
+				assert(stack->coalesced_stacks!=NULL);
+
+				LINKED_LIST_FOR_EACH(stack->coalesced_stacks) //remove current stack from coalesced
+				{
+					struct mod_stack_t * stack_aux=linked_list_get(stack->coalesced_stacks);
+					if(stack_aux->id==stack->id)
+					{
+						linked_list_remove(stack->coalesced_stacks);
+						if(linked_list_count(stack->coalesced_stacks)==0)
+						{
+							linked_list_free(stack->coalesced_stacks);
+							stack->coalesced_stacks=NULL;
+						}
+						break;
+					}
+				}
+
+			}
+			return stack;
+		}
+		linked_list_next(pref_queue->queue);
+	}
+	return NULL;
+
+}
+
+
+struct mod_stack_t * mem_controller_select_rbh_prefHit_normal_prefGroup_prio(struct mem_controller_queue_t * normal_queue,struct mem_controller_queue_t * pref_queue , enum priority_t priority, struct mem_controller_t * mem_controller)
+{
+
+
+	int can_acces_bank;
+	int size_queue=mem_controller->size_queue;
+
+	/*First priority: threshold normal*/
+	linked_list_head(normal_queue->queue);
+	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
+		if(stack->threshold==0)
+		{
+			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
+			if(can_acces_bank)
+				return stack;
+		}
+		linked_list_next(normal_queue->queue);
+	}
+
+	/*Second priority: threshold prefetch*/
+	linked_list_head(pref_queue->queue);
+	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
+		if(stack->threshold==0)
+		{
+			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
+			if(can_acces_bank)
+				return stack;
+		}
+
+		linked_list_next(pref_queue->queue);
+	}
+
+
+	/*Third priority: row buffer hit normal*/
+	linked_list_head(normal_queue->queue);
+	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		if(can_acces_bank&&stack->state==row_buffer_hit)
+			return stack;
+		linked_list_next(normal_queue->queue);
+	}
+
+	/*Four priority: row buffer hit prefetch single*/
+	linked_list_head(pref_queue->queue);
+	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		if(can_acces_bank&&stack->state==row_buffer_hit && stack->pref.kind==SINGLE)
+			return stack;
+		linked_list_next(pref_queue->queue);
+	}
+
+	/*Five priority: prefetch single*/
+	linked_list_head(pref_queue->queue);
+	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		if(can_acces_bank&&stack->pref.kind==SINGLE)
+			return stack;
+		linked_list_next(pref_queue->queue);
+	}
+
+
+	/*Six priority: FCFS normal*/
+	linked_list_head(normal_queue->queue);
+	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		if(can_acces_bank)
+			return stack;
+		linked_list_next(normal_queue->queue);
+	}
+
+	/*Seven priority:  pref group*/
+	linked_list_head(pref_queue->queue);
+	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,&stack->channel, &stack->rank,
+				&stack->bank, &stack->row, & stack->tag, &stack->state_main_memory);
+		if(can_acces_bank)
+		{
+			if(priority== prio_threshold_RowBufHit_prefHit_normal_prefGroupCoalesce)
+			{
+				mem_controller_coalesce_acces_row_buffer(stack, pref_queue->queue);
+				assert(stack->coalesced_stacks!=NULL);
+
+				LINKED_LIST_FOR_EACH(stack->coalesced_stacks) //remove current stack from coalesced
+				{
+					struct mod_stack_t * stack_aux=linked_list_get(stack->coalesced_stacks);
+					if(stack_aux->id==stack->id)
+					{
+						linked_list_remove(stack->coalesced_stacks);
+						if(linked_list_count(stack->coalesced_stacks)==0)
+						{
+							linked_list_free(stack->coalesced_stacks);
+							stack->coalesced_stacks=NULL;
+						}
+						break;
+					}
+				}
+			}
+			return stack;
+		}
+		linked_list_next(pref_queue->queue);
+	}
+	return NULL;
+
+}
+
+
+struct mod_stack_t * mem_controller_select_rbh_normal_prefHit_prefGroup_prio(struct mem_controller_queue_t * normal_queue,struct mem_controller_queue_t * pref_queue , enum priority_t priority, struct mem_controller_t * mem_controller)
+{
+
+
+	int can_acces_bank;
+	int size_queue=mem_controller->size_queue;
 
 	/*First priority: threshold normal*/
 	linked_list_head(normal_queue->queue);
@@ -359,72 +1531,76 @@ struct mod_stack_t * mem_controller_select_request(int n_queues_examined, enum p
 		linked_list_next(normal_queue->queue);
 	}
 
-	if(priority==prio_threshold_normal_pref)
-	{
-		/*Four priority: FCFS normal*/
-		linked_list_head(normal_queue->queue);
-		while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
-		{
-			struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
-			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
-			if(can_acces_bank)
-				return stack;
-			linked_list_next(normal_queue->queue);
-		}
-
-		/*Five priority: row buffer hit prefetch*/
-		linked_list_head(pref_queue->queue);
-		while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
-		{
-			struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
-			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
-			if(can_acces_bank&&stack->state==row_buffer_hit)
-				return stack;
-			linked_list_next(pref_queue->queue);
-		}
-
-
-	}
-	else // row buffer hit> fcfs
-	{
-		/*Four priority: row buffer hit prefetch*/
-		linked_list_head(pref_queue->queue);
-		while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
-		{
-			struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
-			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
-			if(can_acces_bank&&stack->state==row_buffer_hit)
-				return stack;
-			linked_list_next(pref_queue->queue);
-		}
-
-		/*Five priority: FCFS normal*/
-		linked_list_head(normal_queue->queue);
-		while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
-		{
-			struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
-			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
-			if(can_acces_bank)
-				return stack;
-			linked_list_next(normal_queue->queue);
-		}
-	}
-
-	/*Six priority: FCFS normal*/
+	/*Four priority: row buffer hit prefetch single*/
 	linked_list_head(pref_queue->queue);
 	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
 		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		if(can_acces_bank&&stack->state==row_buffer_hit && stack->pref.kind==SINGLE)
+			return stack;
+		linked_list_next(pref_queue->queue);
+	}
+
+	/*Five priority: FCFS normal*/
+	linked_list_head(normal_queue->queue);
+	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 		if(can_acces_bank)
 			return stack;
+		linked_list_next(normal_queue->queue);
+	}
+
+	/*Six priority: prefetch single*/
+	linked_list_head(pref_queue->queue);
+	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		if(can_acces_bank&&stack->pref.kind==SINGLE)
+			return stack;
+		linked_list_next(pref_queue->queue);
+	}
+
+	/*Seven priority:  pref group*/
+	linked_list_head(pref_queue->queue);
+	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
+	{
+		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,&stack->channel, &stack->rank,
+				&stack->bank, &stack->row, & stack->tag, &stack->state_main_memory);
+		if(can_acces_bank)
+		{
+			if(priority== prio_threshold_RowBufHit_normal_prefHit_prefGroupCoalesce)
+			{
+				mem_controller_coalesce_acces_row_buffer(stack, pref_queue->queue);
+				assert(stack->coalesced_stacks!=NULL);
+
+				LINKED_LIST_FOR_EACH(stack->coalesced_stacks) //remove current stack from coalesced
+				{
+					struct mod_stack_t * stack_aux=linked_list_get(stack->coalesced_stacks);
+					if(stack_aux->id==stack->id)
+					{
+						linked_list_remove(stack->coalesced_stacks);
+						if(linked_list_count(stack->coalesced_stacks)==0)
+						{
+							linked_list_free(stack->coalesced_stacks);
+							stack->coalesced_stacks=NULL;
+						}
+						break;
+					}
+				}
+
+			}
+			return stack;
+		}
 		linked_list_next(pref_queue->queue);
 	}
 	return NULL;
 
 }
-
-
 
 
 int mem_controller_queue_has_consumed_threshold(struct linked_list_t * queue, long long size_queue)
@@ -438,9 +1614,6 @@ int mem_controller_queue_has_consumed_threshold(struct linked_list_t * queue, lo
 		linked_list_next(queue);
 	}
 	return 0;
-
-
-
 }
 
 
@@ -522,7 +1695,6 @@ int mem_controller_coalesce_acces_row_buffer( struct mod_stack_t * stack, struct
 {
 	struct mod_stack_t * stack_aux;
 	struct mem_controller_t * mem_controller=stack->mod->mem_controller;
-
 	unsigned int num_ranks = mem_controller->num_regs_rank ;
 	unsigned int num_banks = mem_controller->num_regs_bank ;
 	unsigned int log2_row_size= log_base2( mem_controller->row_buffer_size);
@@ -540,7 +1712,6 @@ int mem_controller_coalesce_acces_row_buffer( struct mod_stack_t * stack, struct
 
 
 		assert(rank==stack->rank && bank==stack->bank);
-
 
 		if(row==stack->row)
 		{
@@ -805,6 +1976,7 @@ void mem_controller_count_successive_hits(struct linked_list_t * coalesced_stack
 	linked_list_head(coalesced_stacks);
 	stack=linked_list_get(coalesced_stacks);
 	mem_controller=stack->mod->mem_controller;
+	enum priority_t priority = mem_controller->priority_request_in_queue;
 
 	block_size=stack->mod->cache->block_size;
 	unsigned int first_block= stack->addr %  mem_controller->row_buffer_size;
@@ -814,7 +1986,7 @@ void mem_controller_count_successive_hits(struct linked_list_t * coalesced_stack
 	if(mem_controller->coalesce==policy_coalesce || mem_controller->coalesce == policy_coalesce_delayed_request)
 		mem_controller->successive_hit[linked_list_count(coalesced_stacks)-1][linked_list_count(coalesced_stacks)-1]++;
 
-	else if(mem_controller->coalesce == policy_coalesce_useful_blocks)
+	else if(mem_controller->coalesce == policy_coalesce_useful_blocks || priority == prio_threshold_normal_prefHit_prefGroupCoalesce || priority == prio_threshold_RowBufHit_normal_prefHit_prefGroupCoalesce || priority == prio_threshold_RowBufHit_prefHit_normal_prefGroupCoalesce || priority == prio_threshold_prefHit_normal_prefGroupCoalesce || priority == prio_threshold_prefHitRBH_normalRBH_normal_prefHit_prefGroupCoalesce)
 	{
 
 		LINKED_LIST_FOR_EACH(coalesced_stacks)
@@ -847,11 +2019,11 @@ void mem_controller_count_successive_hits(struct linked_list_t * coalesced_stack
 
 int mem_controller_get_size_queue(struct mod_stack_t* stack)
 {
-
+	int size = 0;
+/*
 	struct mem_controller_t * mem_controller=stack->target_mod->mem_controller;
 
 	unsigned int bank;
-	int size;
 	unsigned int log2_row_size= log_base2( mem_controller->row_buffer_size);
 
 	if(mem_controller->queue_per_bank)
@@ -859,13 +2031,317 @@ int mem_controller_get_size_queue(struct mod_stack_t* stack)
 	else
 		bank=0;
 	if(!stack->prefetch)
-	 	size=linked_list_count(mem_controller->normal_queue[bank]->queue);
+	 	size = mem_controller->normal_queue[bank]->current_request_num;
 	else
-		size= linked_list_count(mem_controller->pref_queue[bank]->queue);
+		size = mem_controller->pref_queue[bank]->current_request_num;
 
+	if(size == mem_controller->size_queue)
+		 mem_debug("  %lld %lld 0x%x %s queue %d pref %d full \n", esim_cycle, stack->id,
+                        stack->addr, stack->target_mod->name, bank, stack->prefetch);
 
 	assert(size>=0 && size<=mem_controller->size_queue);
+*/
 	return size;
+}
+
+void mem_controller_register_in_queue(struct mod_stack_t* stack)
+{
+	/*
+	struct mem_controller_t * mem_controller=stack->target_mod->mem_controller;
+
+	unsigned int bank;
+	unsigned int log2_row_size= log_base2( mem_controller->row_buffer_size);
+
+	if(mem_controller->queue_per_bank)
+		bank = ((stack->addr >> log2_row_size) % (mem_controller->num_regs_bank*mem_controller->num_regs_rank));
+	else
+		bank=0;
+	if(!stack->prefetch)
+	{
+	 	mem_controller->normal_queue[bank]->current_request_num++;
+		 mem_debug("  %lld %lld 0x%x %s queue %d pref %d count before %lld insert \n", esim_cycle, stack->id,stack->addr, stack->target_mod->name, bank, stack->prefetch, mem_controller->normal_queue[bank]->current_request_num);
+
+	}else{
+		mem_controller->pref_queue[bank]->current_request_num++;
+		 mem_debug("  %lld %lld 0x%x %s queue %d pref %d count before %lld insert \n", esim_cycle, stack->id,stack->addr, stack->target_mod->name, bank, stack->prefetch, mem_controller->pref_queue[bank]->current_request_num);
+	}
+	*/
+}
+
+
+void mem_controller_remove_in_queue(struct mod_stack_t* stack)
+{
+	/*struct mem_controller_t * mem_controller=stack->target_mod->mem_controller;
+
+	unsigned int bank;
+	unsigned int log2_row_size= log_base2( mem_controller->row_buffer_size);
+
+	if(mem_controller->queue_per_bank)
+		bank = ((stack->addr >> log2_row_size) % (mem_controller->num_regs_bank*mem_controller->num_regs_rank));
+	else
+		bank=0;
+
+
+	if(!stack->prefetch)
+	{
+	 	mem_controller->normal_queue[bank]->current_request_num--;
+		 mem_debug("  %lld %lld 0x%x %s queue %d pref %d count before %lld delete \n", esim_cycle, stack->id,stack->addr, stack->target_mod->name, bank, stack->prefetch, mem_controller->normal_queue[bank]->current_request_num);
+	}else
+	{
+		mem_controller->pref_queue[bank]->current_request_num--;
+		 mem_debug("  %lld %lld 0x%x %s queue %d pref %d count before %lld delete \n", esim_cycle, stack->id,stack->addr, stack->target_mod->name, bank, stack->prefetch, mem_controller->pref_queue[bank]->current_request_num);
+	}
+
+*/
+}
+
+
+void mem_controller_adapt_schedule(struct mem_controller_t * mem_controller)
+{
+
+	if (mem_controller->adapt_interval_kind == interval_kind_cycles)
+	{
+
+		/* Create new stack */
+		/*struct mem_controller_adapt_stack_t* stack = xcalloc(1, sizeof(struct mem_controller_adapt_stack_t));
+		stack->mem_controller = mem_controller;*/
+
+		/* Schedule first event */
+		esim_schedule_event(EV_MEM_CONTROLLER_ADAPT, mem_controller, mem_controller->adapt_interval);
+	}
+}
+
+
+void mem_controller_adapt_handler(int event, void *data)
+{
+	struct mem_controller_t *mem_controller = (struct mem_controller_t *) data;
+	int useful_streams = 0;
+	int lived_streams = 0;
+	struct tuple_adapt_t *tuple;
+
+	/* If simulation has ended, no more
+	 * events to schedule. */
+	if (esim_finish)
+	{
+		return;
+	}
+
+	LINKED_LIST_FOR_EACH(mem_controller->lived_streams)
+	{
+		tuple=linked_list_get(mem_controller->lived_streams);
+		lived_streams+=linked_list_count(tuple->streams);
+	}
+
+	LINKED_LIST_FOR_EACH(mem_controller->useful_streams)
+	{
+		tuple=linked_list_get(mem_controller->useful_streams);
+		useful_streams+=linked_list_count(tuple->streams);
+	}
+
+	linked_list_head(mem_controller->useful_streams);
+	while(!linked_list_is_end(mem_controller->useful_streams))
+	{
+		tuple=linked_list_get(mem_controller->useful_streams);
+		linked_list_remove(mem_controller->useful_streams);
+		linked_list_free(tuple->streams);
+		free(tuple);
+	}
+
+	linked_list_head(mem_controller->lived_streams);
+	while(!linked_list_is_end(mem_controller->lived_streams))
+	{
+		tuple=linked_list_get(mem_controller->lived_streams);
+		linked_list_remove(mem_controller->lived_streams);
+		linked_list_free(tuple->streams);
+		free(tuple);
+	}
+
+	if((lived_streams>0 ? (double) useful_streams/lived_streams : 0) > mem_controller->adapt_percent)
+		mem_controller->priority_request_in_queue=prio_threshold_RowBufHit_FCFS;
+	else
+		mem_controller->priority_request_in_queue=prio_threshold_normal_pref;
+
+	printf("%f   prio=%d\n", (double)useful_streams/lived_streams, mem_controller->priority_request_in_queue);
+
+	if (mem_controller->adapt_interval_kind == interval_kind_cycles)
+	{
+		/* Schedule new event */
+		assert(mem_controller->adapt_interval);
+		esim_schedule_event(EV_MEM_CONTROLLER_ADAPT, mem_controller, mem_controller->adapt_interval);
+	}
+}
+
+
+void mem_controller_mark_stream(struct mod_stack_t* stack, struct linked_list_t *list)
+{
+	int exists=0;
+	struct tuple_adapt_t * tuple;
+
+	LINKED_LIST_FOR_EACH(list)
+	{
+		tuple=linked_list_get(list);
+		if(tuple->mod->name==stack->mod->name)
+		{
+			exists=1;
+			LINKED_LIST_FOR_EACH(tuple->streams)
+			{
+				int * stre=linked_list_get(tuple->streams);
+				if(*stre==stack->pref.dest_stream)
+					break;
+
+			}
+			linked_list_add(tuple->streams, &stack->pref.dest_stream);
+			break;
+		}
+	}
+
+	if(!exists)
+	{
+		tuple=xcalloc(1,sizeof(struct tuple_adapt_t));
+		tuple->mod=stack->mod;
+		tuple->streams=linked_list_create();
+		linked_list_add(tuple->streams, &stack->pref.dest_stream);
+		linked_list_add(list,tuple);
+	}
 
 }
+
+
+int mem_controller_is_useful_stream(struct mod_stack_t* stack, struct mem_controller_queue_t * queue)
+{
+
+	unsigned int row;
+	int state;
+	struct mod_stack_t* stack_aux;
+
+	row_buffer_find_row(stack->mod->mem_controller, stack->mod, stack->addr, NULL, NULL, NULL, &row, NULL, &state);
+
+
+	/*It has to be a hit in row buffer*/
+	if(state==row_buffer_miss)
+		return 0;
+
+	/*Bank queue has another request comming from the same stream*/
+	LINKED_LIST_FOR_EACH(queue->queue)
+	{
+		stack_aux=linked_list_get(queue->queue);
+		assert(stack_aux->pref.dest_stream>=0);
+
+		/*The other request has te be a stream hit*/
+		if(stack->pref.dest_stream==stack_aux->pref.dest_stream && stack_aux->pref.kind == SINGLE )
+			return 1;
+	}
+
+	return 0;
+
+
+
+}
+
+int mem_controller_count_requests_same_stream(struct mod_stack_t* stack, struct linked_list_t * queue)
+{
+	int count =0;
+	struct mod_stack_t* stack_aux;
+	struct mem_controller_t * mem_controller= stack->mod->mem_controller;
+
+	LINKED_LIST_FOR_EACH(queue)
+	{
+		stack_aux=linked_list_get(queue);
+		row_buffer_find_row(mem_controller,stack_aux->mod,stack_aux->addr,&stack_aux->channel, &stack_aux->rank,&stack_aux->bank,&stack_aux->row, NULL, NULL);
+		row_buffer_find_row(mem_controller,stack->mod,stack->addr,&stack->channel, &stack->rank,&stack->bank,&stack->row, NULL, NULL);
+
+		assert(stack_aux->channel==stack->channel && stack_aux->rank == stack->rank && stack->bank == stack_aux->bank);
+		if(stack_aux->pref.dest_stream==stack->pref.dest_stream && stack->id!=stack_aux->id && stack->row == stack_aux->row)
+			count++;
+	}
+
+	return count;
+}
+
+
+void mem_controller_mark_requests_same_stream(struct mod_stack_t* stack, struct linked_list_t * queue)
+{
+	int count =0;
+	struct mod_stack_t* stack_aux;
+	struct mem_controller_t * mem_controller= stack->mod->mem_controller;
+
+	LINKED_LIST_FOR_EACH(queue)
+	{
+		stack_aux=linked_list_get(queue);
+		row_buffer_find_row(mem_controller,stack_aux->mod,stack_aux->addr,&stack_aux->channel, &stack_aux->rank,&stack_aux->bank,&stack_aux->row, NULL, NULL);
+		row_buffer_find_row(mem_controller,stack->mod,stack->addr,&stack->channel, &stack->rank,&stack->bank,&stack->row, NULL, NULL);
+
+		assert(stack_aux->channel==stack->channel && stack_aux->rank == stack->rank && stack->bank == stack_aux->bank);
+		if(stack_aux->pref.dest_stream==stack->pref.dest_stream && stack->id!=stack_aux->id && stack->row == stack_aux->row && stack_aux->pref.kind==stack->pref.kind)
+		{
+			stack_aux->priority++;
+			//printf("%lld->%d->%d ", stack_aux->id, stack_aux->priority, stack_aux->pref.kind);
+			count=stack_aux->priority;
+		}
+	}
+
+	stack->priority=count;
+	//printf("%lld->%d->%d \n", stack->id, stack->priority, stack->pref.kind);
+}
+
+void mem_controller_coalesce_pref_into_normal(struct mod_stack_t* stack)
+{
+
+	unsigned int log2_row_size;
+	unsigned int bank;
+	struct mod_stack_t * stack_aux;
+	struct mem_controller_t * mem_controller;
+	int pig=0;
+
+	LINKED_LIST_FOR_EACH(mem_system->mem_controllers)
+	{
+		mem_controller=linked_list_get(mem_system->mem_controllers);
+		pig = pig | mem_controller->piggybacking;
+		if(!mem_controller->piggybacking)
+			continue;
+		log2_row_size= log_base2( mem_controller->row_buffer_size);
+		if(mem_controller->queue_per_bank)
+			bank = ((stack->addr >> log2_row_size) % (mem_controller->num_regs_bank*mem_controller->num_regs_rank));
+		else
+			bank=0;
+		assert(mem_controller->piggybacking);
+		LINKED_LIST_FOR_EACH(mem_controller->pref_queue[bank]->queue)
+		{
+			stack_aux=linked_list_get(mem_controller->pref_queue[bank]->queue);
+			if(stack->addr==stack_aux->addr && stack->client_info->core == stack_aux->client_info->core)
+			{
+				/*TODO Afegir estaidsitques de cuan la cola se plena y se buida*/
+				linked_list_head(mem_controller->normal_queue[bank]->queue);
+				linked_list_add(mem_controller->normal_queue[bank]->queue, stack_aux);
+				linked_list_remove(mem_controller->pref_queue[bank]->queue);
+				return;
+			}
+		}
+	}
+	if(pig)
+		linked_list_add(mem_system->pref_into_normal, stack);
+
+}
+
+int mem_controller_is_piggybacked(struct mod_stack_t * stack)
+{
+	struct mod_stack_t * stack_aux;
+	LINKED_LIST_FOR_EACH(mem_system->pref_into_normal)
+	{
+		stack_aux=linked_list_get(mem_system->pref_into_normal);
+
+		assert(stack_aux->client_info->core != -1);
+		assert(stack_aux->client_info->thread != -1);
+
+		if(stack_aux->addr==stack->addr && stack_aux->client_info->core== stack->client_info->core)
+		{
+			linked_list_remove(mem_system->pref_into_normal);
+			return 1;
+		}
+	}
+
+	return 0;
+}
+
+
 

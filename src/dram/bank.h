@@ -27,23 +27,29 @@
  * Bank
  */
 
-struct dram_bank_t
-{
-	/* Bank object that the rank belongs to */
-	struct dram_rank_t *rank;
+struct reg_bank_t{
 
-	/* Active row */
-	int row_buffer_valid;
-	int active_row_id;
+        int row_is_been_accesed; // row which is been accessed
+        int row_buffer; // row which is inside row buffer
+        int is_been_accesed;// show if a bank is been accedid for some instruction
 
-	/* Bank busy */
-	int bank_busy;
+        /*Stadistics*/
+        long long row_buffer_hits; // number of acceses to row buffer which are hits
+   	long long row_buffer_hits_pref;
+	long long row_buffer_hits_normal;
+	int t_row_buffer_hit; // cycles needed to acces the bank if the row is in row buffer
+        int t_row_buffer_miss; // cycles needed to acces the bank if the row isn't in row buffer
+        long long conflicts;
+        long long acceses;
+        long long pref_accesses;
+	long long normal_accesses;
+	long long t_wait; // time waited by the requestes to acces to bank
+    	long long t_pref_wait;
+	long long t_normal_wait;
+	long long parallelism;////////////
 };
 
-struct dram_bank_t *dram_bank_create(struct dram_rank_t *rank);
-
-void dram_bank_free(struct dram_bank_t *bank);
-void dram_bank_dump(struct dram_bank_t *bank, FILE *f);
+struct reg_bank_t* regs_bank_create( int num_banks, int t_row_hit, int t_row_miss);
 
 
 #endif

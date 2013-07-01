@@ -115,14 +115,6 @@ extern int EV_MOD_PREF_MISS;
 extern int EV_MOD_PREF_UNLOCK;
 extern int EV_MOD_PREF_FINISH;
 
-/* OBL prefetch */
-extern int EV_MOD_NMOESI_PREF_OBL;
-extern int EV_MOD_NMOESI_PREF_OBL_LOCK;
-extern int EV_MOD_NMOESI_PREF_OBL_ACTION;
-extern int EV_MOD_NMOESI_PREF_OBL_MISS;
-extern int EV_MOD_NMOESI_PREF_OBL_UNLOCK;
-extern int EV_MOD_NMOESI_PREF_OBL_FINISH;
-
 extern int EV_MOD_NMOESI_INVALIDATE_SLOT;
 extern int EV_MOD_NMOESI_INVALIDATE_SLOT_LOCK;
 extern int EV_MOD_NMOESI_INVALIDATE_SLOT_ACTION;
@@ -134,26 +126,21 @@ extern int EV_MOD_NMOESI_PREF_FIND_AND_LOCK_PORT;
 extern int EV_MOD_NMOESI_PREF_FIND_AND_LOCK_ACTION;
 extern int EV_MOD_NMOESI_PREF_FIND_AND_LOCK_FINISH;
 
-/*Main memory*/
-//////////////////////////////////////////////////////////
-extern int EV_MOD_NMOESI_EXAMINE_ONLY_ONE_QUEUE_REQUEST;//
-extern int EV_MOD_NMOESI_EXAMINE_QUEUE_REQUEST;         //
-extern int EV_MOD_NMOESI_ACCES_BANK;                    //
-extern int EV_MOD_NMOESI_TRANSFER_FROM_BANK;            //
-extern int EV_MOD_NMOESI_REMOVE_MEMORY_CONTROLLER;      //
-extern int EV_MOD_NMOESI_INSERT_MEMORY_CONTROLLER;      //
+/* Main memory */
+extern int EV_MOD_NMOESI_EXAMINE_ONLY_ONE_QUEUE_REQUEST;
+extern int EV_MOD_NMOESI_EXAMINE_QUEUE_REQUEST;
+extern int EV_MOD_NMOESI_ACCES_BANK;
+extern int EV_MOD_NMOESI_TRANSFER_FROM_BANK;
+extern int EV_MOD_NMOESI_REMOVE_MEMORY_CONTROLLER;
+extern int EV_MOD_NMOESI_INSERT_MEMORY_CONTROLLER;
 
-/*Memory controller*/
+/* Memory controller */
 extern int EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER;
 extern int EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER_PORT;
 extern int EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER_ACTION;
 extern int EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER_FINISH;
-//////////////////////////////////////////////////////////
 
-/////////////////////////////////////////////////////////////////////
-void mod_handler_nmoesi_request_main_memory(int event, void *data);
-void mod_handler_nmoesi_find_and_lock_mem_controller(int event, void *data);
-/////////////////////////////////////////////////////////////////////
+
 void mod_handler_nmoesi_find_and_lock(int event, void *data);
 void mod_handler_nmoesi_load(int event, void *data);
 void mod_handler_nmoesi_store(int event, void *data);
@@ -166,14 +153,14 @@ void mod_handler_nmoesi_invalidate(int event, void *data);
 void mod_handler_nmoesi_peer(int event, void *data);
 void mod_handler_nmoesi_message(int event, void *data);
 
-/* Prefetch */
+/* Streams prefetcher */
 void mod_handler_pref(int event, void *data);
-void mod_handler_nmoesi_pref_obl(int event, void *data);
-void mod_handler_nmoesi_pref_evict(int event, void *data);
 void mod_handler_nmoesi_invalidate_slot(int event, void *data);
 void mod_handler_nmoesi_pref_find_and_lock(int event, void *data);
 
-
+/* Main Memory */
+void mod_handler_nmoesi_request_main_memory(int event, void *data);
+void mod_handler_nmoesi_find_and_lock_mem_controller(int event, void *data);
 
 #endif
 

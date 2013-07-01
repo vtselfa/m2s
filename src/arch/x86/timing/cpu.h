@@ -285,6 +285,10 @@ struct x86_core_t
 	long long dispatch_stall[x86_dispatch_stall_max];
 	long long dispatch_stall_cycles_rob;
 	long long dispatch_stall_cycles_rob_mem;
+	long long dispatch_stall_cycles_iq;
+	long long dispatch_stall_cycles_lsq;
+	long long dispatch_stall_cycles_uop_queue;
+	long long dispatch_stall_cycles_rename;
 	long long last_dispatch_stall_cycles_rob_mem;
 	long long num_dispatched_uinst_array[x86_uinst_opcode_count];
 	long long num_issued_uinst_array[x86_uinst_opcode_count];
