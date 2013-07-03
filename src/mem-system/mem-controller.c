@@ -1,6 +1,10 @@
 #include <assert.h>
 #include <stdlib.h>
 
+#include <arch/x86/timing/cpu.h>
+#include <arch/x86/emu/loader.h>
+#include <arch/x86/emu/context.h>
+
 #include <lib/esim/esim.h>
 #include <lib/esim/trace.h>
 #include <lib/mhandle/mhandle.h>
@@ -239,9 +243,10 @@ void mem_controller_free(struct mem_controller_t *mem_controller){
 void mem_controller_normal_queue_add(struct mod_stack_t * stack)
 {
 	struct mem_controller_t * mem_controller=stack->mod->mem_controller;
-	//////////////////////////////////////////////////////////////////////////
 	unsigned int log2_row_size= log_base2( mem_controller->row_buffer_size);
 	unsigned int bank;
+	long long ctx_threshold;
+	struct x86_loader_t *ld=x86_cpu->core[stack->client_info->core].thread[stack->client_info->thread].ctx->loader;
 	//row_buffer = stack->addr &  mem_controller->row_buffer_size;
 //	channel=(row_buffer >>7 )%mem_controller->num_regs_channel;
 
@@ -252,10 +257,15 @@ void mem_controller_normal_queue_add(struct mod_stack_t * stack)
 		bank=0;
 
 
-	//printf("bank=%d  %d \n", bank,(stack->addr >> log2_row_size) %mem_controller->num_regs_bank);
-
 	stack->threshold =mem_controller->threshold;
 
+	/*TO avoid fairness*/
+	ctx_threshold = ld->max_cycles_wait_MC;
+
+	if(ctx_threshold != 100000000000) // if threshold if different than by default, context threshold is priorier
+		stack->threshold = ctx_threshold;
+
+	/*Add in queue*/	
 	linked_list_tail(mem_controller->normal_queue[bank]->queue);
 	linked_list_add(mem_controller->normal_queue[bank]->queue, stack);
 	linked_list_head(mem_controller->normal_queue[bank]->queue);
@@ -275,6 +285,7 @@ void mem_controller_prefetch_queue_add(struct mod_stack_t * stack){
 	struct mem_controller_t * mem_controller=stack->mod->mem_controller;
 	unsigned int log2_row_size= log_base2( mem_controller->row_buffer_size);
 	unsigned int bank;
+	long long ctx_threshold;
 
 	if(mem_controller->queue_per_bank)
 		bank =((stack->addr >> log2_row_size) % (mem_controller->num_regs_bank*mem_controller->num_regs_rank));
@@ -295,13 +306,18 @@ void mem_controller_prefetch_queue_add(struct mod_stack_t * stack){
 
 	/*If mem controller policy is dynamic, mark priority*/
 	if(mem_controller->priority_request_in_queue == prio_dynamic)
-	{
 		mem_controller_mark_requests_same_stream(stack,mem_controller->pref_queue[bank]->queue);
-	}
 
+	
+	/*TO avoid fairness*/
+	stack->threshold=mem_controller->threshold;
+
+	ctx_threshold = x86_cpu->core[stack->client_info->core].thread[stack->client_info->thread].ctx->loader->max_cycles_wait_MC;
+
+	if(ctx_threshold != 100000000000) // if threshold if different than by default, context threshold is priorier
+		stack->threshold = ctx_threshold;
 
 	/*Insert*/
-	stack->threshold=mem_controller->threshold;
 	linked_list_tail(mem_controller->pref_queue[bank]->queue);
 	linked_list_add(mem_controller->pref_queue[bank]->queue, stack);
 	linked_list_head(mem_controller->pref_queue[bank]->queue);

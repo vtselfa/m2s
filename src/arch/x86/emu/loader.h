@@ -59,6 +59,9 @@ struct x86_loader_t
 	/* Tells if interval is in cycles or in instructions */
 	enum interval_kind_t interval_kind;
 
+	/*Fairness*/
+	long long max_cycles_wait_MC; //threshold (cycles) to avoid fairness.
+
 	/* Stack */
 	unsigned int stack_base;
 	unsigned int stack_top;

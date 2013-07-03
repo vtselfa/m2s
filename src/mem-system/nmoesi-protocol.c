@@ -2554,7 +2554,7 @@ void mod_handler_nmoesi_evict(int event, void *data)
 
 	struct mod_t *mod = stack->mod;
 	struct mod_t *target_mod = stack->target_mod;
-	struct mem_controller_t * mem_controller;
+	//struct mem_controller_t * mem_controller;
 
 	struct dir_t *dir;
 	struct dir_entry_t *dir_entry;
@@ -2666,7 +2666,7 @@ void mod_handler_nmoesi_evict(int event, void *data)
 
 	if (event == EV_MOD_NMOESI_EVICT_RECEIVE)
 	{
-		mem_controller = target_mod->mem_controller;
+		//mem_controller = target_mod->mem_controller;
 		mem_debug("  %lld %lld 0x%x %s evict receive\n", esim_time, stack->id,
 			stack->tag, target_mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:evict_receive\"\n",

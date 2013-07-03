@@ -80,6 +80,8 @@ char *x86_loader_help =
 	"  IPCReportInterval = <cycles>\n"
 	"      Interval in number of cycles that a new record will be added into\n"
 	"      the IPC report file.\n"
+	"  MaxWaitInMC = <cycles>\n"
+	"      Max. number of cycles that a request did for this context waits in a memory controller queue .\n"
 	"\n"
 	"See the Multi2Sim Guide (www.multi2sim.org) for further details and\n"
 	"examples on how to use the context configuration file.\n"
@@ -833,6 +835,11 @@ void x86_loader_load_from_ctx_config(struct config_t *config, char *section)
 		x86_ctx_cpu_report_schedule(ctx);
 	}
 
+	/*Fairness*/
+	ld->max_cycles_wait_MC = config_read_llint(config, section,
+			"MaxWaitInMC",100000000000 ); /* By default, same as default MC */
+	
+
 	/* Load executable */
 	x86_loader_load_exe(ctx, exe);
 }
@@ -862,6 +869,7 @@ void x86_loader_load_from_command_line(int argc, char **argv)
 	/* Redirections */
 	ld->stdin_file = str_set(NULL, "");
 	ld->stdout_file = str_set(NULL, "");
+	
 
 	/* Load executable */
 	x86_loader_load_exe(ctx, argv[0]);
