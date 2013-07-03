@@ -5637,13 +5637,14 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
                         stack->state = cache_block_exclusive;
                 else fatal("Invalid main memory acces\n");
 
-                stack->reply_size = 8;
-                stack->tag=stack->addr&~mod->cache->block_mask;///////// si fique aso salta
+               
+                stack->tag=stack->addr&~mod->cache->block_mask;
                 ret->err = 0;
                 ret->state = stack->state;
                 ret->tag = stack->tag;
-                ret->reply_size = 8;
                 ret->prefetch = stack->prefetch;
+		stack->reply_size = target_mod->block_size + 8; // afegit de nou 
+		mod_stack_set_reply(ret, reply_ack_data); // afegit de nou
                 mod_stack_return(stack);
                 return;
         }
