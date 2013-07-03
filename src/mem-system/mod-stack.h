@@ -62,7 +62,7 @@ enum mod_request_type_t
 };
 
 /* TODO: Deprecated. USAR client_info -- Prefetching */
-enum pref_kind_t {INVALID=0, SINGLE, GROUP, PREF_OBL, PREF_OBL_STRIDE};
+//enum pref_kind_t {INVALID=0, SINGLE, GROUP, PREF_OBL, PREF_OBL_STRIDE};
 struct pref_data_t
 {
         /* Common camps */
@@ -162,7 +162,7 @@ struct mod_stack_t
 	int pref_stream;
 	int pref_slot;
 	int stride;
-	struct pref_data_t pref;
+	//struct pref_data_t pref;
 	long long stream_retried_cycle;
 
 	int retry;

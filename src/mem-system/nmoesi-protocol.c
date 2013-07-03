@@ -447,7 +447,7 @@ void mod_handler_pref(int event, void *data)
 
 	if (event == EV_MOD_PREF)
 	{
-		mem_debug("%lld %lld 0x%x %s stream=%d slot=%d pref\n", esim_time, stack->id, stack->addr, mod->name, stack->pref.dest_stream, stack->pref.dest_slot);
+		mem_debug("%lld %lld 0x%x %s stream=%d slot=%d pref\n", esim_time, stack->id, stack->addr, mod->name, stack->client_info->stream, stack->client_info->slot);
 		mem_trace("mem.new_access name=\"A-%lld\" type=\"pref\" state=\"%s:pref\" addr=0x%x\n", stack->id, mod->name, stack->addr);
 
 		/* Record access */
@@ -5643,7 +5643,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
                 ret->state = stack->state;
                 ret->tag = stack->tag;
                 ret->prefetch = stack->prefetch;
-		stack->reply_size = target_mod->block_size + 8; // afegit de nou 
+		stack->reply_size = mod->block_size + 8; // afegit de nou 
 		mod_stack_set_reply(ret, reply_ack_data); // afegit de nou
                 mod_stack_return(stack);
                 return;

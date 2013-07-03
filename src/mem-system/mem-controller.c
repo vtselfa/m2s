@@ -282,14 +282,14 @@ void mem_controller_prefetch_queue_add(struct mod_stack_t * stack){
 		bank=0;
 
 	/*If mem controller policy is adaptative, mark useful and lived streams*/
-	if(mem_controller->adaptative  && (stack->pref.kind == GROUP || stack->pref.kind == SINGLE))
+	if(mem_controller->adaptative  && (stack->client_info->kind == GROUP || stack->client_info->kind == SINGLE))
 	{
-		assert(stack->pref.dest_stream>=0);
+		assert(stack->client_info->stream>=0);
 		mem_controller_mark_stream(stack, mem_controller->lived_streams);
 
 		/*An useful pref has to be a row buffer hit, a second stream hit and
 		another hit has to be enqueued*/
-		if(stack->pref.kind == SINGLE && mem_controller_is_useful_stream(stack, mem_controller->pref_queue[bank]))
+		if(stack->client_info->kind == SINGLE && mem_controller_is_useful_stream(stack, mem_controller->pref_queue[bank]))
 			mem_controller_mark_stream(stack, mem_controller->useful_streams);
 	}
 
@@ -601,7 +601,7 @@ struct mod_stack_t * mem_controller_select_prefHit_normal_prefGroup_prio(struct 
 	{
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
 		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
-		if(can_acces_bank&&stack->state==row_buffer_hit && stack->pref.kind==SINGLE)
+		if(can_acces_bank&&stack->state==row_buffer_hit && stack->client_info->kind==SINGLE)
 			return stack;
 		linked_list_next(pref_queue->queue);
 	}
@@ -612,7 +612,7 @@ struct mod_stack_t * mem_controller_select_prefHit_normal_prefGroup_prio(struct 
 	{
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
 		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
-		if(can_acces_bank && stack->pref.kind==SINGLE)
+		if(can_acces_bank && stack->client_info->kind==SINGLE)
 			return stack;
 		linked_list_next(pref_queue->queue);
 	}
@@ -724,7 +724,7 @@ struct mod_stack_t * mem_controller_select_prefHitRBH_normalRBH_normal_prefHit_p
 	{
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
 		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
-		if(can_acces_bank&&stack->state==row_buffer_hit && stack->pref.kind==SINGLE)
+		if(can_acces_bank&&stack->state==row_buffer_hit && stack->client_info->kind==SINGLE)
 			return stack;
 		linked_list_next(pref_queue->queue);
 	}
@@ -757,7 +757,7 @@ struct mod_stack_t * mem_controller_select_prefHitRBH_normalRBH_normal_prefHit_p
 	{
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
 		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
-		if(can_acces_bank && stack->pref.kind==SINGLE)
+		if(can_acces_bank && stack->client_info->kind==SINGLE)
 			return stack;
 		linked_list_next(pref_queue->queue);
 	}
@@ -885,7 +885,7 @@ struct mod_stack_t * mem_controller_select_dynamic_prio(struct mem_controller_qu
 	{
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
 		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
-		if(can_acces_bank&&stack->state==row_buffer_hit && stack->pref.kind==SINGLE && stack->priority>=2) // 3 requests
+		if(can_acces_bank&&stack->state==row_buffer_hit && stack->client_info->kind==SINGLE && stack->priority>=2) // 3 requests
 			return stack;
 		linked_list_next(pref_queue->queue);
 	}
@@ -907,7 +907,7 @@ struct mod_stack_t * mem_controller_select_dynamic_prio(struct mem_controller_qu
 	{
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
 		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
-		if(can_acces_bank&&stack->state==row_buffer_hit && stack->pref.kind==GROUP && stack->priority>=3) //4requests
+		if(can_acces_bank&&stack->state==row_buffer_hit && stack->client_info->kind==GROUP && stack->priority>=3) //4requests
 			return stack;
 		linked_list_next(pref_queue->queue);
 	}
@@ -917,7 +917,7 @@ struct mod_stack_t * mem_controller_select_dynamic_prio(struct mem_controller_qu
 	{
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
 		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
-		if(can_acces_bank&&stack->state==row_buffer_hit && stack->pref.kind==SINGLE && stack->priority>=1) // 2 requests
+		if(can_acces_bank&&stack->state==row_buffer_hit && stack->client_info->kind==SINGLE && stack->priority>=1) // 2 requests
 			return stack;
 		linked_list_next(pref_queue->queue);
 	}
@@ -928,7 +928,7 @@ struct mod_stack_t * mem_controller_select_dynamic_prio(struct mem_controller_qu
 	{
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
 		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
-		if(can_acces_bank&&stack->state==row_buffer_hit && stack->pref.kind==SINGLE)
+		if(can_acces_bank&&stack->state==row_buffer_hit && stack->client_info->kind==SINGLE)
 			return stack;
 		linked_list_next(pref_queue->queue);
 	}
@@ -1307,7 +1307,7 @@ struct mod_stack_t * mem_controller_select_normal_prefHit_prefGroup_prio(struct 
 	{
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
 		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
-		if(can_acces_bank&&stack->state==row_buffer_hit && stack->pref.kind==SINGLE)
+		if(can_acces_bank&&stack->state==row_buffer_hit && stack->client_info->kind==SINGLE)
 			return stack;
 		linked_list_next(pref_queue->queue);
 	}
@@ -1320,7 +1320,7 @@ struct mod_stack_t * mem_controller_select_normal_prefHit_prefGroup_prio(struct 
 	{
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
 		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
-		if(can_acces_bank&&stack->pref.kind==SINGLE)
+		if(can_acces_bank&&stack->client_info->kind==SINGLE)
 			return stack;
 		linked_list_next(pref_queue->queue);
 	}
@@ -1418,7 +1418,7 @@ struct mod_stack_t * mem_controller_select_rbh_prefHit_normal_prefGroup_prio(str
 	{
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
 		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
-		if(can_acces_bank&&stack->state==row_buffer_hit && stack->pref.kind==SINGLE)
+		if(can_acces_bank&&stack->state==row_buffer_hit && stack->client_info->kind==SINGLE)
 			return stack;
 		linked_list_next(pref_queue->queue);
 	}
@@ -1429,7 +1429,7 @@ struct mod_stack_t * mem_controller_select_rbh_prefHit_normal_prefGroup_prio(str
 	{
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
 		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
-		if(can_acces_bank&&stack->pref.kind==SINGLE)
+		if(can_acces_bank&&stack->client_info->kind==SINGLE)
 			return stack;
 		linked_list_next(pref_queue->queue);
 	}
@@ -1537,7 +1537,7 @@ struct mod_stack_t * mem_controller_select_rbh_normal_prefHit_prefGroup_prio(str
 	{
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
 		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
-		if(can_acces_bank&&stack->state==row_buffer_hit && stack->pref.kind==SINGLE)
+		if(can_acces_bank&&stack->state==row_buffer_hit && stack->client_info->kind==SINGLE)
 			return stack;
 		linked_list_next(pref_queue->queue);
 	}
@@ -1559,7 +1559,7 @@ struct mod_stack_t * mem_controller_select_rbh_normal_prefHit_prefGroup_prio(str
 	{
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
 		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
-		if(can_acces_bank&&stack->pref.kind==SINGLE)
+		if(can_acces_bank&&stack->client_info->kind==SINGLE)
 			return stack;
 		linked_list_next(pref_queue->queue);
 	}
@@ -2186,11 +2186,11 @@ void mem_controller_mark_stream(struct mod_stack_t* stack, struct linked_list_t 
 			LINKED_LIST_FOR_EACH(tuple->streams)
 			{
 				int * stre=linked_list_get(tuple->streams);
-				if(*stre==stack->pref.dest_stream)
+				if(*stre==stack->client_info->stream)
 					break;
 
 			}
-			linked_list_add(tuple->streams, &stack->pref.dest_stream);
+			linked_list_add(tuple->streams, &stack->client_info->stream);
 			break;
 		}
 	}
@@ -2200,7 +2200,7 @@ void mem_controller_mark_stream(struct mod_stack_t* stack, struct linked_list_t 
 		tuple=xcalloc(1,sizeof(struct tuple_adapt_t));
 		tuple->mod=stack->mod;
 		tuple->streams=linked_list_create();
-		linked_list_add(tuple->streams, &stack->pref.dest_stream);
+		linked_list_add(tuple->streams, &stack->client_info->stream);
 		linked_list_add(list,tuple);
 	}
 
@@ -2225,10 +2225,10 @@ int mem_controller_is_useful_stream(struct mod_stack_t* stack, struct mem_contro
 	LINKED_LIST_FOR_EACH(queue->queue)
 	{
 		stack_aux=linked_list_get(queue->queue);
-		assert(stack_aux->pref.dest_stream>=0);
+		assert(stack_aux->client_info->stream>=0);
 
 		/*The other request has te be a stream hit*/
-		if(stack->pref.dest_stream==stack_aux->pref.dest_stream && stack_aux->pref.kind == SINGLE )
+		if(stack->client_info->stream==stack_aux->client_info->stream && stack_aux->client_info->kind == SINGLE )
 			return 1;
 	}
 
@@ -2251,7 +2251,7 @@ int mem_controller_count_requests_same_stream(struct mod_stack_t* stack, struct 
 		row_buffer_find_row(mem_controller,stack->mod,stack->addr,&stack->channel, &stack->rank,&stack->bank,&stack->row, NULL, NULL);
 
 		assert(stack_aux->channel==stack->channel && stack_aux->rank == stack->rank && stack->bank == stack_aux->bank);
-		if(stack_aux->pref.dest_stream==stack->pref.dest_stream && stack->id!=stack_aux->id && stack->row == stack_aux->row)
+		if(stack_aux->client_info->stream==stack->client_info->stream && stack->id!=stack_aux->id && stack->row == stack_aux->row)
 			count++;
 	}
 
@@ -2272,16 +2272,16 @@ void mem_controller_mark_requests_same_stream(struct mod_stack_t* stack, struct 
 		row_buffer_find_row(mem_controller,stack->mod,stack->addr,&stack->channel, &stack->rank,&stack->bank,&stack->row, NULL, NULL);
 
 		assert(stack_aux->channel==stack->channel && stack_aux->rank == stack->rank && stack->bank == stack_aux->bank);
-		if(stack_aux->pref.dest_stream==stack->pref.dest_stream && stack->id!=stack_aux->id && stack->row == stack_aux->row && stack_aux->pref.kind==stack->pref.kind)
+		if(stack_aux->client_info->stream==stack->client_info->stream && stack->id!=stack_aux->id && stack->row == stack_aux->row && stack_aux->client_info->kind==stack->client_info->kind)
 		{
 			stack_aux->priority++;
-			//printf("%lld->%d->%d ", stack_aux->id, stack_aux->priority, stack_aux->pref.kind);
+			//printf("%lld->%d->%d ", stack_aux->id, stack_aux->priority, stack_aux->client_info->kind);
 			count=stack_aux->priority;
 		}
 	}
 
 	stack->priority=count;
-	//printf("%lld->%d->%d \n", stack->id, stack->priority, stack->pref.kind);
+	//printf("%lld->%d->%d \n", stack->id, stack->priority, stack->client_info->kind);
 }
 
 void mem_controller_coalesce_pref_into_normal(struct mod_stack_t* stack)
