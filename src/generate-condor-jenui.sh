@@ -10,9 +10,9 @@ echo "Executable     = $sim"
 echo "+GPBatchJob                 = true"
 echo "+LongRunningJob             = true"
 
-for cores in 1 4 8 16 32 64; do
+for cores in 16 ; do
 	for ways in  2 4 8; do
-		for mc in 1 ; do
+		for mc in 2 4 8 16 ; do
 			for c in 2 ; do
 				for enlaceRed in 8;do
 

@@ -1,7 +1,7 @@
 [ Network.mesh ]
   DefaultInputBufferSize = 128
   DefaultOutputBufferSize = 128
-  DefaultBandwidth = 64
+  DefaultBandwidth = 8
 
 ;;;;;;;;;; NODES ;;;;;;;;;;
 
