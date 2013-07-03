@@ -707,6 +707,10 @@ void mod_handler_nmoesi_load(int event, void *data)
 
 			if (master_stack->access_kind == mod_access_prefetch)
 			{
+
+				/*Inform to main memory*/
+				mem_controller_coalesce_pref_into_normal(stack);
+
 				/* Statistics */
 				mod->delayed_hits++;
 				/* Prefetch stream stacks leave block in prefetch buffer, not in cache, so first load to coalesce must bring block from stream to cache.
@@ -1074,6 +1078,10 @@ void mod_handler_nmoesi_store(int event, void *data)
 			/* Increment witness variable */
 			if (stack->witness_ptr)
 				(*stack->witness_ptr)++;
+
+			if (master_stack->access_kind == mod_access_prefetch)
+				/*Inform to main memory*/
+				mem_controller_coalesce_pref_into_normal(stack);
 
 			return;
 		}
@@ -1985,6 +1993,8 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 		/* If block is in write buffer and request dir is up down, retry. Else, wait. */
 		if (!stack->background)
 		{
+			assert(mod->kind!=mod_kind_main_memory && stack->request_dir != mod_request_up_down); // P
+
 			struct write_buffer_block_t *block;
 			stack->tag = stack->addr & ~cache->block_mask;
 			LINKED_LIST_FOR_EACH(cache->wb.blocks)
@@ -2201,6 +2211,7 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 			/* This stack has been retried because the block it was looking for was locked in the stream and now has found the block in cache. Delayed hit statistics must be updated. */
 			if(stack->hit && stack->stream_retried)
 			{
+				assert(!(mod->kind==mod_kind_main_memory && stack->request_dir == mod_request_up_down)); // P
 				assert(stack->stream_retried_cycle);
 				mod->delayed_hit_cycles += esim_time - stack->stream_retried_cycle;
 				mod->delayed_hits_cycles_counted++;
@@ -2218,8 +2229,10 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 
 		/* Access latency */
 		if (!stack->hit && !stack->background && cache->prefetch.type == prefetcher_type_czone_streams)
+		{
+			assert(!(mod->kind==mod_kind_main_memory && stack->request_dir == mod_request_up_down)); // P
 			esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK_PREF_STREAM, stack, 0);
-		else
+		}else
 			esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK_ACTION, stack, mod->dir_latency); /* Access latency */
 		return;
 	}
@@ -2298,6 +2311,10 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 						mod->delayed_hits++;
 						ret->stream_retried_cycle = esim_time;
 						ret->stream_retried = 1;
+
+						/*Piggybacking*/
+						if(!stack->prefetch)
+							mem_controller_coalesce_pref_into_normal(stack);
 					}
 				}
 				ret->err = 1;
@@ -2455,6 +2472,7 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 					EV_MOD_NMOESI_FIND_AND_LOCK_FINISH, stack, stack->prefetch);
 				new_stack->set = stack->set;
 				new_stack->way = stack->way;
+				assert(!(mod->kind==mod_kind_main_memory && stack->request_dir == mod_request_up_down)); // It shouldn't happen because we want avoid evictions in mm directory
 				esim_schedule_event(EV_MOD_NMOESI_EVICT, new_stack, 0);
 				return;
 			}
@@ -2482,7 +2500,10 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 			ret->background = stack->background;
 			dir_entry_unlock(mod->dir, stack->set, stack->way);
 			if (stack->stream_hit)
+			{
+				assert(!(mod->kind==mod_kind_main_memory && stack->request_dir == mod_request_up_down)); // P
 				dir_pref_entry_unlock(mod->dir, stack->pref_stream, stack->pref_slot);
+			}
 			mod_stack_return(stack);
 			return;
 		}
@@ -2679,9 +2700,9 @@ void mod_handler_nmoesi_evict(int event, void *data)
 		new_stack->write = 1;
 		new_stack->retry = 0;
 		new_stack->request_dir = mod_request_up_down;
-		if (target_mod->kind == mod_kind_main_memory && mem_controller->enabled)
-			esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER, new_stack, 0);
-		else
+		//if (target_mod->kind == mod_kind_main_memory && mem_controller->enabled)
+		//	esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER, new_stack, 0);
+		//else
 			esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK, new_stack, 0);
 		return;
 	}
@@ -3104,9 +3125,9 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 		new_stack->stream_retried_cycle = stack->stream_retried_cycle;
 		new_stack->request_dir = stack->request_dir;
 		new_stack->request_type = read_request;
-		if (target_mod->kind == mod_kind_main_memory && mem_controller->enabled)
-			esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER, new_stack, 0);
-		else
+		//if (target_mod->kind == mod_kind_main_memory && mem_controller->enabled)
+		//	esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER, new_stack, 0);
+		//else
 			esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK, new_stack, 0);
 		return;
 	}
@@ -4060,9 +4081,9 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 		new_stack->stream_retried_cycle = stack->stream_retried_cycle;
 		new_stack->request_dir = stack->request_dir;
 
-		if(target_mod->kind == mod_kind_main_memory && mem_controller->enabled)
-			esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER, new_stack, 0);
-		else
+		//if(target_mod->kind == mod_kind_main_memory && mem_controller->enabled)
+		//	esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER, new_stack, 0);
+		//else
 			esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK, new_stack, 0);
 		return;
 	}
