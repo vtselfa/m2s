@@ -45,7 +45,10 @@ struct mod_stack_t *mod_stack_create(long long id, struct mod_t *mod,
 	stack->ret_event = ret_event;
 	stack->ret_stack = ret_stack;
 	if (ret_stack != NULL)
+	{
 		stack->client_info = ret_stack->client_info;
+		assert(stack->client_info->core>=0 && stack->client_info->thread>=0);
+	}
 	stack->way = -1;
 	stack->set = -1;
 	stack->tag = -1;
