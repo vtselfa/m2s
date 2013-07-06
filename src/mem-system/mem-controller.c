@@ -2336,6 +2336,8 @@ void mem_controller_coalesce_pref_into_normal(struct mod_stack_t* stack)
 		LINKED_LIST_FOR_EACH(mem_controller->pref_queue[bank]->queue)
 		{
 			stack_aux=linked_list_get(mem_controller->pref_queue[bank]->queue);
+			assert(stack->client_info->core!=-1);
+			assert(stack_aux->client_info->core!=-1);
 			if(stack->addr==stack_aux->addr && stack->client_info->core == stack_aux->client_info->core)
 			{
 				/*TODO Afegir estaidsitques de cuan la cola se plena y se buida*/
@@ -2347,27 +2349,47 @@ void mem_controller_coalesce_pref_into_normal(struct mod_stack_t* stack)
 		}
 	}
 	if(pig)
-		linked_list_add(mem_system->pref_into_normal, stack);
+	{
+		struct tuple_piggybacking_t *tuple_pig= xcalloc(1, sizeof(struct tuple_piggybacking_t));
+		tuple_pig->addr=stack->addr;
+		tuple_pig->core= stack->client_info->core; 
+		tuple_pig->thread= stack->client_info->thread;
+ 
+		linked_list_tail(mem_system->pref_into_normal);
+		linked_list_add(mem_system->pref_into_normal, tuple_pig);
+		
+		assert(stack->client_info->core!=-1);
+		
+		
+	}
 
 }
 
 int mem_controller_is_piggybacked(struct mod_stack_t * stack)
 {
-	struct mod_stack_t * stack_aux;
-	LINKED_LIST_FOR_EACH(mem_system->pref_into_normal)
+	struct tuple_piggybacking_t * tuple_pig;
+	assert(stack->client_info->core != -1);
+	linked_list_head(mem_system->pref_into_normal);
+
+	while(!linked_list_is_end(mem_system->pref_into_normal))
 	{
-		stack_aux=linked_list_get(mem_system->pref_into_normal);
+		tuple_pig=linked_list_get(mem_system->pref_into_normal);
+		
+		assert(tuple_pig->core != -1);
+		assert(tuple_pig->thread != -1);
 
-		assert(stack_aux->client_info->core != -1);
-		assert(stack_aux->client_info->thread != -1);
-
-		if(stack_aux->addr==stack->addr && stack_aux->client_info->core== stack->client_info->core)
+		if(tuple_pig->addr==stack->addr && tuple_pig->core == stack->client_info->core)
 		{
+			free(tuple_pig);
 			linked_list_remove(mem_system->pref_into_normal);
 			return 1;
 		}
+	
+		linked_list_next(mem_system->pref_into_normal);
+	
 	}
 
+	
 	return 0;
 }
 

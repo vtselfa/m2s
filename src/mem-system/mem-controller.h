@@ -16,6 +16,15 @@ struct tuple_adapt_t
 
 };
 
+
+struct tuple_piggybacking_t
+{
+	unsigned int addr;
+	int core;
+	int thread;
+};
+
+
 /*States of request which  try to acces to main memory*/
 enum acces_main_memory_state_t
 {

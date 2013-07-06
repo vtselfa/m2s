@@ -79,9 +79,14 @@ struct mem_system_t *mem_system_create(void)
 
 void mem_system_free(struct mem_system_t *mem_system)
 {
+
+	
 	/* Free piggybaking */
 	LINKED_LIST_FOR_EACH(mem_system->pref_into_normal)
+	{
+		free(linked_list_get(mem_system->pref_into_normal));
 		linked_list_remove(mem_system->pref_into_normal);
+	}
 	linked_list_free(mem_system->pref_into_normal);
 
 	/* Free mem controllers */
