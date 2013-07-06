@@ -72,6 +72,7 @@
 #include <lib/util/misc.h>
 #include <lib/util/string.h>
 #include <mem-system/config.h>
+#include <mem-system/mem-controller.h>
 #include <mem-system/mem-system.h>
 #include <mem-system/mmu.h>
 #include <network/net-system.h>
@@ -140,7 +141,6 @@ static char *mem_debug_file_name = "";
 
 static char *net_debug_file_name = "";
 
-static char *main_mem_report_file_name="";
 
 static long long m2s_max_time;  /* Max. simulation time in seconds (0 = no limit) */
 static long long m2s_loop_iter;  /* Number of iterations in main simulation loop */

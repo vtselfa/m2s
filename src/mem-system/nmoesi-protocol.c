@@ -23,7 +23,7 @@
 #include <lib/mhandle/mhandle.h>
 #include <lib/util/debug.h>
 #include <lib/util/linked-list.h>
-#include <lib/util/list.h>
+#include <lib/util/list.h>		
 #include <lib/util/misc.h>
 #include <lib/util/string.h>
 #include <network/network.h>
@@ -1994,9 +1994,9 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 		ret->err = 0;
 
 		/* If block is in write buffer and request dir is up down, retry. Else, wait. */
-		if (!stack->background)
+		if (!stack->background &&!(mod->kind==mod_kind_main_memory && stack->request_dir == mod_request_up_down))
 		{
-			assert(mod->kind!=mod_kind_main_memory && stack->request_dir != mod_request_up_down); // P
+			
 
 			struct write_buffer_block_t *block;
 			stack->tag = stack->addr & ~cache->block_mask;
@@ -2405,6 +2405,8 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 				struct stream_buffer_t *sb;
 
 				mem_debug("  %lld %lld 0x%x %s fast resume access\n", esim_time, stack->id, stack->tag, mod->name);
+
+				assert(!(mod->kind==mod_kind_main_memory && stack->request_dir == mod_request_up_down));// P
 
 				assert(!(mod->level==1 && stack->write)); //TODO: Arreglar stores
 

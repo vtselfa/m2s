@@ -6,7 +6,7 @@
 extern struct str_map_t interval_kind_map;
 
 extern int EV_MEM_CONTROLLER_ADAPT;
-char * main_mem_report_file_name;
+extern char * main_mem_report_file_name;
 
 struct tuple_adapt_t
 {
