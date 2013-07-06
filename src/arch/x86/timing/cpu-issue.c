@@ -65,6 +65,8 @@ static int x86_cpu_issue_sq(int core, int thread, int quant)
 		/* create and fill the mod_client_info_t object */
 		client_info = mod_client_info_create(X86_THREAD.data_mod);
 		client_info->prefetcher_eip = store->eip;
+		client_info->core = core;
+		client_info->thread = thread;
 
 		/* Issue store */
 		mod_access(X86_THREAD.data_mod, mod_access_store,
@@ -76,7 +78,7 @@ static int x86_cpu_issue_sq(int core, int thread, int quant)
 		store->in_event_queue = 1;
 		store->issued = 1;
 		store->issue_when = arch_x86->cycle;
-	
+
 		/* Statistics */
 		X86_CORE.num_issued_uinst_array[store->uinst->opcode]++;
 		X86_CORE.lsq_reads++;
@@ -92,7 +94,7 @@ static int x86_cpu_issue_sq(int core, int thread, int quant)
 
 		/* One more instruction, update quantum. */
 		quant--;
-		
+
 		/* MMU statistics */
 		if (*mmu_report_file_name)
 			mmu_access_page(store->phy_addr, mmu_access_write);
@@ -147,7 +149,7 @@ static int x86_cpu_issue_lq(int core, int thread, int quant)
 		load->in_event_queue = 1;
 		load->issued = 1;
 		load->issue_when = arch_x86->cycle;
-	
+
 		/* Statistics */
 		X86_CORE.num_issued_uinst_array[load->uinst->opcode]++;
 		X86_CORE.lsq_reads++;
@@ -163,7 +165,7 @@ static int x86_cpu_issue_lq(int core, int thread, int quant)
 
 		/* One more instruction issued, update quantum. */
 		quant--;
-		
+
 		/* MMU statistics */
 		if (*mmu_report_file_name)
 			mmu_access_page(load->phy_addr, mmu_access_read);
@@ -172,7 +174,7 @@ static int x86_cpu_issue_lq(int core, int thread, int quant)
 		x86_trace("x86.inst id=%lld core=%d stg=\"i\"\n",
 			load->id_in_core, load->core);
 	}
-	
+
 	return quant;
 }
 
@@ -193,10 +195,10 @@ static int x86_cpu_issue_preq(int core, int thread, int quant)
 			continue;
 		}
 
-		/* 
+		/*
 		 * Make sure its not been prefetched recently. This is just to avoid unnecessary
-		 * memory traffic. Even though the cache will realise a "hit" on redundant 
-		 * prefetches, its still helpful to avoid going to the memory (cache). 
+		 * memory traffic. Even though the cache will realise a "hit" on redundant
+		 * prefetches, its still helpful to avoid going to the memory (cache).
 		 */
 		if (prefetch_history_is_redundant(X86_CORE.prefetch_history,
 				X86_THREAD.data_mod, prefetch->phy_addr))
@@ -235,7 +237,7 @@ static int x86_cpu_issue_preq(int core, int thread, int quant)
 		prefetch->in_event_queue = 1;
 		prefetch->issued = 1;
 		prefetch->issue_when = arch_x86->cycle;
-		
+
 		/* Statistics */
 		X86_CORE.num_issued_uinst_array[prefetch->uinst->opcode]++;
 		X86_CORE.lsq_reads++;
@@ -251,7 +253,7 @@ static int x86_cpu_issue_preq(int core, int thread, int quant)
 
 		/* One more instruction issued, update quantum. */
 		quant--;
-		
+
 		/* MMU statistics */
 		if (*mmu_report_file_name)
 			mmu_access_page(prefetch->phy_addr, mmu_access_read);
@@ -260,7 +262,7 @@ static int x86_cpu_issue_preq(int core, int thread, int quant)
 		x86_trace("x86.inst id=%lld core=%d stg=\"i\"\n",
 			prefetch->id_in_core, prefetch->core);
 	}
-	
+
 	return quant;
 }
 
