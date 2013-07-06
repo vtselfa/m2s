@@ -36,6 +36,7 @@
 #include "mmu.h"
 #include "mod-stack.h"
 #include "prefetcher.h"
+#include "stream-prefetcher.h"
 
 #include "bank.h"
 #include "channel.h"
@@ -267,6 +268,7 @@ void enqueue_prefetch_group(int core, int thread, struct mod_t *mod, unsigned in
 		client_info->thread = thread;
 		client_info->stream = stream;
 		client_info->slot = (sb->head + i) % sb->num_slots;
+		client_info->stream_request_kind = stream_request_grouped;
 
 		if (invalidate)
 		{
@@ -371,6 +373,7 @@ void enqueue_prefetch_on_hit(struct mod_stack_t *stack)
 	client_info->thread = stack->client_info->thread;
 	client_info->stream = sb->stream;
 	client_info->slot = sb->tail;
+		client_info->stream_request_kind = stream_request_single;
 	mod_access(mod, mod_access_prefetch, sb->next_address, NULL, NULL, NULL, client_info);
 
 	/* Update tail */
@@ -3458,12 +3461,12 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 		/* If another module has not given the block,
 		access main memory */
 		if(target_mod->kind == mod_kind_main_memory &&
-			mem_controller->enabled &&
+			mem_controller->enabled && !stack->main_memory_accessed &&
 			stack->reply != reply_ack_data_sent_to_peer)
 		{
 			assert(stack->t_access_net >= 0);
 			mem_controller->t_inside_net += esim_cycle() - stack->t_access_net;
-			stack->t_access_net =- 1;
+			stack->t_access_net = -1;
 			new_stack = mod_stack_create(stack->id, target_mod, stack->addr,
 				EV_MOD_NMOESI_READ_REQUEST_UPDOWN_FINISH, stack, stack->prefetch);
 			new_stack->blocking = stack->request_dir == mod_request_down_up;
@@ -3563,7 +3566,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 		if (target_mod->cache->prefetch.type && target_mod->kind != mod_kind_main_memory)
 			mod_access_finish(target_mod, stack);
 
-		int latency = stack->reply == reply_ack_data_sent_to_peer ? 0 : target_mod->latency;
+		int latency = stack->reply == reply_ack_data_sent_to_peer || stack->main_memory_accessed ? 0 : target_mod->latency;
 		esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST_REPLY, stack, latency);
 		return;
 	}
@@ -4292,7 +4295,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 		/* If another module has not given the block,
 		access main memory */
 		if (target_mod->kind == mod_kind_main_memory &&
-			mem_controller->enabled &&
+			mem_controller->enabled && !stack->main_memory_accessed &&
 			stack->reply != reply_ack_data_sent_to_peer)
 		{
 			assert(stack->t_access_net >= 0);
@@ -4445,13 +4448,13 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 		if (target_mod->cache->prefetch.type && target_mod->kind != mod_kind_main_memory)
 			mod_access_finish(target_mod, stack);
 
-		int latency = stack->reply == reply_ack_data_sent_to_peer ? 0 : target_mod->latency;
-		esim_schedule_event(EV_MOD_NMOESI_WRITE_REQUEST_REPLY, stack, latency);
-
 		if (stack->request_dir == mod_request_up_down &&
 			target_mod->kind == mod_kind_main_memory &&
 			mem_controller->enabled)
-			stack->t_access_net=esim_time;
+			stack->t_access_net = esim_cycle();
+
+		int latency = stack->reply == reply_ack_data_sent_to_peer || stack->main_memory_accessed ? 0 : target_mod->latency;
+		esim_schedule_event(EV_MOD_NMOESI_WRITE_REQUEST_REPLY, stack, latency);
 
 		return;
 	}
@@ -4606,7 +4609,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 		{
 			assert(stack->t_access_net >= 0);
 			mem_controller->t_inside_net += esim_time-stack->t_access_net;
-			stack->t_access_net =- 1;
+			stack->t_access_net = -1;
 		}
 
 		/* Return */
@@ -5637,14 +5640,15 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
                         stack->state = cache_block_exclusive;
                 else fatal("Invalid main memory acces\n");
 
-               
+
                 stack->tag=stack->addr&~mod->cache->block_mask;
                 ret->err = 0;
                 ret->state = stack->state;
                 ret->tag = stack->tag;
                 ret->prefetch = stack->prefetch;
-		stack->reply_size = mod->block_size + 8; // afegit de nou 
+		stack->reply_size = mod->block_size + 8; // afegit de nou
 		mod_stack_set_reply(ret, reply_ack_data); // afegit de nou
+			ret->main_memory_accessed = 1;
                 mod_stack_return(stack);
                 return;
         }

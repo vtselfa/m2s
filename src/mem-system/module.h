@@ -23,7 +23,8 @@
 
 #include <stdio.h>
 
-enum pref_kind_t {INVALID=0, SINGLE, GROUP, PREF_OBL, PREF_OBL_STRIDE};
+#include "stream-prefetcher.h"
+
 /* Adaptative prefetch */
 extern int EV_CACHE_ADAPT_PREF;
 struct core_thread_tuple_t
@@ -83,7 +84,7 @@ struct mod_client_info_t
 	/* Fields used by stream prefetchers */
 	int stream;
 	int slot;
-	enum pref_kind_t kind;
+	enum stream_request_kind_t stream_request_kind;
 
 	/* This field is for use by the prefetcher. It is set
 	 * to the PC of the instruction accessing the module */

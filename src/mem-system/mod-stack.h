@@ -51,27 +51,13 @@ enum mod_message_type_t
 	message_clear_owner
 };
 
-
 /* Request types */
 enum mod_request_type_t
 {
-        none_request = 0,
-        read_request,
-        write_request,
-        eviction_request
-};
-
-/* TODO: Deprecated. USAR client_info -- Prefetching */
-//enum pref_kind_t {INVALID=0, SINGLE, GROUP, PREF_OBL, PREF_OBL_STRIDE};
-struct pref_data_t
-{
-        /* Common camps */
-        enum pref_kind_t kind;
-        struct mod_t *mod;
-        int dest_stream;
-        int dest_slot;
-        /* Group only camps */
-        int invalidating : 1;
+	none_request = 0,
+	read_request,
+	write_request,
+	eviction_request
 };
 
 /* Stack */
@@ -148,6 +134,8 @@ struct mod_stack_t
 	int coalesced : 1;
 	int port_locked : 1;
 
+	int main_memory_accessed : 1; /* Bit set after up down access to main memory with mem controller enabled */ 
+
 	/* Pref flags */
 	int stream_hit : 1;
 	int stream_head_hit : 1;
@@ -162,7 +150,6 @@ struct mod_stack_t
 	int pref_stream;
 	int pref_slot;
 	int stride;
-	//struct pref_data_t pref;
 	long long stream_retried_cycle;
 
 	int retry;
