@@ -248,7 +248,7 @@ void mem_controller_normal_queue_add(struct mod_stack_t * stack)
 	long long ctx_threshold;
 	assert(stack->client_info->core>=0 && stack->client_info->thread>=0);
 	struct x86_ctx_t *ctx = x86_cpu->core[stack->client_info->core].thread[stack->client_info->thread].ctx;
-	struct x86_loader_t *ld=ctx->loader;
+	
 	//row_buffer = stack->addr &  mem_controller->row_buffer_size;
 //	channel=(row_buffer >>7 )%mem_controller->num_regs_channel;
 
@@ -262,10 +262,12 @@ void mem_controller_normal_queue_add(struct mod_stack_t * stack)
 	stack->threshold =mem_controller->threshold;
 
 	/*TO avoid fairness*/
-	ctx_threshold = ld->max_cycles_wait_MC;
-
-	if(ctx_threshold != 100000000000) // if threshold if different than by default, context threshold is priorier
-		stack->threshold = ctx_threshold;
+	if(ctx!=NULL)
+	{
+		ctx_threshold = ctx->loader->max_cycles_wait_MC;
+		if(ctx_threshold != 100000000000) // if threshold if different than by default, context threshold is priorier
+			stack->threshold = ctx_threshold;
+	}
 
 	/*Add in queue*/
 	linked_list_tail(mem_controller->normal_queue[bank]->queue);
@@ -316,11 +318,14 @@ void mem_controller_prefetch_queue_add(struct mod_stack_t * stack){
 
 	/*TO avoid fairness*/
 	stack->threshold=mem_controller->threshold;
+	
+	if(x86_cpu->core[stack->client_info->core].thread[stack->client_info->thread].ctx!=NULL)
+	{
+		ctx_threshold = x86_cpu->core[stack->client_info->core].thread[stack->client_info->thread].ctx->loader->max_cycles_wait_MC;
 
-	ctx_threshold = x86_cpu->core[stack->client_info->core].thread[stack->client_info->thread].ctx->loader->max_cycles_wait_MC;
-
-	if(ctx_threshold != 100000000000) // if threshold if different than by default, context threshold is priorier
-		stack->threshold = ctx_threshold;
+		if(ctx_threshold != 100000000000) // if threshold if different than by default, context threshold is priorier
+			stack->threshold = ctx_threshold;
+	}
 
 	/*Insert*/
 	linked_list_tail(mem_controller->pref_queue[bank]->queue);

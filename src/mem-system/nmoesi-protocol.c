@@ -270,6 +270,7 @@ void enqueue_prefetch_group(int core, int thread, struct mod_t *mod, unsigned in
 		client_info->slot = (sb->head + i) % sb->num_slots;
 		client_info->stream_request_kind = stream_request_grouped;
 
+		
 		if (invalidate)
 		{
 			mod->canceled_prefetches++;
@@ -367,7 +368,6 @@ void enqueue_prefetch_on_hit(struct mod_stack_t *stack)
 	mod->single_prefetches++;
 
 	mem_debug("    Enqueued single prefetch at addr=0x%x to stream=%d with stride=0x%x(%d)\n", sb->next_address + sb->stride, sb->stream, sb->stride, sb->stride);
-
 	client_info = mod_client_info_create(mod);
 	client_info->core = stack->client_info->core;
 	client_info->thread = stack->client_info->thread;
@@ -3479,12 +3479,19 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			new_stack->request_type = read_request;
 			esim_schedule_event(EV_MOD_NMOESI_INSERT_MEMORY_CONTROLLER, new_stack, 0);
 			return;
+		}else if(target_mod->kind == mod_kind_main_memory &&
+			mem_controller->enabled && !stack->main_memory_accessed)
+		{
+			/*DIscard the result*/
+			assert(stack->t_access_net >= 0);
+			stack->t_access_net = -1;
 		}
 
 
 		/*Request has returned from mc*/
-		if (stack->request_dir == mod_request_up_down &&
-			target_mod->kind == mod_kind_main_memory && mem_controller->enabled)
+		if (stack->request_dir == mod_request_up_down && 
+			target_mod->kind == mod_kind_main_memory && mem_controller->enabled
+			&& stack->reply != reply_ack_data_sent_to_peer)
 		{
 			assert(stack->t_access_net == -1);
 			stack->t_access_net = esim_cycle();
@@ -3953,10 +3960,10 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 
 		if (stack->request_dir == mod_request_up_down &&
 			target_mod->kind == mod_kind_main_memory &&
-			mem_controller->enabled)
+			mem_controller->enabled && stack->reply != reply_ack_data_sent_to_peer )
 		{
 			assert(stack->t_access_net >= 0);
-			mem_controller->t_inside_net += esim_time-stack->t_access_net;
+			mem_controller->t_inside_net += esim_cycle()-stack->t_access_net; 
 			stack->t_access_net = -1;
 		}
 
@@ -4312,7 +4319,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			stack->reply != reply_ack_data_sent_to_peer)
 		{
 			assert(stack->t_access_net >= 0);
-			mem_controller->t_inside_net+=esim_time-stack->t_access_net;
+			mem_controller->t_inside_net+=esim_cycle()-stack->t_access_net;
 			stack->t_access_net=-1;
 			new_stack = mod_stack_create(stack->id, target_mod, stack->addr,
 				EV_MOD_NMOESI_WRITE_REQUEST_UPDOWN_FINISH, stack, stack->prefetch);
@@ -4325,12 +4332,19 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			new_stack->request_type = write_request;
 			esim_schedule_event(EV_MOD_NMOESI_INSERT_MEMORY_CONTROLLER, new_stack, 0);
 			return;
+		}else if(target_mod->kind == mod_kind_main_memory &&
+			mem_controller->enabled && !stack->main_memory_accessed)
+		{
+			/*Discard the result*/
+			assert(stack->t_access_net >= 0);
+			stack->t_access_net=-1;
 		}
 
 
 		/*Request has returned from mc*/
 		if (stack->request_dir == mod_request_up_down &&
-			target_mod->kind == mod_kind_main_memory && mem_controller->enabled)
+			target_mod->kind == mod_kind_main_memory && mem_controller->enabled &&
+			stack->reply != reply_ack_data_sent_to_peer)
 		{
 			assert(stack->t_access_net == -1);
 			stack->t_access_net = esim_cycle();
@@ -4629,10 +4643,10 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 
 		if (stack->request_dir == mod_request_up_down &&
 			target_mod->kind == mod_kind_main_memory &&
-			mem_controller->enabled)
+			mem_controller->enabled && stack->reply != reply_ack_data_sent_to_peer)
 		{
 			assert(stack->t_access_net >= 0);
-			mem_controller->t_inside_net += esim_time-stack->t_access_net;
+			mem_controller->t_inside_net += esim_cycle()-stack->t_access_net;
 			stack->t_access_net = -1;
 		}
 
