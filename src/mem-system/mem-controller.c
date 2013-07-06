@@ -246,7 +246,9 @@ void mem_controller_normal_queue_add(struct mod_stack_t * stack)
 	unsigned int log2_row_size= log_base2( mem_controller->row_buffer_size);
 	unsigned int bank;
 	long long ctx_threshold;
-	struct x86_loader_t *ld=x86_cpu->core[stack->client_info->core].thread[stack->client_info->thread].ctx->loader;
+	assert(stack->client_info->core>=0 && stack->client_info->thread>=0);
+	struct x86_ctx_t *ctx = x86_cpu->core[stack->client_info->core].thread[stack->client_info->thread].ctx;
+	struct x86_loader_t *ld=ctx->loader;
 	//row_buffer = stack->addr &  mem_controller->row_buffer_size;
 //	channel=(row_buffer >>7 )%mem_controller->num_regs_channel;
 
@@ -286,6 +288,9 @@ void mem_controller_prefetch_queue_add(struct mod_stack_t * stack){
 	unsigned int log2_row_size= log_base2( mem_controller->row_buffer_size);
 	unsigned int bank;
 	long long ctx_threshold;
+		
+	assert(stack->client_info->core>=0 && stack->client_info->thread>=0);
+	
 
 	if(mem_controller->queue_per_bank)
 		bank =((stack->addr >> log2_row_size) % (mem_controller->num_regs_bank*mem_controller->num_regs_rank));

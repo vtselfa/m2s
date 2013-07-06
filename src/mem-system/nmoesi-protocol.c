@@ -3474,9 +3474,20 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			new_stack->blocking = stack->request_dir == mod_request_down_up;
 			new_stack->read = 1;
 			new_stack->retry = 0;
+			stack->pending++;
+			assert(stack->pending == 1);
 			new_stack->request_type = read_request;
 			esim_schedule_event(EV_MOD_NMOESI_INSERT_MEMORY_CONTROLLER, new_stack, 0);
 			return;
+		}
+
+
+		/*Request has returned from mc*/
+		if (stack->request_dir == mod_request_up_down &&
+			target_mod->kind == mod_kind_main_memory && mem_controller->enabled)
+		{
+			assert(stack->t_access_net == -1);
+			stack->t_access_net = esim_cycle();
 		}
 
 		if(!stack->background)
@@ -4308,10 +4319,21 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			new_stack->blocking = stack->request_dir == mod_request_down_up;
 			new_stack->write = 1;
 			new_stack->retry = 0;
+			stack->pending++;
+			assert(stack->pending == 1);
 			new_stack->request_dir = stack->request_dir;
 			new_stack->request_type = write_request;
 			esim_schedule_event(EV_MOD_NMOESI_INSERT_MEMORY_CONTROLLER, new_stack, 0);
 			return;
+		}
+
+
+		/*Request has returned from mc*/
+		if (stack->request_dir == mod_request_up_down &&
+			target_mod->kind == mod_kind_main_memory && mem_controller->enabled)
+		{
+			assert(stack->t_access_net == -1);
+			stack->t_access_net = esim_cycle();
 		}
 
 		/* Ensure that a reply was received */
