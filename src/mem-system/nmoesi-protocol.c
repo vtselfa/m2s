@@ -23,7 +23,7 @@
 #include <lib/mhandle/mhandle.h>
 #include <lib/util/debug.h>
 #include <lib/util/linked-list.h>
-#include <lib/util/list.h>		
+#include <lib/util/list.h>
 #include <lib/util/misc.h>
 #include <lib/util/string.h>
 #include <network/network.h>
@@ -270,7 +270,7 @@ void enqueue_prefetch_group(int core, int thread, struct mod_t *mod, unsigned in
 		client_info->slot = (sb->head + i) % sb->num_slots;
 		client_info->stream_request_kind = stream_request_grouped;
 
-		
+
 		if (invalidate)
 		{
 			mod->canceled_prefetches++;
@@ -1996,7 +1996,7 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 		/* If block is in write buffer and request dir is up down, retry. Else, wait. */
 		if (!stack->background &&!(mod->kind==mod_kind_main_memory && stack->request_dir == mod_request_up_down))
 		{
-			
+
 
 			struct write_buffer_block_t *block;
 			stack->tag = stack->addr & ~cache->block_mask;
@@ -2214,7 +2214,6 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 			/* This stack has been retried because the block it was looking for was locked in the stream and now has found the block in cache. Delayed hit statistics must be updated. */
 			if(stack->hit && stack->stream_retried)
 			{
-				assert(!(mod->kind==mod_kind_main_memory && stack->request_dir == mod_request_up_down)); // P
 				assert(stack->stream_retried_cycle);
 				mod->delayed_hit_cycles += esim_time - stack->stream_retried_cycle;
 				mod->delayed_hits_cycles_counted++;
@@ -2927,6 +2926,10 @@ void mod_handler_nmoesi_invalidate_slot(int event, void *data)
 		mem_debug("%lld %lld 0x%x %s invalidate slot\n", esim_time, stack->id, stack->addr, mod->name);
 		mem_trace("mem.new_access name=\"A-%lld\" type=\"invalidate_slot\" state=\"%s:invalidate_slot\" addr=0x%x\n", stack->id, mod->name, stack->addr);
 
+		/* Set pref stream and slot */
+		stack->pref_stream = stack->client_info->stream;
+		stack->pref_slot = stack->client_info->slot;
+
 		/* Next event */
 		esim_schedule_event(EV_MOD_NMOESI_INVALIDATE_SLOT_LOCK, stack, 0);
 		return;
@@ -2993,6 +2996,10 @@ void mod_handler_nmoesi_invalidate_slot(int event, void *data)
 		/* Increment witness variable */
 		if (stack->witness_ptr)
 			(*stack->witness_ptr)++;
+
+		/* Free the mod_client_info object, if any */
+		if (stack->client_info)
+			mod_client_info_free(mod, stack->client_info);
 
 		/* Return event queue element into event queue */
 		if (stack->event_queue && stack->event_queue_item)
@@ -3489,7 +3496,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 
 
 		/*Request has returned from mc*/
-		if (stack->request_dir == mod_request_up_down && 
+		if (stack->request_dir == mod_request_up_down &&
 			target_mod->kind == mod_kind_main_memory && mem_controller->enabled
 			&& stack->reply != reply_ack_data_sent_to_peer)
 		{
@@ -3963,7 +3970,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			mem_controller->enabled && stack->reply != reply_ack_data_sent_to_peer )
 		{
 			assert(stack->t_access_net >= 0);
-			mem_controller->t_inside_net += esim_cycle()-stack->t_access_net; 
+			mem_controller->t_inside_net += esim_cycle()-stack->t_access_net;
 			stack->t_access_net = -1;
 		}
 
