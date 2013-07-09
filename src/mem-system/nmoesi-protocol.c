@@ -164,11 +164,9 @@ int EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER_FINISH;
 int must_enqueue_prefetch(struct mod_stack_t *stack)
 {
 	struct mod_t *target_mod;
-
 	/* L1 prefetch */
 	if (!stack->target_mod)
 		return stack->mod->cache->pref_enabled && !stack->background;
-
 	/* Deeper than L1 prefetch */
 	target_mod = stack->target_mod;
 	return target_mod->cache->pref_enabled && //El prefetch està habilitat
@@ -5871,7 +5869,7 @@ void mod_handler_nmoesi_message(int event, void *data)
 	struct mod_t *mod = stack->mod;
 	struct mod_t *target_mod = stack->target_mod;
 
-	struct dir_t *dir;
+	struct dir_t *dir = NULL;
 	struct dir_entry_t *dir_entry;
 	uint32_t z;
 
