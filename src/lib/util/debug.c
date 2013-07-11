@@ -41,6 +41,8 @@ struct debug_category_t
 	/* File name and descriptor */
 	char *file_name;
 	FILE *f;
+
+	long long max_size; /* Max file size */
 };
 
 static struct list_t *debug_category_list;
@@ -80,7 +82,7 @@ void debug_done(void)
 }
 
 
-int debug_new_category(char *file_name)
+int debug_new_category(char *file_name, long long max_size)
 {
 	struct debug_category_t *c;
 
@@ -91,6 +93,7 @@ int debug_new_category(char *file_name)
 	/* Initialize */
 	c = xcalloc(1, sizeof(struct debug_category_t));
 	c->status = debug_status_on;
+	c->max_size = max_size;
 	c->file_name = xstrdup(file_name);
 
 	/* Assign file */
@@ -221,14 +224,22 @@ void __debug(int category, char *fmt, ...)
 	assert(c);
 	if (c->status == debug_status_off)
 		return;
-	
+
+	/* If there is a max size limit and file is bigger, truncate it */
+	if(c->max_size)
+	{
+		long long size = ftello(c->f);
+		if(size > c->max_size)
+			fseeko(c->f, 0, SEEK_SET);
+	}
+
 	/* Print spaces */
 	if (c->space_count >= sizeof(spc))
 		c->space_count = sizeof(spc) - 1;
 	memset(spc, ' ', c->space_count);
 	spc[c->space_count] = '\0';
 	fprintf(c->f, "%s", spc);
-	
+
 	/* Print message */
 	va_start(va, fmt);
 	vfprintf(c->f, fmt, va);

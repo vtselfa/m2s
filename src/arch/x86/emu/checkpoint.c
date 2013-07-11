@@ -22,6 +22,9 @@
 #include <stdarg.h>
 #include <zlib.h>
 
+#include <sys/types.h>
+#include <unistd.h>
+
 #include <lib/mhandle/mhandle.h>
 #include <lib/util/bin-config.h>
 #include <lib/util/debug.h>
@@ -324,7 +327,7 @@ static void load_memory_range(struct mem_t *mem)
 		fatal("Memory range %s (addr: 0x%x, size: %d)"
 			"not aligned to page size (%d)",
 			cfg_path(), addr, size, MEM_PAGE_SIZE);
-	
+
 	/* Check that no pages within the range already exist */
 	for (offset = 0; offset < size; offset += MEM_PAGE_SIZE) {
 		if (mem_page_get(mem, addr + offset))
@@ -377,7 +380,7 @@ static void load_fd(struct x86_file_desc_table_t *fdt)
 	int flags, new_flags;
 	int guest_fd, host_fd;
 	char *path;
-	
+
 	kind = load_int32("kind");
 	guest_fd = load_int32("index");
 	if (kind != file_desc_regular)
@@ -490,7 +493,7 @@ static void save_threads(struct x86_ctx_t *process_ctx)
 	/* Iterate over threads belonging to the process represented by ctx */
 	for (thread_ctx = x86_emu->context_list_head;
 	     thread_ctx;
-	     thread_ctx = thread_ctx->context_list_next) 
+	     thread_ctx = thread_ctx->context_list_next)
 	{
 		if (thread_ctx->pid == process_ctx->pid)
 		{
@@ -625,7 +628,7 @@ static void save_regs(struct x86_regs_t *regs)
 			(GETBIT32(regs->fpu_code, 2) << 10) |
 			(GETBIT32(regs->fpu_code, 1) <<  9) |
 			(GETBIT32(regs->fpu_code, 0) <<  8);
-	
+
 		save_int32("fpsw", fpsw);
 		save_int16("fpcw", regs->fpu_ctrl);
 

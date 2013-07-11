@@ -1537,9 +1537,9 @@ static void m2s_read_command_line(int *argc_ptr, char **argv)
 	if (*si_gpu_dump_default_config_file_name && argc > 3)
 		fatal("option '--si-dump-default-config' is incompatible with any other options.");
 	if (*evg_opengl_disasm_file_name && argc != 4)
-		fatal("option '--evg-disasm-opengl' is incompatible with any other options.");	
+		fatal("option '--evg-disasm-opengl' is incompatible with any other options.");
 	if (*si_opengl_disasm_file_name && argc != 4)
-		fatal("option '--si-disasm-opengl' is incompatible with any other options.");	
+		fatal("option '--si-disasm-opengl' is incompatible with any other options.");
 	if (*frm_disasm_file_name && argc > 3)
 		fatal("option '--frm-disasm' is incompatible with any other options.");
 	if (*x86_disasm_file_name && argc > 3)
@@ -1917,36 +1917,36 @@ int main(int argc, char **argv)
 
 	/* Debug */
 	debug_init();
-	elf_debug_category = debug_new_category(elf_debug_file_name);
-	net_debug_category = debug_new_category(net_debug_file_name);
-	glu_debug_category = debug_new_category(glu_debug_file_name);
-	glut_debug_category = debug_new_category(glut_debug_file_name);
-	glew_debug_category = debug_new_category(glew_debug_file_name);
-	opengl_debug_category = debug_new_category(opengl_debug_file_name);
-	opencl_debug_category = debug_new_category(opencl_debug_file_name);
-	cuda_debug_category = debug_new_category(cuda_debug_file_name);
-	x86_ctx_debug_category = debug_new_category(x86_ctx_debug_file_name);
-	x86_isa_inst_debug_category = debug_new_category(x86_isa_debug_file_name);
-	x86_isa_call_debug_category = debug_new_category(x86_call_debug_file_name);
-	x86_loader_debug_category = debug_new_category(x86_loader_debug_file_name);
-	x86_sys_debug_category = debug_new_category(x86_sys_debug_file_name);
-	x86_trace_cache_debug_category = debug_new_category(x86_trace_cache_debug_file_name);
-	mem_debug_category = debug_new_category(mem_debug_file_name);
-	evg_opencl_debug_category = debug_new_category(evg_opencl_debug_file_name);
-	evg_isa_debug_category = debug_new_category(evg_isa_debug_file_name);
-	evg_stack_debug_category = debug_new_category(evg_stack_debug_file_name);  /* GPU-REL */
-	evg_faults_debug_category = debug_new_category(evg_faults_debug_file_name);  /* GPU-REL */
-	si_isa_debug_category = debug_new_category(si_isa_debug_file_name);
-	frm_isa_debug_category = debug_new_category(frm_isa_debug_file_name);
-	frm_gpu_debug_category = debug_new_category(frm_gpu_debug_file_name);
-	arm_loader_debug_category = debug_new_category(arm_loader_debug_file_name);
-	arm_isa_inst_debug_category = debug_new_category(arm_isa_debug_file_name);
-	arm_sys_debug_category = debug_new_category(arm_sys_debug_file_name);
-	arm_isa_call_debug_category = debug_new_category(arm_call_debug_file_name);
-	mips_loader_debug_category = debug_new_category(mips_loader_debug_file_name);
-	mips_isa_inst_debug_category = debug_new_category(mips_isa_debug_file_name);
-	mips_sys_debug_category = debug_new_category(mips_sys_debug_file_name);
-	mips_isa_call_debug_category = debug_new_category(mips_call_debug_file_name);
+	elf_debug_category = debug_new_category(elf_debug_file_name, 0);
+	net_debug_category = debug_new_category(net_debug_file_name, 0);
+	glu_debug_category = debug_new_category(glu_debug_file_name, 0);
+	glut_debug_category = debug_new_category(glut_debug_file_name, 0);
+	glew_debug_category = debug_new_category(glew_debug_file_name, 0);
+	opengl_debug_category = debug_new_category(opengl_debug_file_name, 0);
+	opencl_debug_category = debug_new_category(opencl_debug_file_name, 0);
+	cuda_debug_category = debug_new_category(cuda_debug_file_name, 0);
+	x86_ctx_debug_category = debug_new_category(x86_ctx_debug_file_name, 0);
+	x86_isa_inst_debug_category = debug_new_category(x86_isa_debug_file_name, 0);
+	x86_isa_call_debug_category = debug_new_category(x86_call_debug_file_name, 0);
+	x86_loader_debug_category = debug_new_category(x86_loader_debug_file_name, 0);
+	x86_sys_debug_category = debug_new_category(x86_sys_debug_file_name, 0);
+	x86_trace_cache_debug_category = debug_new_category(x86_trace_cache_debug_file_name, 0);
+	mem_debug_category = debug_new_category(mem_debug_file_name, 1073741824); /* 1GB log max size */
+	evg_opencl_debug_category = debug_new_category(evg_opencl_debug_file_name, 0);
+	evg_isa_debug_category = debug_new_category(evg_isa_debug_file_name, 0);
+	evg_stack_debug_category = debug_new_category(evg_stack_debug_file_name, 0);  /* GPU-REL */
+	evg_faults_debug_category = debug_new_category(evg_faults_debug_file_name, 0);  /* GPU-REL */
+	si_isa_debug_category = debug_new_category(si_isa_debug_file_name, 0);
+	frm_isa_debug_category = debug_new_category(frm_isa_debug_file_name, 0);
+	frm_gpu_debug_category = debug_new_category(frm_gpu_debug_file_name, 0);
+	arm_loader_debug_category = debug_new_category(arm_loader_debug_file_name, 0);
+	arm_isa_inst_debug_category = debug_new_category(arm_isa_debug_file_name, 0);
+	arm_sys_debug_category = debug_new_category(arm_sys_debug_file_name, 0);
+	arm_isa_call_debug_category = debug_new_category(arm_call_debug_file_name, 0);
+	mips_loader_debug_category = debug_new_category(mips_loader_debug_file_name, 0);
+	mips_isa_inst_debug_category = debug_new_category(mips_isa_debug_file_name, 0);
+	mips_sys_debug_category = debug_new_category(mips_sys_debug_file_name, 0);
+	mips_isa_call_debug_category = debug_new_category(mips_call_debug_file_name, 0);
 
 	/* Initialization of runtimes */
 	runtime_init();
