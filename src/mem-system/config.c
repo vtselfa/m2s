@@ -1037,10 +1037,6 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config,
 	}
 	mod->mem_controller->enabled = enabled_mc;
 
-	/* Schedule adaptative prefetch */
-	if(mod->mem_controller->adaptative)
-		mem_controller_adapt_schedule(mod->mem_controller);
-
 	linked_list_add(mem_system->mem_controllers, mod->mem_controller);
 
 	/* Return */

@@ -20,6 +20,7 @@
 #include "mem-controller.h"
 #include "mem-system.h"
 #include "mod-stack.h"
+
 int EV_MEM_CONTROLLER_ADAPT;
 
 
@@ -2132,7 +2133,7 @@ void mem_controller_adapt_schedule(struct mem_controller_t * mem_controller)
 		/*struct mem_controller_adapt_stack_t* stack = xcalloc(1, sizeof(struct mem_controller_adapt_stack_t));
 		stack->mem_controller = mem_controller;*/
 
-		/* Schedule first event */
+		/* Schedule next event */
 		esim_schedule_event(EV_MEM_CONTROLLER_ADAPT, mem_controller, mem_controller->adapt_interval);
 	}
 }
@@ -2203,6 +2204,8 @@ void mem_controller_mark_stream(struct mod_stack_t* stack, struct linked_list_t 
 	int exists=0;
 	struct tuple_adapt_t * tuple;
 
+	
+	assert(stack->client_info->stream>=0);
 	LINKED_LIST_FOR_EACH(list)
 	{
 		tuple=linked_list_get(list);
@@ -2212,6 +2215,7 @@ void mem_controller_mark_stream(struct mod_stack_t* stack, struct linked_list_t 
 			LINKED_LIST_FOR_EACH(tuple->streams)
 			{
 				int * stre=linked_list_get(tuple->streams);
+				assert(stre>=0);
 				if(*stre==stack->client_info->stream)
 					break;
 
@@ -2297,7 +2301,7 @@ void mem_controller_mark_requests_same_stream(struct mod_stack_t* stack, struct 
 		row_buffer_find_row(mem_controller,stack_aux->mod,stack_aux->addr,&stack_aux->channel, &stack_aux->rank,&stack_aux->bank,&stack_aux->row, NULL, NULL);
 		row_buffer_find_row(mem_controller,stack->mod,stack->addr,&stack->channel, &stack->rank,&stack->bank,&stack->row, NULL, NULL);
 
-		assert(stack_aux->channel==stack->channel && stack_aux->rank == stack->rank && stack->bank == stack_aux->bank);
+		assert(stack_aux->rank == stack->rank && stack->bank == stack_aux->bank);
 		if(stack_aux->client_info->stream == stack->client_info->stream &&
 			stack->id != stack_aux->id && stack->row == stack_aux->row &&
 			stack_aux->client_info->stream_request_kind == stack->client_info->stream_request_kind)

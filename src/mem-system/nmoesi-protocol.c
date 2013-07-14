@@ -2474,7 +2474,7 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 					EV_MOD_NMOESI_FIND_AND_LOCK_FINISH, stack, stack->prefetch);
 				new_stack->set = stack->set;
 				new_stack->way = stack->way;
-				assert(!(mod->kind==mod_kind_main_memory && stack->request_dir == mod_request_up_down)); // It shouldn't happen because we want avoid evictions in mm directory
+//				assert(!(mod->kind==mod_kind_main_memory && stack->request_dir == mod_request_up_down)); // It shouldn't happen because we want avoid evictions in mm directory
 				esim_schedule_event(EV_MOD_NMOESI_EVICT, new_stack, 0);
 				return;
 			}

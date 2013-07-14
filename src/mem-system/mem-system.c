@@ -82,7 +82,8 @@ void mem_system_free(struct mem_system_t *mem_system)
 
 	
 	/* Free piggybaking */
-	LINKED_LIST_FOR_EACH(mem_system->pref_into_normal)
+	linked_list_head(mem_system->pref_into_normal);
+	while(!linked_list_is_end(mem_system->pref_into_normal))
 	{
 		free(linked_list_get(mem_system->pref_into_normal));
 		linked_list_remove(mem_system->pref_into_normal);
@@ -376,7 +377,16 @@ void mem_system_init(void)
 	/* Adaptative */
 	EV_MEM_CONTROLLER_ADAPT = esim_register_event(mem_controller_adapt_handler,mem_domain_index);
 
+	/* Schedule adaptative prefetch */
+	LINKED_LIST_FOR_EACH(mem_system->mem_controllers)
+	{
+		struct mem_controller_t* mem_controller=linked_list_get(mem_system->mem_controllers);
 
+		if(mem_controller->adaptative)
+			mem_controller_adapt_schedule(mem_controller);
+	}
+
+	
 	/* Local memory event driven simulation */
 
 	EV_MOD_LOCAL_MEM_LOAD = esim_register_event_with_name(mod_handler_local_mem_load,

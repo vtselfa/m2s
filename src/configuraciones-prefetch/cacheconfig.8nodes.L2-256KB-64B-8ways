@@ -212,14 +212,17 @@ CyclesRowBufferMiss = 60
 Bandwith = 16
 CyclesProcByCyclesBus = 3
 Threshold= 100000
-PolicyMCQueues = PrefetchNormalQueue
-Coalesce = CoalesceUsefulBlocks
-Piggybacking = 0
-PriorityMCQueues = Threshold-RowBufferHit-FCFS
+PolicyMCQueues = OneQueue
+Coalesce = Disabled
+Piggybacking = 1
+PriorityMCQueues = Threshold-Normal-Prefetch
 QueuePerBank = 1
 SizeQueue = 128
 MemoryControllerEnabled = 1
 PhotonicNet = 0
+Adaptative = Enabled
+AdaptativeIntervalKind = Instructions
+AdaptativeInterval = 10000
 
 #
 # Nodes
