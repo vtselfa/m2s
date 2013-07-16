@@ -249,7 +249,7 @@ void mem_controller_normal_queue_add(struct mod_stack_t * stack)
 	long long ctx_threshold;
 	assert(stack->client_info->core>=0 && stack->client_info->thread>=0);
 	struct x86_ctx_t *ctx = x86_cpu->core[stack->client_info->core].thread[stack->client_info->thread].ctx;
-	
+
 	//row_buffer = stack->addr &  mem_controller->row_buffer_size;
 //	channel=(row_buffer >>7 )%mem_controller->num_regs_channel;
 
@@ -291,9 +291,9 @@ void mem_controller_prefetch_queue_add(struct mod_stack_t * stack){
 	unsigned int log2_row_size= log_base2( mem_controller->row_buffer_size);
 	unsigned int bank;
 	long long ctx_threshold;
-		
+
 	assert(stack->client_info->core>=0 && stack->client_info->thread>=0);
-	
+
 
 	if(mem_controller->queue_per_bank)
 		bank =((stack->addr >> log2_row_size) % (mem_controller->num_regs_bank*mem_controller->num_regs_rank));
@@ -319,7 +319,7 @@ void mem_controller_prefetch_queue_add(struct mod_stack_t * stack){
 
 	/*TO avoid fairness*/
 	stack->threshold=mem_controller->threshold;
-	
+
 	if(x86_cpu->core[stack->client_info->core].thread[stack->client_info->thread].ctx!=NULL)
 	{
 		ctx_threshold = x86_cpu->core[stack->client_info->core].thread[stack->client_info->thread].ctx->loader->max_cycles_wait_MC;
@@ -2188,7 +2188,7 @@ void mem_controller_adapt_handler(int event, void *data)
 	else
 		mem_controller->priority_request_in_queue=prio_threshold_normal_pref;
 
-	printf("%f   prio=%d\n", (double)useful_streams/lived_streams, mem_controller->priority_request_in_queue);
+	// TODO: Arrgelar, sempre imprimeix NAN printf("%f   prio=%d\n", (double)useful_streams/lived_streams, mem_controller->priority_request_in_queue);
 
 	if (mem_controller->adapt_interval_kind == interval_kind_cycles)
 	{
@@ -2204,7 +2204,7 @@ void mem_controller_mark_stream(struct mod_stack_t* stack, struct linked_list_t 
 	int exists=0;
 	struct tuple_adapt_t * tuple;
 
-	
+
 	assert(stack->client_info->stream>=0);
 	LINKED_LIST_FOR_EACH(list)
 	{
@@ -2356,15 +2356,15 @@ void mem_controller_coalesce_pref_into_normal(struct mod_stack_t* stack)
 	{
 		struct tuple_piggybacking_t *tuple_pig= xcalloc(1, sizeof(struct tuple_piggybacking_t));
 		tuple_pig->addr=stack->addr;
-		tuple_pig->core= stack->client_info->core; 
+		tuple_pig->core= stack->client_info->core;
 		tuple_pig->thread= stack->client_info->thread;
- 
+
 		linked_list_tail(mem_system->pref_into_normal);
 		linked_list_add(mem_system->pref_into_normal, tuple_pig);
-		
+
 		assert(stack->client_info->core!=-1);
-		
-		
+
+
 	}
 
 }
@@ -2378,7 +2378,7 @@ int mem_controller_is_piggybacked(struct mod_stack_t * stack)
 	while(!linked_list_is_end(mem_system->pref_into_normal))
 	{
 		tuple_pig=linked_list_get(mem_system->pref_into_normal);
-		
+
 		assert(tuple_pig->core != -1);
 		assert(tuple_pig->thread != -1);
 
@@ -2388,12 +2388,12 @@ int mem_controller_is_piggybacked(struct mod_stack_t * stack)
 			linked_list_remove(mem_system->pref_into_normal);
 			return 1;
 		}
-	
+
 		linked_list_next(mem_system->pref_into_normal);
-	
+
 	}
 
-	
+
 	return 0;
 }
 

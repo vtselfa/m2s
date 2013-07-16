@@ -293,7 +293,8 @@ void cache_free(struct cache_t *cache)
 	{
 		sb = &cache->prefetch.streams[stream];
 		if(sb->pending_prefetches)
-			fprintf(stderr, "WARNING: %d pending prefetches in stream %d since cycle %lld\n", sb->pending_prefetches, sb->stream, sb->cycle);
+			fprintf(stderr, "WARNING: %d pending prefetches in cache %s stream %d since cycle %lld\n",
+				sb->pending_prefetches, cache->name, sb->stream, sb->cycle);
 		//assert(!cache->prefetch.streams[stream].pending_prefetches);
 		free(cache->prefetch.streams[stream].blocks);
 	}

@@ -224,7 +224,7 @@ void enqueue_prefetch_group(int core, int thread, struct mod_t *mod, unsigned in
 
 	/* Mark the number of pending prefetches for this stream */
 	sb->pending_prefetches += num_prefetches;
-	sb->cycle = esim_time;
+	sb->cycle = esim_cycle();
 
 	/* Insert prefetches */
 	sb->next_address = base_addr;
@@ -379,7 +379,7 @@ void enqueue_prefetch_on_hit(struct mod_stack_t *stack)
 
 	/* Add a pending prefetch */
 	sb->pending_prefetches++;
-	sb->cycle = esim_time;
+	sb->cycle = esim_cycle();
 
 	/* Increment next address */
 	prev_address = sb->next_address;
@@ -448,8 +448,11 @@ void mod_handler_pref(int event, void *data)
 
 	if (event == EV_MOD_PREF)
 	{
-		mem_debug("%lld %lld 0x%x %s stream=%d slot=%d pref\n", esim_time, stack->id, stack->addr, mod->name, stack->client_info->stream, stack->client_info->slot);
-		mem_trace("mem.new_access name=\"A-%lld\" type=\"pref\" state=\"%s:pref\" addr=0x%x\n", stack->id, mod->name, stack->addr);
+		mem_debug("%lld %lld 0x%x %s stream=%d slot=%d %s pref\n", esim_time, stack->id,
+			stack->addr, mod->name, stack->client_info->stream, stack->client_info->slot,
+			str_map_value(&stream_request_kind_map, stack->client_info->stream_request_kind));
+		mem_trace("mem.new_access name=\"A-%lld\" type=\"pref\" state=\"%s:pref\" addr=0x%x\n",
+			stack->id, mod->name, stack->addr);
 
 		/* Record access */
 		mod_access_start(mod, stack, mod_access_prefetch);
@@ -619,18 +622,6 @@ void mod_handler_pref(int event, void *data)
 		if (stack->stream_hit)
 			dir_pref_entry_unlock(mod->dir, stack->src_pref_stream, stack->src_pref_slot);
 
-		/* When only remains one pending prefetch the stream tag is set */
-		sb = &cache->prefetch.streams[stack->pref_stream];
-		assert(stack->pref_stream >= 0 && stack->pref_stream < cache->prefetch.num_streams);
-		assert(stack->pref_slot >= 0 && stack->pref_slot < cache->prefetch.aggressivity);
-		assert(sb->pending_prefetches > 0);
-		if (sb->pending_prefetches == 1)
-		{
-			sb->stream_tag = stack->addr & ~cache->prefetch.stream_mask;
-			assert(sb->stream_tag == sb->stream_transcient_tag);
-		}
-		sb->pending_prefetches--;
-
 		/* Statitistics */
 		if(!stack->hit)
 			mod->completed_prefetches++;
@@ -663,6 +654,18 @@ void mod_handler_pref(int event, void *data)
 		/* Free the mod_client_info object, if any */
 		if (stack->client_info)
 			mod_client_info_free(mod, stack->client_info);
+
+		/* When only remains one pending prefetch the stream tag is set */
+		sb = &cache->prefetch.streams[stack->pref_stream];
+		assert(stack->pref_stream >= 0 && stack->pref_stream < cache->prefetch.num_streams);
+		assert(stack->pref_slot >= 0 && stack->pref_slot < cache->prefetch.aggressivity);
+		assert(sb->pending_prefetches > 0);
+		if (sb->pending_prefetches == 1)
+		{
+			sb->stream_tag = stack->addr & ~cache->prefetch.stream_mask;
+			assert(sb->stream_tag == sb->stream_transcient_tag);
+		}
+		sb->pending_prefetches--;
 
 		/* Return */
 		mod_stack_return(stack);
@@ -2918,6 +2921,7 @@ void mod_handler_nmoesi_invalidate_slot(int event, void *data)
 	struct mod_stack_t *stack = data;
 	struct mod_stack_t *new_stack;
 	struct mod_t *mod = stack->mod;
+	struct cache_t *cache = mod->cache;
 
 	if (event == EV_MOD_NMOESI_INVALIDATE_SLOT)
 	{
@@ -2927,6 +2931,8 @@ void mod_handler_nmoesi_invalidate_slot(int event, void *data)
 		/* Set pref stream and slot */
 		stack->pref_stream = stack->client_info->stream;
 		stack->pref_slot = stack->client_info->slot;
+		assert(stack->pref_stream >= 0 && stack->pref_stream < cache->prefetch.num_streams);
+		assert(stack->pref_slot >= 0 && stack->pref_slot < cache->prefetch.aggressivity);
 
 		/* Next event */
 		esim_schedule_event(EV_MOD_NMOESI_INVALIDATE_SLOT_LOCK, stack, 0);
@@ -2987,6 +2993,8 @@ void mod_handler_nmoesi_invalidate_slot(int event, void *data)
 
 	if (event == EV_MOD_NMOESI_INVALIDATE_SLOT_FINISH)
 	{
+		struct stream_buffer_t *sb;
+
 		mem_debug("%lld %lld 0x%x %s invalidate slot finish\n", esim_time, stack->id, stack->addr, mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:load_finish\"\n", stack->id, mod->name);
 		mem_trace("mem.end_access name=\"A-%lld\"\n", stack->id);
@@ -2998,6 +3006,19 @@ void mod_handler_nmoesi_invalidate_slot(int event, void *data)
 		/* Free the mod_client_info object, if any */
 		if (stack->client_info)
 			mod_client_info_free(mod, stack->client_info);
+
+		/* When only remains one pending prefetch the stream tag is set */
+		sb = &cache->prefetch.streams[stack->pref_stream];
+		assert(sb->pending_prefetches > 0);
+		if (!stack->ret_stack)
+		{
+			if (sb->pending_prefetches == 1)
+			{
+				sb->stream_tag = stack->addr & ~cache->prefetch.stream_mask;
+				assert(sb->stream_tag == sb->stream_transcient_tag);
+			}
+			sb->pending_prefetches--;
+		}
 
 		/* Return event queue element into event queue */
 		if (stack->event_queue && stack->event_queue_item)

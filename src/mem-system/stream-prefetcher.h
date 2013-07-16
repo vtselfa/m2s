@@ -14,6 +14,7 @@ enum stream_request_kind_t
 	stream_request_single, /* Prefetch enqueued after a hit in stream buffer */
 	stream_request_grouped /* One of the prefetches enqueued for filling a stream after detection of stride */
 };
+extern struct str_map_t stream_request_kind_map;
 
 /* TODO: En un futur s'usarà açò... */
 // struct stream_prefetcher_t

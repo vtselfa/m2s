@@ -47,6 +47,9 @@ libmemsystem_a_SOURCES = \
 	prefetcher.c \
 	prefetcher.h \
 	\
+	stream-prefetcher.c \
+	stream-prefetcher.h \
+	\
 	mem-controller.c\
 	mem-controller.h\
 	\
