@@ -291,17 +291,16 @@ void mem_controller_prefetch_queue_add(struct mod_stack_t * stack){
 	unsigned int log2_row_size= log_base2( mem_controller->row_buffer_size);
 	unsigned int bank;
 	long long ctx_threshold;
-
+	
 	assert(stack->client_info->core>=0 && stack->client_info->thread>=0);
-
+	assert(stack->client_info->stream_request_kind>=0);
 
 	if(mem_controller->queue_per_bank)
 		bank =((stack->addr >> log2_row_size) % (mem_controller->num_regs_bank*mem_controller->num_regs_rank));
 	else
 		bank=0;
-
 	/*If mem controller policy is adaptative, mark useful and lived streams*/
-	if(mem_controller->adaptative  && stack->client_info->stream_request_kind)
+	if(mem_controller->adaptative  && stack->client_info->stream_request_kind == stream_request_single)
 	{
 		assert(stack->client_info->stream>=0);
 		mem_controller_mark_stream(stack, mem_controller->lived_streams);
@@ -2188,7 +2187,8 @@ void mem_controller_adapt_handler(int event, void *data)
 	else
 		mem_controller->priority_request_in_queue=prio_threshold_normal_pref;
 
-	// TODO: Arrgelar, sempre imprimeix NAN printf("%f   prio=%d\n", (double)useful_streams/lived_streams, mem_controller->priority_request_in_queue);
+	// TODO: Arrgelar, sempre imprimeix NAN 
+printf("%f   prio=%d\n", (double)useful_streams/lived_streams, mem_controller->priority_request_in_queue);
 
 	if (mem_controller->adapt_interval_kind == interval_kind_cycles)
 	{
@@ -2221,6 +2221,7 @@ void mem_controller_mark_stream(struct mod_stack_t* stack, struct linked_list_t 
 
 			}
 			linked_list_add(tuple->streams, &stack->client_info->stream);
+			
 			break;
 		}
 	}
@@ -2231,6 +2232,7 @@ void mem_controller_mark_stream(struct mod_stack_t* stack, struct linked_list_t 
 		tuple->mod=stack->mod;
 		tuple->streams=linked_list_create();
 		linked_list_add(tuple->streams, &stack->client_info->stream);
+		
 		linked_list_add(list,tuple);
 	}
 

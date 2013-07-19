@@ -4776,8 +4776,9 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 		                                mem_controller_normal_queue_add(stack);
 
 		                        }else
-		                                mem_controller_prefetch_queue_add(stack);
-
+					{
+						 mem_controller_prefetch_queue_add(stack);
+					}
 		                }
 		        }
 		        else if (mem_controller->policy_queues == policy_one_queue_FCFS)
