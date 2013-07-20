@@ -2187,8 +2187,7 @@ void mem_controller_adapt_handler(int event, void *data)
 	else
 		mem_controller->priority_request_in_queue=prio_threshold_normal_pref;
 
-	// TODO: Arrgelar, sempre imprimeix NAN 
-printf("%f   prio=%d\n", (double)useful_streams/lived_streams, mem_controller->priority_request_in_queue);
+	// TODO: Arrgelar, sempre imprimeix NAN printf("%f   prio=%d\n", (double)useful_streams/lived_streams, mem_controller->priority_request_in_queue);
 
 	if (mem_controller->adapt_interval_kind == interval_kind_cycles)
 	{

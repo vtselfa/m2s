@@ -159,6 +159,7 @@ struct mem_controller_t
 	/*Channels*/
 	struct reg_channel_t * regs_channel;
 
+
 	/*Adaptative option*/
 	int adaptative;
 	float adapt_percent;
