@@ -80,7 +80,7 @@ struct mem_system_t *mem_system_create(void)
 void mem_system_free(struct mem_system_t *mem_system)
 {
 
-	
+
 	/* Free piggybaking */
 	linked_list_head(mem_system->pref_into_normal);
 	while(!linked_list_is_end(mem_system->pref_into_normal))
@@ -127,6 +127,7 @@ static char *mem_err_timing =
 void mem_system_init(void)
 {
 	int count;
+	int i;
 
 	/* If any file name was specific for a command-line option related with the
 	 * memory hierarchy, make sure that at least one architecture is running
@@ -360,6 +361,15 @@ void mem_system_init(void)
 	EV_MOD_NMOESI_INVALIDATE_SLOT_FINISH = esim_register_event_with_name(mod_handler_nmoesi_invalidate_slot,
 			mem_domain_index, "mod_nmoesi_invalidate_slot_finish");
 
+	/* Interval reports */
+	EV_MOD_REPORT = esim_register_event_with_name(mod_report_handler, mem_domain_index, "mod_report");
+	LIST_FOR_EACH(mem_system->mod_list, i)
+	{
+		struct mod_t *mod = list_get(mem_system->mod_list, i);
+		if (mod->report_enabled)
+			mod_report_schedule(mod);
+	}
+
 	/* Main memory */
 	EV_MOD_NMOESI_EXAMINE_ONLY_ONE_QUEUE_REQUEST=esim_register_event(mod_handler_nmoesi_request_main_memory, mem_domain_index);
 	EV_MOD_NMOESI_EXAMINE_QUEUE_REQUEST=esim_register_event(mod_handler_nmoesi_request_main_memory, mem_domain_index);
@@ -386,7 +396,7 @@ void mem_system_init(void)
 			mem_controller_adapt_schedule(mem_controller);
 	}
 
-	
+
 	/* Local memory event driven simulation */
 
 	EV_MOD_LOCAL_MEM_LOAD = esim_register_event_with_name(mod_handler_local_mem_load,
@@ -411,6 +421,7 @@ void mem_system_init(void)
 			mem_domain_index, "mod_local_mem_find_and_lock_action");
 	EV_MOD_LOCAL_MEM_FIND_AND_LOCK_FINISH = esim_register_event_with_name(mod_handler_local_mem_find_and_lock,
 			mem_domain_index, "mod_local_mem_find_and_lock_finish");
+
 }
 
 

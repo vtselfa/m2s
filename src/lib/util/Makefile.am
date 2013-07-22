@@ -50,6 +50,9 @@ libutil_a_SOURCES = \
 	string.c \
 	string.h \
 	\
+	line-writer.c \
+	line-writer.h \
+	\
 	timer.c \
 	timer.h
 

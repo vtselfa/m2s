@@ -22,7 +22,9 @@
 #include <lib/esim/esim.h>
 #include <lib/mhandle/mhandle.h>
 #include <lib/util/debug.h>
+#include <lib/util/file.h>
 #include <lib/util/linked-list.h>
+#include <lib/util/line-writer.h>
 #include <lib/util/misc.h>
 #include <lib/util/string.h>
 #include <lib/util/repos.h>
@@ -35,10 +37,28 @@
 #include "mod-stack.h"
 #include "nmoesi-protocol.h"
 
-/* TODO: corregir #include "mem-controller.h"
-#include "rank.h"
-#include "bank.h"
-*/
+
+static char *help_mod_report =
+	"The mod report file shows some relevant statistics related to cache performance\n"
+	"at specific intervals.\n"
+	"The following fields are shown in each record:\n"
+	"\n"
+	"  <cycle>\n"
+	"      Current simulation cycle.\n"
+	"\n"
+	"  <inst>\n"
+	"      Current simulation instruction.\n"
+	"\n"
+	"  <...>\n"
+	"      Global IPC observed so far. This value is equal to the number of executed\n"
+	"      non-speculative instructions divided by the current cycle.\n"
+	"\n"
+	"  <...>\n"
+	"      IPC observed in the current interval. This value is equal to the number\n"
+	"      of instructions executed in the current interval divided by the number of\n"
+	"      cycles of the interval.\n"
+	"\n";
+
 
 /* String map for access type */
 struct str_map_t mod_access_kind_map =
@@ -53,6 +73,9 @@ struct str_map_t mod_access_kind_map =
 
 /* Event used for updating the state of adaptative prefetch policy */
 int EV_CACHE_ADAPT_PREF;
+
+/* For reporting interval statistics */
+int EV_MOD_REPORT;
 
 
 /*
@@ -119,6 +142,11 @@ void mod_free(struct mod_t *mod)
 	free(mod->ports);
 	repos_free(mod->client_info_repos);
 	free(mod->name);
+
+	/* Interval report */
+	free(mod->report_stack);
+	file_close(mod->report_file);
+
 	free(mod);
 }
 
@@ -137,7 +165,7 @@ long long mod_access(struct mod_t *mod, enum mod_access_kind_t access_kind,
 	void *event_queue_item, struct mod_client_info_t *client_info)
 {
 	struct mod_stack_t *stack;
-	int event;
+	int event = ESIM_EV_NONE;
 
 	/* Create module stack with new ID */
 	mod_stack_id++;
@@ -865,7 +893,7 @@ void mod_adapt_pref_handler(int event, void *data)
 		(double) useful_prefetches_int / (misses_int + useful_prefetches_int) : 0.0;
 
 	/* ROB % stalled cicles due a memory instruction */
-	long long cycles_stalled;
+	long long cycles_stalled = 0;
 	long long cycles_stalled_int;
 	{
 		int cores = 0;
@@ -1007,4 +1035,150 @@ struct mod_client_info_t *mod_client_info_clone(struct mod_t *mod, struct mod_cl
 void mod_client_info_free(struct mod_t *mod, struct mod_client_info_t *client_info)
 {
 	repos_free_object(mod->client_info_repos, client_info);
+}
+
+
+void mod_report_schedule(struct mod_t *mod)
+{
+	struct mod_report_stack_t *stack;
+	struct line_writer_t *lw;
+	FILE *f = mod->report_file;
+	int size;
+	int i;
+
+	/* Create new stack */
+	stack = xcalloc(1, sizeof(struct mod_report_stack_t));
+
+	/* Initialize */
+	assert(mod->report_file);
+	assert(mod->report_interval > 0);
+	stack->mod = mod;
+
+	/* Print header */
+	fprintf(f, "%s", help_mod_report);
+
+	lw = line_writer_create(" ");
+	lw->heuristic_size_enabled = 1;
+
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "cycle");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "inst");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "completed-prefetches-int");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "completed-prefetches-glob");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "prefetch-accuracy-int");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "delayed-hits-int");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "delayed-hit-avg-lost-cycles-int");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "misses-int");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "stream-hits-int");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "effective-prefetch-accuracy-int");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "mpki-int");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "pseudocoverage-int");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "prefetch-active-int");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "strides-detected-int");
+
+	size = line_writer_write(lw, f);
+	line_writer_clear(lw);
+
+	for (i = 0; i < size - 1; i++)
+		fprintf(f, "-");
+	fprintf(f, "\n");
+
+	mod->report_stack = stack;
+	stack->line_writer = lw;
+
+	/* Schedule first event */
+	esim_schedule_event(EV_MOD_REPORT, stack, mod->report_interval);
+}
+
+
+void mod_report_handler(int event, void *data)
+{
+	struct mod_report_stack_t *stack = data;
+	struct mod_t *mod = stack->mod;
+	struct line_writer_t *lw = stack->line_writer;
+
+	/* If simulation has ended, no more
+	 * events to schedule. */
+	if (esim_finish)
+	{
+		line_writer_free(stack->line_writer);
+		return;
+	}
+
+	/* Prefetch accuracy */
+	long long completed_prefetches_int = mod->completed_prefetches -
+		stack->completed_prefetches;
+	long long useful_prefetches_int = mod->useful_prefetches -
+		stack->useful_prefetches;
+	double prefetch_accuracy_int = completed_prefetches_int ?
+		(double) useful_prefetches_int / completed_prefetches_int : 0.0;
+	prefetch_accuracy_int = prefetch_accuracy_int > 1 ? 1 : prefetch_accuracy_int; /* May be slightly greather than 1 due bad timing with cycles */
+
+	/* Delayed hits */
+	long long delayed_hits_int = mod->delayed_hits -
+		stack->delayed_hits;
+	long long delayed_hit_cycles_int = mod->delayed_hit_cycles -
+		stack->delayed_hit_cycles;
+	double delayed_hit_avg_lost_cycles_int = delayed_hits_int ?
+		(double) delayed_hit_cycles_int / delayed_hits_int : 0.0;
+
+	/* Cache misses */
+	long long accesses_int = mod->no_retry_accesses - stack->no_retry_accesses;
+	long long hits_int = mod->no_retry_hits - stack->no_retry_hits;
+	long long misses_int = accesses_int - hits_int;
+
+	/* Stream hits */
+	long long stream_hits_int = mod->no_retry_stream_hits - stack->no_retry_stream_hits;
+
+	/* Effective prefetch accuracy */
+	long long effective_useful_prefetches_int = mod->effective_useful_prefetches -
+		stack->effective_useful_prefetches;
+	double effective_prefetch_accuracy_int = completed_prefetches_int ?
+		(double) effective_useful_prefetches_int / completed_prefetches_int : 0.0;
+	effective_prefetch_accuracy_int = effective_prefetch_accuracy_int > 1 ? 1 : effective_prefetch_accuracy_int; /* May be slightly greather than 1 due bad timing with cycles */
+
+	/* MPKI */
+	double mpki_int = (double) misses_int / (stack->inst_count / 1000.0);
+
+	/* Pseudocoverage */
+	double pseudocoverage_int = (misses_int + useful_prefetches_int) ?
+		(double) useful_prefetches_int / (misses_int + useful_prefetches_int) : 0.0;
+
+	/* Detected strides */
+	long long detected_strides_int = mod->cache->prefetch.stride_detector.strides_detected - stack->strides_detected;
+
+	/* Dump stats */
+	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", esim_cycle());
+	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", stack->inst_count);
+	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", completed_prefetches_int);
+	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", mod->completed_prefetches);
+	line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", prefetch_accuracy_int);
+	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", delayed_hits_int);
+	line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", delayed_hit_avg_lost_cycles_int);
+	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", misses_int);
+	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", stream_hits_int);
+	line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", effective_prefetch_accuracy_int);
+	line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", mpki_int);
+	line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", pseudocoverage_int);
+	line_writer_add_column(lw, 9, line_writer_align_right, "%u", mod->cache->pref_enabled);
+	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", detected_strides_int);
+
+	line_writer_write(lw, mod->report_file);
+	line_writer_clear(lw);
+
+	/* Update counters */
+	stack->delayed_hits = mod->delayed_hits;
+	stack->delayed_hit_cycles = mod->delayed_hit_cycles;
+	stack->useful_prefetches = mod->useful_prefetches;
+	stack->completed_prefetches = mod->completed_prefetches;
+	stack->no_retry_accesses = mod->no_retry_accesses;
+	stack->no_retry_hits = mod->no_retry_hits;
+	stack->no_retry_stream_hits = mod->no_retry_stream_hits;
+	stack->effective_useful_prefetches = mod->effective_useful_prefetches;
+	stack->misses_int = misses_int;
+	stack->strides_detected = mod->cache->prefetch.stride_detector.strides_detected;
+
+	/* Schedule new event */
+	assert(mod->report_interval);
+
+	esim_schedule_event(event, stack, mod->report_interval);
 }

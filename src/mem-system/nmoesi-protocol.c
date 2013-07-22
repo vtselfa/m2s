@@ -2216,7 +2216,7 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 			if(stack->hit && stack->stream_retried)
 			{
 				assert(stack->stream_retried_cycle);
-				mod->delayed_hit_cycles += esim_time - stack->stream_retried_cycle;
+				mod->delayed_hit_cycles += esim_cycle() - stack->stream_retried_cycle;
 				mod->delayed_hits_cycles_counted++;
 				ret->stream_retried = 0;
 			}
@@ -2312,7 +2312,7 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 					if(dir_lock->prefetch_stack)
 					{
 						mod->delayed_hits++;
-						ret->stream_retried_cycle = esim_time;
+						ret->stream_retried_cycle = esim_cycle();
 						ret->stream_retried = 1;
 
 						/*Piggybacking*/
@@ -2338,7 +2338,7 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 			if(stack->stream_retried)
 			{
 				assert(stack->stream_retried_cycle);
-				mod->delayed_hit_cycles += esim_time - stack->stream_retried_cycle;
+				mod->delayed_hit_cycles += esim_cycle() - stack->stream_retried_cycle;
 				mod->delayed_hits_cycles_counted++;
 				ret->stream_retried = 0;
 			}

@@ -163,7 +163,6 @@ struct cache_t
 		{
 			struct linked_list_t *camps;
 			long long strides_detected;
-			long long last_strides_detected;
 		} stride_detector;
 	} prefetch;
 

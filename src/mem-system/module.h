@@ -23,15 +23,35 @@
 
 #include <stdio.h>
 
+#include "cache.h"
 #include "stream-prefetcher.h"
 
-/* Adaptative prefetch */
 extern int EV_CACHE_ADAPT_PREF;
+extern int EV_MOD_REPORT;
+
 struct core_thread_tuple_t
 {
 	int core;
 	int thread;
 };
+
+struct mod_report_stack_t
+{
+	struct mod_t *mod;
+	struct line_writer_t *line_writer;
+	long long inst_count;
+	long long delayed_hits;
+	long long delayed_hit_cycles;
+	long long useful_prefetches;
+	long long completed_prefetches;
+	long long no_retry_accesses;
+	long long no_retry_hits;
+	long long no_retry_stream_hits;
+	long long effective_useful_prefetches;
+	long long misses_int;
+	long long strides_detected;
+};
+
 
 /* Port */
 struct mod_port_t
@@ -150,6 +170,7 @@ struct mod_t
 		{
 			unsigned int low;
 			unsigned int high;
+	long long last_delayed_hit_cycles;
 		} bounds;
 
 		/* For range_kind = mod_range_interleaved */
@@ -243,12 +264,16 @@ struct mod_t
 	/* Stack for activate/deactivate prefetch at intervals */
 	struct mod_adapt_pref_stack_t *adapt_pref_stack;
 
+	/* Reporting statistics at intervals */
+	int report_enabled;
+	struct mod_report_stack_t *report_stack;
+	long long report_interval;
+	enum interval_kind_t report_interval_kind;
+	FILE *report_file;
+
 	/* Statistics */
 	long long accesses;
-	long long last_accesses;
 	long long hits;
-	long long last_hits;
-	long long last_misses_int; /* Misses in last interval */
 
 	long long reads;
 	long long effective_reads;
@@ -291,21 +316,15 @@ struct mod_t
 	/* Prefetch */
 	long long programmed_prefetches;
 	long long completed_prefetches;
-	long long last_completed_prefetches;
 	long long canceled_prefetches;
 	long long useful_prefetches;
-	long long last_useful_prefetches;
 	long long effective_useful_prefetches; /* Useful prefetches with less delay hit cicles than 1/3 of the delay of accesing MM */
-	long long last_effective_useful_prefetches;
 
 	long long prefetch_retries;
 
 	long long stream_hits;
-	long long last_stream_hits;
 	long long delayed_hits; /* Hit on a block being brougth by a prefetch */
-	long long last_delayed_hits;
 	long long delayed_hit_cycles; /* Cicles lost due delayed hits */
-	long long last_delayed_hit_cycles;
 	long long delayed_hits_cycles_counted; /* Number of delayed hits whose lost cycles has been counted */
 
 	long long single_prefetches; /* Prefetches on hit */
@@ -388,6 +407,9 @@ int mod_find_block_in_stream(struct mod_t *mod, unsigned int addr, int stream);
 
 void mod_adapt_pref_schedule(struct mod_t *mod);
 void mod_adapt_pref_handler(int event, void *data);
+
+void mod_report_schedule(struct mod_t *mod);
+void mod_report_handler(int event, void *data);
 
 #endif
 
