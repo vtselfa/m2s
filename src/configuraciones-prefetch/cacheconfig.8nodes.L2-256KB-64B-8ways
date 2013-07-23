@@ -139,6 +139,7 @@ LowNetworkNode = n0
 LowModules = mod-mm-1
 EnableReport = True
 ReportInterval = 10000
+ReportIntervalKind = Instructions
 
 [ Module l2-1 ]
 Type = Cache

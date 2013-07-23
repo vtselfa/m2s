@@ -144,6 +144,8 @@ void mod_free(struct mod_t *mod)
 	free(mod->name);
 
 	/* Interval report */
+	if(mod->report_stack)
+		line_writer_free(mod->report_stack->line_writer);
 	free(mod->report_stack);
 	file_close(mod->report_file);
 
@@ -1086,7 +1088,8 @@ void mod_report_schedule(struct mod_t *mod)
 	stack->line_writer = lw;
 
 	/* Schedule first event */
-	esim_schedule_event(EV_MOD_REPORT, stack, mod->report_interval);
+	if(mod->report_interval_kind == interval_kind_cycles)
+		esim_schedule_event(EV_MOD_REPORT, stack, mod->report_interval);
 }
 
 
@@ -1099,10 +1102,7 @@ void mod_report_handler(int event, void *data)
 	/* If simulation has ended, no more
 	 * events to schedule. */
 	if (esim_finish)
-	{
-		line_writer_free(stack->line_writer);
 		return;
-	}
 
 	/* Prefetch accuracy */
 	long long completed_prefetches_int = mod->completed_prefetches -
@@ -1180,5 +1180,7 @@ void mod_report_handler(int event, void *data)
 	/* Schedule new event */
 	assert(mod->report_interval);
 
-	esim_schedule_event(event, stack, mod->report_interval);
+
+	if(mod->report_interval_kind == interval_kind_cycles)
+		esim_schedule_event(event, stack, mod->report_interval);
 }

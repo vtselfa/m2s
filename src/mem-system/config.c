@@ -1184,6 +1184,7 @@ static void mem_config_read_modules(struct config_t *config)
 	char *section;
 	char *mod_type;
 	char *report_file_name;
+	char *report_interval_kind_str;
 
 	char buf[MAX_STRING_SIZE];
 	char mod_name[MAX_STRING_SIZE];
@@ -1220,6 +1221,7 @@ static void mem_config_read_modules(struct config_t *config)
 		strncat(default_report_file_name, ".interval.report", MAX_STRING_SIZE - strlen(default_report_file_name) - 1);
 		enable_report = config_read_bool(config, section, "EnableReport", 0);
 		report_interval = config_read_llint(config, section, "ReportInterval", 500000);
+		report_interval_kind_str = config_read_string(config, section, "ReportIntervalKind", "cycles");
 		report_file_name = config_read_string(config, section, "ReportFile", default_report_file_name);
 		if(enable_report)
 		{
@@ -1228,6 +1230,11 @@ static void mem_config_read_modules(struct config_t *config)
 			if (!mod->report_file)
 				fatal("%s: cannot open mod report file", report_file_name);
 			mod->report_interval = report_interval;
+			mod->report_interval_kind = str_map_string_case(&interval_kind_map, report_interval_kind_str);
+			if(!mod->report_interval_kind)
+				fatal("%s: module %s: invalid value for variable "
+					"'ReportIntervalKind'.\n%s", mem_config_file_name,
+					mod->name, mem_err_config_note);
 		}
 		/* Read module address range */
 		mem_config_read_module_address_range(config, mod, section);
@@ -1833,7 +1840,7 @@ static void mem_config_read_commands(struct config_t *config)
 
 
 /* Constructs for a given core thread pair a list with all the reachable mods with adaptative prefetch. It also constructs in each module a list of (core, thread) tuples from wich it's reachable. */
-static void mem_config_fill_adapt_pref_lists(int core, int thread, struct mod_t *mod)
+static void mem_config_fill_lists(int core, int thread, struct mod_t *mod)
 {
 	struct mod_t *low_mod;
 	struct core_thread_tuple_t *tuple;
@@ -1864,7 +1871,7 @@ static void mem_config_fill_adapt_pref_lists(int core, int thread, struct mod_t 
 		linked_list_next(mod->low_mod_list))
 	{
 		low_mod = linked_list_get(mod->low_mod_list);
-		mem_config_fill_adapt_pref_lists(core, thread, low_mod);
+		mem_config_fill_lists(core, thread, low_mod);
 	}
 }
 
@@ -1932,10 +1939,9 @@ void mem_config_read(void)
 
 	X86_CORE_FOR_EACH X86_THREAD_FOR_EACH
 	{
-		mem_config_fill_adapt_pref_lists(core, thread, X86_THREAD.data_mod);
-		mem_config_fill_adapt_pref_lists(core, thread, X86_THREAD.inst_mod);
+		mem_config_fill_lists(core, thread, X86_THREAD.data_mod);
+		mem_config_fill_lists(core, thread, X86_THREAD.inst_mod);
 	}
-
 
 	/* Dump configuration to trace file */
 	mem_config_trace();
