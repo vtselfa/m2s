@@ -431,11 +431,14 @@ void prefetcher_access_hit(struct mod_stack_t *stack, struct mod_t *target_mod)
 			 * (Program Counter based index, Constant Stride) */
 			prefetcher_ghb_pc_cs(target_mod, stack, it_index);
 		}
-		else if (target_mod->cache->prefetcher->type == prefetcher_type_ghb_pc_dc);
-	{
+		else if (target_mod->cache->prefetcher->type == prefetcher_type_ghb_pc_dc)
+		{
 			/* Perform ghb based PC/DC prefetching
 			 * (Program Counter based index, Delta Correlation) */
 			prefetcher_ghb_pc_dc(target_mod, stack, it_index);
 		}
+
+		/* Statistics */
+		target_mod->useful_prefetches++;
 	}
 }

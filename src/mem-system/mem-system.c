@@ -361,7 +361,7 @@ void mem_system_init(void)
 	EV_MOD_NMOESI_INVALIDATE_SLOT_FINISH = esim_register_event_with_name(mod_handler_nmoesi_invalidate_slot,
 			mem_domain_index, "mod_nmoesi_invalidate_slot_finish");
 
-	/* Interval reports */
+	/* Event for interval reports */
 	EV_MOD_REPORT = esim_register_event_with_name(mod_report_handler, mem_domain_index, "mod_report");
 	LIST_FOR_EACH(mem_system->mod_list, i)
 	{
@@ -785,8 +785,6 @@ void mem_system_dump_report(void)
 		fprintf(f, "NCWriteHits = %lld\n", mod->nc_write_hits);
 		fprintf(f, "NCWriteMisses = %lld\n", mod->nc_writes - mod->nc_write_hits);
 		fprintf(f, "Prefetches = %lld\n", mod->prefetches);
-		fprintf(f, "PrefetchAborts = %lld\n", mod->prefetch_aborts);
-		fprintf(f, "UselessPrefetches = %lld\n", mod->useless_prefetches);
 		fprintf(f, "\n");
 		fprintf(f, "NoRetryAccesses = %lld\n", mod->no_retry_accesses);
 		fprintf(f, "NoRetryHits = %lld\n", mod->no_retry_hits);
@@ -812,7 +810,10 @@ void mem_system_dump_report(void)
 		fprintf(f, "CompletedPrefetches = %lld\n", mod->completed_prefetches);
 		fprintf(f, "CanceledPrefetches = %lld\n", mod->canceled_prefetches);
 		fprintf(f, "CanceledPrefetchEndStream = %lld\n", mod->canceled_prefetches_end_stream);
-		fprintf(f, "CanceledPrefetchMSHR = %lld\n", mod->canceled_prefetches_mshr);
+		fprintf(f, "CanceledPrefetchCoalesce = %lld\n", mod->canceled_prefetches_coalesce);
+		fprintf(f, "CanceledPrefetchCacheHit = %lld\n", mod->canceled_prefetches_cache_hit);
+		fprintf(f, "CanceledPrefetchStreamHit = %lld\n", mod->canceled_prefetches_stream_hit);
+		fprintf(f, "CanceledPrefetchRetry = %lld\n", mod->canceled_prefetches_retry);
 		fprintf(f, "PrefetchRetries = %lld\n", mod->prefetch_retries);
 		fprintf(f, "\n");
 

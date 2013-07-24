@@ -285,8 +285,6 @@ struct mod_t
 	long long effective_nc_writes;
 	long long effective_nc_write_hits;
 	long long prefetches;
-	long long prefetch_aborts;
-	long long useless_prefetches;
 	long long evictions;
 
 	long long blocking_reads;
@@ -317,6 +315,11 @@ struct mod_t
 	long long programmed_prefetches;
 	long long completed_prefetches;
 	long long canceled_prefetches;
+	long long canceled_prefetches_end_stream;
+	long long canceled_prefetches_coalesce;
+	long long canceled_prefetches_cache_hit;
+	long long canceled_prefetches_stream_hit;
+	long long canceled_prefetches_retry;
 	long long useful_prefetches;
 	long long effective_useful_prefetches; /* Useful prefetches with less delay hit cicles than 1/3 of the delay of accesing MM */
 
@@ -331,8 +334,6 @@ struct mod_t
 	long long group_prefetches; /* Number of GROUPS */
 	long long canceled_prefetch_groups;
 
-	long long canceled_prefetches_end_stream;
-	long long canceled_prefetches_mshr;
 
 	long long up_down_hits;
 	long long up_down_head_hits;

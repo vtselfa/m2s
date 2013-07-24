@@ -483,7 +483,7 @@ void mod_handler_pref(int event, void *data)
 		{
 			mem_debug("    %lld will finish due to %lld\n", stack->id, master_stack->id);
 			mod->canceled_prefetches++; /* Statistics */
-			mod->canceled_prefetches_mshr++; /* Statistics */
+			mod->canceled_prefetches_coalesce++; /* Statistics */
 			new_stack = mod_stack_create(stack->id, mod, stack->addr, EV_MOD_PREF_FINISH, stack, stack->prefetch);
 			new_stack->client_info = mod_client_info_clone(stack->mod, stack->client_info);
 			new_stack->retry = 0;
@@ -539,6 +539,7 @@ void mod_handler_pref(int event, void *data)
 		{
 			mem_debug("    will finish due to block already in cache (or write buffer)\n");
 			mod->canceled_prefetches++; /* Statistics */
+			mod->canceled_prefetches_cache_hit++;
 			esim_schedule_event(EV_MOD_PREF_UNLOCK, stack, 0);
 			return;
 		}
@@ -551,6 +552,7 @@ void mod_handler_pref(int event, void *data)
 			{
 				mem_debug("and in the correct slot\n");
 				mod->canceled_prefetches++; /* Statistics */
+				mod->canceled_prefetches_stream_hit++; /* Statistics */
 				esim_schedule_event(EV_MOD_PREF_FINISH, stack, 0);
 			}
 			else
@@ -583,7 +585,7 @@ void mod_handler_pref(int event, void *data)
 		/* Error on read request. Unlock block and retry prefetch */
 		if (stack->err)
 		{
-			mod->read_retries++;
+			mod->prefetch_retries++;
 			retry_lat = mod_get_retry_latency(mod);
 			dir_pref_entry_unlock(mod->dir, stack->pref_stream, stack->pref_slot);
 			mod->cache->prefetch.streams[stack->pref_stream].count--; //COUNT
@@ -1787,6 +1789,9 @@ void mod_handler_nmoesi_prefetch(int event, void *data)
 		/* Record access */
 		mod_access_start(mod, stack, mod_access_prefetch);
 
+		/* Statistics */
+		mod->programmed_prefetches++;
+
 		/* Coalesce access */
 		master_stack = mod_can_coalesce(mod, mod_access_prefetch, stack->addr, stack);
 		if (master_stack)
@@ -1795,7 +1800,9 @@ void mod_handler_nmoesi_prefetch(int event, void *data)
 			mem_debug("  %lld %lld 0x%x %s useless prefetch - already being fetched\n",
 				  esim_time, stack->id, stack->addr, mod->name);
 
-			mod->useless_prefetches++;
+			mod->canceled_prefetches++;
+			mod->canceled_prefetches_coalesce++;
+
 			esim_schedule_event(EV_MOD_NMOESI_PREFETCH_FINISH, stack, 0);
 
 			/* Increment witness variable */
@@ -1861,7 +1868,8 @@ void mod_handler_nmoesi_prefetch(int event, void *data)
 			Effectively this means that prefetches are of low priority.
 			This can be improved to not retry only when the current lock
 			holder is writing to the block. */
-			mod->prefetch_aborts++;
+			mod->canceled_prefetches++;
+			mod->canceled_prefetches_retry++;
 			mem_debug("    lock error, aborting prefetch\n");
 			esim_schedule_event(EV_MOD_NMOESI_PREFETCH_FINISH, stack, 0);
 			return;
@@ -1874,7 +1882,10 @@ void mod_handler_nmoesi_prefetch(int event, void *data)
 			mem_debug("  %lld %lld 0x%x %s useless prefetch - cache hit\n",
 				  esim_time, stack->id, stack->addr, mod->name);
 
-			mod->useless_prefetches++;
+			/* Statistics */
+			mod->canceled_prefetches++;
+			mod->canceled_prefetches_cache_hit++;
+
 			esim_schedule_event(EV_MOD_NMOESI_PREFETCH_UNLOCK, stack, 0);
 			return;
 		}
@@ -1889,6 +1900,7 @@ void mod_handler_nmoesi_prefetch(int event, void *data)
 		esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST, new_stack, 0);
 		return;
 	}
+
 	if (event == EV_MOD_NMOESI_PREFETCH_MISS)
 	{
 		mem_debug("  %lld %lld 0x%x %s prefetch miss\n", esim_time, stack->id,
@@ -1902,7 +1914,8 @@ void mod_handler_nmoesi_prefetch(int event, void *data)
 			/* Don't want to ever retry prefetches if read request failed.
 			 * Effectively this means that prefetches are of low priority.
 			 * This can be improved depending on the reason for read request fail */
-			mod->prefetch_aborts++;
+			mod->canceled_prefetches++;
+			mod->canceled_prefetches_retry++;
 			dir_entry_unlock(mod->dir, stack->set, stack->way);
 			mem_debug("    lock error, aborting prefetch\n");
 			esim_schedule_event(EV_MOD_NMOESI_PREFETCH_FINISH, stack, 0);
@@ -1937,7 +1950,10 @@ void mod_handler_nmoesi_prefetch(int event, void *data)
 		/* Unlock directory entry */
 		dir_entry_unlock(mod->dir, stack->set, stack->way);
 
+		/* Statistics */
+		mod->completed_prefetches++;
 		/* Continue */
+
 		esim_schedule_event(EV_MOD_NMOESI_PREFETCH_FINISH, stack, 0);
 		return;
 	}
@@ -3156,10 +3172,8 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 		new_stack->stream_retried_cycle = stack->stream_retried_cycle;
 		new_stack->request_dir = stack->request_dir;
 		new_stack->request_type = read_request;
-		//if (target_mod->kind == mod_kind_main_memory && mem_controller->enabled)
-		//	esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER, new_stack, 0);
-		//else
-			esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK, new_stack, 0);
+
+		esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK, new_stack, 0);
 		return;
 	}
 
@@ -4130,10 +4144,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 		new_stack->stream_retried_cycle = stack->stream_retried_cycle;
 		new_stack->request_dir = stack->request_dir;
 
-		//if(target_mod->kind == mod_kind_main_memory && mem_controller->enabled)
-		//	esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER, new_stack, 0);
-		//else
-			esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK, new_stack, 0);
+		esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK, new_stack, 0);
 		return;
 	}
 
