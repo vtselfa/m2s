@@ -3172,7 +3172,10 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 				return;
 			}else{
 				target_mod->num_req_input_buffer++;
-				//mem_debug( " %lld num req input %d\n", stack->id, target_mod->num_req_input_buffer );
+				assert(target_mod->start_queue_full == -1);
+				if( target_mod->num_req_input_buffer == target_mod->num_ports)
+					target_mod->start_queue_full = esim_cycle();
+					
 			}
 		}
 
@@ -3279,8 +3282,15 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			if(target_mod->kind == mod_kind_main_memory && 
 			stack->request_dir == mod_request_up_down && mem_controller->enabled) 
 			{
+				
+				if( target_mod->num_req_input_buffer == target_mod->num_ports)
+				{	
+					assert(target_mod->start_queue_full>-1);
+					target_mod->cycles_queue_full += esim_cycle() - target_mod->start_queue_full;
+					target_mod->start_queue_full = -1;
+				}
 				target_mod->num_req_input_buffer--;
-				//mem_debug( " %lld num req output 2 %d\n", stack->id, target_mod->num_req_input_buffer );
+				
 			}
 			
 
@@ -3452,8 +3462,14 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			if(target_mod->kind == mod_kind_main_memory && 
 			stack->request_dir == mod_request_up_down && mem_controller->enabled) 
 			{
+				if( target_mod->num_req_input_buffer == target_mod->num_ports)
+				{	
+					assert(target_mod->start_queue_full>-1);
+					target_mod->cycles_queue_full += esim_cycle() - target_mod->start_queue_full;
+					target_mod->start_queue_full = -1;
+				}
 				target_mod->num_req_input_buffer--;
-				mem_debug( " %lld num req output 3 %d\n", stack->id, target_mod->num_req_input_buffer );
+				
 			}
 			esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST_REPLY, stack, 0);
 			return;
@@ -3577,11 +3593,18 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			int latency = stack->reply == reply_ack_data_sent_to_peer ? 0 : target_mod->latency;
 			mod_access_finish(target_mod, stack);
 			esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST_REPLY, stack, latency);
+
 			if(target_mod->kind == mod_kind_main_memory && 
 			stack->request_dir == mod_request_up_down && mem_controller->enabled) 
 			{
+				if( target_mod->num_req_input_buffer == target_mod->num_ports)
+				{	
+					assert(target_mod->start_queue_full>-1);
+					target_mod->cycles_queue_full += esim_cycle() - target_mod->start_queue_full;
+					target_mod->start_queue_full = -1;
+				}
 				target_mod->num_req_input_buffer--;
-				mem_debug( " %lld num req output 4 %d\n", stack->id, target_mod->num_req_input_buffer );
+				
 			}
 			return;
 		}
@@ -3682,11 +3705,15 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			}
 
 			/*Request leaves input buffer and goes to mc queue*/
+			if( target_mod->num_req_input_buffer == target_mod->num_ports)
+			{	
+				assert(target_mod->start_queue_full>-1);
+				target_mod->cycles_queue_full += esim_cycle() - target_mod->start_queue_full;
+				target_mod->start_queue_full = -1;
+			}
 			target_mod->num_req_input_buffer--;
 			mem_controller_register_in_queue(stack);
-			//mem_debug( " %lld num req output 5 %d\n", stack->id, target_mod->num_req_input_buffer );
-
-
+			
 			assert(stack->t_access_net >= 0);	
 			mem_controller->t_inside_net += esim_cycle() - stack->t_access_net;
 			stack->t_access_net = -1;
@@ -3713,8 +3740,14 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 		if(target_mod->kind == mod_kind_main_memory && 
 		stack->request_dir == mod_request_up_down && mem_controller->enabled) 
 		{
+			if( target_mod->num_req_input_buffer == target_mod->num_ports)
+			{	
+				assert(target_mod->start_queue_full>-1);
+				target_mod->cycles_queue_full += esim_cycle() - target_mod->start_queue_full;
+				target_mod->start_queue_full = -1;
+			}
 			target_mod->num_req_input_buffer--;
-			//mem_debug( " %lld num req output 6 %d\n", stack->id, target_mod->num_req_input_buffer );
+			
 		}
 		esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST_REPLY, stack, latency);
 		return;
@@ -4224,7 +4257,10 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 				return;
 			}else{
 				target_mod->num_req_input_buffer++;
-				//mem_debug( " %lld num req input %d\n", stack->id, target_mod->num_req_input_buffer );
+				assert(target_mod->start_queue_full == -1);
+				if(target_mod->num_req_input_buffer == target_mod->num_ports)
+					target_mod->start_queue_full = esim_cycle();
+				
 			}
 		}
 
@@ -4269,7 +4305,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 		//if(target_mod->kind == mod_kind_main_memory && mem_controller->enabled)
 		//	esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER, new_stack, 0);
 		//else
-			esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK, new_stack, 0);
+		esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK, new_stack, 0);
 		return;
 	}
 
@@ -4334,8 +4370,14 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			if(target_mod->kind == mod_kind_main_memory && 
 			stack->request_dir == mod_request_up_down && mem_controller->enabled) 
 			{
+				if( target_mod->num_req_input_buffer == target_mod->num_ports)
+				{	
+					assert(target_mod->start_queue_full>-1);
+					target_mod->cycles_queue_full += esim_cycle() - target_mod->start_queue_full;
+					target_mod->start_queue_full = -1;
+				}
 				target_mod->num_req_input_buffer--;
-				mem_debug( " %lld num req output 7 %d\n", stack->id, target_mod->num_req_input_buffer );
+				
 			}
 			esim_schedule_event(EV_MOD_NMOESI_WRITE_REQUEST_REPLY, stack, 0);
 			return;
@@ -4508,8 +4550,14 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			if(target_mod->kind == mod_kind_main_memory && 
 			stack->request_dir == mod_request_up_down && mem_controller->enabled) 
 			{
+				if( target_mod->num_req_input_buffer == target_mod->num_ports)
+				{	
+					assert(target_mod->start_queue_full>-1);
+					target_mod->cycles_queue_full += esim_cycle() - target_mod->start_queue_full;
+					target_mod->start_queue_full = -1;
+				}
 				target_mod->num_req_input_buffer--;
-				//mem_debug( " %lld num req output 8 %d\n", stack->id, target_mod->num_req_input_buffer );
+				
 			}
 			esim_schedule_event(EV_MOD_NMOESI_WRITE_REQUEST_REPLY, stack, 0);
 			return;
@@ -4654,10 +4702,15 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			}
 
 			/*Request leaves input buffer and goes to mc queue*/
+			if( target_mod->num_req_input_buffer == target_mod->num_ports)
+			{	
+				assert(target_mod->start_queue_full>-1);
+				target_mod->cycles_queue_full += esim_cycle() - target_mod->start_queue_full;
+				target_mod->start_queue_full = -1;
+			}
 			target_mod->num_req_input_buffer--;
 			mem_controller_register_in_queue(stack);
-			mem_debug( " %lld num req output 9 %d\n", stack->id, target_mod->num_req_input_buffer );
-
+			
 
 			assert(stack->t_access_net >= 0);
 			mem_controller->t_inside_net+=esim_cycle()-stack->t_access_net;
@@ -4686,8 +4739,14 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 		if(target_mod->kind == mod_kind_main_memory && 
 			stack->request_dir == mod_request_up_down && mem_controller->enabled) 
 		{
+			if( target_mod->num_req_input_buffer == target_mod->num_ports)
+			{	
+				assert(target_mod->start_queue_full>-1);
+				target_mod->cycles_queue_full += esim_cycle() - target_mod->start_queue_full;
+				target_mod->start_queue_full = -1;
+			}
 			target_mod->num_req_input_buffer--;
-			//mem_debug( " %lld num req output 1 %d\n", stack->id, target_mod->num_req_input_buffer );
+			
 		}
 		esim_schedule_event(EV_MOD_NMOESI_WRITE_REQUEST_REPLY, stack, latency);
 		return;

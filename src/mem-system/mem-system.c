@@ -756,6 +756,7 @@ void mem_system_dump_report(void)
 		fprintf(f, "Evictions = %lld\n", mod->evictions);
 		fprintf(f, "Retries = %lld\n", mod->read_retries + mod->write_retries +
 			mod->nc_write_retries);
+		fprintf(f, "PercentDirectoryQueueFull = %f\n", (double)esim_cycle() ? (double)mod->cycles_queue_full/(double)esim_cycle() : 0.0);
 		fprintf(f, "\n");
 		fprintf(f, "Reads = %lld\n", mod->reads);
 		fprintf(f, "ReadRetries = %lld\n", mod->read_retries);

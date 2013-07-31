@@ -138,6 +138,7 @@ struct mod_t
 
 	/* Mem controller associated to mm */
 	struct mem_controller_t *mem_controller;
+	
 
 	/* Module level starting from entry points */
 	int level;
@@ -245,6 +246,11 @@ struct mod_t
 	struct mod_adapt_pref_stack_t *adapt_pref_stack;
 
 	/* Statistics */
+	
+	long long cycles_queue_full;
+	long long start_queue_full; 
+
+
 	long long accesses;
 	long long last_accesses;
 	long long hits;

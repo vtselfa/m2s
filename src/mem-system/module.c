@@ -89,6 +89,8 @@ struct mod_t *mod_create(char *name, enum mod_kind_t kind, int num_ports,
 
 	mod->client_info_repos = repos_create(sizeof(struct mod_client_info_t), mod->name);
 
+	mod->start_queue_full = -1;
+
 	return mod;
 }
 
