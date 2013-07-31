@@ -346,7 +346,7 @@ int mem_controller_remove(struct mod_stack_t * stack, struct mem_controller_queu
 	while(!linked_list_is_end(queue->queue)){
 		struct mod_stack_t * stack_aux=linked_list_get(queue->queue);
 		if(stack_aux->id==stack->id){
-			////printf("borra %lld\n", stack->id);
+			////mem_debug("borra %lld\n", stack->id);
 			linked_list_remove(queue->queue);
 			return 1;
 		}
@@ -1881,10 +1881,10 @@ void mem_controller_sort_by_block(struct mod_stack_t * stack)
 	while(!linked_list_is_end(list))
 	{
 		stack_aux=linked_list_get(list);
-		printf("%d . ", stack_aux->addr %  mem_controller->row_buffer_size);
+		mem_debug("%d . ", stack_aux->addr %  mem_controller->row_buffer_size);
 		linked_list_next(list);
 	}
-	printf("\n");
+	mem_debug("\n");
  	*/
 	linked_list_free(stack->coalesced_stacks);
 	stack->coalesced_stacks=list;
@@ -2018,7 +2018,7 @@ void mem_controller_count_successive_hits(struct linked_list_t * coalesced_stack
 		LINKED_LIST_FOR_EACH(coalesced_stacks)
 		{
 			stack_aux= linked_list_get(coalesced_stacks);
-			//printf("%d == %d ", block_size*i+first_block,stack_aux->addr %  mem_controller->row_buffer_size );
+			//mem_debug("%d == %d ", block_size*i+first_block,stack_aux->addr %  mem_controller->row_buffer_size );
 
 			if(block_size*i+first_block==stack_aux->addr %  mem_controller->row_buffer_size)// succesive blocks
 			{
@@ -2036,7 +2036,7 @@ void mem_controller_count_successive_hits(struct linked_list_t * coalesced_stack
 		if(count>max)//is not a successive block , so we count the max number of consecutive accesses
 			max=count;
 		mem_controller->successive_hit[linked_list_count(coalesced_stacks)-1][max-1]++;
-	//	printf("  [%d,%d]\n", linked_list_count(coalesced_stacks),max);
+	//	mem_debug("  [%d,%d]\n", linked_list_count(coalesced_stacks),max);
 	}
 	else
 		fatal("Error policy\n");
@@ -2046,7 +2046,7 @@ void mem_controller_count_successive_hits(struct linked_list_t * coalesced_stack
 int mem_controller_get_size_queue(struct mod_stack_t* stack)
 {
 	int size = 0;
-/*
+
 	struct mem_controller_t * mem_controller=stack->target_mod->mem_controller;
 
 	unsigned int bank;
@@ -2062,17 +2062,19 @@ int mem_controller_get_size_queue(struct mod_stack_t* stack)
 		size = mem_controller->pref_queue[bank]->current_request_num;
 
 	if(size == mem_controller->size_queue)
-		 mem_debug("  %lld %lld 0x%x %s queue %d pref %d full \n", esim_cycle, stack->id,
+		 mem_debug("  %lld %lld 0x%x %s queue %d pref %d full \n", esim_cycle(), stack->id,
                         stack->addr, stack->target_mod->name, bank, stack->prefetch);
+	mem_debug("%lld %d b%d p%d.......\n", stack->id, size, bank, stack->prefetch );
+	assert(size>=0);
 
-	assert(size>=0 && size<=mem_controller->size_queue);
-*/
+	assert(size<=mem_controller->size_queue);
+
 	return size;
 }
 
 void mem_controller_register_in_queue(struct mod_stack_t* stack)
 {
-	/*
+	
 	struct mem_controller_t * mem_controller=stack->target_mod->mem_controller;
 
 	unsigned int bank;
@@ -2085,19 +2087,19 @@ void mem_controller_register_in_queue(struct mod_stack_t* stack)
 	if(!stack->prefetch)
 	{
 	 	mem_controller->normal_queue[bank]->current_request_num++;
-		 mem_debug("  %lld %lld 0x%x %s queue %d pref %d count before %lld insert \n", esim_cycle, stack->id,stack->addr, stack->target_mod->name, bank, stack->prefetch, mem_controller->normal_queue[bank]->current_request_num);
+		mem_debug("  %lld %lld 0x%x %s queue %d pref %d count before %lld insert \n", esim_cycle(), stack->id,stack->addr, stack->target_mod->name, bank, stack->prefetch, mem_controller->normal_queue[bank]->current_request_num);
 
 	}else{
 		mem_controller->pref_queue[bank]->current_request_num++;
-		 mem_debug("  %lld %lld 0x%x %s queue %d pref %d count before %lld insert \n", esim_cycle, stack->id,stack->addr, stack->target_mod->name, bank, stack->prefetch, mem_controller->pref_queue[bank]->current_request_num);
+		mem_debug("  %lld %lld 0x%x %s queue %d pref %d count before %lld insert \n", esim_cycle(), stack->id,stack->addr, stack->target_mod->name, bank, stack->prefetch, mem_controller->pref_queue[bank]->current_request_num);
 	}
-	*/
+	
 }
 
 
 void mem_controller_remove_in_queue(struct mod_stack_t* stack)
 {
-	/*struct mem_controller_t * mem_controller=stack->target_mod->mem_controller;
+	struct mem_controller_t * mem_controller=stack->target_mod->mem_controller;
 
 	unsigned int bank;
 	unsigned int log2_row_size= log_base2( mem_controller->row_buffer_size);
@@ -2111,14 +2113,16 @@ void mem_controller_remove_in_queue(struct mod_stack_t* stack)
 	if(!stack->prefetch)
 	{
 	 	mem_controller->normal_queue[bank]->current_request_num--;
-		 mem_debug("  %lld %lld 0x%x %s queue %d pref %d count before %lld delete \n", esim_cycle, stack->id,stack->addr, stack->target_mod->name, bank, stack->prefetch, mem_controller->normal_queue[bank]->current_request_num);
+		mem_debug("  %lld %lld 0x%x %s queue %d pref %d count after %lld delete \n", esim_cycle(), stack->id,stack->addr, stack->target_mod->name, bank, stack->prefetch, mem_controller->normal_queue[bank]->current_request_num);
+		assert(mem_controller->normal_queue[bank]->current_request_num>=0);
 	}else
 	{
 		mem_controller->pref_queue[bank]->current_request_num--;
-		 mem_debug("  %lld %lld 0x%x %s queue %d pref %d count before %lld delete \n", esim_cycle, stack->id,stack->addr, stack->target_mod->name, bank, stack->prefetch, mem_controller->pref_queue[bank]->current_request_num);
+		mem_debug("  %lld %lld 0x%x %s queue %d pref %d count after %lld delete \n", esim_cycle(), stack->id,stack->addr, stack->target_mod->name, bank, stack->prefetch, mem_controller->pref_queue[bank]->current_request_num);
+		assert(mem_controller->pref_queue[bank]->current_request_num>=0);
 	}
 
-*/
+
 }
 
 
@@ -2187,7 +2191,7 @@ void mem_controller_adapt_handler(int event, void *data)
 	else
 		mem_controller->priority_request_in_queue=prio_threshold_normal_pref;
 
-	// TODO: Arrgelar, sempre imprimeix NAN printf("%f   prio=%d\n", (double)useful_streams/lived_streams, mem_controller->priority_request_in_queue);
+	// TODO: Arrgelar, sempre imprimeix NAN mem_debug("%f   prio=%d\n", (double)useful_streams/lived_streams, mem_controller->priority_request_in_queue);
 
 	if (mem_controller->adapt_interval_kind == interval_kind_cycles)
 	{
@@ -2308,13 +2312,13 @@ void mem_controller_mark_requests_same_stream(struct mod_stack_t* stack, struct 
 			stack_aux->client_info->stream_request_kind == stack->client_info->stream_request_kind)
 		{
 			stack_aux->priority++;
-			//printf("%lld->%d->%d ", stack_aux->id, stack_aux->priority, stack_aux->client_info->kind);
+			//mem_debug("%lld->%d->%d ", stack_aux->id, stack_aux->priority, stack_aux->client_info->kind);
 			count=stack_aux->priority;
 		}
 	}
 
 	stack->priority=count;
-	//printf("%lld->%d->%d \n", stack->id, stack->priority, stack->client_info->kind);
+	//mem_debug("%lld->%d->%d \n", stack->id, stack->priority, stack->client_info->kind);
 }
 
 void mem_controller_coalesce_pref_into_normal(struct mod_stack_t* stack)

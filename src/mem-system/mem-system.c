@@ -267,6 +267,8 @@ void mem_system_init(void)
 			mem_domain_index, "mod_nmoesi_write_request_updown");
 	EV_MOD_NMOESI_WRITE_REQUEST_UPDOWN_FINISH = esim_register_event_with_name(mod_handler_nmoesi_write_request,
 			mem_domain_index, "mod_nmoesi_write_request_updown_finish");
+	EV_MOD_NMOESI_WRITE_REQUEST_UPDOWN_LATENCY = esim_register_event_with_name(mod_handler_nmoesi_write_request,
+			mem_domain_index, "mod_nmoesi_write_request_updown_latency");
 	EV_MOD_NMOESI_WRITE_REQUEST_DOWNUP = esim_register_event_with_name(mod_handler_nmoesi_write_request,
 			mem_domain_index, "mod_nmoesi_write_request_downup");
 	EV_MOD_NMOESI_WRITE_REQUEST_DOWNUP_FINISH = esim_register_event_with_name(mod_handler_nmoesi_write_request,
@@ -290,6 +292,8 @@ void mem_system_init(void)
 			mem_domain_index, "mod_nmoesi_read_request_updown_miss");
 	EV_MOD_NMOESI_READ_REQUEST_UPDOWN_FINISH = esim_register_event_with_name(mod_handler_nmoesi_read_request,
 			mem_domain_index, "mod_nmoesi_read_request_updown_finish");
+	EV_MOD_NMOESI_READ_REQUEST_UPDOWN_LATENCY = esim_register_event_with_name(mod_handler_nmoesi_read_request,
+			mem_domain_index, "mod_nmoesi_read_request_updown_latency");
 	EV_MOD_NMOESI_READ_REQUEST_DOWNUP = esim_register_event_with_name(mod_handler_nmoesi_read_request,
 			mem_domain_index, "mod_nmoesi_read_request_downup");
 	EV_MOD_NMOESI_READ_REQUEST_DOWNUP_WAIT_FOR_REQS = esim_register_event_with_name(mod_handler_nmoesi_read_request,

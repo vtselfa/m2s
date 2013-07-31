@@ -102,6 +102,7 @@ struct mem_controller_queue_t
 {
 	/*Request queue*/
 	struct linked_list_t *queue;
+	long long current_request_num;
 
 	/*Stadistics*/
 	long long total_requests; // total number of stacks inserted inside the queue during all execution
