@@ -5595,6 +5595,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 
                 /* Update the new row into row buffer */
                 bank[stack->bank].row_buffer = stack->row;
+		bank[stack->bank].t_row_come = esim_cycle(); 
 
                 /* Stadistics */
                 for (int i = 0; i < channel[stack->channel].regs_rank[stack->rank].num_regs_bank; i++)
