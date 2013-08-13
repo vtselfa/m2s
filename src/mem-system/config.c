@@ -980,6 +980,8 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config,
 		prio_type = prio_threshold_prefHitRBH_normalRBH_normal_prefHit_prefGroupCoalesce;
 	else if (strcmp(priority, "Dynamic") == 0)
 		prio_type = prio_dynamic;
+	else if (strcmp(priority, "Threshold-FCFS-Normal-Prefetch") == 0)
+		prio_type = prio_FCFS_normal_pref;
 	else
 		fatal("%s: %s: invalid value for variable 'PriorityMCQueues'.\n%s",
 			mem_config_file_name, mod_name, mem_err_config_note);

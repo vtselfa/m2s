@@ -65,7 +65,8 @@ enum priority_t
 	prio_threshold_prefHit_normal_prefGroupCoalesce,
 	prio_threshold_prefHitRBH_normalRBH_normal_prefHit_prefGroup,
 	prio_threshold_prefHitRBH_normalRBH_normal_prefHit_prefGroupCoalesce,
-	prio_dynamic
+	prio_dynamic,
+	prio_FCFS_normal_pref /* if only one queue enable, it is FCFS*/
 };
 
 enum priority_type_request_t
@@ -266,6 +267,7 @@ struct mod_stack_t * mem_controller_select_rbh_normal_prefHit_prefGroup_prio(str
 struct mod_stack_t * mem_controller_select_rbh_prefHit_normal_prefGroup_prio(struct mem_controller_queue_t * normal_queue,struct mem_controller_queue_t * pref_queue , enum priority_t priority, struct mem_controller_t * mem_controller);
 struct mod_stack_t * mem_controller_select_normal_prefHit_prefGroup_prio(struct mem_controller_queue_t * normal_queue,struct mem_controller_queue_t * pref_queue , enum priority_t priority, struct mem_controller_t * mem_controller);
 struct mod_stack_t * mem_controller_select_dynamic_prio(struct mem_controller_queue_t * normal_queue, struct mem_controller_queue_t * pref_queue, enum priority_t priority, struct mem_controller_t * mem_controller);
+struct mod_stack_t * mem_controller_select_FCFS_prio(struct mem_controller_queue_t * normal_queue, struct mem_controller_queue_t * pref_queue, enum priority_t priority, struct mem_controller_t * mem_controller);
 void mem_controller_mark_requests_same_stream(struct mod_stack_t* stack, struct linked_list_t * queue);
 
 
