@@ -52,7 +52,6 @@
 int x86_ctx_debug_category;
 
 int EV_X86_CTX_IPC_REPORT;
-int EV_X86_CTX_MISC_REPORT;
 int EV_X86_CTX_MC_REPORT;
 int EV_X86_CTX_CPU_REPORT;
 
@@ -84,32 +83,6 @@ static char *help_x86_ctx_ipc_report =
 	"      cycles of the interval.\n"
 	"\n";
 
-static char *help_x86_ctx_misc_report =
-	"The misc (miscellaneous) report file shows some relevant statistics related to\n"
-	"prefetch at specific intervals.\n"
-	"The following fields are shown in each record:\n"
-	"\n"
-	"  <cycle>\n"
-	"      Current simulation cycle. The increment between this value and the value\n"
-	"      shown in the next record is the interval specified in the context\n"
-	"      configuration file.\n"
-	"\n"
-	"  <inst>\n"
-	"      Current simulation instruction. The increment between thi value and the\n"
-	"      value shown in the next record is in the column inst-int.\n"
-	"\n"
-	"  <inst-int>\n"
-	"      Number of non-speculative instructions executed in the current interval.\n"
-	"\n"
-	"  <...>\n"
-	"      Global IPC observed so far. This value is equal to the number of executed\n"
-	"      non-speculative instructions divided by the current cycle.\n"
-	"\n"
-	"  <...>\n"
-	"      IPC observed in the current interval. This value is equal to the number\n"
-	"      of instructions executed in the current interval divided by the number of\n"
-	"      cycles of the interval.\n"
-	"\n";
 
 static char *help_x86_ctx_mc_report =
 	"The mc (memory controller) report file shows some relevant statistics related to\n"
@@ -999,51 +972,17 @@ void x86_ctx_ipc_report_handler(int event, void *data)
 	/* Dump new IPC */
 	assert(ctx->loader->ipc_report_interval);
 	inst_count = ctx->inst_count - stack->inst_count;
-	ipc_global = esim_cycle() ? (double) ctx->inst_count / esim_cycle() : 0.0;
-	ipc_interval = (double) inst_count / (esim_cycle() - stack->last_cycle);
+	ipc_global = arch_x86->cycle ? (double) ctx->inst_count / arch_x86->cycle : 0.0;
+	ipc_interval = (double) inst_count / (arch_x86->cycle - stack->last_cycle);
 	fprintf(ctx->loader->ipc_report_file, "%10lld %10lld %8lld %10.4f %10.4f\n",
 		esim_cycle(), ctx->inst_count, inst_count, ipc_global, ipc_interval);
 
 	stack->inst_count = ctx->inst_count;
-	stack->last_cycle = esim_cycle();
+	stack->last_cycle = arch_x86->cycle;
 
 	/* Schedule new event */
 	if(ctx->loader->interval_kind == interval_kind_cycles)
 		esim_schedule_event(event, stack, ctx->loader->ipc_report_interval);
-}
-
-
-
-/*
- * Misc report
- */
-
-void x86_ctx_misc_report_schedule(struct x86_ctx_t *ctx)
-{
-	struct x86_ctx_report_stack_t *stack;
-	FILE *f = ctx->loader->misc_report_file;
-	int i;
-
-	/* Create new stack */
-	stack = xcalloc(1, sizeof(struct x86_ctx_report_stack_t));
-
-	/* Initialize */
-	assert(ctx->loader->misc_report_file);
-	assert(ctx->loader->misc_report_interval > 0);
-	stack->pid = ctx->pid;
-
-	/* Print header */
-	fprintf(f, "%s", help_x86_ctx_misc_report);
-	fprintf(f, "%10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s %10s\n", "cycle", "inst", "inst-int", "module", "completed-prefetches-int", "completed-prefetches-glob", "prefetch-accuracy-int", "delayed-hits-int", "delayed-hit-avg-lost-cycles-int", "misses-int", "stream-hits-int", "effective-prefetch-accuracy-int", "mpki-int", "pseudocoverage-int", "prefetch-active-int","strides-detected-int");
-	for (i = 0; i < 43; i++)
-		fprintf(f, "-");
-	fprintf(f, "\n");
-
-	ctx->misc_report_stack = stack;
-
-	/* Schedule first event */
-	if(ctx->loader->interval_kind == interval_kind_cycles)
-		esim_schedule_event(EV_X86_CTX_MISC_REPORT, stack, ctx->loader->misc_report_interval);
 }
 
 
