@@ -1264,11 +1264,11 @@ configure:16728: checking lex output file root
 configure:16742: result: lex.yy
 configure:16747: checking lex library
 configure:16761: gcc -o conftest -g -O2   conftest.c   >&5
-/tmp/ccgRNQWi.o: In function `input':
+/tmp/ccUCSEHt.o: In function `input':
 /home/paula/multi2sim/multi2sim/lex.yy.c:1182: undefined reference to `yywrap'
-/tmp/ccgRNQWi.o: In function `yylex':
+/tmp/ccUCSEHt.o: In function `yylex':
 /home/paula/multi2sim/multi2sim/lex.yy.c:881: undefined reference to `yywrap'
-/tmp/ccgRNQWi.o: In function `main':
+/tmp/ccUCSEHt.o: In function `main':
 /home/paula/multi2sim/multi2sim/conftest.l:17: undefined reference to `yywrap'
 collect2: ld returned 1 exit status
 configure:16761: $? = 1

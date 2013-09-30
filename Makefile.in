@@ -277,8 +277,7 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 SUBDIRS = \
 	runtime \
-	src \
-	m2c
+	src 
 
 images = \
 	images/alu_engine.png \
