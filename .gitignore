@@ -41,7 +41,7 @@ install-sh
 missing
 .deps/
 bin/
-lib/
+/lib/
 libtool
 lex.c
 parser.c

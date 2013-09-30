@@ -190,6 +190,9 @@ struct x86_thread_t
 	 * which status must be updated at a fixed instruction interval */
 	struct linked_list_t *adapt_pref_modules;
 
+	/* The same, but for modules that report statistics at a fixed interval */
+	struct linked_list_t *stats_reporting_modules;
+
 	/* Cycle in which last micro-instruction committed */
 	long long last_commit_cycle;
 

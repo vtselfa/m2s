@@ -625,7 +625,6 @@ void x86_loader_free(struct x86_loader_t *ld)
 
 	/* IPC report file */
 	file_close(ld->ipc_report_file);
-	file_close(ld->misc_report_file);
 	file_close(ld->mc_report_file);
 	file_close(ld->cpu_report_file);
 
@@ -704,7 +703,6 @@ void x86_loader_load_from_ctx_config(struct config_t *config, char *section)
 	char *out;
 
 	char *ipc_report_file_name;
-	char *misc_report_file_name;
 	char *mc_report_file_name;
 	char *cpu_report_file_name;
 	char *interval_kind_str;
@@ -786,23 +784,6 @@ void x86_loader_load_from_ctx_config(struct config_t *config, char *section)
 		x86_ctx_ipc_report_schedule(ctx);
 	}
 
-	/* Misc stats report file */
-	misc_report_file_name = config_read_string(config, section,
-			"MiscReport", "");
-	ld->misc_report_interval = config_read_int(config, section,
-			"MiscReportInterval", ld->ipc_report_interval); /* By default, same as IPC */
-	if (*misc_report_file_name)
-	{
-		ld->misc_report_file = file_open_for_write(misc_report_file_name);
-		if (!ld->misc_report_file)
-			fatal("%s: cannot open misc report file",
-					misc_report_file_name);
-		if (ld->misc_report_interval < 1)
-			fatal("%s: invalid value for 'MiscReportInterval'",
-					config_file_name);
-		x86_ctx_misc_report_schedule(ctx);
-	}
-
 	/* MC stats report file*/
 	mc_report_file_name = config_read_string(config, section,"MCReport", "");
 	ld->mc_report_interval = config_read_int(config, section,
@@ -838,7 +819,7 @@ void x86_loader_load_from_ctx_config(struct config_t *config, char *section)
 	/*Fairness*/
 	ld->max_cycles_wait_MC = config_read_llint(config, section,
 			"MaxWaitInMC",100000000000 ); /* By default, same as default MC */
-	
+
 
 	/* Load executable */
 	x86_loader_load_exe(ctx, exe);
@@ -869,7 +850,7 @@ void x86_loader_load_from_command_line(int argc, char **argv)
 	/* Redirections */
 	ld->stdin_file = str_set(NULL, "");
 	ld->stdout_file = str_set(NULL, "");
-	
+
 
 	/* Load executable */
 	x86_loader_load_exe(ctx, argv[0]);

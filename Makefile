@@ -147,10 +147,10 @@ AR = ar
 AUTOCONF = ${SHELL} /home/paula/multi2sim/multi2sim/missing --run autoconf
 AUTOHEADER = ${SHELL} /home/paula/multi2sim/multi2sim/missing --run autoheader
 AUTOMAKE = ${SHELL} /home/paula/multi2sim/multi2sim/missing --run automake-1.11
-AWK = mawk
+AWK = gawk
 CC = gcc
 CCDEPMODE = depmode=gcc3
-CFLAGS = -msse2 -Wall -Werror -DMHANDLE -g -O0 -std=gnu99 -Wno-error=deprecated-declarations
+CFLAGS = -msse2 -O3 -std=gnu99 -DNDEBUG
 CPP = gcc -E
 CPPFLAGS = 
 CXX = g++

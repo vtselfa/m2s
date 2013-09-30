@@ -158,14 +158,21 @@ static void x86_cpu_commit_thread(int core, int thread, int quant)
 				mod_adapt_pref_handler(EV_CACHE_ADAPT_PREF, (void *) mod->adapt_pref_stack);
 		}
 
+		/* Module interval report. Update commited inst counters and launch handlers if necessary. */
+		LINKED_LIST_FOR_EACH(X86_THREAD.stats_reporting_modules)
+		{
+			struct mod_t *mod = (struct mod_t*) linked_list_get(X86_THREAD.stats_reporting_modules);
+			mod->report_stack->inst_count++;
+			if(mod->report_interval_kind == interval_kind_instructions &&
+				mod->report_stack->inst_count % mod->report_interval == 0)
+				mod_report_handler(EV_MOD_REPORT, (void *) mod->report_stack);
+		}
+
 		/* Interval stats */
 		if(ctx->loader->interval_kind == interval_kind_instructions)
 		{
 			if(ctx->ipc_report_stack && ctx->inst_count % ctx->loader->ipc_report_interval == 0)
 				x86_ctx_ipc_report_handler(EV_X86_CTX_IPC_REPORT, ctx->ipc_report_stack);
-
-			if(ctx->misc_report_stack && ctx->inst_count % ctx->loader->misc_report_interval == 0)
-				x86_ctx_misc_report_handler(EV_X86_CTX_MISC_REPORT, ctx->misc_report_stack);
 
 			if(ctx->mc_report_stack && ctx->inst_count % ctx->loader->mc_report_interval == 0)
 				x86_ctx_mc_report_handler(EV_X86_CTX_MC_REPORT, ctx->mc_report_stack);
