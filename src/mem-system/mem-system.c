@@ -657,7 +657,7 @@ void mem_controller_dump_report()
 			}
 		}
 
-		fprintf(f, "\n[QUEUES-MEMORY-CONTROLLER (%s)]\n\n",mod->name);
+		//fprintf(f, "\n[QUEUES-MEMORY-CONTROLLER (%s)]\n\n",mod->name);
 		for(int i=0; i<mem_controller->num_queues;i++)
 		{
 			struct mem_controller_queue_t *normal = mem_controller->normal_queue[i];
