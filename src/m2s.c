@@ -84,6 +84,7 @@ static char *visual_file_name = "";
 static char *ctx_config_file_name = "";
 static char *elf_debug_file_name = "";
 static char *trace_file_name = "";
+static char *main_mem_trace_file_name = "";
 static char *glu_debug_file_name = "";
 static char *glut_debug_file_name = "";
 static char *glew_debug_file_name = "";
@@ -1351,6 +1352,14 @@ static void m2s_read_command_line(int *argc_ptr, char **argv)
 			continue;
 		}
 
+		/* Write a trace with all accesses to main memory and their timings */
+		if (!strcmp(argv[argi], "--main-mem-trace"))
+		{
+			m2s_need_argument(argc, argv, argi);
+			main_mem_trace_file_name = argv[++argi];
+			continue;
+		}
+
 		/* Memory hierarchy report */
 		if (!strcmp(argv[argi], "--mem-report"))
 		{
@@ -1967,6 +1976,7 @@ int main(int argc, char **argv)
 	/* Initialization of libraries */
 	esim_init();
 	trace_init(trace_file_name);
+	main_mem_trace_init(main_mem_trace_file_name);
 
 	/* Initialization of architectures */
 	arch_arm = arch_register("ARM", "arm", arm_sim_kind,
@@ -2071,6 +2081,7 @@ int main(int argc, char **argv)
 	/* Finalization of libraries */
 	esim_done();
 	trace_done();
+	main_mem_trace_done();
 	debug_done();
 	mhandle_done();
 

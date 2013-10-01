@@ -1,5 +1,7 @@
 #include <assert.h>
 #include <stdlib.h>
+#include <stdarg.h>
+#include <zlib.h>
 
 #include <arch/x86/timing/cpu.h>
 #include <arch/x86/emu/loader.h>
@@ -22,6 +24,7 @@
 #include "mod-stack.h"
 
 int EV_MEM_CONTROLLER_ADAPT;
+gzFile trace_file;
 
 
 
@@ -2398,4 +2401,48 @@ int mem_controller_is_piggybacked(struct mod_stack_t * stack)
 }
 
 
+void main_mem_trace(const char *fmt, ...)
+{
+	va_list va;
+	char buf[MAX_STRING_SIZE];
+	int len;
+
+	/* Do nothing is no file name was given */
+	if (!trace_file)
+		return;
+
+	va_start(va, fmt);
+	len = vsnprintf(buf, sizeof buf, fmt, va);
+
+	/* Message exceeded buffer */
+	if (len + 1 == sizeof buf)
+		fatal("%s: buffer too small", __FUNCTION__);
+
+	/* Dump message */
+	gzwrite(trace_file, buf, len);
+}
+
+
+void main_mem_trace_init(char *file_name)
+{
+	/* Do nothing is no file name was given */
+	if (!file_name || !*file_name)
+		return;
+
+	/* Open destination file */
+	trace_file = gzopen(file_name, "wt");
+	if (!trace_file)
+		fatal("%s: cannot open trace file", file_name);
+}
+
+
+void main_mem_trace_done(void)
+{
+	/* Nothing if trace is inactive */
+	if (!trace_file)
+		return;
+
+	/* Close trace file */
+	gzclose(trace_file);
+}
 
