@@ -176,9 +176,6 @@ static void x86_cpu_commit_thread(int core, int thread, int quant)
 
 			if(ctx->mc_report_stack && ctx->inst_count % ctx->loader->mc_report_interval == 0)
 				x86_ctx_mc_report_handler(EV_X86_CTX_MC_REPORT, ctx->mc_report_stack);
-
-			if(ctx->cpu_report_stack && ctx->inst_count % ctx->loader->cpu_report_interval == 0)
-				x86_ctx_cpu_report_handler(EV_X86_CTX_CPU_REPORT, ctx->cpu_report_stack);
 		}
 
 		/* Adaptative mem controller. Update commited inst counters and launch handlers if necessary. */

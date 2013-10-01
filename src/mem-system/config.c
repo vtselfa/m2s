@@ -1217,10 +1217,9 @@ static void mem_config_read_modules(struct config_t *config)
 				mem_err_config_note);
 
 		/* Enables for this module interval reporting statistics */
-		strncpy(default_report_file_name, mod->name, MAX_STRING_SIZE - 1);
-		strncat(default_report_file_name, ".interval.report", MAX_STRING_SIZE - strlen(default_report_file_name) - 1);
+		snprintf(default_report_file_name, MAX_STRING_SIZE, "%s.interval.report", mod->name);
 		enable_report = config_read_bool(config, section, "EnableReport", 0);
-		report_interval = config_read_llint(config, section, "ReportInterval", 500000);
+		report_interval = config_read_llint(config, section, "ReportInterval", 50000);
 		report_interval_kind_str = config_read_string(config, section, "ReportIntervalKind", "cycles");
 		report_file_name = config_read_string(config, section, "ReportFile", default_report_file_name);
 		if(enable_report)

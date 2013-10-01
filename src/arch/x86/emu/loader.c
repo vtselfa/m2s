@@ -704,7 +704,6 @@ void x86_loader_load_from_ctx_config(struct config_t *config, char *section)
 
 	char *ipc_report_file_name;
 	char *mc_report_file_name;
-	char *cpu_report_file_name;
 	char *interval_kind_str;
 
 	char *config_file_name;
@@ -800,26 +799,9 @@ void x86_loader_load_from_ctx_config(struct config_t *config, char *section)
 		x86_ctx_mc_report_schedule(ctx);
 	}
 
-	/* CPU stats report file*/
-	cpu_report_file_name = config_read_string(config, section,"CPUReport", "");
-	ld->cpu_report_interval = config_read_int(config, section,
-			"CPUReportInterval", ld->ipc_report_interval); /* By default, same as IPC */
-	if (*cpu_report_file_name)
-	{
-		ld->cpu_report_file = file_open_for_write(cpu_report_file_name);
-		if (!ld->cpu_report_file)
-			fatal("%s: cannot open mc report file",
-					cpu_report_file_name);
-		if (ld->cpu_report_interval < 1)
-			fatal("%s: invalid value for 'CPUReportInterval'",
-					config_file_name);
-		x86_ctx_cpu_report_schedule(ctx);
-	}
-
 	/*Fairness*/
 	ld->max_cycles_wait_MC = config_read_llint(config, section,
 			"MaxWaitInMC",100000000000 ); /* By default, same as default MC */
-
 
 	/* Load executable */
 	x86_loader_load_exe(ctx, exe);
