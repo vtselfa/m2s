@@ -34,6 +34,7 @@ benchmarks
 *.ghc
 *.orig
 *.out
+*.pyc
 .clang_complete
 INSTALL
 depcomp
@@ -42,6 +43,8 @@ missing
 .deps/
 bin/
 /lib/
+/m4/
+compile
 libtool
 lex.c
 parser.c
@@ -49,3 +52,4 @@ parser.h
 ../ltmain.sh
 ylwrap
 ltmain.sh
+.ycm_extra_conf.py
