@@ -170,10 +170,13 @@ static void x86_cpu_commit_thread(int core, int thread, int quant)
 		LINKED_LIST_FOR_EACH(mem_system->mem_controllers)
         	{
 			struct mem_controller_t *mc = linked_list_get(mem_system->mem_controllers);
-			mc->report_stack->inst_count++;
-			if(mc->report_enabled && mc->report_interval_kind == interval_kind_instructions &&
-					x86_cpu->num_committed_uinst % mc->report_interval == 0)
-				mem_controller_report_handler(EV_MEM_CONTROLLER_REPORT, mc);
+			if(mc->report_stack)
+			{
+				mc->report_stack->inst_count++;
+				if(mc->report_enabled && mc->report_interval_kind == interval_kind_instructions &&
+						x86_cpu->num_committed_uinst % mc->report_interval == 0)
+					mem_controller_report_handler(EV_MEM_CONTROLLER_REPORT, mc);
+			}
         	}
 
 		/* Interval stats */

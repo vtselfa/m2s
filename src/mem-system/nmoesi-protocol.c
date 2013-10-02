@@ -3726,7 +3726,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
                                 mod_stack_set_reply(ret, reply_ack_error);
                                 stack->reply_size = 8;
 				mem_debug("    %lld 0x%x %s mc queue full, retrying...\n", stack->id, stack->tag, target_mod->name);
-                     		mod_stack_return(stack);
+                     		esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST_REPLY, stack, 0);
                         	//mod_unlock_port(target_mod, stack->port, stack);
 
 				return;
@@ -4105,8 +4105,8 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 		struct net_node_t *src_node;
 		struct net_node_t *dst_node;
 
-		mem_debug("  %lld %lld 0x%x %s read request reply\n", esim_time, stack->id,
-			stack->tag, target_mod->name);
+		mem_debug("  %lld %lld 0x%x %s read request reply to %s\n", esim_time, stack->id,
+			stack->tag, target_mod->name, mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:read_request_reply\"\n",
 			stack->id, target_mod->name);
 
@@ -4735,7 +4735,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
                                 mem_debug("    %lld 0x%x %s mc queue full, retrying...\n", stack->id, stack->tag, target_mod->name);
 
                                 //mod_unlock_port(target_mod, stack->port, stack);
-				mod_stack_return(stack);
+				esim_schedule_event(EV_MOD_NMOESI_WRITE_REQUEST_REPLY, stack, 0);
                                 return;
 
 				

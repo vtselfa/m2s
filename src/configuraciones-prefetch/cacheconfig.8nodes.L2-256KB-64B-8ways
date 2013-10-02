@@ -222,10 +222,9 @@ Coalesce = Disabled
 Piggybacking = 1
 PriorityMCQueues = Threshold-FCFS-Normal-Prefetch
 QueuePerBank = 1
-SizeQueue = 256
+SizeQueue = 3
 MemoryControllerEnabled = 1
-EnableMCReport = 1
-ReportMCInterval = 50
+
 
 
 #

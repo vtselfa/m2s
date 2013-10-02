@@ -137,6 +137,9 @@ struct mem_controller_t *mem_controller_create(void){
 	mem_controller = xcalloc(1, sizeof(struct mem_controller_t));
 	mem_controller->lived_streams = linked_list_create();
 	mem_controller->useful_streams = linked_list_create();
+	
+	
+
 
 	return mem_controller;
 }
@@ -254,8 +257,10 @@ void mem_controller_free(struct mem_controller_t *mem_controller){
 
 	/* Interval report */
 	if(mem_controller->report_stack)
+	{
 		line_writer_free(mem_controller->report_stack->line_writer);
-	free(mem_controller->report_stack);
+		free(mem_controller->report_stack);
+	}
 	file_close(mem_controller->report_file);
 
 	free(mem_controller);
