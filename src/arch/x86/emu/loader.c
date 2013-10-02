@@ -82,6 +82,8 @@ char *x86_loader_help =
 	"      the IPC report file.\n"
 	"  MaxWaitInMC = <cycles>\n"
 	"      Max. number of cycles that a request did for this context waits in a memory controller queue .\n"
+	"  GlobalReport = <file>\n"
+	"      File to dump a report of the context performance. Several global stadistics are dumped\n"
 	"\n"
 	"See the Multi2Sim Guide (www.multi2sim.org) for further details and\n"
 	"examples on how to use the context configuration file.\n"
@@ -705,6 +707,7 @@ void x86_loader_load_from_ctx_config(struct config_t *config, char *section)
 	char *ipc_report_file_name;
 	char *mc_report_file_name;
 	char *cpu_report_file_name;
+	char *report_file_name;
 	char *interval_kind_str;
 
 	char *config_file_name;
@@ -814,6 +817,17 @@ void x86_loader_load_from_ctx_config(struct config_t *config, char *section)
 			fatal("%s: invalid value for 'CPUReportInterval'",
 					config_file_name);
 		x86_ctx_cpu_report_schedule(ctx);
+	}
+
+	/* global report file*/
+	report_file_name = config_read_string(config, section,"GlobalReport", "");
+	
+	if (*report_file_name)
+	{
+		ctx->report_file = file_open_for_write(report_file_name);
+		if (!ctx->report_file)
+			fatal("%s: cannot open global report file",
+					report_file_name);
 	}
 
 	/*Fairness*/
