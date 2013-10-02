@@ -183,6 +183,8 @@ struct x86_ctx_t
 	struct x86_ctx_report_stack_t *cpu_report_stack;
 
 	/* Statistics */
+	long long mc_accesses;
+	long long row_buffer_hits;
 
 	/* Number of non-speculate micro-instructions.
 	 * Updated by the architectural simulator at the commit stage. */

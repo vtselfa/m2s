@@ -9,7 +9,9 @@
 #include <lib/esim/trace.h>
 #include <lib/mhandle/mhandle.h>
 #include <lib/util/debug.h>
+#include <lib/util/file.h>
 #include <lib/util/linked-list.h>
+#include <lib/util/line-writer.h>
 #include <lib/util/list.h>
 #include <lib/util/misc.h>
 #include <lib/util/string.h>
@@ -21,7 +23,20 @@
 #include "mem-system.h"
 #include "mod-stack.h"
 
+static char *help_mem_controller_report =
+	"The mod report file shows some relevant statistics related to cache performance\n"
+	"at specific intervals.\n"
+	"The following fields are shown in each record:\n"
+	"\n"
+	"  <cycle>\n"
+	"      Current simulation cycle.\n"
+	"\n"
+	"  <inst>\n"
+	"      Current simulation instruction.\n"
+	"\n";
+
 int EV_MEM_CONTROLLER_ADAPT;
+int EV_MEM_CONTROLLER_REPORT;
 
 
 
@@ -236,6 +251,12 @@ void mem_controller_free(struct mem_controller_t *mem_controller){
 
 	linked_list_free(mem_controller->useful_streams);
 	linked_list_free(mem_controller->lived_streams);
+
+	/* Interval report */
+	if(mem_controller->report_stack)
+		line_writer_free(mem_controller->report_stack->line_writer);
+	free(mem_controller->report_stack);
+	file_close(mem_controller->report_file);
 
 	free(mem_controller);
 }
@@ -2472,4 +2493,103 @@ int mem_controller_is_piggybacked(struct mod_stack_t * stack)
 }
 
 
+void mem_controller_report_schedule(struct mem_controller_t *mem_controller)
+{
+	struct mem_controller_report_stack_t *stack;
+	struct line_writer_t *lw;
+	FILE *f = mem_controller->report_file;
+	int size;
+	int i;
+
+	/* Create new stack */
+	stack = xcalloc(1, sizeof(struct mem_controller_report_stack_t));
+
+	/* Initialize */
+	assert(mem_controller->report_file);
+	assert(mem_controller->report_interval > 0);
+	stack->mem_controller = mem_controller;
+
+	/* Print header */
+	fprintf(f, "%s", help_mem_controller_report);
+
+	lw = line_writer_create(" ");
+	lw->heuristic_size_enabled = 1;
+
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "cycle");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "inst");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "acceses");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "t-total");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "t-wait");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "t-acces");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "t-transfer");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "normal-acceses");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "prefetch-acceses");
+	
+
+	size = line_writer_write(lw, f);
+	line_writer_clear(lw);
+
+	for (i = 0; i < size - 1; i++)
+		fprintf(f, "-");
+	fprintf(f, "\n");
+
+	mem_controller->report_stack = stack;
+	stack->line_writer = lw;
+
+	/* Schedule first event */
+	if(mem_controller->report_interval_kind == interval_kind_cycles)
+		esim_schedule_event(EV_MEM_CONTROLLER_REPORT, stack, mem_controller->report_interval);
+}
+
+
+void mem_controller_report_handler(int event, void *data)
+{
+	struct mem_controller_report_stack_t *stack = data;
+	struct mem_controller_t *mem_controller = stack->mem_controller;
+	struct line_writer_t *lw = stack->line_writer;
+
+	/* If simulation has ended, no more
+	 * events to schedule. */
+	if (esim_finish)
+		return;
+
+	long long accesses= mem_controller->accesses-stack->accesses;
+	long long t_wait = mem_controller->t_wait - stack->t_wait;
+	long long t_acces = mem_controller->t_acces_main_memory - stack->t_acces;
+	long long t_transfer = mem_controller->t_transfer;
+	long long t_total=t_wait+t_acces+t_transfer;
+	long long normal_accesses = mem_controller->normal_accesses-stack->normal_accesses;
+	long long pref_accesses = mem_controller->pref_accesses - stack->pref_accesses;
+
+
+	
+	/* Dump stats */
+	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", esim_cycle());
+	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", stack->inst_count);
+	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", accesses);
+	line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", accesses >0 ? (double)t_total/accesses:0);
+	line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", accesses >0 ? (double)t_wait/accesses:0);
+	line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", accesses >0 ? (double)t_acces/accesses:0);
+	line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", accesses >0 ? (double)t_transfer/accesses:0);
+	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", normal_accesses);
+	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", pref_accesses);
+	
+	line_writer_write(lw, mem_controller->report_file);
+	line_writer_clear(lw);
+
+	/* Update counters */
+	stack->accesses = mem_controller->accesses;
+	stack->normal_accesses = mem_controller->normal_accesses;
+	stack->pref_accesses = mem_controller->pref_accesses;
+	stack->t_wait = mem_controller->t_wait;
+	stack->t_acces = mem_controller->t_acces_main_memory;
+	stack->t_transfer = mem_controller->t_transfer;
+	
+	/* Schedule new event */
+	assert(mem_controller->report_interval);
+
+
+	if(mem_controller->report_interval_kind == interval_kind_cycles)
+		esim_schedule_event(event, stack, mem_controller->report_interval);
+}
 

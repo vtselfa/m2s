@@ -367,11 +367,20 @@ void mem_system_init(void)
 
 	/* Event for interval reports */
 	EV_MOD_REPORT = esim_register_event_with_name(mod_report_handler, mem_domain_index, "mod_report");
+	EV_MEM_CONTROLLER_REPORT = esim_register_event_with_name(mem_controller_report_handler, mem_domain_index, "mem_controller_report");
+	
 	LIST_FOR_EACH(mem_system->mod_list, i)
 	{
 		struct mod_t *mod = list_get(mem_system->mod_list, i);
 		if (mod->report_enabled)
 			mod_report_schedule(mod);
+	}
+
+	LINKED_LIST_FOR_EACH(mem_system->mem_controllers)
+	{
+		struct mem_controller_t * mem_controller= linked_list_get(mem_system->mem_controllers);
+		if(mem_controller->report_enabled)
+			mem_controller_report_schedule(mem_controller);
 	}
 
 	/* Main memory */
@@ -672,7 +681,7 @@ void mem_controller_dump_report()
 		for(int i=0; i<mem_controller->num_queues;i++)
 		{
 			struct mem_controller_queue_t *normal = mem_controller->normal_queue[i];
-			fprintf(f, "[Normal-Queue-%d]\n",i);
+			fprintf(f, "[Normal-Queue-%d (%s)]\n",i, mod->name);
 			fprintf(f, "AvgNumRequests = %f\n",mem_controller->n_times_queue_examined?
 				(double) normal->total_requests / esim_cycle() : 0.0);
 			fprintf(f, "TimeFullPercent = %f\n", esim_cycle() ?
@@ -682,7 +691,7 @@ void mem_controller_dump_report()
 			fprintf(f, "TimeResponse = %f\n\n ",normal->total_insertions?(double)
 				(avg_req*esim_cycle())/normal->total_insertions:0);
 
-			fprintf(f, "[Prefetch-Queue-%i]\n",i);
+			fprintf(f, "[Prefetch-Queue-%i (%s)]\n",i, mod->name);
 			fprintf(f, "AvgNumRequests = %f\n",mem_controller->n_times_queue_examined?(double)
 				mem_controller->pref_queue[i]->total_requests/mem_controller->n_times_queue_examined:0.0);
 			fprintf(f, "TimeFullPercent = %f\n", esim_cycle() ? (double)mem_controller->pref_queue[i]->t_full/esim_cycle():0.0);

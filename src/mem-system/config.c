@@ -797,6 +797,15 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config,
 	struct net_t *net;
 	struct net_node_t *net_node;
 
+	char *report_file_name;
+	char *report_interval_kind_str;
+
+	char default_report_file_name[MAX_STRING_SIZE];
+
+	long long report_interval;
+
+	int enable_report;
+
 	/* Read parameters */
 	str_token(mod_name, sizeof mod_name, section, 1, " ");
 	config_var_enforce(config, section, "Latency");
@@ -830,6 +839,15 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config,
         adapt_interval = config_read_llint(config, section, "AdaptativeInterval", 500000);
         adapt_interval_kind_str = config_read_string(config, section, "AdaptativeIntervalKind", "Cycles");
         /////////////////////////////////////////////////////////////////////
+
+	/* Enables for this mem controller interval reporting statistics */
+	strncpy(default_report_file_name, mod_name, MAX_STRING_SIZE - 1);
+	strncat(default_report_file_name, ".interval.MCreport", MAX_STRING_SIZE - strlen(default_report_file_name) - 1);
+	enable_report = config_read_int(config, section, "EnableMCReport", 0);
+	report_interval = config_read_llint(config, section, "ReportMCInterval", 500000);
+	report_interval_kind_str = config_read_string(config, section, "ReportMCIntervalKind", "cycles");
+	report_file_name = config_read_string(config, section, "ReportMCFile", default_report_file_name);
+	
 
 
 	/* Check parameters */
@@ -1041,6 +1059,20 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config,
 	}
 	mod->mem_controller->enabled = enabled_mc;
 
+	if(enable_report)
+	{
+		mod->mem_controller->report_enabled = enable_report;
+		mod->mem_controller->report_file = file_open_for_write(report_file_name);
+		if (!mod->mem_controller->report_file)
+			fatal("%s: cannot open mem controller report file", report_file_name);
+		mod->mem_controller->report_interval = report_interval;
+		mod->mem_controller->report_interval_kind = str_map_string_case(&interval_kind_map, report_interval_kind_str);
+		if(!mod->mem_controller->report_interval_kind)
+			fatal("%s: mem controller %s: invalid value for variable "
+				"'ReportIntervalKind'.\n%s", mem_config_file_name,
+				mod->name, mem_err_config_note);
+	}
+
 	linked_list_add(mem_system->mem_controllers, mod->mem_controller);
 
 	/* Return */
@@ -1205,18 +1237,23 @@ static void mem_config_read_modules(struct config_t *config)
 		/* Section for a module */
 		if (strncasecmp(section, "Module ", 7))
 			continue;
-
 		/* Create module, depending on the type. */
 		str_token(mod_name, sizeof mod_name, section, 1, " ");
+
 		mod_type = config_read_string(config, section, "Type", "");
+
 		if (!strcasecmp(mod_type, "Cache"))
 			mod = mem_config_read_cache(config, section);
 		else if (!strcasecmp(mod_type, "MainMemory"))
+		{
+			
 			mod = mem_config_read_main_memory(config, section);
-		else
+			
+		}else
 			fatal("%s: %s: invalid or missing value for 'Type'.\n%s",
 				mem_config_file_name, mod_name,
 				mem_err_config_note);
+
 
 		/* Enables for this module interval reporting statistics */
 		strncpy(default_report_file_name, mod->name, MAX_STRING_SIZE - 1);
@@ -1238,13 +1275,16 @@ static void mem_config_read_modules(struct config_t *config)
 					"'ReportIntervalKind'.\n%s", mem_config_file_name,
 					mod->name, mem_err_config_note);
 		}
+		
 		/* Read module address range */
 		mem_config_read_module_address_range(config, mod, section);
 
 		/* Add module */
 		list_add(mem_system->mod_list, mod);
 		mem_debug("\t%s\n", mod_name);
+		
 	}
+
 
 	/* Debug */
 	mem_debug("\n");
@@ -1260,6 +1300,7 @@ static void mem_config_read_modules(struct config_t *config)
 		assert(config_section_exists(config, buf));
 		config_write_ptr(config, buf, "ptr", mod);
 	}
+	
 }
 
 
@@ -1897,7 +1938,6 @@ void mem_config_read(void)
 		arch_for_each(mem_config_default, config);
 	else
 		config_load(config);
-
 	/* Read general variables */
 	mem_config_read_general(config);
 
@@ -1906,6 +1946,7 @@ void mem_config_read(void)
 
 	/* Read modules */
 	mem_config_read_modules(config);
+
 
 	/* Read low level caches */
 	mem_config_read_low_modules(config);

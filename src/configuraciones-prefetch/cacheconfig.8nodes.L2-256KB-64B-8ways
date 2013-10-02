@@ -222,12 +222,11 @@ Coalesce = Disabled
 Piggybacking = 1
 PriorityMCQueues = Threshold-FCFS-Normal-Prefetch
 QueuePerBank = 1
-SizeQueue = 3
+SizeQueue = 256
 MemoryControllerEnabled = 1
-PhotonicNet = 0
-Adaptative = Enabled
-AdaptativeIntervalKind = Instructions
-AdaptativeInterval = 10000
+EnableMCReport = 1
+ReportMCInterval = 50
+
 
 #
 # Nodes

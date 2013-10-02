@@ -6,6 +6,7 @@
 extern struct str_map_t interval_kind_map;
 
 extern int EV_MEM_CONTROLLER_ADAPT;
+extern int EV_MEM_CONTROLLER_REPORT;
 extern char * main_mem_report_file_name;
 
 struct tuple_adapt_t
@@ -16,7 +17,19 @@ struct tuple_adapt_t
 
 };
 
-
+struct mem_controller_report_stack_t
+{
+	struct mem_controller_t *mem_controller;
+	struct line_writer_t *line_writer;
+	long long inst_count;
+	long long t_acces;
+	long long t_wait;
+	long long t_transfer;
+	long long accesses;
+	long long normal_accesses;
+	long long pref_accesses;
+	
+};
 struct tuple_piggybacking_t
 {
 	unsigned int addr;
@@ -216,6 +229,13 @@ struct mem_controller_t
 	long long last_row_buffer_hits;
 	long long last_normal_row_buffer_hits;
 	long long last_pref_row_buffer_hits;
+
+	/* Reporting statistics at intervals */
+	int report_enabled;
+	struct mem_controller_report_stack_t *report_stack;
+	long long report_interval;
+	enum interval_kind_t report_interval_kind;
+	FILE *report_file;
 };
 
 struct mem_controller_t * mem_controller_create(void);
@@ -269,6 +289,10 @@ struct mod_stack_t * mem_controller_select_normal_prefHit_prefGroup_prio(struct 
 struct mod_stack_t * mem_controller_select_dynamic_prio(struct mem_controller_queue_t * normal_queue, struct mem_controller_queue_t * pref_queue, enum priority_t priority, struct mem_controller_t * mem_controller);
 struct mod_stack_t * mem_controller_select_FCFS_prio(struct mem_controller_queue_t * normal_queue, struct mem_controller_queue_t * pref_queue, enum priority_t priority, struct mem_controller_t * mem_controller);
 void mem_controller_mark_requests_same_stream(struct mod_stack_t* stack, struct linked_list_t * queue);
+
+/*Stadistics*/
+void mem_controller_report_schedule(struct mem_controller_t *mem_controller);
+void mem_controller_report_handler(int event, void *data);
 
 
 /*ROW BUFFER*/

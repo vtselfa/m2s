@@ -18,6 +18,10 @@
 
 #include <assert.h>
 
+#include <arch/x86/timing/cpu.h>
+#include <arch/x86/emu/loader.h>
+#include <arch/x86/emu/context.h>
+
 #include <lib/esim/esim.h>
 #include <lib/esim/trace.h>
 #include <lib/mhandle/mhandle.h>
@@ -2577,7 +2581,7 @@ void mod_handler_nmoesi_evict(int event, void *data)
 
 	struct mod_t *mod = stack->mod;
 	struct mod_t *target_mod = stack->target_mod;
-	struct mem_controller_t * mem_controller;
+//	struct mem_controller_t * mem_controller;
 
 	struct dir_t *dir;
 	struct dir_entry_t *dir_entry;
@@ -2691,7 +2695,7 @@ void mod_handler_nmoesi_evict(int event, void *data)
 
 	if (event == EV_MOD_NMOESI_EVICT_RECEIVE)
 	{
-		mem_controller = target_mod->mem_controller;
+//		mem_controller = target_mod->mem_controller;
 		mem_debug("  %lld %lld 0x%x %s evict receive\n", esim_time, stack->id,
 			stack->tag, target_mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:evict_receive\"\n",
@@ -2748,7 +2752,7 @@ void mod_handler_nmoesi_evict(int event, void *data)
 
 	if (event == EV_MOD_NMOESI_EVICT_PROCESS)
 	{
-		mem_controller= target_mod->mem_controller;
+		//mem_controller= target_mod->mem_controller;
 		mem_debug("  %lld %lld 0x%x %s evict process\n", esim_time, stack->id,
 			stack->tag, target_mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:evict_process\"\n",
@@ -2832,7 +2836,7 @@ void mod_handler_nmoesi_evict(int event, void *data)
 
 	if (event == EV_MOD_NMOESI_EVICT_PROCESS_NONCOHERENT)
 	{
-		mem_controller= target_mod->mem_controller;
+		//mem_controller= target_mod->mem_controller;
 		
 		mem_debug("  %lld %lld 0x%x %s evict process noncoherent\n", esim_time, stack->id,
 			stack->tag, target_mod->name);
@@ -3144,10 +3148,10 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 
 		/* Start to count time that a request spends since it leaves L2 until goes back */
 		if (stack->request_dir == mod_request_up_down &&
-			target_mod->kind == mod_kind_main_memory && mem_controller->enabled)
-			{
-				stack->t_access_net = esim_cycle();
-			}
+		target_mod->kind == mod_kind_main_memory && mem_controller->enabled)
+		{
+			stack->t_access_net = esim_cycle();
+		}
 
 		/* Send message */
 		stack->msg = net_try_send_ev(net, src_node, dst_node, 8,
@@ -3713,17 +3717,17 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 		&& stack->request_dir == mod_request_up_down && !stack->main_memory_accessed &&
 		stack->reply != reply_ack_data_sent_to_peer)
 		{
+			assert(mem_controller_get_size_queue(stack)<=mem_controller->size_queue);
 			if(mem_controller_get_size_queue(stack)>=mem_controller->size_queue)
 			{
-			
 				stack->err=1;
                                 ret->err = 1;
                                 ret->retry |= 1 << target_mod->level;
                                 mod_stack_set_reply(ret, reply_ack_error);
                                 stack->reply_size = 8;
 				mem_debug("    %lld 0x%x %s mc queue full, retrying...\n", stack->id, stack->tag, target_mod->name);
-                     
-                        	mod_unlock_port(target_mod, stack->port, stack);
+                     		mod_stack_return(stack);
+                        	//mod_unlock_port(target_mod, stack->port, stack);
 
 				return;
 				
@@ -4730,8 +4734,8 @@ void mod_handler_nmoesi_write_request(int event, void *data)
                                 stack->reply_size = 8;
                                 mem_debug("    %lld 0x%x %s mc queue full, retrying...\n", stack->id, stack->tag, target_mod->name);
 
-                                mod_unlock_port(target_mod, stack->port, stack);
-
+                                //mod_unlock_port(target_mod, stack->port, stack);
+				mod_stack_return(stack);
                                 return;
 
 				
@@ -5560,11 +5564,15 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
                         mem_debug("  %lld %lld 0x%x %s hit row buffer acces bank\n", esim_time, stack->id,
                                 stack->addr&~mod->cache->block_mask, mod->name);
                         esim_schedule_event(EV_MOD_NMOESI_TRANSFER_FROM_BANK, stack, bank[stack->bank].t_row_buffer_hit);
+			
 			/* Stadistics */
                         channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].row_buffer_hits+=1+ n_coalesce;
                         channel[stack->channel].regs_rank[stack->rank].row_buffer_hits+=1+ n_coalesce;
                         channel[stack->channel].row_buffer_hits+=1+ n_coalesce;
                         mem_controller->t_acces_main_memory += bank[stack->bank].t_row_buffer_hit*(1+n_coalesce);
+			assert(stack->client_info->core>=0 && stack->client_info->thread>=0);
+			assert(x86_cpu);
+			//x86_cpu->core[stack->client_info->core].thread[stack->client_info->thread].ctx->row_buffer_hits++;
 
                         if(stack->prefetch) // main request
                         {
@@ -5646,6 +5654,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
                 channel[stack->channel].regs_rank[stack->rank].acceses+=1+ n_coalesce;
                 channel[stack->channel].acceses+=1+ n_coalesce;*/
                 mem_controller->non_coalesced_accesses++;
+		//x86_cpu->core[stack->client_info->core].thread[stack->client_info->thread].ctx->mc_accesses++;
                 /*if(stack->prefetch) // main request
                 {
                         bank[stack->bank].pref_accesses+=1;
