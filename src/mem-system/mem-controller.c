@@ -58,6 +58,7 @@ int row_buffer_find_row(struct mem_controller_t * mem_controller, struct mod_t *
 	unsigned int num_banks = mem_controller->num_regs_bank ;
 	unsigned int num_channels = mem_controller->num_regs_channel ;
 	unsigned int log2_row_size= log_base2( mem_controller->row_buffer_size);
+	int set_rbtable = ((addr >> log2_row_size) % (num_banks*num_ranks));
 	//unsigned int num_columns= mem_controller->row_buffer_size/cache->block_size;
 
 	row= (addr >> (log2_row_size+ log_base2(num_banks)+ log_base2(num_ranks)));
@@ -72,6 +73,40 @@ int row_buffer_find_row(struct mem_controller_t * mem_controller, struct mod_t *
 	PTR_ASSIGN(row_ptr, row);
 	PTR_ASSIGN(channel_ptr, channel);
 	PTR_ASSIGN(tag_ptr, tag);
+
+
+	/*If it's row buffer table, it is inside of mem controller*/
+	if(mem_controller->enable_row_buffer_table)
+	{
+		for(int i =0 ;i <mem_controller->row_buffer_table->assoc; i++)
+		{		
+			assert(mem_controller->row_buffer_table->sets[set_rbtable].bank == set_rbtable);
+			if(mem_controller->row_buffer_table->sets[set_rbtable].entries[i].row==row)
+			{
+				if(mem_controller->row_buffer_table->sets[set_rbtable].entries[i].accessed)
+				{
+					PTR_ASSIGN(state_ptr, bank_accesed); // line being accessed
+					return 0;
+				}else
+				{
+					PTR_ASSIGN(state_ptr, row_buffer_hit);
+					return 1;
+				}
+			}
+		}
+
+		/*miss in row buffer table, we have to ensure a place to put the row*/
+		for(int i =0 ;i <mem_controller->row_buffer_table->assoc; i++)
+		{		
+			if(mem_controller->row_buffer_table->sets[set_rbtable].entries[i].reserved==-1) //not reserved
+			{
+				PTR_ASSIGN(state_ptr, row_buffer_miss); // is not inside table
+				return 1;	
+			}
+		}
+		PTR_ASSIGN(state_ptr, bank_accesed); // all entries being accesed
+		return 0;
+	}
 
 	/*Is the channel free?*/
 	if(mem_controller->regs_channel[channel].state==channel_state_busy){
@@ -145,7 +180,7 @@ struct mem_controller_t *mem_controller_create(void){
 }
 
 
-void mem_controller_init_main_memory(struct mem_controller_t *mem_controller, int channels, int ranks, int banks, int t_send_request, int row_size, int block_size,int cycles_proc_bus, enum policy_mc_queue_t policy, enum priority_t priority, long long size_queue,  long long threshold, int queue_per_bank, enum policy_coalesce_t coalesce, struct reg_rank_t *regs_rank, int bandwith){
+void mem_controller_init_main_memory(struct mem_controller_t *mem_controller, int channels, int ranks, int banks, int t_send_request, int row_size, int block_size,int cycles_proc_bus, enum policy_mc_queue_t policy, enum priority_t priority, long long size_queue,  long long threshold, int queue_per_bank, enum policy_coalesce_t coalesce, struct reg_rank_t *regs_rank, int bandwith, int enable_rbtable, int assoc_table){
 
 	mem_controller->num_queues=1;
 
@@ -165,6 +200,7 @@ void mem_controller_init_main_memory(struct mem_controller_t *mem_controller, in
 	mem_controller->queue_per_bank=queue_per_bank;
 	mem_controller->queue_round_robin=0;
 	mem_controller->coalesce= coalesce;
+	mem_controller->bandwith = bandwith;
 
 	mem_controller->normal_queue = xcalloc(mem_controller->num_queues, sizeof(struct mem_controller_queue_t *));
 	mem_controller->pref_queue = xcalloc(mem_controller->num_queues, sizeof(struct mem_controller_queue_t *));
@@ -174,15 +210,32 @@ void mem_controller_init_main_memory(struct mem_controller_t *mem_controller, in
 		mem_controller->pref_queue[i]=mem_controller_queue_create();
 	}
 
-	//////////////////////////////////////////////////
 	mem_controller->burst_size = xcalloc(row_size/block_size,sizeof(int*));
 	mem_controller->successive_hit = xcalloc(row_size/block_size,sizeof(int*));
 	for(int i = 0; i < row_size / block_size; i++)
 		mem_controller->successive_hit[i] = xcalloc(row_size/block_size,sizeof(int));
 
 	mem_controller->regs_channel = regs_channel_create(channels, ranks, banks, bandwith, regs_rank);
-	////////////////////////////////////////////////
-
+	
+	/*ROw buffer table*/
+	mem_controller->enable_row_buffer_table = enable_rbtable;
+	if(enable_rbtable)
+	{
+		mem_controller->row_buffer_table = xcalloc(1, sizeof(struct row_buffer_table_t ));
+		mem_controller->row_buffer_table->assoc = assoc_table;
+		mem_controller->row_buffer_table->num_entries = assoc_table*banks*ranks;
+		mem_controller->row_buffer_table->sets = xcalloc(ranks*banks, sizeof(struct row_buffer_table_set_t ));
+		for(int i=0; i<ranks*banks;i++)
+		{
+			mem_controller->row_buffer_table->sets[i].bank=i;
+			mem_controller->row_buffer_table->sets[i].entries = xcalloc(assoc_table, sizeof(struct row_buffer_table_entry_t));
+			for(int j=0; j<assoc_table;j++)	
+			{
+				mem_controller->row_buffer_table->sets[i].entries[j].row=-1;
+				mem_controller->row_buffer_table->sets[i].entries[j].reserved=-1;
+			}
+		}
+	}
 
 
 	/*mem_controller->row_in_buffer_banks = xcalloc(channels, sizeof(int **));
@@ -262,6 +315,17 @@ void mem_controller_free(struct mem_controller_t *mem_controller){
 		free(mem_controller->report_stack);
 	}
 	file_close(mem_controller->report_file);
+
+
+	/*Free table*/
+	if(mem_controller->enable_row_buffer_table)
+	{
+		for(int i=0; i<mem_controller->num_regs_rank*mem_controller->num_regs_bank;i++)
+			free(mem_controller->row_buffer_table->sets[i].entries);
+				
+		free(mem_controller->row_buffer_table->sets);
+		free(mem_controller->row_buffer_table);
+	}
 
 	free(mem_controller);
 }
@@ -2596,5 +2660,86 @@ void mem_controller_report_handler(int event, void *data)
 
 	if(mem_controller->report_interval_kind == interval_kind_cycles)
 		esim_schedule_event(event, stack, mem_controller->report_interval);
+}
+
+
+struct row_buffer_table_set_t* mem_controller_row_buffer_table_get_set(struct mod_stack_t *stack)
+{
+	struct mem_controller_t *mem_controller = stack->mod->mem_controller;
+	
+	unsigned int num_ranks = mem_controller->num_regs_rank ;
+	unsigned int num_banks = mem_controller->num_regs_bank ;
+	unsigned int log2_row_size= log_base2( mem_controller->row_buffer_size);
+	
+	int set_rbtable = ((stack->addr >> log2_row_size) % (num_banks*num_ranks));
+	
+	assert(mem_controller->row_buffer_table->sets[set_rbtable].bank == set_rbtable);
+	return 	&mem_controller->row_buffer_table->sets[set_rbtable];	
+
+} 
+
+struct row_buffer_table_entry_t *mem_controller_row_buffer_table_get_entry(struct mod_stack_t *stack)
+{
+	struct mem_controller_t *mem_controller = stack->mod->mem_controller;
+	
+	struct row_buffer_table_set_t *set= mem_controller_row_buffer_table_get_set(stack);
+	
+
+	for(int i =0 ;i <mem_controller->row_buffer_table->assoc; i++)
+	{		
+		if(set->entries[i].row==stack->row)
+			return &set->entries[i];
+		
+	}
+	
+	return NULL;
+
+} 
+
+struct row_buffer_table_entry_t *mem_controller_row_buffer_table_get_reserved_entry(struct mod_stack_t *stack)
+{
+	struct mem_controller_t *mem_controller = stack->mod->mem_controller;
+	
+	struct row_buffer_table_set_t *set= mem_controller_row_buffer_table_get_set(stack);
+	
+
+	for(int i =0 ;i <mem_controller->row_buffer_table->assoc; i++)
+	{		
+		if(set->entries[i].reserved==stack->id)
+			return &set->entries[i];
+		
+	}
+	
+	return NULL;
+
+} 
+
+
+void mem_controller_row_buffer_table_reserve_entry(struct mod_stack_t *stack)
+{
+	struct mem_controller_t *mem_controller = stack->mod->mem_controller;
+	int lru_entry = -1;
+	int found = 0;
+
+	assert(mem_controller->enable_row_buffer_table);
+	struct row_buffer_table_set_t *set= mem_controller_row_buffer_table_get_set(stack);
+	for(int i =0 ;i <mem_controller->row_buffer_table->assoc; i++)
+	{		
+		if(set->entries[i].reserved == -1 && !set->entries[i].accessed)
+		{
+			if(!found)
+			{
+				lru_entry=i;
+				found=1;
+			}
+			else if( set->entries[lru_entry].lru<set->entries[i].lru )
+			{
+				lru_entry=i;
+				
+			}
+		}
+	}
+	assert(lru_entry!=-1);
+	set->entries[lru_entry].reserved=stack->id;
 }
 

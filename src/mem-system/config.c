@@ -805,6 +805,8 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config,
 	long long report_interval;
 
 	int enable_report;
+	int enable_table;
+	int assoc_table;
 
 	/* Read parameters */
 	str_token(mod_name, sizeof mod_name, section, 1, " ");
@@ -838,6 +840,10 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config,
         adapt_limit = config_read_double(config, section, "AdaptativeLimit", 0.5);
         adapt_interval = config_read_llint(config, section, "AdaptativeInterval", 500000);
         adapt_interval_kind_str = config_read_string(config, section, "AdaptativeIntervalKind", "Cycles");
+	enable_table = config_read_int(config, section, "EnableRowBufferTable", 0);
+	assoc_table = config_read_int(config, section, "AssociativityRowBufferTable", 2);
+       
+       
         /////////////////////////////////////////////////////////////////////
 
 	/* Enables for this mem controller interval reporting statistics */
@@ -1015,6 +1021,12 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config,
 	if (piggybacking < 0 || piggybacking > 1)
 		fatal("%s: %s: invalid value for variable 'Piggybacking'.\n%s",
 			mem_config_file_name, mod_name, mem_err_config_note);
+	if (enable_table < 0 || enable_table > 1)
+		fatal("%s: %s: invalid value for variable 'EnableRowBufferTable'.\n%s",
+			mem_config_file_name, mod_name, mem_err_config_note);
+	if (assoc_table < 1)
+		fatal("%s: %s: invalid value for variable 'AssociativityRowBufferTable'.\n%s",
+			mem_config_file_name, mod_name, mem_err_config_note);
 
 	/* Create module */
 	mod = mod_create(mod_name, mod_kind_main_memory, num_ports,
@@ -1045,7 +1057,8 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config,
 	mod->mem_controller = mem_controller_create();
 	mem_controller_init_main_memory(mod->mem_controller, channels, ranks, banks,
 	t_send_request, row_size, block_size, cycles_proc_bus, policy_type, prio_type,
-	size_queue, threshold, queue_per_bank, coalesce_type, mod->regs_rank, bandwith);
+	size_queue, threshold, queue_per_bank, coalesce_type, mod->regs_rank, bandwith,
+	enable_table, assoc_table);
 	mod->mem_controller->photonic_net = photonic;
 	mod->mem_controller->piggybacking=piggybacking;
 	if(strcmp(adapt, "Disabled") == 0)

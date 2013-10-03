@@ -388,6 +388,8 @@ void mem_system_init(void)
 	EV_MOD_NMOESI_EXAMINE_QUEUE_REQUEST=esim_register_event(mod_handler_nmoesi_request_main_memory, mem_domain_index);
 	EV_MOD_NMOESI_ACCES_BANK = esim_register_event(mod_handler_nmoesi_request_main_memory, mem_domain_index);
 	EV_MOD_NMOESI_TRANSFER_FROM_BANK=esim_register_event(mod_handler_nmoesi_request_main_memory, mem_domain_index);
+	EV_MOD_NMOESI_ACCES_TABLE = esim_register_event(mod_handler_nmoesi_request_main_memory, mem_domain_index);
+	EV_MOD_NMOESI_TRANSFER_FROM_TABLE=esim_register_event(mod_handler_nmoesi_request_main_memory, mem_domain_index);	
 	EV_MOD_NMOESI_REMOVE_MEMORY_CONTROLLER=esim_register_event(mod_handler_nmoesi_request_main_memory, mem_domain_index);
 	EV_MOD_NMOESI_INSERT_MEMORY_CONTROLLER=esim_register_event(mod_handler_nmoesi_request_main_memory, mem_domain_index);
 

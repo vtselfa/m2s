@@ -127,8 +127,11 @@ struct mem_controller_queue_t
 
 struct row_buffer_table_entry_t
 {
-	int lru;
+	long long int lru; // cycle accessed
 	int row;
+	long long int  reserved; // stack id which has reserved this space
+	int accessed;
+	
 };
 
 struct row_buffer_table_set_t
@@ -195,6 +198,7 @@ struct mem_controller_t
 
 	/*Channels*/
 	struct reg_channel_t * regs_channel;
+	int bandwith;
 
 
 
@@ -269,7 +273,7 @@ void mem_controller_prefetch_queue_add(struct mod_stack_t * stack);
 int mem_controller_remove(struct mod_stack_t * stack, struct mem_controller_queue_t * queue);
 void mem_controller_init_main_memory(struct mem_controller_t *mem_controller, int channels, int ranks,
 	int banks, int t_send_request, int row_size, int block_size,int cycles_proc_bus,  enum policy_mc_queue_t policy,
-	enum priority_t priority, long long size_queue, long long cycles_wait_MCqueue, int queue_per_bank, enum policy_coalesce_t coalesce, struct reg_rank_t * regs_rank, int bandwith);
+	enum priority_t priority, long long size_queue, long long cycles_wait_MCqueue, int queue_per_bank, enum policy_coalesce_t coalesce, struct reg_rank_t * regs_rank, int bandwith, int enable_table, int assoc_table);
 void mem_controller_update_requests_threshold(int cycles,struct mem_controller_t * mem_controller);
 int mem_controller_queue_has_consumed_threshold(struct linked_list_t * queue, long long size);
 struct mod_stack_t* mem_controller_select_request(int queues_examined, enum priority_t select, struct mem_controller_t * mem_controller);
@@ -321,6 +325,12 @@ void mem_controller_report_handler(int event, void *data);
 /*ROW BUFFER*/
 int row_buffer_find_row(struct mem_controller_t * mem_controller, struct mod_t *mod, unsigned int addr, unsigned int *channel_ptr,unsigned int *rank_ptr,
 	unsigned int *bank_ptr, unsigned int *row_ptr, int * tag_ptr, int *state_ptr);
+
+/*Table*/
+void mem_controller_row_buffer_table_reserve_entry(struct mod_stack_t *stack);
+struct row_buffer_table_entry_t *mem_controller_row_buffer_table_get_entry(struct mod_stack_t *stack);
+struct row_buffer_table_set_t* mem_controller_row_buffer_table_get_set(struct mod_stack_t *stack);
+struct row_buffer_table_entry_t *mem_controller_row_buffer_table_get_reserved_entry(struct mod_stack_t *stack);
 
 /*Adaptative*/
 void mem_controller_adapt_schedule(struct mem_controller_t * mem_controller);

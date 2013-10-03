@@ -224,6 +224,7 @@ PriorityMCQueues = Threshold-FCFS-Normal-Prefetch
 QueuePerBank = 1
 SizeQueue = 3
 MemoryControllerEnabled = 1
+EnableRowBufferTable = 0
 
 
 
