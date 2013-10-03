@@ -5247,10 +5247,10 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 		                                	channel[new_stack->channel].state = channel_state_busy;
 		                       		channel[new_stack->channel].regs_rank[new_stack->rank].regs_bank[new_stack->bank].is_been_accesed = 1;
 		                       		channel[new_stack->channel].regs_rank[new_stack->rank].is_been_accesed = 1;
-						mem_controller_row_buffer_table_reserve_entry(stack);
+						mem_controller_row_buffer_table_reserve_entry(new_stack);
 					}else if(new_stack->state_main_memory == row_buffer_hit)
 					{
-						entry_table=mem_controller_row_buffer_table_get_entry(stack);
+						entry_table=mem_controller_row_buffer_table_get_entry(new_stack);
 						assert(entry_table!=NULL);
 						entry_table->accessed=1;
 			
@@ -5528,9 +5528,10 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
                                 }
                                 continue;
                         }
-
-                        can_acces_bank = row_buffer_find_row(mem_controller,new_stack->mod, new_stack->addr, &new_stack->channel,
-                                &new_stack->rank, &new_stack->bank, &new_stack->row, & new_stack->tag, &new_stack->state_main_memory);
+			
+			 can_acces_bank = row_buffer_find_row(mem_controller,new_stack->mod, new_stack->addr, 
+					&new_stack->channel,&new_stack->rank, &new_stack->bank, &new_stack->row, 
+					&new_stack->tag, &new_stack->state_main_memory);
                         mem_trace("mem.access name=\"A-%lld\" state=\"%s:examine queue MC\"\n", new_stack->id,new_stack->mod->name);
                         mem_debug("  %lld %lld 0x%x %s examine queue MC (row=%d bank=%d rank=%d channel=%d)\n",
                                 esim_time, new_stack->id, new_stack->addr&~new_stack->mod->cache->block_mask,
@@ -5557,12 +5558,15 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 		                                	channel[new_stack->channel].state = channel_state_busy;
 		                       		channel[new_stack->channel].regs_rank[new_stack->rank].regs_bank[new_stack->bank].is_been_accesed = 1;
 		                       		channel[new_stack->channel].regs_rank[new_stack->rank].is_been_accesed = 1;
-						mem_controller_row_buffer_table_reserve_entry(stack);
+						mem_controller_row_buffer_table_reserve_entry(new_stack);
+						
 					}else if(new_stack->state_main_memory == row_buffer_hit)
 					{
-						entry_table=mem_controller_row_buffer_table_get_entry(stack);
+						entry_table=mem_controller_row_buffer_table_get_entry(new_stack);
 						assert(entry_table!=NULL);
 						entry_table->accessed=1;
+						//printf("%lld posa accessed=1\n", new_stack->id);
+				
 			
 					}else
 						fatal("State acces to main memory ahve to be rbh or rbm if we use row buffer table\n");
@@ -5761,8 +5765,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 
 
                 /* Free channel */
-		if(!mem_controller->enable_row_buffer_table) // if it's inside mem controller we dont acces to a channel
-               		mem_controller->regs_channel[stack->channel].state = channel_state_free;
+		mem_controller->regs_channel[stack->channel].state = channel_state_free;
 
 	
 
@@ -5772,7 +5775,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 
 			assert(!mem_controller->enable_row_buffer_table);
                         /* HIT */
-                        mem_debug("  %lld %lld 0x%x %s hit row buffer acces bank\n", esim_time, stack->id,
+                        mem_debug("  %lld %lld 0x%x %s hit acces bank\n", esim_time, stack->id,
                                 stack->addr&~mod->cache->block_mask, mod->name);
                         esim_schedule_event(EV_MOD_NMOESI_TRANSFER_FROM_BANK, stack, bank[stack->bank].t_row_buffer_hit);
 			
@@ -5830,7 +5833,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
                 }
                 else    /* MISS */
                 {
-                        mem_debug("  %lld %lld 0x%x %s miss row buffer acces bank\n", esim_time, stack->id,
+                        mem_debug("  %lld %lld 0x%x %s miss acces bank\n", esim_time, stack->id,
                                 stack->addr&~mod->cache->block_mask, mod->name);
                        
 
@@ -5922,6 +5925,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 
                 struct mod_stack_t * stack_aux;
 		int t_acces;
+		int accesed = 0;
 		struct x86_ctx_t *ctx = x86_cpu->core[stack->client_info->core].thread[stack->client_info->thread].ctx;
                 int n_coalesce= stack->coalesced_stacks!=NULL ? linked_list_count(stack->coalesced_stacks): 0;
                 bank = mem_controller->regs_channel[stack->channel].regs_rank[stack->rank].regs_bank;
@@ -5930,6 +5934,26 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
                 mem_trace("mem.access name=\"A-%lld\" state=\"%s:acces table\"\n", stack->id, mod->name);
 
 		t_acces= 1*(1+ n_coalesce); // 1 cycle 
+
+		
+		if(stack->state_main_memory == row_buffer_miss)
+		{
+			/*Free channel*/
+		 	channel[stack->channel].state = channel_state_free;
+
+			/* Free the bank */
+	                channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].is_been_accesed = 0;
+
+	                /* Free the rank */
+	                for (int i = 0; i < channel[stack->channel].regs_rank[stack->rank].num_regs_bank; i++)
+	                        if (channel[stack->channel].regs_rank[stack->rank].regs_bank[i].is_been_accesed)
+	                        {
+	                                accesed = 1;
+	                                break;
+	                        }
+	                if (!accesed) channel[stack->channel].regs_rank[stack->rank].is_been_accesed = 0;
+		}
+
 			
 		/* Stadistics */
                 channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].row_buffer_hits+=1+ n_coalesce;
@@ -5985,18 +6009,19 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
                         /* HIT */
                         mem_debug("  %lld %lld 0x%x %s hit row buffer acces table\n", esim_time, stack->id,
                                 stack->addr&~mod->cache->block_mask, mod->name);
-                     
-
                 }
                 else    /* MISS */
                 {
                         mem_debug("  %lld %lld 0x%x %s miss row buffer acces table\n", esim_time, stack->id,
                                 stack->addr&~mod->cache->block_mask, mod->name);
-                      
+                      	assert(stack->state_main_memory == row_buffer_miss);
 
                 	/* Update the new row into row buffer */
 			entry_table=mem_controller_row_buffer_table_get_reserved_entry(stack);
+			assert(entry_table!=NULL);
+			assert(entry_table->reserved != -1);
 			entry_table->reserved = -1;
+			assert(entry_table->accessed ==0);
 			entry_table->accessed = 1;
 			entry_table->row = stack->row;
 
@@ -6020,24 +6045,6 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
                 mem_trace("mem.access name=\"A-%lld\" state=\"%s:transfer from bank\"\n", stack->id, mod->name);
 
 
-		/*Acces to table*/
-		if(mem_controller->enable_row_buffer_table)
-		{
-			 t_trans = mem_controller->row_buffer_size / (mem_controller->bandwith * 2) * cycles_proc_by_bus;
-			
-			/* Stadistics */
-                        mem_controller->blocks_transfered+=mem_controller->row_buffer_size/mod->cache->block_size ;
-                        mem_controller->t_transfer += t_trans*(1+n_coalesce);
-			if(ctx!=NULL) ctx->t_transfer += t_trans*(1+n_coalesce);
-                        channel[stack->channel].t_transfer += t_trans*(1+n_coalesce);
-                        if(stack->prefetch)      mem_controller->t_pref_transfer += t_trans;
-                        else    mem_controller->t_normal_transfer += t_trans;
-			
-                       	esim_schedule_event(EV_MOD_NMOESI_ACCES_TABLE, stack, t_trans);
-			return;
-		}
-
-
                 /* Calcul the cycles of proccesor for transfering one block*/
                 if(mem_controller->photonic_net)
                         t_trans=1;
@@ -6051,6 +6058,23 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
                         /* Busy the channel */
                         if(!mem_controller->photonic_net) //if we use a photonic net, it can tranfer in full directions
                                 channel[stack->channel].state = channel_state_busy;
+
+			/*Acces to table*/
+			if(mem_controller->enable_row_buffer_table)
+			{
+				 t_trans = mem_controller->row_buffer_size / (mem_controller->bandwith * 2) * cycles_proc_by_bus;
+			
+				/* Stadistics */
+		                mem_controller->blocks_transfered+=mem_controller->row_buffer_size/mod->cache->block_size ;
+		                mem_controller->t_transfer += t_trans*(1+n_coalesce);
+				if(ctx!=NULL) ctx->t_transfer += t_trans*(1+n_coalesce);
+		                channel[stack->channel].t_transfer += t_trans*(1+n_coalesce);
+		                if(stack->prefetch)      mem_controller->t_pref_transfer += t_trans;
+		                else    mem_controller->t_normal_transfer += t_trans;
+			
+		               	esim_schedule_event(EV_MOD_NMOESI_ACCES_TABLE, stack, t_trans);
+				return;
+			}
 
                         if(mem_controller->coalesce== policy_coalesce_disabled || stack->coalesced_stacks==NULL)
                                 num_blocks=1;
@@ -6217,7 +6241,9 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 			}else{
 				/*Free table*/
 				entry_table=mem_controller_row_buffer_table_get_entry(stack);
+				assert(entry_table->accessed ==1 && entry_table->reserved ==-1 );
 				entry_table->accessed = 0;
+				//printf("%lld accessed = 0 , reserved=%lld \n", stack->id, entry_table->reserved);
 				entry_table->lru = esim_cycle();
 			}
                 }

@@ -83,29 +83,33 @@ int row_buffer_find_row(struct mem_controller_t * mem_controller, struct mod_t *
 			assert(mem_controller->row_buffer_table->sets[set_rbtable].bank == set_rbtable);
 			if(mem_controller->row_buffer_table->sets[set_rbtable].entries[i].row==row)
 			{
-				if(mem_controller->row_buffer_table->sets[set_rbtable].entries[i].accessed)
+				if(mem_controller->row_buffer_table->sets[set_rbtable].entries[i].accessed ||
+				mem_controller->row_buffer_table->sets[set_rbtable].entries[i].reserved!=-1)
 				{
 					PTR_ASSIGN(state_ptr, bank_accesed); // line being accessed
+					//printf(" espera xk estan accedint a entra %d bank %d\n",i, set_rbtable);
 					return 0;
 				}else
 				{
 					PTR_ASSIGN(state_ptr, row_buffer_hit);
+					//printf(" hit a entra %d bank %d\n",i, set_rbtable);
 					return 1;
 				}
 			}
 		}
 
 		/*miss in row buffer table, we have to ensure a place to put the row*/
-		for(int i =0 ;i <mem_controller->row_buffer_table->assoc; i++)
+		/*for(int i =0 ;i <mem_controller->row_buffer_table->assoc; i++)
 		{		
-			if(mem_controller->row_buffer_table->sets[set_rbtable].entries[i].reserved==-1) //not reserved
+			if(mem_controller->row_buffer_table->sets[set_rbtable].entries[i].reserved==-1 && !mem_controller->row_buffer_table->sets[set_rbtable].entries[i].accessed) //not reserved
 			{
 				PTR_ASSIGN(state_ptr, row_buffer_miss); // is not inside table
 				return 1;	
 			}
 		}
-		PTR_ASSIGN(state_ptr, bank_accesed); // all entries being accesed
-		return 0;
+		PTR_ASSIGN(state_ptr, bank_accesed); // all entries  reserved
+		*/
+		
 	}
 
 	/*Is the channel free?*/
@@ -122,14 +126,22 @@ int row_buffer_find_row(struct mem_controller_t * mem_controller, struct mod_t *
 	}
 
 
-	/*Is the row inside the row buffer?*/
-	if(mem_controller->regs_channel[channel].regs_rank[rank].regs_bank[bank].row_buffer!=row){
-		PTR_ASSIGN(state_ptr, row_buffer_miss);
+	
+
+	if(!mem_controller->enable_row_buffer_table)
+	{
+		/*Is the row inside the row buffer?*/
+		if(mem_controller->regs_channel[channel].regs_rank[rank].regs_bank[bank].row_buffer!=row){
+			PTR_ASSIGN(state_ptr, row_buffer_miss);
+			return 1;
+		}
+		PTR_ASSIGN(state_ptr, row_buffer_hit);
+		return 1;
+	}else{
+		
+		PTR_ASSIGN(state_ptr, row_buffer_miss); // is not inside table
 		return 1;
 	}
-
-	PTR_ASSIGN(state_ptr, row_buffer_hit);
-	return 1;
 
 
 
@@ -233,6 +245,7 @@ void mem_controller_init_main_memory(struct mem_controller_t *mem_controller, in
 			{
 				mem_controller->row_buffer_table->sets[i].entries[j].row=-1;
 				mem_controller->row_buffer_table->sets[i].entries[j].reserved=-1;
+				mem_controller->row_buffer_table->sets[i].entries[j].lru=-1;
 			}
 		}
 	}
@@ -2706,7 +2719,10 @@ struct row_buffer_table_entry_t *mem_controller_row_buffer_table_get_reserved_en
 	for(int i =0 ;i <mem_controller->row_buffer_table->assoc; i++)
 	{		
 		if(set->entries[i].reserved==stack->id)
+		{
+			//printf("%lld agarra la reserva  %d  banc%d\n", stack->id, i , set->bank);				
 			return &set->entries[i];
+		}
 		
 	}
 	
@@ -2731,15 +2747,21 @@ void mem_controller_row_buffer_table_reserve_entry(struct mod_stack_t *stack)
 			{
 				lru_entry=i;
 				found=1;
+			}else if(set->entries[lru_entry].lru!=-1 && set->entries[i].lru==-1)
+			{
+				lru_entry=i;
 			}
-			else if( set->entries[lru_entry].lru<set->entries[i].lru )
+			else if( set->entries[lru_entry].lru>set->entries[i].lru )
 			{
 				lru_entry=i;
 				
 			}
+			
 		}
 	}
+	//printf("%lld reserva entra %d  banc%d\n", stack->id, lru_entry , set->bank);
 	assert(lru_entry!=-1);
 	set->entries[lru_entry].reserved=stack->id;
+				
 }
 
