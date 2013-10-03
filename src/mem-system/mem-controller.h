@@ -125,6 +125,26 @@ struct mem_controller_queue_t
 	long long total_insertions;
 };
 
+struct row_buffer_table_entry_t
+{
+	int lru;
+	int row;
+};
+
+struct row_buffer_table_set_t
+{
+	int bank;
+	struct  row_buffer_table_entry_t* entries;
+};
+
+struct row_buffer_table_t
+{
+
+	int num_entries;
+	unsigned int assoc; // associativity
+	struct row_buffer_table_set_t * sets; // sets of assoc entries , sets*assoc = num_entries
+};
+
 struct mem_controller_t
 {
 	/*Max cycles waiting in the queue*/
@@ -170,9 +190,12 @@ struct mem_controller_t
 
 	/*ROW buffer*/
 	int row_buffer_size;
+	int enable_row_buffer_table;
+	struct row_buffer_table_t * row_buffer_table; // a row buffer table inside mem controller
 
 	/*Channels*/
 	struct reg_channel_t * regs_channel;
+
 
 
 	/*Adaptative option*/
