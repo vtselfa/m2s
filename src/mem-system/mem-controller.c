@@ -1933,12 +1933,30 @@ int mem_controller_coalesce_acces_between_blocks(struct mod_stack_t * stack, str
 
 	struct mod_stack_t * stack_aux;
 	struct mem_controller_t * mem_controller=stack->mod->mem_controller;
+	int min_max, max_min;
 
 	unsigned int num_ranks = mem_controller->num_regs_rank ;
 	unsigned int num_banks = mem_controller->num_regs_bank ;
 	unsigned int log2_row_size= log_base2( mem_controller->row_buffer_size);
-	unsigned int num_channels = mem_controller->num_regs_channel ;
 	int n_coal=0;
+
+	if(linked_list_count(stack->coalesced_stacks)==0)
+		return 0;
+	linked_list_tail(stack->coalesced_stacks);
+	stack_aux = linked_list_get(stack->coalesced_stacks);
+	min_max = stack_aux->addr %  mem_controller->row_buffer_size;
+	max_min = stack->addr %  mem_controller->row_buffer_size;
+
+
+	/*printf("%d . ", stack->addr %  mem_controller->row_buffer_size);
+	linked_list_head(stack->coalesced_stacks);
+	while(!linked_list_is_end(stack->coalesced_stacks))
+	{
+		stack_aux=linked_list_get(stack->coalesced_stacks);
+		printf("%d . ", stack_aux->addr %  mem_controller->row_buffer_size);
+		linked_list_next(stack->coalesced_stacks);
+	}
+	printf("-----b=%d r=%d ----------- min=%d min_max=%d max_min=%d max=%d\n", stack->bank, stack->rank,block_min, min_max, max_min, block_max);*/
 
 	linked_list_head(queue);
 	while(!linked_list_is_end(queue)&&linked_list_current(queue)<mem_controller->size_queue)
@@ -1946,17 +1964,16 @@ int mem_controller_coalesce_acces_between_blocks(struct mod_stack_t * stack, str
 		stack_aux=linked_list_get(queue);
 
 		/*This stack has its block in the same main mamory row than origin stack*/
-		unsigned int row_buffer = stack_aux->addr &  mem_controller->row_buffer_size;
 		unsigned int row=(stack_aux->addr>>(log2_row_size+log_base2(num_banks)+log_base2(num_ranks)));
 		unsigned int rank = (stack_aux->addr >> (log2_row_size+ log_base2(num_banks))) % num_ranks;
 		unsigned int bank = (stack_aux->addr >> log2_row_size) % num_banks;
-		unsigned int channel=(row_buffer >>7 )%num_channels;
 		unsigned int block=stack_aux->addr %  mem_controller->row_buffer_size;
-
-		assert(rank==stack->rank && bank==stack->bank && channel==stack->channel);
+		//printf("   stack %lld b=%d r=%d b=%d\n", stack_aux->id, bank,rank, block);
+			
+		assert(rank==stack->rank && bank==stack->bank);
 
 		/*Is this request between the min and max block? */
-		if(row==stack->row && block>=block_min&& block<=block_max)
+		if((row==stack->row && block>=block_min&& block<=min_max) || (row==stack->row && block>=max_min&& block<=block_max ))
 		{
 
 			/*Coalesce*/
@@ -2015,10 +2032,14 @@ void mem_controller_sort_by_block(struct mod_stack_t * stack)
 	struct mod_stack_t * stack_aux, *stack_list;
 	struct linked_list_t * list=linked_list_create();
 	struct mem_controller_t * mem_controller=stack->mod->mem_controller;
+	struct linked_list_t *after= linked_list_create();
+	struct linked_list_t *before = linked_list_create();
+				
+        int add=1;
 
 	unsigned int block;
 
-
+	/*Crescent address order*/
 	linked_list_head(stack->coalesced_stacks);
 	while(!linked_list_is_end(stack->coalesced_stacks))
 	{
@@ -2048,22 +2069,72 @@ void mem_controller_sort_by_block(struct mod_stack_t * stack)
 		}
 	}
 
-	/*TODO quitar cuando se vea que va bien*/
-	/*linked_list_head(list);
-	while(!linked_list_is_end(list))
-	{
-		stack_aux=linked_list_get(list);
-		mem_debug("%d . ", stack_aux->addr %  mem_controller->row_buffer_size);
-		linked_list_next(list);
-	}
-	mem_debug("\n");
- 	*/
 	linked_list_free(stack->coalesced_stacks);
-	stack->coalesced_stacks=list;
+	
+        linked_list_head(list);
+        while(!linked_list_is_end(list))
+        {
+                stack_aux=linked_list_get(list);
+                if(stack->addr % mem_controller->row_buffer_size < stack_aux->addr % mem_controller->row_buffer_size)
+                {
+                        linked_list_insert(list,stack);
+                        add=0;
+                        break;
+                }
+                linked_list_next(list);
+        }
+        if(add)linked_list_insert(list,stack);
+
+        mem_controller_count_successive_hits(list);
+
+
+	
+	/*SPlit queue into address before and after stack*/
+	LINKED_LIST_FOR_EACH(list)
+        {
+                stack_aux=linked_list_get(list);
+                if(stack->addr % mem_controller->row_buffer_size < stack_aux->addr % mem_controller->row_buffer_size)
+                        linked_list_add(after,stack_aux);
+                else if(stack->id!=stack_aux->id) // is not the main stack
+			linked_list_add(before,stack_aux);
+			
+               
+        }
+	
+
+
+	/*Create a circular order*/
+	linked_list_tail(after);
+	LINKED_LIST_FOR_EACH(before)
+        {
+                stack_aux=linked_list_get(before);
+                linked_list_add(after,stack_aux);
+        }
+	
+	
+        linked_list_free(list);
+	linked_list_free(before);
+
+        //if(new_stack->coalesced_stacks!=NULL) linked_list_free(new_stack->coalesced_stacks);
+        stack->coalesced_stacks=after;
 
 	//linked_list_free(list);
 	assert(stack->coalesced_stacks!=NULL);
 	//assert( linked_list_count(stack->coalesced_stacks)>0);
+
+	
+	/*TODO quitar cuando se vea que va bien*/
+	/*printf("%d . ", stack->addr %  mem_controller->row_buffer_size);
+	linked_list_head(after);
+	while(!linked_list_is_end(after))
+	{
+		stack_aux=linked_list_get(after);
+		printf("%d . ", stack_aux->addr %  mem_controller->row_buffer_size);
+		linked_list_next(after);
+	}
+	printf("\n");*/
+ 	
+	
 
 }
 

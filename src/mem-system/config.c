@@ -1028,6 +1028,9 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config,
 		fatal("%s: %s: invalid value for variable 'AssociativityRowBufferTable'.\n%s",
 			mem_config_file_name, mod_name, mem_err_config_note);
 
+	if(enable_table&& coalesce_type != policy_coalesce_disabled) // PPPPP ESTA RESTRICCIO MES AVANT LA LLEVARE
+		fatal("Coalesce can not be enabled with row buffer table enabled\n");
+
 	/* Create module */
 	mod = mod_create(mod_name, mod_kind_main_memory, num_ports,
 			block_size, latency);

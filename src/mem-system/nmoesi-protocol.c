@@ -3678,8 +3678,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
                                 ret->retry |= 1 << target_mod->level;
                                 mod_stack_set_reply(ret, reply_ack_error);
                                 stack->reply_size = 8;
-				ret->stream_retried = stack->stream_retried;
-				ret->stream_retried_cycle = stack->stream_retried_cycle;
+			
 				dir_entry_unlock(dir, stack->set, stack->way);
 
 				mem_debug("    %lld 0x%x %s mc queue full, retrying...\n", stack->id, stack->tag, target_mod->name);
@@ -4676,9 +4675,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 				dir_entry_unlock(target_mod->dir, stack->set, stack->way);
                                 ret->retry |= 1 << target_mod->level;
                                 mod_stack_set_reply(ret, reply_ack_error);
-				ret->stream_retried = stack->stream_retried;
-				ret->stream_retried_cycle = stack->stream_retried_cycle;
-                                stack->reply_size = 8;
+				  stack->reply_size = 8;
                                 mem_debug("    %lld 0x%x %s mc queue full, retrying...\n", stack->id, stack->tag, target_mod->name);
 				assert(stack->t_access_net >= 0);	
 				mem_controller->t_inside_net += esim_cycle() - stack->t_access_net;
@@ -6037,8 +6034,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
         {
                 int num_blocks;
                 struct mod_stack_t * stack_aux;
-                struct linked_list_t * coalesced_stacks;
-		struct x86_ctx_t *ctx = x86_cpu->core[stack->client_info->core].thread[stack->client_info->thread].ctx;
+               	struct x86_ctx_t *ctx = x86_cpu->core[stack->client_info->core].thread[stack->client_info->thread].ctx;
 		assert(stack->client_info->core>=0 && stack->client_info->thread>=0);
                 int n_coalesce= stack->coalesced_stacks!=NULL ? linked_list_count(stack->coalesced_stacks): 0;
 
@@ -6112,38 +6108,10 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
                         /*Transfer sorted blocks*/
                         if(stack->coalesced_stacks!=NULL && linked_list_count(stack->coalesced_stacks)>0)
                         {
-                                mem_controller_sort_by_block(stack);
-                                coalesced_stacks=stack->coalesced_stacks;
-                                stack->coalesced_stacks=NULL;
-                                int add=1;
-
-                                linked_list_head(coalesced_stacks);
-                                while(!linked_list_is_end(coalesced_stacks))
-                                {
-                                        stack_aux=linked_list_get(coalesced_stacks);
-                                        if(stack->addr % mem_controller->row_buffer_size < stack_aux->addr % mem_controller->row_buffer_size)
-                                        {
-                                                linked_list_insert(coalesced_stacks,stack);
-                                                add=0;
-                                                break;
-                                        }
-                                        linked_list_next(coalesced_stacks);
-                                }
-                                if(add)linked_list_insert(coalesced_stacks,stack);
-
-                                mem_controller_count_successive_hits(coalesced_stacks);
-				linked_list_head(coalesced_stacks);
-                                new_stack=linked_list_get(coalesced_stacks);
-                                linked_list_remove(coalesced_stacks);
-                                //if(new_stack->coalesced_stacks!=NULL) linked_list_free(new_stack->coalesced_stacks);
-                                new_stack->coalesced_stacks=coalesced_stacks;
-                                new_stack->bank=stack->bank;
-                                new_stack->rank=stack->rank;
-                                new_stack->channel=stack->channel;
-                                new_stack->row=stack->row;
-                                esim_schedule_event(EV_MOD_NMOESI_REMOVE_MEMORY_CONTROLLER, new_stack, t_trans);
+                                mem_controller_sort_by_block(stack);  
+                                esim_schedule_event(EV_MOD_NMOESI_REMOVE_MEMORY_CONTROLLER, stack, t_trans);
                                 //linked_list_free(coalesced_stacks);
-                                assert(new_stack->coalesced_stacks!=NULL && linked_list_count(new_stack->coalesced_stacks)>0);
+                                assert(stack->coalesced_stacks!=NULL && linked_list_count(stack->coalesced_stacks)>0);
                                 return;
                         }else{
                                 mem_controller->burst_size[0]++;
@@ -6201,6 +6169,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
                 struct mem_controller_queue_t* normq_aux, *prefq_aux;
                 bank = channel[stack->channel].regs_rank[stack->rank].regs_bank;
                 int accesed = 0;
+		int num_blocks;
                 unsigned int log2_row_size= log_base2( mem_controller->row_buffer_size);
                 int t_trans;
                 unsigned int min_block;
@@ -6318,8 +6287,12 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
                         else
                         {
                                 unsigned int next_block=new_stack->addr %  mem_controller->row_buffer_size;
-                                int num_blocks=(next_block-current_block)/stack->mod->cache->block_size;
-                                assert(num_blocks>0);
+				if(next_block<current_block) // es el giro de la cola circular
+					num_blocks=1;
+				else
+                                	num_blocks=(next_block-current_block)/stack->mod->cache->block_size;
+				
+				assert(num_blocks>0);
                                 esim_schedule_event(EV_MOD_NMOESI_REMOVE_MEMORY_CONTROLLER, new_stack, t_trans*num_blocks);
                         }
 
