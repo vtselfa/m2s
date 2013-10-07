@@ -26,9 +26,10 @@ struct mem_controller_report_stack_t
 	long long t_wait;
 	long long t_transfer;
 	long long accesses;
+	long long served;
 	long long normal_accesses;
 	long long pref_accesses;
-	
+
 };
 struct tuple_piggybacking_t
 {
@@ -131,7 +132,7 @@ struct row_buffer_table_entry_t
 	int row;
 	long long int  reserved; // stack id which has reserved this space
 	int accessed;
-	
+
 };
 
 struct row_buffer_table_set_t
@@ -338,7 +339,9 @@ void mem_controller_adapt_handler(int event, void *data);
 void mem_controller_mark_stream(struct mod_stack_t* stack, struct linked_list_t *list);
 int mem_controller_is_useful_stream(struct mod_stack_t* stack,struct mem_controller_queue_t * queue);
 
-
-
+/* Trace of main memory accesses */
+void main_mem_trace_init(char *file_name);
+void main_mem_trace_done();
+void main_mem_trace(const char *fmt, ...) __attribute__ ((format (printf, 1, 2)));
 
 #endif

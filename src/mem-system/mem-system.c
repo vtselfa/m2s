@@ -368,11 +368,12 @@ void mem_system_init(void)
 	/* Event for interval reports */
 	EV_MOD_REPORT = esim_register_event_with_name(mod_report_handler, mem_domain_index, "mod_report");
 	EV_MEM_CONTROLLER_REPORT = esim_register_event_with_name(mem_controller_report_handler, mem_domain_index, "mem_controller_report");
-	
+
+	/* Interval report for cache modules */
 	LIST_FOR_EACH(mem_system->mod_list, i)
 	{
 		struct mod_t *mod = list_get(mem_system->mod_list, i);
-		if (mod->report_enabled)
+		if (mod->report_enabled && mod->kind == mod_kind_cache)
 			mod_report_schedule(mod);
 	}
 
@@ -389,7 +390,7 @@ void mem_system_init(void)
 	EV_MOD_NMOESI_ACCES_BANK = esim_register_event(mod_handler_nmoesi_request_main_memory, mem_domain_index);
 	EV_MOD_NMOESI_TRANSFER_FROM_BANK=esim_register_event(mod_handler_nmoesi_request_main_memory, mem_domain_index);
 	EV_MOD_NMOESI_ACCES_TABLE = esim_register_event(mod_handler_nmoesi_request_main_memory, mem_domain_index);
-	EV_MOD_NMOESI_TRANSFER_FROM_TABLE=esim_register_event(mod_handler_nmoesi_request_main_memory, mem_domain_index);	
+	EV_MOD_NMOESI_TRANSFER_FROM_TABLE=esim_register_event(mod_handler_nmoesi_request_main_memory, mem_domain_index);
 	EV_MOD_NMOESI_REMOVE_MEMORY_CONTROLLER=esim_register_event(mod_handler_nmoesi_request_main_memory, mem_domain_index);
 	EV_MOD_NMOESI_INSERT_MEMORY_CONTROLLER=esim_register_event(mod_handler_nmoesi_request_main_memory, mem_domain_index);
 

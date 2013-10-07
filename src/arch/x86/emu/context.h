@@ -34,9 +34,7 @@ extern int x86_ctx_debug_category;
 
 /* Event scheduled periodically to dump IPC statistics for a context */
 extern int EV_X86_CTX_IPC_REPORT;
-extern int EV_X86_CTX_MISC_REPORT;
 extern int EV_X86_CTX_MC_REPORT;
-extern int EV_X86_CTX_CPU_REPORT;
 
 typedef int (*x86_ctx_can_wakeup_callback_func_t)(struct x86_ctx_t *ctx, void *data);
 typedef void (*x86_ctx_wakeup_callback_func_t)(struct x86_ctx_t *ctx, void *data);

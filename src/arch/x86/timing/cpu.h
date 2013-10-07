@@ -250,6 +250,18 @@ struct x86_thread_t
 };
 
 
+/* Interval report */
+extern int EV_X86_CPU_CORE_REPORT;
+
+struct x86_cpu_core_report_stack_t
+{
+	int core;
+	long long last_cycle;
+	long long dispatch_stall_cycles_rob_mem;
+	struct line_writer_t *line_writer;
+};
+
+
 /* Cores */
 struct x86_core_t
 {
@@ -283,6 +295,12 @@ struct x86_core_t
 	int dispatch_current;
 	int issue_current;
 	int commit_current;
+
+	/* Interval reports */
+	int report_enabled;
+	FILE *report_file;
+	long long report_interval;
+	struct x86_cpu_core_report_stack_t *report_stack;
 
 	/* Stats */
 	long long dispatch_stall[x86_dispatch_stall_max];
@@ -376,11 +394,15 @@ struct x86_cpu_t
 
 
 
+
 /*
  * Public Functions
  */
 
 void x86_cpu_read_config(void);
+
+void x86_cpu_core_report_handler(int event, void *data);
+void x86_cpu_core_report_schedule(int core);
 
 void x86_cpu_init(void);
 void x86_cpu_done(void);

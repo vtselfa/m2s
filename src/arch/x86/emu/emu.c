@@ -99,9 +99,6 @@ void x86_emu_init(void)
 	/* Event for context mc reports */
 	EV_X86_CTX_MC_REPORT = esim_register_event_with_name(x86_ctx_mc_report_handler, arch_x86->domain_index, "x86_ctx_mc_report");
 
-	/* Event for context cpu reports */
-	EV_X86_CTX_CPU_REPORT = esim_register_event_with_name(x86_ctx_cpu_report_handler, arch_x86->domain_index, "x86_ctx_cpu_report");
-
 	/* Initialize */
 	x86_emu->current_pid = 100;  /* Initial assigned pid */
 

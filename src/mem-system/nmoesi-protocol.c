@@ -2787,6 +2787,9 @@ void mod_handler_nmoesi_evict(int event, void *data)
 		}
 		else if (stack->reply == reply_ack_data)
 		{
+			if(target_mod->kind == mod_kind_main_memory)
+				main_mem_trace("0x%x WRITE %lld\n", stack->tag, esim_cycle());
+
 			if (stack->state == cache_block_exclusive)
 			{
 				cache_set_block(target_mod->cache, stack->set, stack->way,
@@ -3608,6 +3611,8 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			stack->tag, target_mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:read_request_updown_finish\"\n",
 			stack->id, target_mod->name);
+		if(target_mod->kind == mod_kind_main_memory)
+			main_mem_trace("0x%x READ %lld\n", stack->tag, esim_cycle());
 
 		
 
@@ -4598,6 +4603,8 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			stack->tag, target_mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:write_request_updown_finish\"\n",
 			stack->id, target_mod->name);
+		if(target_mod->kind == mod_kind_main_memory)
+			main_mem_trace("0x%x READ %lld\n", stack->tag, esim_cycle());
 
 		
 		/* Ensure that a reply was received */

@@ -23,6 +23,7 @@
 #include <arch/x86/emu/emu.h>
 #include <lib/util/config.h>
 #include <lib/util/debug.h>
+#include <lib/util/file.h>
 #include <lib/util/linked-list.h>
 #include <lib/util/string.h>
 #include <mem-system/mem-system.h>
@@ -204,7 +205,7 @@ void x86_mem_config_parse_entry(struct config_t *config, char *section)
 			"\tThe given module name must match a module declared in a section\n"
 			"\t[Module <name>] in the memory configuration file.\n",
 			file_name, section, inst_module_name);
-	
+
 	/* Add modules to entry list */
 	linked_list_add(arch_x86->mem_entry_mod_list, X86_THREAD.data_mod);
 	if (X86_THREAD.data_mod != X86_THREAD.inst_mod)

@@ -28,8 +28,10 @@
 #include <lib/util/config.h>
 #include <lib/util/debug.h>
 #include <lib/util/file.h>
+#include <lib/util/line-writer.h>
 #include <lib/util/linked-list.h>
 #include <lib/util/misc.h>
+#include <lib/util/string.h>
 #include <lib/util/timer.h>
 #include <mem-system/memory.h>
 #include <mem-system/prefetch-history.h>
@@ -51,6 +53,9 @@
 /*
  * Global variables
  */
+
+
+int EV_X86_CPU_CORE_REPORT;
 
 
 /* Help message */
@@ -242,6 +247,28 @@ char *x86_config_help =
 	"      For the two-level adaptive predictor, level 2 size.\n"
 	"  TwoLevel.HistorySize = <size> (Default = 8)\n"
 	"      For the two-level adaptive predictor, level 2 history size.\n"
+	"\n";
+
+
+static char *help_x86_cpu_core_report =
+	"The cpu report file shows some relevant statistics related to\n"
+	"prefetch at specific intervals.\n"
+	"The following fields are shown in each record:\n"
+	"\n"
+	"  <cycle>\n"
+	"      Current simulation cycle. The increment between this value and the value\n"
+	"      shown in the next record is the interval specified in the context\n"
+	"      configuration file.\n"
+	"\n"
+	"  <inst>\n"
+	"      Current simulation instruction. The increment between thi value and the\n"
+	"      value shown in the next record is in the column inst-int.\n"
+	"\n"
+	"  <inst-int>\n"
+	"      Number of non-speculative instructions executed in the current interval.\n"
+	"\n"
+	"  <%_stalled_due_mem_inst>\n"
+	"      Percent of stalled cycles due to a memory instruction, which stops the ROB\n"
 	"\n";
 
 
@@ -661,6 +688,15 @@ static void x86_cpu_core_done(int core)
 {
 	free(X86_CORE.thread);
 	prefetch_history_free(X86_CORE.prefetch_history);
+
+	/* Interval report */
+	if(X86_CORE.report_enabled)
+	{
+		assert(X86_CORE.report_stack);
+		line_writer_free(X86_CORE.report_stack->line_writer);
+		free(X86_CORE.report_stack);
+		file_close(X86_CORE.report_file);
+	}
 }
 
 
@@ -710,6 +746,35 @@ void x86_cpu_read_config(void)
 
 	x86_emu_process_prefetch_hints = config_read_bool(config, section, "ProcessPrefetchHints", 1);
 	prefetch_history_size = config_read_int(config, section, "PrefetchHistorySize", 10);
+
+	/* Create cpu and cores for storing the configuration */
+	x86_cpu = xcalloc(1, sizeof(struct x86_cpu_t));
+	x86_cpu->core = xcalloc(x86_cpu_num_cores, sizeof(struct x86_core_t));
+
+	/* Section '[ Core N ]' */
+	for (int core = 0; core < x86_cpu_num_cores; core++)
+	{
+		long long report_interval; /* In cycles */
+		char *report_file_name;
+		char tmp[MAX_STRING_SIZE];
+		char default_report_file_name[MAX_STRING_SIZE];
+
+		snprintf(tmp, MAX_STRING_SIZE, "Core %d", core);
+		section = tmp;
+
+		/* Interval reporting statistics */
+		snprintf(default_report_file_name, MAX_STRING_SIZE, "core%d.interval.report", core);
+		X86_CORE.report_enabled = config_read_bool(config, section, "EnableReport", 0);
+		report_interval = config_read_llint(config, section, "ReportInterval", 50000);
+		report_file_name = config_read_string(config, section, "ReportFile", default_report_file_name);
+		if(X86_CORE.report_enabled)
+		{
+			X86_CORE.report_file = file_open_for_write(report_file_name);
+			if (!X86_CORE.report_file)
+				fatal("%s: cannot open core report file", report_file_name);
+			X86_CORE.report_interval = report_interval;
+		}
+	}
 
 
 	/* Section '[ Pipeline ]' */
@@ -790,13 +855,17 @@ void x86_cpu_init(void)
 	x86_trace_category = trace_new_category();
 
 	/* Initialize */
-	x86_cpu = xcalloc(1, sizeof(struct x86_cpu_t));
 	x86_cpu->uop_trace_list = linked_list_create();
 
+	/* Register event for cpu core reports */
+	EV_X86_CPU_CORE_REPORT = esim_register_event_with_name(x86_cpu_core_report_handler, arch_x86->domain_index, "x86_cpu_core_report");
+
 	/* Initialize cores */
-	x86_cpu->core = xcalloc(x86_cpu_num_cores, sizeof(struct x86_core_t));
 	X86_CORE_FOR_EACH
+	{
 		x86_cpu_core_init(core);
+		if (X86_CORE.report_enabled) x86_cpu_core_report_schedule(core);
+	}
 
 	/* Components of an x86 CPU */
 	x86_reg_file_init();
@@ -1118,4 +1187,81 @@ int x86_cpu_run(void)
 
 	/* Still simulating */
 	return TRUE;
+}
+
+
+
+/*
+ * CPU interval report
+ */
+
+void x86_cpu_core_report_schedule(int core)
+{
+	assert(X86_CORE.report_file);
+	assert(X86_CORE.report_interval > 0);
+
+	struct x86_cpu_core_report_stack_t *stack;
+	struct line_writer_t *lw;
+	FILE *f = X86_CORE.report_file;
+	int size;
+	int i;
+
+	/* Create new stack */
+	stack = xcalloc(1, sizeof(struct x86_cpu_core_report_stack_t));
+
+	/* Initialize */
+	stack->core = core;
+
+	/* Print header */
+	fprintf(f, "%s", help_x86_cpu_core_report);
+
+	lw = line_writer_create(" "); /* Line writer with space as separator between columns */
+	lw->heuristic_size_enabled = 1;
+
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "cycle");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "\%-rob-stall-due-mem-inst");
+
+	size = line_writer_write(lw, f);
+	line_writer_clear(lw);
+
+	for (i = 0; i < size - 1; i++)
+		fprintf(f, "-");
+	fprintf(f, "\n");
+
+	X86_CORE.report_stack = stack;
+	stack->line_writer = lw;
+
+	/* Schedule first event */
+	esim_schedule_event(EV_X86_CPU_CORE_REPORT, stack, X86_CORE.report_interval);
+}
+
+
+void x86_cpu_core_report_handler(int event, void *data)
+{
+	struct x86_cpu_core_report_stack_t *stack = data;
+	struct line_writer_t *lw = stack->line_writer;
+	double percentage_cycles_stalled;
+	int core = stack->core;
+
+	if (esim_finish)
+		return;
+
+	percentage_cycles_stalled = esim_cycle() - stack->last_cycle > 0 ? (double)
+		100 * (X86_CORE.dispatch_stall_cycles_rob_mem - stack->dispatch_stall_cycles_rob_mem) /
+		(esim_cycle() - stack->last_cycle) : 0.0;
+
+	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", esim_cycle());
+	line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", percentage_cycles_stalled);
+
+	line_writer_write(lw, X86_CORE.report_file);
+	line_writer_clear(lw);
+
+
+	/* Update intermediate results */
+	stack->last_cycle = esim_cycle();
+	stack->dispatch_stall_cycles_rob_mem = X86_CORE.dispatch_stall_cycles_rob_mem;
+
+	/* Schedule new event */
+	assert(X86_CORE.report_interval);
+	esim_schedule_event(event, stack, X86_CORE.report_interval);
 }

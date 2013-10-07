@@ -1,5 +1,7 @@
 #include <assert.h>
 #include <stdlib.h>
+#include <stdarg.h>
+#include <zlib.h>
 
 #include <arch/x86/timing/cpu.h>
 #include <arch/x86/emu/loader.h>
@@ -37,6 +39,9 @@ static char *help_mem_controller_report =
 
 int EV_MEM_CONTROLLER_ADAPT;
 int EV_MEM_CONTROLLER_REPORT;
+
+/* For main memory access traces */
+gzFile trace_file;
 
 
 
@@ -2679,6 +2684,52 @@ int mem_controller_is_piggybacked(struct mod_stack_t * stack)
 }
 
 
+void main_mem_trace(const char *fmt, ...)
+{
+	va_list va;
+	char buf[MAX_STRING_SIZE];
+	int len;
+
+	/* Do nothing is no file name was given */
+	if (!trace_file)
+		return;
+
+	va_start(va, fmt);
+	len = vsnprintf(buf, sizeof buf, fmt, va);
+
+	/* Message exceeded buffer */
+	if (len + 1 == sizeof buf)
+		fatal("%s: buffer too small", __FUNCTION__);
+
+	/* Dump message */
+	gzwrite(trace_file, buf, len);
+}
+
+
+void main_mem_trace_init(char *file_name)
+{
+	/* Do nothing is no file name was given */
+	if (!file_name || !*file_name)
+		return;
+
+	/* Open destination file */
+	trace_file = gzopen(file_name, "wt");
+	if (!trace_file)
+		fatal("%s: cannot open trace file", file_name);
+}
+
+
+void main_mem_trace_done(void)
+{
+	/* Nothing if trace is inactive */
+	if (!trace_file)
+		return;
+
+	/* Close trace file */
+	gzclose(trace_file);
+}
+
+
 void mem_controller_report_schedule(struct mem_controller_t *mem_controller)
 {
 	struct mem_controller_report_stack_t *stack;
@@ -2704,6 +2755,7 @@ void mem_controller_report_schedule(struct mem_controller_t *mem_controller)
 	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "cycle");
 	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "inst");
 	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "acceses");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "served");
 	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "t-total");
 	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "t-wait");
 	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "t-acces");
@@ -2739,7 +2791,11 @@ void mem_controller_report_handler(int event, void *data)
 	if (esim_finish)
 		return;
 
-	long long accesses= mem_controller->accesses-stack->accesses;
+	long long accesses = mem_controller->accesses - stack->accesses;
+	long long served = 0;
+	for(int i = 0; i < mem_controller->num_regs_channel; i++)
+		served += mem_controller->regs_channel[i].num_requests_transfered;
+	long long served_int = served - stack->served;
 	long long t_wait = mem_controller->t_wait - stack->t_wait;
 	long long t_acces = mem_controller->t_acces_main_memory - stack->t_acces;
 	long long t_transfer = mem_controller->t_transfer - stack->t_transfer;
@@ -2748,29 +2804,31 @@ void mem_controller_report_handler(int event, void *data)
 	long long pref_accesses = mem_controller->pref_accesses - stack->pref_accesses;
 
 
-	
+
 	/* Dump stats */
 	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", esim_cycle());
 	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", stack->inst_count);
 	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", accesses);
-	line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", accesses >0 ? (double)t_total/accesses:0);
-	line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", accesses >0 ? (double)t_wait/accesses:0);
-	line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", accesses >0 ? (double)t_acces/accesses:0);
-	line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", accesses >0 ? (double)t_transfer/accesses:0);
+	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", served_int);
+	line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", served_int > 0 ? (double) t_total / served_int : 0);
+	line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", served_int > 0 ? (double) t_wait / served_int : 0);
+	line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", served_int > 0 ? (double) t_acces / served_int : 0);
+	line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", served_int > 0 ? (double) t_transfer / served_int : 0);
 	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", normal_accesses);
 	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", pref_accesses);
-	
+
 	line_writer_write(lw, mem_controller->report_file);
 	line_writer_clear(lw);
 
 	/* Update counters */
 	stack->accesses = mem_controller->accesses;
+	stack->served = served;
 	stack->normal_accesses = mem_controller->normal_accesses;
 	stack->pref_accesses = mem_controller->pref_accesses;
 	stack->t_wait = mem_controller->t_wait;
 	stack->t_acces = mem_controller->t_acces_main_memory;
 	stack->t_transfer = mem_controller->t_transfer;
-	
+
 	/* Schedule new event */
 	assert(mem_controller->report_interval);
 
