@@ -301,7 +301,7 @@ void x86_ctx_free(struct x86_ctx_t *ctx)
 
 
 	/*Dump global report*/
-	x86_ctx_report_dump(ctx, ctx->report_file);
+	//x86_ctx_report_dump(ctx, ctx->report_file);
 
 	/* Remove context from finished contexts list. This should
 	 * be the only list the context is in right now. */
@@ -334,8 +334,8 @@ void x86_ctx_free(struct x86_ctx_t *ctx)
 	free(ctx->cpu_report_stack);
 	free(ctx->mc_report_stack);
 
-	/*Free report*/
-	file_close(ctx->report_file);
+	
+	
 
 	/* Free context */
 	free(ctx);
@@ -374,26 +374,6 @@ void x86_ctx_dump(struct x86_ctx_t *ctx, FILE *f)
 
 
 
-void x86_ctx_report_dump(struct x86_ctx_t *ctx, FILE *f)
-{
-	if (!f)
-		return;
-
-		
-	fprintf(f, "[MAIN-MEMORY]\n");
-	fprintf(f, "TotalTime = %f\n",ctx->mc_accesses ? (double) (ctx->t_wait+ ctx->t_acces+ctx->t_transfer+ctx->t_inside_net)/ctx->mc_accesses:0.0);
-	fprintf(f, "AvgTimeWaitMCQueue = %f\n",ctx->mc_accesses ? (double)ctx->t_wait/ctx->mc_accesses:0.0);
-	fprintf(f, "AvgTimeAccesMM = %f\n",ctx->mc_accesses ? (double) ctx->t_acces/ctx->mc_accesses :0.0);
-	fprintf(f, "AvgTimeTransferFromMM = %f\n",ctx->mc_accesses?(double)ctx->t_transfer/ctx->mc_accesses:0.0 );
-	fprintf(f, "AvgTimeInsideNet = %f\n",ctx->mc_accesses?(double) ctx->t_inside_net/ctx->mc_accesses:0.0 );
-	fprintf(f,"TotalAccessesMC = %lld\n", ctx->mc_accesses);
-	fprintf(f,"TotalNormalAccessesMC = %lld\n", ctx->normal_mc_accesses);
-	fprintf(f,"TotalPrefetchAccessesMC = %lld\n", ctx->pref_mc_accesses);
-	fprintf(f, "PercentRowBufferHit = %f\n",ctx->mc_accesses?(double) ctx->row_buffer_hits/ctx->mc_accesses:0.0 );
-
-	
-	fprintf(f, "\n\n");
-}
 
 void x86_ctx_execute(struct x86_ctx_t *ctx)
 {

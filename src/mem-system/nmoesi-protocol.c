@@ -3161,7 +3161,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			if(stack->t_access_net>-1)
 			{
 				mem_controller->t_inside_net+=esim_cycle()-stack->t_access_net;
-				if(ctx!=NULL) ctx->t_inside_net+=esim_cycle()-stack->t_access_net;
+				if(ctx!=NULL) ctx->loader->t_inside_net+=esim_cycle()-stack->t_access_net;
 			}
 			stack->t_access_net = esim_cycle();
 		}
@@ -3684,7 +3684,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 				mem_debug("    %lld 0x%x %s mc queue full, retrying...\n", stack->id, stack->tag, target_mod->name);
 				assert(stack->t_access_net >= 0);	
 				mem_controller->t_inside_net += esim_cycle() - stack->t_access_net;
-				if(ctx!=NULL) ctx->t_inside_net+= esim_cycle() - stack->t_access_net;
+				if(ctx!=NULL) ctx->loader->t_inside_net+= esim_cycle() - stack->t_access_net;
 				stack->t_access_net = -1;
                      		esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST_REPLY, stack, 0);
                         	return;
@@ -3703,7 +3703,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			
 			assert(stack->t_access_net >= 0);	
 			mem_controller->t_inside_net += esim_cycle() - stack->t_access_net;
-			if(ctx!=NULL) ctx->t_inside_net+= esim_cycle() - stack->t_access_net;
+			if(ctx!=NULL) ctx->loader->t_inside_net+= esim_cycle() - stack->t_access_net;
 			stack->t_access_net = -1;
 			new_stack = mod_stack_create(stack->id, target_mod, stack->addr,
 				EV_MOD_NMOESI_READ_REQUEST_UPDOWN_LATENCY, stack, stack->prefetch);
@@ -4205,7 +4205,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			assert(stack->t_access_net >= 0);
 			mem_controller->t_inside_net += esim_cycle()-stack->t_access_net;
 			if(ctx!=NULL) 
-				ctx->t_inside_net+=esim_cycle()-stack->t_access_net;
+				ctx->loader->t_inside_net+=esim_cycle()-stack->t_access_net;
 
 			/*If it's a reply it counts all time of the reply*/
 			if(stack->err)
@@ -4293,7 +4293,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			if(stack->t_access_net>-1)
 			{
 				mem_controller->t_inside_net+=esim_cycle()-stack->t_access_net;
-				if(ctx!=NULL) ctx->t_inside_net+=esim_cycle()-stack->t_access_net;
+				if(ctx!=NULL) ctx->loader->t_inside_net+=esim_cycle()-stack->t_access_net;
 			}
 			stack->t_access_net = esim_cycle();
 		}
@@ -4679,7 +4679,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
                                 mem_debug("    %lld 0x%x %s mc queue full, retrying...\n", stack->id, stack->tag, target_mod->name);
 				assert(stack->t_access_net >= 0);	
 				mem_controller->t_inside_net += esim_cycle() - stack->t_access_net;
-				if(ctx!=NULL) ctx->t_inside_net+= esim_cycle() - stack->t_access_net;
+				if(ctx!=NULL) ctx->loader->t_inside_net+= esim_cycle() - stack->t_access_net;
 				stack->t_access_net = -1;
                                 //mod_unlock_port(target_mod, stack->port, stack);
 				esim_schedule_event(EV_MOD_NMOESI_WRITE_REQUEST_REPLY, stack, 0);
@@ -4701,7 +4701,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 
 			assert(stack->t_access_net >= 0);
 			mem_controller->t_inside_net+=esim_cycle()-stack->t_access_net;
-			if(ctx!=NULL) ctx->t_inside_net+=esim_cycle()-stack->t_access_net;
+			if(ctx!=NULL) ctx->loader->t_inside_net+=esim_cycle()-stack->t_access_net;
 			stack->t_access_net=-1;
 			new_stack = mod_stack_create(stack->id, target_mod, stack->addr,
 				EV_MOD_NMOESI_WRITE_REQUEST_UPDOWN_LATENCY, stack, stack->prefetch);
@@ -5019,7 +5019,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			mem_controller->t_inside_net += esim_cycle()-stack->t_access_net;
 			
 			if(ctx!=NULL) 
-				ctx->t_inside_net+=esim_cycle()-stack->t_access_net;
+				ctx->loader->t_inside_net+=esim_cycle()-stack->t_access_net;
 
 			/*If it's a reply it counts all time of the reply*/
 			if(stack->err)
@@ -5078,7 +5078,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 	        /* Statistics */
 	        time = esim_cycle() - mem_controller->last_cycle;
 	        mem_controller->accesses++;
-		if(ctx!=NULL)	ctx->mc_accesses++;
+		
 
 	        for (int i = 0; i < num_queues; i++)
 	        {
@@ -5118,13 +5118,13 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 	                if (!stack->prefetch)
 	                {
 	                        mem_controller->normal_accesses++;
-				if(ctx!=NULL)	ctx->normal_mc_accesses++;
+				if(ctx!=NULL)	ctx->loader->normal_mc_accesses++;
 	                        mem_controller_normal_queue_add(stack);
 	                }
 	                else
 	                {
 	                        mem_controller->pref_accesses++;
-				if(ctx!=NULL)	ctx->pref_mc_accesses++;
+				if(ctx!=NULL)	ctx->loader->pref_mc_accesses++;
 	                        if(mem_controller->piggybacking && mem_controller_is_piggybacked(stack))
 	                                mem_controller_normal_queue_add(stack);
 
@@ -5138,14 +5138,14 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 	                if(!stack->prefetch)
 			{
 	                        mem_controller->normal_accesses++;
-				if(ctx!=NULL)	ctx->normal_mc_accesses++;
+				if(ctx!=NULL)	ctx->loader->normal_mc_accesses++;
 	               	}else{
 	                        mem_controller->pref_accesses++;
-				if(ctx!=NULL)	ctx->pref_mc_accesses++;
+				if(ctx!=NULL)	ctx->loader->pref_mc_accesses++;
 			}
 	        }else
 	                fatal("Invalid MC priroity policy of queues :%d\n", mem_controller->policy_queues);
-
+		
 	        /* Was the MC examining the queues to send the requests? */
 	        if (mem_controller_stacks_normalQueues_count(mem_controller) + mem_controller_stacks_prefQueues_count(mem_controller) == 1) //this request is the only one in the queue
 	        {
@@ -5172,6 +5172,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 	                        esim_schedule_event(EV_MOD_NMOESI_EXAMINE_QUEUE_REQUEST, new_stack, when);
 	                else
 	                        esim_schedule_event(EV_MOD_NMOESI_EXAMINE_ONLY_ONE_QUEUE_REQUEST, new_stack, when);
+			
 	        }
 
 	        return;
@@ -5303,7 +5304,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 				}
 
 				mem_controller->t_acces_main_memory += t_send;
-				if(ctx!=NULL) ctx->t_acces+=t_send;
+				if(ctx!=NULL) ctx->loader->t_acces+=t_send;
 
 				if(new_stack->prefetch)
 				        mem_controller->t_pref_acces_main_memory += t_send;
@@ -5331,7 +5332,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 		                channel[stack->channel].t_wait_channel_busy += cycles_proc_by_bus;
 		                channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
 		                mem_controller->t_wait+=cycles_proc_by_bus;
-				if(ctx!=NULL) ctx->t_wait+=cycles_proc_by_bus;
+				if(ctx!=NULL) ctx->loader->t_wait+=cycles_proc_by_bus;
 
 		                if(!stack->prefetch)// if it's only one queue, prefetches can be in the normal queue
 		                {
@@ -5350,7 +5351,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 		        {
 		                channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
 		                mem_controller->t_wait+=cycles_proc_by_bus;
-				if(ctx!=NULL) ctx->t_wait+=cycles_proc_by_bus;
+				if(ctx!=NULL) ctx->loader->t_wait+=cycles_proc_by_bus;
 		                channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].conflicts++;
 		                channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_wait += cycles_proc_by_bus;
 		                if(!stack->prefetch) // if it's only one queue, prefetches can be in the normal queue
@@ -5379,7 +5380,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 		        if (channel[stack->channel].state == channel_state_busy)
 		        {
 		                mem_controller->t_wait+=cycles_proc_by_bus;
-				if(ctx!=NULL) ctx->t_wait+=cycles_proc_by_bus;
+				if(ctx!=NULL) ctx->loader->t_wait+=cycles_proc_by_bus;
 		                mem_controller->t_pref_wait+=cycles_proc_by_bus;
 		                channel[stack->channel].t_wait_channel_busy += cycles_proc_by_bus;
 		                channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
@@ -5390,7 +5391,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 		        {
 		                mem_controller->t_wait+=cycles_proc_by_bus;
 		                mem_controller->t_pref_wait+=cycles_proc_by_bus;
-				if(ctx!=NULL) ctx->t_wait+=cycles_proc_by_bus;
+				if(ctx!=NULL) ctx->loader->t_wait+=cycles_proc_by_bus;
 		                channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
 		                channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].conflicts++;
 		                channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_wait += cycles_proc_by_bus;
@@ -5453,7 +5454,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
                                                 channel[stack->channel].t_wait_channel_busy += cycles_proc_by_bus;
                                                 channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
                                                 mem_controller->t_wait+=cycles_proc_by_bus;
-						if(ctx!=NULL) ctx->t_wait+=cycles_proc_by_bus;
+						if(ctx!=NULL) ctx->loader->t_wait+=cycles_proc_by_bus;
 
                                                 if(!stack->prefetch)// if it's only one queue, prefetches can be in the normal queue
                                                 {
@@ -5471,7 +5472,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
                                         else if(channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].is_been_accesed)
                                         {
                                                 mem_controller->t_wait+=cycles_proc_by_bus;
-						if(ctx!=NULL) ctx->t_wait+=cycles_proc_by_bus;
+						if(ctx!=NULL) ctx->loader->t_wait+=cycles_proc_by_bus;
                                                 channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
                                                 channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].conflicts++;
                                                 channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_wait += cycles_proc_by_bus;
@@ -5503,7 +5504,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
                                         if ( channel[stack->channel].state == channel_state_busy)
                                         {
                                                 mem_controller->t_wait+=cycles_proc_by_bus;
-						if(ctx!=NULL) ctx->t_wait+=cycles_proc_by_bus;
+						if(ctx!=NULL) ctx->loader->t_wait+=cycles_proc_by_bus;
                                                 mem_controller->t_pref_wait+=cycles_proc_by_bus;
                                                 channel[stack->channel].t_wait_channel_busy += cycles_proc_by_bus;
                                                 channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
@@ -5513,7 +5514,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
                                         else if(channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].is_been_accesed)
                                         {
                                                 mem_controller->t_wait+=cycles_proc_by_bus;
-						if(ctx!=NULL) ctx->t_wait+=cycles_proc_by_bus;
+						if(ctx!=NULL) ctx->loader->t_wait+=cycles_proc_by_bus;
                                                 mem_controller->t_pref_wait+=cycles_proc_by_bus;
                                                 channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
                                                 channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].conflicts++;
@@ -5636,7 +5637,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
                                 mem_controller->t_acces_main_memory += t_send;
 				assert(new_stack->client_info->core>=0 && new_stack->client_info->thread>=0);
 				ctx = x86_cpu->core[new_stack->client_info->core].thread[new_stack->client_info->thread].ctx;
-				if(ctx!=NULL) ctx->t_acces+=t_send;
+				if(ctx!=NULL) ctx->loader->t_acces+=t_send;
 
                                 if(new_stack->prefetch)
                                         mem_controller->t_pref_acces_main_memory += t_send;
@@ -5661,7 +5662,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
                                 if ( channel[stack->channel].state == channel_state_busy)
                                 {
                                         mem_controller->t_wait+=cycles_proc_by_bus;
-					if(ctx!=NULL) ctx->t_wait+=cycles_proc_by_bus;
+					if(ctx!=NULL) ctx->loader->t_wait+=cycles_proc_by_bus;
                                         channel[stack->channel].t_wait_channel_busy += cycles_proc_by_bus;
                                         channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
                                         if(!stack->prefetch) // if it's only one queue, prefetches can be in normal queue
@@ -5680,7 +5681,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
                                 else if(channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].is_been_accesed)
                                 {
                                         mem_controller->t_wait+=cycles_proc_by_bus;
-					if(ctx!=NULL) ctx->t_wait+=cycles_proc_by_bus;
+					if(ctx!=NULL) ctx->loader->t_wait+=cycles_proc_by_bus;
                                         channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
                                         channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].conflicts++;
                                         channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].t_wait += cycles_proc_by_bus;
@@ -5710,7 +5711,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
                                 row_buffer_find_row(mem_controller,stack->mod, stack->addr,&stack->channel,&stack->rank,&stack->bank,NULL,NULL,NULL);
                                 if (channel[stack->channel].state == channel_state_busy)
                                 {
-					if(ctx!=NULL) ctx->t_wait+=cycles_proc_by_bus;
+					if(ctx!=NULL) ctx->loader->t_wait+=cycles_proc_by_bus;
                                         mem_controller->t_wait+=cycles_proc_by_bus;
                                         mem_controller->t_pref_wait+=cycles_proc_by_bus;
                                         channel[stack->channel].t_wait_channel_busy += cycles_proc_by_bus;
@@ -5721,7 +5722,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
                                 else if(channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].is_been_accesed)
                                 {
                                         mem_controller->t_wait+=cycles_proc_by_bus;
-					if(ctx!=NULL) ctx->t_wait+=cycles_proc_by_bus;
+					if(ctx!=NULL) ctx->loader->t_wait+=cycles_proc_by_bus;
                                         mem_controller->t_pref_wait+=cycles_proc_by_bus;
                                         channel[stack->channel].t_wait_send_request+=cycles_proc_by_bus;
                                         channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].conflicts++;
@@ -5753,6 +5754,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 
                 struct mod_stack_t * stack_aux;
 		int t_acces;
+		int b;
 		struct x86_ctx_t *ctx = x86_cpu->core[stack->client_info->core].thread[stack->client_info->thread].ctx;
                 int n_coalesce= stack->coalesced_stacks!=NULL ? linked_list_count(stack->coalesced_stacks): 0;
                 bank = mem_controller->regs_channel[stack->channel].regs_rank[stack->rank].regs_bank;
@@ -5786,8 +5788,15 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 			assert(stack->client_info->core>=0 && stack->client_info->thread>=0);
 			if(ctx!=NULL)	
 			{
-				ctx->row_buffer_hits+=1+ n_coalesce; 
-				ctx->t_acces+= t_acces;
+				assert(ctx->loader->row_buffer_hits_per_bank!=NULL);
+				ctx->loader->row_buffer_hits+=1+ n_coalesce; 
+				ctx->loader->t_acces+= t_acces;	
+				if(mem_controller->queue_per_bank)
+					b =((stack->addr >> log_base2( mem_controller->row_buffer_size)) % (mem_controller->num_regs_bank*mem_controller->num_regs_rank));
+				else
+					b=0;
+				assert(b<mem_controller->num_regs_bank*mem_controller->num_regs_rank);
+				ctx->loader->row_buffer_hits_per_bank[b]+=1+ n_coalesce; 
 			}
 
                         if(stack->prefetch) // main request
@@ -5842,7 +5851,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 
                         /* Stadistics */
                         mem_controller->t_acces_main_memory += t_acces;
-			if(ctx!=NULL)	ctx->t_acces+= t_acces;
+			if(ctx!=NULL)	ctx->loader->t_acces+= t_acces;
 			
 
                         if(stack->prefetch) // main request
@@ -5960,8 +5969,8 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 		assert(stack->client_info->core>=0 && stack->client_info->thread>=0);
 		if(ctx!=NULL)	
 		{
-			ctx->row_buffer_hits+=1+ n_coalesce; 
-			ctx->t_acces+= t_acces;
+			ctx->loader->row_buffer_hits+=1+ n_coalesce; 
+			ctx->loader->t_acces+= t_acces;
 		}
 
                 if(stack->prefetch) // main request
@@ -6063,7 +6072,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 				/* Stadistics */
 		                mem_controller->blocks_transfered+=mem_controller->row_buffer_size/mod->cache->block_size ;
 		                mem_controller->t_transfer += t_trans*(1+n_coalesce);
-				if(ctx!=NULL) ctx->t_transfer += t_trans*(1+n_coalesce);
+				if(ctx!=NULL) ctx->loader->t_transfer += t_trans*(1+n_coalesce);
 		                channel[stack->channel].t_transfer += t_trans*(1+n_coalesce);
 		                if(stack->prefetch)      mem_controller->t_pref_transfer += t_trans;
 		                else    mem_controller->t_normal_transfer += t_trans;
@@ -6090,7 +6099,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 			/* Stadistics */
                         mem_controller->blocks_transfered+=num_blocks;
                         mem_controller->t_transfer += t_trans*(1+n_coalesce);
-			if(ctx!=NULL) ctx->t_transfer += t_trans*(1+n_coalesce);
+			if(ctx!=NULL) ctx->loader->t_transfer += t_trans*(1+n_coalesce);
                         channel[stack->channel].t_transfer += t_trans*(1+n_coalesce);
                         if(stack->prefetch)      mem_controller->t_pref_transfer += t_trans;
                         else    mem_controller->t_normal_transfer += t_trans;
@@ -6132,7 +6141,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
                         /* Stadistics */
                         channel[stack->channel].t_wait_transfer_request += 1+n_coalesce;
                         mem_controller->t_transfer += 1+n_coalesce;
-			if(ctx!=NULL) ctx->t_transfer += 1+n_coalesce;
+			if(ctx!=NULL) ctx->loader->t_transfer += 1+n_coalesce;
                         if(stack->prefetch){
                                 channel[stack->channel].t_pref_wait_transfer_request += 1;
                                 mem_controller->t_pref_transfer += 1;
@@ -6298,7 +6307,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 
                         /*Stadistics*/
                         mem_controller->t_transfer += t_trans*(1+n_coalesce);
-			if(ctx!=NULL) ctx->t_transfer+= t_trans*(1+n_coalesce);
+			if(ctx!=NULL) ctx->loader->t_transfer+= t_trans*(1+n_coalesce);
                         channel[stack->channel].t_transfer += t_trans*(1+n_coalesce);
                         if(new_stack->prefetch)  mem_controller->t_pref_transfer += t_trans;
                         else    mem_controller->t_normal_transfer += t_trans;

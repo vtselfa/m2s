@@ -63,6 +63,8 @@ enum mod_request_type_t
 /* Stack */
 struct mod_stack_t
 {
+
+	
 	long long id;
 	enum mod_access_kind_t access_kind;
 	int *witness_ptr;

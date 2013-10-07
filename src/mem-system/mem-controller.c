@@ -362,6 +362,7 @@ void mem_controller_normal_queue_add(struct mod_stack_t * stack)
 	else
 		bank=0;
 
+	
 
 	stack->threshold =mem_controller->threshold;
 
@@ -371,6 +372,22 @@ void mem_controller_normal_queue_add(struct mod_stack_t * stack)
 		ctx_threshold = ctx->loader->max_cycles_wait_MC;
 		if(ctx_threshold != 100000000000) // if threshold if different than by default, context threshold is priorier
 			stack->threshold = ctx_threshold;
+
+		if(ctx->loader->mc_accesses_per_bank==NULL)
+		{
+			assert(ctx->loader->row_buffer_hits_per_bank==NULL);
+			ctx->loader->mc_accesses_per_bank= xcalloc(mem_controller->num_regs_bank* mem_controller->num_regs_rank, sizeof(long long));
+			ctx->loader->row_buffer_hits_per_bank= xcalloc(mem_controller->num_regs_bank* mem_controller->num_regs_rank, sizeof(long long));
+			if(mem_controller->queue_per_bank)
+				ctx->loader->num_banks = mem_controller->num_regs_bank* mem_controller->num_regs_rank;
+			else
+				ctx->loader->num_banks = 1;
+			ctx->loader->num_ranks = mem_controller->num_regs_rank;
+		}
+		ctx->loader->mc_accesses_per_bank[bank]++;
+		ctx->loader->mc_accesses++;
+		
+		
 	}
 
 	/*Add in queue*/
@@ -394,6 +411,8 @@ void mem_controller_prefetch_queue_add(struct mod_stack_t * stack){
 	unsigned int log2_row_size= log_base2( mem_controller->row_buffer_size);
 	unsigned int bank;
 	long long ctx_threshold;
+	struct x86_ctx_t *ctx = x86_cpu->core[stack->client_info->core].thread[stack->client_info->thread].ctx;
+              
 	
 	assert(stack->client_info->core>=0 && stack->client_info->thread>=0);
 	assert(stack->client_info->stream_request_kind>=0);
@@ -422,12 +441,26 @@ void mem_controller_prefetch_queue_add(struct mod_stack_t * stack){
 	/*TO avoid fairness*/
 	stack->threshold=mem_controller->threshold;
 
-	if(x86_cpu->core[stack->client_info->core].thread[stack->client_info->thread].ctx!=NULL)
+	if(ctx!=NULL)
 	{
 		ctx_threshold = x86_cpu->core[stack->client_info->core].thread[stack->client_info->thread].ctx->loader->max_cycles_wait_MC;
 
 		if(ctx_threshold != 100000000000) // if threshold if different than by default, context threshold is priorier
 			stack->threshold = ctx_threshold;
+		
+		if(ctx->loader->mc_accesses_per_bank==NULL)
+		{
+			assert(ctx->loader->row_buffer_hits_per_bank==NULL);
+			ctx->loader->mc_accesses_per_bank= xcalloc(mem_controller->num_regs_bank* mem_controller->num_regs_rank,sizeof(long long));
+			ctx->loader->row_buffer_hits_per_bank= xcalloc(mem_controller->num_regs_bank* mem_controller->num_regs_rank,sizeof(long long));
+			if(mem_controller->queue_per_bank)
+				ctx->loader->num_banks = mem_controller->num_regs_bank* mem_controller->num_regs_rank;
+			else
+				ctx->loader->num_banks = 1;
+			ctx->loader->num_ranks = mem_controller->num_regs_rank;
+		}
+		ctx->loader->mc_accesses_per_bank[bank]++;
+		ctx->loader->mc_accesses++;
 	}
 
 	/*Insert*/
@@ -2709,7 +2742,7 @@ void mem_controller_report_handler(int event, void *data)
 	long long accesses= mem_controller->accesses-stack->accesses;
 	long long t_wait = mem_controller->t_wait - stack->t_wait;
 	long long t_acces = mem_controller->t_acces_main_memory - stack->t_acces;
-	long long t_transfer = mem_controller->t_transfer;
+	long long t_transfer = mem_controller->t_transfer - stack->t_transfer;
 	long long t_total=t_wait+t_acces+t_transfer;
 	long long normal_accesses = mem_controller->normal_accesses-stack->normal_accesses;
 	long long pref_accesses = mem_controller->pref_accesses - stack->pref_accesses;
