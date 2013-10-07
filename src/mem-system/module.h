@@ -154,9 +154,11 @@ struct mod_t
 	/* Main memory module */
 	struct reg_rank_t *regs_rank; // ranks which this channels connects with
 	int num_regs_rank;
+	int num_req_input_buffer;
 
 	/* Mem controller associated to mm */
 	struct mem_controller_t *mem_controller;
+	
 
 	/* Module level starting from entry points */
 	int level;
@@ -272,6 +274,11 @@ struct mod_t
 	FILE *report_file;
 
 	/* Statistics */
+	
+	long long cycles_queue_full;
+	long long start_queue_full; 
+
+
 	long long accesses;
 	long long hits;
 

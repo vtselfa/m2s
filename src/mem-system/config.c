@@ -797,6 +797,17 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config,
 	struct net_t *net;
 	struct net_node_t *net_node;
 
+	char *report_file_name;
+	char *report_interval_kind_str;
+
+	char default_report_file_name[MAX_STRING_SIZE];
+
+	long long report_interval;
+
+	int enable_report;
+	int enable_table;
+	int assoc_table;
+
 	/* Read parameters */
 	str_token(mod_name, sizeof mod_name, section, 1, " ");
 	config_var_enforce(config, section, "Latency");
@@ -806,30 +817,42 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config,
 	num_ports = config_read_int(config, section, "Ports", 2);
 	dir_size = config_read_int(config, section, "DirectorySize", 1024);
 	dir_assoc = config_read_int(config, section, "DirectoryAssoc", 8);
-	 /////////////////////////////////////////////////////////////////////
-        enabled_mc = config_read_int(config, section, "MemoryControllerEnabled", 0);
-        row_size = config_read_int(config, section, "RowSize", 4096);
-        ranks = config_read_int(config, section, "Ranks", 1);
-        banks = config_read_int(config, section, "Banks", 8);
-        channels = config_read_int(config, section, "Channels", 1);
-        t_send_request = config_read_int(config, section, "CyclesSendRequest", 1);
-        t_acces_bank_hit = config_read_int(config, section, "CyclesRowBufferHit", 4);
-        t_acces_bank_miss = config_read_int(config, section, "CyclesRowBufferMiss", 20);
-        bandwith = config_read_int(config, section, "Bandwith", 64);
-        cycles_proc_bus = config_read_int(config, section, "CyclesProcByCyclesBus", 4);
-        piggybacking = config_read_int(config, section, "Piggybacking", 1);
-        policy = config_read_string(config, section, "PolicyMCQueues", "PrefetchNormalQueue");
-        coalesce = config_read_string(config, section, "Coalesce", "Disabled");
-        priority = config_read_string(config, section, "PriorityMCQueues", "Threshold-Normal-Prefetch");
-        threshold = config_read_llint(config, section, "Threshold", 100000000000);
-        size_queue = config_read_llint(config, section, "SizeQueue", 100000000000);
-        queue_per_bank = config_read_llint(config, section, "QueuePerBank", 0);
-        photonic = config_read_llint(config, section, "PhotonicNet", 0);
-        adapt = config_read_string(config, section, "Adaptative", "Disabled");
-        adapt_limit = config_read_double(config, section, "AdaptativeLimit", 0.5);
-        adapt_interval = config_read_llint(config, section, "AdaptativeInterval", 500000);
-        adapt_interval_kind_str = config_read_string(config, section, "AdaptativeIntervalKind", "Cycles");
+	/////////////////////////////////////////////////////////////////////
+	enabled_mc = config_read_int(config, section, "MemoryControllerEnabled", 0);
+	row_size = config_read_int(config, section, "RowSize", 4096);
+	ranks = config_read_int(config, section, "Ranks", 1);
+	banks = config_read_int(config, section, "Banks", 8);
+	channels = config_read_int(config, section, "Channels", 1);
+	t_send_request = config_read_int(config, section, "CyclesSendRequest", 1);
+	t_acces_bank_hit = config_read_int(config, section, "CyclesRowBufferHit", 4);
+	t_acces_bank_miss = config_read_int(config, section, "CyclesRowBufferMiss", 20);
+	bandwith = config_read_int(config, section, "Bandwith", 64);
+	cycles_proc_bus = config_read_int(config, section, "CyclesProcByCyclesBus", 4);
+	piggybacking = config_read_int(config, section, "Piggybacking", 1);
+	policy = config_read_string(config, section, "PolicyMCQueues", "PrefetchNormalQueue");
+	coalesce = config_read_string(config, section, "Coalesce", "Disabled");
+	priority = config_read_string(config, section, "PriorityMCQueues", "Threshold-Normal-Prefetch");
+	threshold = config_read_llint(config, section, "Threshold", 100000000000);
+	size_queue = config_read_llint(config, section, "SizeQueue", 100000000000);
+	queue_per_bank = config_read_llint(config, section, "QueuePerBank", 0);
+	photonic = config_read_llint(config, section, "PhotonicNet", 0);
+	adapt = config_read_string(config, section, "Adaptative", "Disabled");
+	adapt_limit = config_read_double(config, section, "AdaptativeLimit", 0.5);
+	adapt_interval = config_read_llint(config, section, "AdaptativeInterval", 500000);
+	adapt_interval_kind_str = config_read_string(config, section, "AdaptativeIntervalKind", "Cycles");
+	enable_table = config_read_int(config, section, "EnableRowBufferTable", 0);
+	assoc_table = config_read_int(config, section, "AssociativityRowBufferTable", 2);
+
+
         /////////////////////////////////////////////////////////////////////
+
+	/* Enables for this mem controller interval reporting statistics */
+	snprintf(default_report_file_name, MAX_STRING_SIZE, "%s.interval.report", mod_name);
+	enable_report = config_read_bool(config, section, "EnableReport", 0);
+	report_interval = config_read_llint(config, section, "ReportInterval", 50000);
+	report_interval_kind_str = config_read_string(config, section, "ReportIntervalKind", "cycles");
+	report_file_name = config_read_string(config, section, "ReportFile", default_report_file_name);
+
 
 
 	/* Check parameters */
@@ -982,6 +1005,8 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config,
 		prio_type = prio_threshold_prefHitRBH_normalRBH_normal_prefHit_prefGroupCoalesce;
 	else if (strcmp(priority, "Dynamic") == 0)
 		prio_type = prio_dynamic;
+	else if (strcmp(priority, "Threshold-FCFS-Normal-Prefetch") == 0)
+		prio_type = prio_FCFS_normal_pref;
 	else
 		fatal("%s: %s: invalid value for variable 'PriorityMCQueues'.\n%s",
 			mem_config_file_name, mod_name, mem_err_config_note);
@@ -995,6 +1020,15 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config,
 	if (piggybacking < 0 || piggybacking > 1)
 		fatal("%s: %s: invalid value for variable 'Piggybacking'.\n%s",
 			mem_config_file_name, mod_name, mem_err_config_note);
+	if (enable_table < 0 || enable_table > 1)
+		fatal("%s: %s: invalid value for variable 'EnableRowBufferTable'.\n%s",
+			mem_config_file_name, mod_name, mem_err_config_note);
+	if (assoc_table < 1)
+		fatal("%s: %s: invalid value for variable 'AssociativityRowBufferTable'.\n%s",
+			mem_config_file_name, mod_name, mem_err_config_note);
+
+	if(enable_table&& coalesce_type != policy_coalesce_disabled) // PPPPP ESTA RESTRICCIO MES AVANT LA LLEVARE
+		fatal("Coalesce can not be enabled with row buffer table enabled\n");
 
 	/* Create module */
 	mod = mod_create(mod_name, mod_kind_main_memory, num_ports,
@@ -1025,7 +1059,8 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config,
 	mod->mem_controller = mem_controller_create();
 	mem_controller_init_main_memory(mod->mem_controller, channels, ranks, banks,
 	t_send_request, row_size, block_size, cycles_proc_bus, policy_type, prio_type,
-	size_queue, threshold, queue_per_bank, coalesce_type, mod->regs_rank, bandwith);
+	size_queue, threshold, queue_per_bank, coalesce_type, mod->regs_rank, bandwith,
+	enable_table, assoc_table);
 	mod->mem_controller->photonic_net = photonic;
 	mod->mem_controller->piggybacking=piggybacking;
 	if(strcmp(adapt, "Disabled") == 0)
@@ -1038,6 +1073,20 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config,
 		mod->mem_controller->adapt_percent=adapt_limit;
 	}
 	mod->mem_controller->enabled = enabled_mc;
+
+	if(enable_report)
+	{
+		mod->mem_controller->report_enabled = enable_report;
+		mod->mem_controller->report_file = file_open_for_write(report_file_name);
+		if (!mod->mem_controller->report_file)
+			fatal("%s: cannot open mem controller report file", report_file_name);
+		mod->mem_controller->report_interval = report_interval;
+		mod->mem_controller->report_interval_kind = str_map_string_case(&interval_kind_map, report_interval_kind_str);
+		if(!mod->mem_controller->report_interval_kind)
+			fatal("%s: mem controller %s: invalid value for variable "
+				"'ReportIntervalKind'.\n%s", mem_config_file_name,
+				mod->name, mem_err_config_note);
+	}
 
 	linked_list_add(mem_system->mem_controllers, mod->mem_controller);
 
@@ -1203,18 +1252,23 @@ static void mem_config_read_modules(struct config_t *config)
 		/* Section for a module */
 		if (strncasecmp(section, "Module ", 7))
 			continue;
-
 		/* Create module, depending on the type. */
 		str_token(mod_name, sizeof mod_name, section, 1, " ");
+
 		mod_type = config_read_string(config, section, "Type", "");
+
 		if (!strcasecmp(mod_type, "Cache"))
 			mod = mem_config_read_cache(config, section);
 		else if (!strcasecmp(mod_type, "MainMemory"))
+		{
+
 			mod = mem_config_read_main_memory(config, section);
-		else
+
+		}else
 			fatal("%s: %s: invalid or missing value for 'Type'.\n%s",
 				mem_config_file_name, mod_name,
 				mem_err_config_note);
+
 
 		/* Enables for this module interval reporting statistics */
 		snprintf(default_report_file_name, MAX_STRING_SIZE, "%s.interval.report", mod->name);
@@ -1235,13 +1289,16 @@ static void mem_config_read_modules(struct config_t *config)
 					"'ReportIntervalKind'.\n%s", mem_config_file_name,
 					mod->name, mem_err_config_note);
 		}
+
 		/* Read module address range */
 		mem_config_read_module_address_range(config, mod, section);
 
 		/* Add module */
 		list_add(mem_system->mod_list, mod);
 		mem_debug("\t%s\n", mod_name);
+
 	}
+
 
 	/* Debug */
 	mem_debug("\n");
@@ -1257,6 +1314,7 @@ static void mem_config_read_modules(struct config_t *config)
 		assert(config_section_exists(config, buf));
 		config_write_ptr(config, buf, "ptr", mod);
 	}
+
 }
 
 
@@ -1894,7 +1952,6 @@ void mem_config_read(void)
 		arch_for_each(mem_config_default, config);
 	else
 		config_load(config);
-
 	/* Read general variables */
 	mem_config_read_general(config);
 
@@ -1903,6 +1960,7 @@ void mem_config_read(void)
 
 	/* Read modules */
 	mem_config_read_modules(config);
+
 
 	/* Read low level caches */
 	mem_config_read_low_modules(config);

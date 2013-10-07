@@ -112,6 +112,8 @@ struct mod_t *mod_create(char *name, enum mod_kind_t kind, int num_ports,
 
 	mod->client_info_repos = repos_create(sizeof(struct mod_client_info_t), mod->name);
 
+	mod->start_queue_full = -1;
+
 	return mod;
 }
 
@@ -495,7 +497,6 @@ void mod_unlock_port(struct mod_t *mod, struct mod_port_t *port,
 	struct mod_stack_t *stack)
 {
 	int event;
-
 	/* Checks */
 	assert(mod->num_locked_ports > 0);
 	assert(stack->port == port && port->stack == stack);
@@ -513,6 +514,7 @@ void mod_unlock_port(struct mod_t *mod, struct mod_port_t *port,
 	/* Check if there was any access waiting for free port */
 	if (!mod->port_waiting_list_count)
 		return;
+	
 
 	/* Wake up one access waiting for a free port */
 	stack = mod->port_waiting_list_head;
@@ -520,6 +522,7 @@ void mod_unlock_port(struct mod_t *mod, struct mod_port_t *port,
 	assert(DOUBLE_LINKED_LIST_MEMBER(mod, port_waiting, stack));
 	DOUBLE_LINKED_LIST_REMOVE(mod, port_waiting, stack);
 	mod_lock_port(mod, stack, event);
+
 
 }
 

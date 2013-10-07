@@ -158,7 +158,8 @@ static void x86_cpu_commit_thread(int core, int thread, int quant)
 				mod_adapt_pref_handler(EV_CACHE_ADAPT_PREF, (void *) mod->adapt_pref_stack);
 		}
 
-		/* Module interval report. Update commited inst counters and launch handlers if necessary. */
+		/* FIXME: Açò ja no té sentit. Eliminar tot el codi asociat quan es puga.
+		Module interval report. Update commited inst counters and launch handlers if necessary.
 		LINKED_LIST_FOR_EACH(X86_THREAD.stats_reporting_modules)
 		{
 			struct mod_t *mod = (struct mod_t*) linked_list_get(X86_THREAD.stats_reporting_modules);
@@ -166,6 +167,18 @@ static void x86_cpu_commit_thread(int core, int thread, int quant)
 			if(mod->report_interval_kind == interval_kind_instructions &&
 				mod->report_stack->inst_count % mod->report_interval == 0)
 				mod_report_handler(EV_MOD_REPORT, (void *) mod->report_stack);
+		}*/
+
+		LINKED_LIST_FOR_EACH(mem_system->mem_controllers)
+		{
+			struct mem_controller_t *mc = linked_list_get(mem_system->mem_controllers);
+			if(mc->report_stack)
+			{
+				mc->report_stack->inst_count++;
+				if(mc->report_enabled && mc->report_interval_kind == interval_kind_instructions &&
+						x86_cpu->num_committed_uinst % mc->report_interval == 0)
+					mem_controller_report_handler(EV_MEM_CONTROLLER_REPORT, mc);
+			}
 		}
 
 		/* Interval stats */
@@ -179,13 +192,13 @@ static void x86_cpu_commit_thread(int core, int thread, int quant)
 		}
 
 		/* Adaptative mem controller. Update commited inst counters and launch handlers if necessary. */
-        LINKED_LIST_FOR_EACH(mem_system->mem_controllers)
-        {
+		LINKED_LIST_FOR_EACH(mem_system->mem_controllers)
+		{
 			struct mem_controller_t *mc = linked_list_get(mem_system->mem_controllers);
 			if(mc->adapt_interval_kind == interval_kind_instructions &&
 					x86_cpu->num_committed_uinst % mc->adapt_interval == 0)
 				mem_controller_adapt_handler(EV_MEM_CONTROLLER_ADAPT, mc);
-        }
+		}
 
 		/* Trace */
 		if (x86_tracing())

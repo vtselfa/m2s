@@ -268,6 +268,8 @@ void mem_system_init(void)
 			mem_domain_index, "mod_nmoesi_write_request_updown");
 	EV_MOD_NMOESI_WRITE_REQUEST_UPDOWN_FINISH = esim_register_event_with_name(mod_handler_nmoesi_write_request,
 			mem_domain_index, "mod_nmoesi_write_request_updown_finish");
+	EV_MOD_NMOESI_WRITE_REQUEST_UPDOWN_LATENCY = esim_register_event_with_name(mod_handler_nmoesi_write_request,
+			mem_domain_index, "mod_nmoesi_write_request_updown_latency");
 	EV_MOD_NMOESI_WRITE_REQUEST_DOWNUP = esim_register_event_with_name(mod_handler_nmoesi_write_request,
 			mem_domain_index, "mod_nmoesi_write_request_downup");
 	EV_MOD_NMOESI_WRITE_REQUEST_DOWNUP_FINISH = esim_register_event_with_name(mod_handler_nmoesi_write_request,
@@ -291,6 +293,8 @@ void mem_system_init(void)
 			mem_domain_index, "mod_nmoesi_read_request_updown_miss");
 	EV_MOD_NMOESI_READ_REQUEST_UPDOWN_FINISH = esim_register_event_with_name(mod_handler_nmoesi_read_request,
 			mem_domain_index, "mod_nmoesi_read_request_updown_finish");
+	EV_MOD_NMOESI_READ_REQUEST_UPDOWN_LATENCY = esim_register_event_with_name(mod_handler_nmoesi_read_request,
+			mem_domain_index, "mod_nmoesi_read_request_updown_latency");
 	EV_MOD_NMOESI_READ_REQUEST_DOWNUP = esim_register_event_with_name(mod_handler_nmoesi_read_request,
 			mem_domain_index, "mod_nmoesi_read_request_downup");
 	EV_MOD_NMOESI_READ_REQUEST_DOWNUP_WAIT_FOR_REQS = esim_register_event_with_name(mod_handler_nmoesi_read_request,
@@ -363,11 +367,21 @@ void mem_system_init(void)
 
 	/* Event for interval reports */
 	EV_MOD_REPORT = esim_register_event_with_name(mod_report_handler, mem_domain_index, "mod_report");
+	EV_MEM_CONTROLLER_REPORT = esim_register_event_with_name(mem_controller_report_handler, mem_domain_index, "mem_controller_report");
+
+	/* Interval report for cache modules */
 	LIST_FOR_EACH(mem_system->mod_list, i)
 	{
 		struct mod_t *mod = list_get(mem_system->mod_list, i);
-		if (mod->report_enabled)
+		if (mod->report_enabled && mod->kind == mod_kind_cache)
 			mod_report_schedule(mod);
+	}
+
+	LINKED_LIST_FOR_EACH(mem_system->mem_controllers)
+	{
+		struct mem_controller_t * mem_controller= linked_list_get(mem_system->mem_controllers);
+		if(mem_controller->report_enabled)
+			mem_controller_report_schedule(mem_controller);
 	}
 
 	/* Main memory */
@@ -375,6 +389,8 @@ void mem_system_init(void)
 	EV_MOD_NMOESI_EXAMINE_QUEUE_REQUEST=esim_register_event(mod_handler_nmoesi_request_main_memory, mem_domain_index);
 	EV_MOD_NMOESI_ACCES_BANK = esim_register_event(mod_handler_nmoesi_request_main_memory, mem_domain_index);
 	EV_MOD_NMOESI_TRANSFER_FROM_BANK=esim_register_event(mod_handler_nmoesi_request_main_memory, mem_domain_index);
+	EV_MOD_NMOESI_ACCES_TABLE = esim_register_event(mod_handler_nmoesi_request_main_memory, mem_domain_index);
+	EV_MOD_NMOESI_TRANSFER_FROM_TABLE=esim_register_event(mod_handler_nmoesi_request_main_memory, mem_domain_index);
 	EV_MOD_NMOESI_REMOVE_MEMORY_CONTROLLER=esim_register_event(mod_handler_nmoesi_request_main_memory, mem_domain_index);
 	EV_MOD_NMOESI_INSERT_MEMORY_CONTROLLER=esim_register_event(mod_handler_nmoesi_request_main_memory, mem_domain_index);
 
@@ -664,11 +680,11 @@ void mem_controller_dump_report()
 			}
 		}
 
-		fprintf(f, "\n[QUEUES-MEMORY-CONTROLLER (%s)]\n\n",mod->name);
+		//fprintf(f, "\n[QUEUES-MEMORY-CONTROLLER (%s)]\n\n",mod->name);
 		for(int i=0; i<mem_controller->num_queues;i++)
 		{
 			struct mem_controller_queue_t *normal = mem_controller->normal_queue[i];
-			fprintf(f, "[Normal-Queue-%d]\n",i);
+			fprintf(f, "[Normal-Queue-%d (%s)]\n",i, mod->name);
 			fprintf(f, "AvgNumRequests = %f\n",mem_controller->n_times_queue_examined?
 				(double) normal->total_requests / esim_cycle() : 0.0);
 			fprintf(f, "TimeFullPercent = %f\n", esim_cycle() ?
@@ -678,7 +694,7 @@ void mem_controller_dump_report()
 			fprintf(f, "TimeResponse = %f\n\n ",normal->total_insertions?(double)
 				(avg_req*esim_cycle())/normal->total_insertions:0);
 
-			fprintf(f, "[Prefetch-Queue-%i]\n",i);
+			fprintf(f, "[Prefetch-Queue-%i (%s)]\n",i, mod->name);
 			fprintf(f, "AvgNumRequests = %f\n",mem_controller->n_times_queue_examined?(double)
 				mem_controller->pref_queue[i]->total_requests/mem_controller->n_times_queue_examined:0.0);
 			fprintf(f, "TimeFullPercent = %f\n", esim_cycle() ? (double)mem_controller->pref_queue[i]->t_full/esim_cycle():0.0);
@@ -763,6 +779,7 @@ void mem_system_dump_report(void)
 		fprintf(f, "Evictions = %lld\n", mod->evictions);
 		fprintf(f, "Retries = %lld\n", mod->read_retries + mod->write_retries +
 			mod->nc_write_retries);
+		fprintf(f, "PercentDirectoryQueueFull = %f\n", (double)esim_cycle() ? (double)mod->cycles_queue_full/(double)esim_cycle() : 0.0);
 		fprintf(f, "\n");
 		fprintf(f, "Reads = %lld\n", mod->reads);
 		fprintf(f, "ReadRetries = %lld\n", mod->read_retries);

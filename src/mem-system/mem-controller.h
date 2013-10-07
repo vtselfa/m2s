@@ -6,6 +6,7 @@
 extern struct str_map_t interval_kind_map;
 
 extern int EV_MEM_CONTROLLER_ADAPT;
+extern int EV_MEM_CONTROLLER_REPORT;
 extern char * main_mem_report_file_name;
 
 struct tuple_adapt_t
@@ -16,7 +17,20 @@ struct tuple_adapt_t
 
 };
 
+struct mem_controller_report_stack_t
+{
+	struct mem_controller_t *mem_controller;
+	struct line_writer_t *line_writer;
+	long long inst_count;
+	long long t_acces;
+	long long t_wait;
+	long long t_transfer;
+	long long accesses;
+	long long served;
+	long long normal_accesses;
+	long long pref_accesses;
 
+};
 struct tuple_piggybacking_t
 {
 	unsigned int addr;
@@ -65,7 +79,8 @@ enum priority_t
 	prio_threshold_prefHit_normal_prefGroupCoalesce,
 	prio_threshold_prefHitRBH_normalRBH_normal_prefHit_prefGroup,
 	prio_threshold_prefHitRBH_normalRBH_normal_prefHit_prefGroupCoalesce,
-	prio_dynamic
+	prio_dynamic,
+	prio_FCFS_normal_pref /* if only one queue enable, it is FCFS*/
 };
 
 enum priority_type_request_t
@@ -102,12 +117,36 @@ struct mem_controller_queue_t
 {
 	/*Request queue*/
 	struct linked_list_t *queue;
+	long long current_request_num;
 
 	/*Stadistics*/
 	long long total_requests; // total number of stacks inserted inside the queue during all execution
 	long long t_full; // cycles when queue is full
 	long long instant_begin_full; // cycle when this queue is completed
 	long long total_insertions;
+};
+
+struct row_buffer_table_entry_t
+{
+	long long int lru; // cycle accessed
+	int row;
+	long long int  reserved; // stack id which has reserved this space
+	int accessed;
+
+};
+
+struct row_buffer_table_set_t
+{
+	int bank;
+	struct  row_buffer_table_entry_t* entries;
+};
+
+struct row_buffer_table_t
+{
+
+	int num_entries;
+	unsigned int assoc; // associativity
+	struct row_buffer_table_set_t * sets; // sets of assoc entries , sets*assoc = num_entries
 };
 
 struct mem_controller_t
@@ -155,9 +194,14 @@ struct mem_controller_t
 
 	/*ROW buffer*/
 	int row_buffer_size;
+	int enable_row_buffer_table;
+	struct row_buffer_table_t * row_buffer_table; // a row buffer table inside mem controller
 
 	/*Channels*/
 	struct reg_channel_t * regs_channel;
+	int bandwith;
+
+
 
 	/*Adaptative option*/
 	int adaptative;
@@ -213,6 +257,13 @@ struct mem_controller_t
 	long long last_row_buffer_hits;
 	long long last_normal_row_buffer_hits;
 	long long last_pref_row_buffer_hits;
+
+	/* Reporting statistics at intervals */
+	int report_enabled;
+	struct mem_controller_report_stack_t *report_stack;
+	long long report_interval;
+	enum interval_kind_t report_interval_kind;
+	FILE *report_file;
 };
 
 struct mem_controller_t * mem_controller_create(void);
@@ -223,7 +274,7 @@ void mem_controller_prefetch_queue_add(struct mod_stack_t * stack);
 int mem_controller_remove(struct mod_stack_t * stack, struct mem_controller_queue_t * queue);
 void mem_controller_init_main_memory(struct mem_controller_t *mem_controller, int channels, int ranks,
 	int banks, int t_send_request, int row_size, int block_size,int cycles_proc_bus,  enum policy_mc_queue_t policy,
-	enum priority_t priority, long long size_queue, long long cycles_wait_MCqueue, int queue_per_bank, enum policy_coalesce_t coalesce, struct reg_rank_t * regs_rank, int bandwith);
+	enum priority_t priority, long long size_queue, long long cycles_wait_MCqueue, int queue_per_bank, enum policy_coalesce_t coalesce, struct reg_rank_t * regs_rank, int bandwith, int enable_table, int assoc_table);
 void mem_controller_update_requests_threshold(int cycles,struct mem_controller_t * mem_controller);
 int mem_controller_queue_has_consumed_threshold(struct linked_list_t * queue, long long size);
 struct mod_stack_t* mem_controller_select_request(int queues_examined, enum priority_t select, struct mem_controller_t * mem_controller);
@@ -264,12 +315,23 @@ struct mod_stack_t * mem_controller_select_rbh_normal_prefHit_prefGroup_prio(str
 struct mod_stack_t * mem_controller_select_rbh_prefHit_normal_prefGroup_prio(struct mem_controller_queue_t * normal_queue,struct mem_controller_queue_t * pref_queue , enum priority_t priority, struct mem_controller_t * mem_controller);
 struct mod_stack_t * mem_controller_select_normal_prefHit_prefGroup_prio(struct mem_controller_queue_t * normal_queue,struct mem_controller_queue_t * pref_queue , enum priority_t priority, struct mem_controller_t * mem_controller);
 struct mod_stack_t * mem_controller_select_dynamic_prio(struct mem_controller_queue_t * normal_queue, struct mem_controller_queue_t * pref_queue, enum priority_t priority, struct mem_controller_t * mem_controller);
+struct mod_stack_t * mem_controller_select_FCFS_prio(struct mem_controller_queue_t * normal_queue, struct mem_controller_queue_t * pref_queue, enum priority_t priority, struct mem_controller_t * mem_controller);
 void mem_controller_mark_requests_same_stream(struct mod_stack_t* stack, struct linked_list_t * queue);
+
+/*Stadistics*/
+void mem_controller_report_schedule(struct mem_controller_t *mem_controller);
+void mem_controller_report_handler(int event, void *data);
 
 
 /*ROW BUFFER*/
 int row_buffer_find_row(struct mem_controller_t * mem_controller, struct mod_t *mod, unsigned int addr, unsigned int *channel_ptr,unsigned int *rank_ptr,
 	unsigned int *bank_ptr, unsigned int *row_ptr, int * tag_ptr, int *state_ptr);
+
+/*Table*/
+void mem_controller_row_buffer_table_reserve_entry(struct mod_stack_t *stack);
+struct row_buffer_table_entry_t *mem_controller_row_buffer_table_get_entry(struct mod_stack_t *stack);
+struct row_buffer_table_set_t* mem_controller_row_buffer_table_get_set(struct mod_stack_t *stack);
+struct row_buffer_table_entry_t *mem_controller_row_buffer_table_get_reserved_entry(struct mod_stack_t *stack);
 
 /*Adaptative*/
 void mem_controller_adapt_schedule(struct mem_controller_t * mem_controller);

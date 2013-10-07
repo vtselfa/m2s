@@ -32,6 +32,7 @@ struct reg_bank_t{
         int row_is_been_accesed; // row which is been accessed
         int row_buffer; // row which is inside row buffer
         int is_been_accesed;// show if a bank is been accedid for some instruction
+	long long int t_row_come; // instant when the row starts to be transfered into row buffer
 
         /*Stadistics*/
         long long row_buffer_hits; // number of acceses to row buffer which are hits
