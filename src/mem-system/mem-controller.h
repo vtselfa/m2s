@@ -240,6 +240,7 @@ struct mem_controller_t
 	long long non_coalesced_accesses;
 	long long pref_accesses;
 	long long normal_accesses;
+	long long num_requests_transfered;
 
 	long long blocks_transfered;
 	long long useful_blocks_transfered;
@@ -261,7 +262,7 @@ struct mem_controller_t
 	/* Reporting statistics at intervals */
 	int report_enabled;
 	struct mem_controller_report_stack_t *report_stack;
-	long long report_interval;
+	int report_interval;
 	enum interval_kind_t report_interval_kind;
 	FILE *report_file;
 };

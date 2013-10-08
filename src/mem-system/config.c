@@ -1073,18 +1073,18 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config,
 		mod->mem_controller->adapt_percent=adapt_limit;
 	}
 	mod->mem_controller->enabled = enabled_mc;
-
+	mod->mem_controller->report_interval = report_interval;
 	if(enable_report)
 	{
 		mod->mem_controller->report_enabled = enable_report;
 		mod->mem_controller->report_file = file_open_for_write(report_file_name);
 		if (!mod->mem_controller->report_file)
 			fatal("%s: cannot open mem controller report file", report_file_name);
-		mod->mem_controller->report_interval = report_interval;
+		
 		mod->mem_controller->report_interval_kind = str_map_string_case(&interval_kind_map, report_interval_kind_str);
-		if(!mod->mem_controller->report_interval_kind)
+		if(!mod->mem_controller->report_interval_kind || mod->mem_controller->report_interval_kind==interval_kind_instructions )
 			fatal("%s: mem controller %s: invalid value for variable "
-				"'ReportIntervalKind'.\n%s", mem_config_file_name,
+				"'ReportMCIntervalKind'.\n%s", mem_config_file_name,
 				mod->name, mem_err_config_note);
 	}
 

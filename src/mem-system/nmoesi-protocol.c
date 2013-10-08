@@ -6337,6 +6337,15 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
                 channel[stack->channel].acceses++;
                 mem_controller->useful_blocks_transfered++;
                 channel[stack->channel].num_requests_transfered+=1;//nked_list_count(coalesced_stacks);
+		mem_controller->num_requests_transfered++;
+
+		if(mem_controller->num_requests_transfered % mem_controller->report_interval == 0  &&
+		  mem_controller->report_enabled && mem_controller->report_interval_kind == interval_kind_accesses )
+			mem_controller_report_handler(EV_MEM_CONTROLLER_REPORT, mem_controller);
+			
+		
+
+		
 
 		 if(stack->prefetch)
                 {

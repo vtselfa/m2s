@@ -169,18 +169,7 @@ static void x86_cpu_commit_thread(int core, int thread, int quant)
 				mod_report_handler(EV_MOD_REPORT, (void *) mod->report_stack);
 		}*/
 
-		LINKED_LIST_FOR_EACH(mem_system->mem_controllers)
-		{
-			struct mem_controller_t *mc = linked_list_get(mem_system->mem_controllers);
-			if(mc->report_stack)
-			{
-				mc->report_stack->inst_count++;
-				if(mc->report_enabled && mc->report_interval_kind == interval_kind_instructions &&
-						x86_cpu->num_committed_uinst % mc->report_interval == 0)
-					mem_controller_report_handler(EV_MEM_CONTROLLER_REPORT, mc);
-			}
-		}
-
+		
 		/* Interval stats */
 		if(ctx->loader->interval_kind == interval_kind_instructions)
 		{
