@@ -42,7 +42,7 @@ struct x86_loader_t
 
 	/* IPC report (for detailed simulation) */
 	FILE *ipc_report_file;
-	int ipc_report_interval;
+	long long ipc_report_interval;
 
 	/* Misc report (for detailed simulation) */
 	FILE *misc_report_file;
@@ -51,10 +51,6 @@ struct x86_loader_t
 	/* MC (memory controller) report (for detailed simulation) */
 	FILE *mc_report_file;
 	int mc_report_interval;
-
-	/* CPU report (for detailed simulation) */
-	FILE *cpu_report_file;
-	int cpu_report_interval;
 
 	/* Tells if interval is in cycles or in instructions */
 	enum interval_kind_t interval_kind;

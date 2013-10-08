@@ -48,7 +48,7 @@ int mem_trace_category;
 int mem_peer_transfers;
 
 /* Frequency domain, as returned by function 'esim_new_domain'. */
-int mem_frequency = 1000;
+int mem_frequency = 3000;
 int mem_domain_index;
 
 struct mem_system_t *mem_system;
