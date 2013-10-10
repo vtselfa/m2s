@@ -27,6 +27,7 @@
 #include <lib/util/debug.h>
 #include <lib/util/file.h>
 #include <lib/util/list.h>
+#include <lib/util/line-writer.h>
 #include <lib/util/linked-list.h>
 #include <lib/util/misc.h>
 #include <lib/util/string.h>
@@ -308,12 +309,14 @@ void x86_ctx_free(struct x86_ctx_t *ctx)
 	x86_ctx_debug("#%lld ctx %d freed\n", arch_x86->cycle, ctx->pid);
 
 	/* Free stats reporting stacks */
-	free(ctx->ipc_report_stack);
-	free(ctx->misc_report_stack);
-	free(ctx->cpu_report_stack);
+	if(ctx->ipc_report_stack)
+	{
+		line_writer_free(ctx->ipc_report_stack->lw);
+		free(ctx->ipc_report_stack);
+	}
 	free(ctx->mc_report_stack);
 
-	/*Free report*/
+	/* Free report */
 	file_close(ctx->report_file);
 
 	/* Free context */
@@ -937,8 +940,9 @@ void x86_ctx_gen_proc_cpuinfo(struct x86_ctx_t *ctx, char *path, int size)
 void x86_ctx_ipc_report_schedule(struct x86_ctx_t *ctx)
 {
 	struct x86_ctx_report_stack_t *stack;
+	struct line_writer_t *lw;
 	FILE *f = ctx->loader->ipc_report_file;
-	int i;
+	int size, i;
 
 	/* Create new stack */
 	stack = xcalloc(1, sizeof(struct x86_ctx_report_stack_t));
@@ -950,12 +954,23 @@ void x86_ctx_ipc_report_schedule(struct x86_ctx_t *ctx)
 
 	/* Print header */
 	fprintf(f, "%s", help_x86_ctx_ipc_report);
-	fprintf(f, "%10s %10s %8s %10s %10s\n", "cycle", "inst", "inst-int", "ipc-glob", "ipc-int");
-	for (i = 0; i < 43; i++)
+	lw = line_writer_create(" ");
+	lw->heuristic_size_enabled = 1;
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "cycle");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "inst");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "inst-int");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "ipc-glob");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "ipc-int");
+
+	size = line_writer_write(lw, f);
+	line_writer_clear(lw);
+
+	for (i = 0; i < size - 1; i++)
 		fprintf(f, "-");
 	fprintf(f, "\n");
 
 	ctx->ipc_report_stack = stack;
+	stack->lw = lw;
 
 	/* Schedule first event */
 	if(ctx->loader->interval_kind == interval_kind_cycles)
@@ -985,6 +1000,7 @@ void x86_ctx_ipc_report_handler(int event, void *data)
 	ipc_interval = (double) inst_count / (arch_x86->cycle - stack->last_cycle);
 	fprintf(ctx->loader->ipc_report_file, "%10lld %10lld %8lld %10.4f %10.4f\n",
 		esim_cycle(), ctx->inst_count, inst_count, ipc_global, ipc_interval);
+	fflush(ctx->loader->ipc_report_file);
 
 	stack->inst_count = ctx->inst_count;
 	stack->last_cycle = arch_x86->cycle;
