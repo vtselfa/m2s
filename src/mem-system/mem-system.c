@@ -532,6 +532,8 @@ void mem_controller_dump_report()
 		fprintf(f, "AvgTimeInsideNet = %f\n",mem_controller->accesses?(double)
 				mem_controller->t_inside_net/mem_controller->accesses:0.0 );
 		fprintf(f,"TotalAccessesMC = %lld\n", mem_controller->accesses);
+		fprintf(f, "RowBufferHitPercent = %F\n", mem_controller->accesses?(double)
+					mem_controller->row_buffer_hits/mem_controller->accesses : 0.0);
 		fprintf(f,"TotalNonCoalescedAccessesMC = %lld\n", mem_controller->non_coalesced_accesses);
 		fprintf(f,"RequestsPerCoalesdedAcces = %f\n", mem_controller->non_coalesced_accesses ?(double)
 				mem_controller->accesses/mem_controller->non_coalesced_accesses:0);
@@ -550,6 +552,8 @@ void mem_controller_dump_report()
 		fprintf(f,"AvgTimeNormalTransferFromMM = %f\n",mem_controller->normal_accesses?(double)
 				mem_controller->t_normal_transfer/mem_controller->normal_accesses:0.0 );
 		fprintf(f,"TotalNormalAccessesMC = %lld\n", mem_controller->normal_accesses);
+		fprintf(f, "NormalhRowBufferHitPercent = %F\n", mem_controller->normal_accesses?(double)
+					mem_controller->row_buffer_hits_normal/mem_controller->normal_accesses : 0.0);
 
 		fprintf(f,"\n");
 
@@ -563,7 +567,8 @@ void mem_controller_dump_report()
 		fprintf(f,"AvgTimePrefetchTransferFromMM = %f\n",mem_controller->pref_accesses?(double)
 				mem_controller->t_pref_transfer/mem_controller->pref_accesses:0.0 );
 		fprintf(f,"TotalPrefetchAccessesMC = %lld\n", mem_controller->pref_accesses);
-
+		fprintf(f, "PrefetchRowBufferHitPercent = %F\n", mem_controller->pref_accesses?(double)
+					mem_controller->row_buffer_hits_pref/mem_controller->pref_accesses : 0.0);
 		fprintf(f,"\n");
 
 		for(int i=0; i<mem_controller->row_buffer_size/mod->cache->block_size;i++)
@@ -581,12 +586,26 @@ void mem_controller_dump_report()
 		fprintf(f,"\n\n");
 
 
+		fprintf(f, "[RowBufferTable-%s]\n", mod->name);
+		fprintf(f,"TotalAccesses = %lld\n", mem_controller->row_buffer_table->accesses);
+		fprintf(f,"RowBufferHitPercent = %F\n", mem_controller->row_buffer_table->accesses?(double)
+			mem_controller->row_buffer_table->hit_accesses/mem_controller->row_buffer_table->accesses : 0.0);
+		fprintf(f,"TotalTransferedBlock = %lld\n", mem_controller->row_buffer_table->transfered_blocks);
+		
+		fprintf(f,"TotalNormalAccesses = %lld\n", mem_controller->row_buffer_table->normal_accesses);
+		fprintf(f,"NormalRowBufferHitPercent = %F\n", mem_controller->row_buffer_table->normal_accesses?(double)
+			mem_controller->row_buffer_table->normal_hit_accesses/mem_controller->row_buffer_table->normal_accesses : 0.0);
+		
+		fprintf(f,"TotalPrefetchAccesses = %lld\n", mem_controller->row_buffer_table->pref_accesses);
+		fprintf(f,"PrefetchRowBufferHitPercent = %F\n", mem_controller->row_buffer_table->pref_accesses?(double)
+			mem_controller->row_buffer_table->pref_hit_accesses/mem_controller->row_buffer_table->pref_accesses : 0.0);
+		
+fprintf(f,"\n\n");
 		for(int c=0; c<mem_controller->num_regs_channel;c++)
 		{
 			fprintf(f, "[Channel-%d (%s)]\n", c,mod->name);
 
-			fprintf(f, "RowBufferHitPercent = %F\n", mem_controller->regs_channel[c].acceses?
-					(double)mem_controller->regs_channel[c].row_buffer_hits/mem_controller->regs_channel[c].acceses : 0.0);
+			
 			fprintf(f, "AvgTimeWaitRequestSend = %f\n",mem_controller->regs_channel[c].acceses?
 					(double)mem_controller->regs_channel[c].t_wait_send_request/mem_controller->regs_channel[c].acceses : 0.0);
 			fprintf(f, "AvgTimeWaitRequestSendChannelBusy = %f\n",mem_controller->regs_channel[c].num_requests_transfered ?
@@ -600,8 +619,7 @@ void mem_controller_dump_report()
 			fprintf(f,"\n");
 
 			/*Normal requests*/
-			fprintf(f, "NormalRowBufferHitPercent = %F\n", mem_controller->regs_channel[c].normal_accesses?(double)
-					mem_controller->regs_channel[c].row_buffer_hits_normal/mem_controller->regs_channel[c].normal_accesses : 0);
+			
 			fprintf(f, "AvgTimeNormalWaitRequestSend = %f\n",mem_controller->regs_channel[c].normal_accesses?(double)
 					mem_controller->regs_channel[c].t_normal_wait_send_request/
 					mem_controller->regs_channel[c].normal_accesses:0);
@@ -615,8 +633,7 @@ void mem_controller_dump_report()
 			fprintf(f,"\n");
 
 			/*Prefetch requests*/
-			fprintf(f, "PrefetchRowBufferHitPercent = %F\n", mem_controller->regs_channel[c].pref_accesses?(double)
-					mem_controller->regs_channel[c].row_buffer_hits_pref/mem_controller->regs_channel[c].pref_accesses : 0.0);
+			
 			fprintf(f, "AvgTimePrefetchWaitRequestSend = %f\n",mem_controller->regs_channel[c].pref_accesses?(double)
 					mem_controller->regs_channel[c].t_pref_wait_send_request/mem_controller->regs_channel[c].pref_accesses : 0);
 			fprintf(f, "AvgTimePrefetchWaitRequestSendChannelBusy = %f\n",

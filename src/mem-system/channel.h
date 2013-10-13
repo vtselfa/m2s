@@ -56,9 +56,7 @@ struct reg_channel_t{
 	long long t_pref_wait_transfer_request; // time waiting to transfer the bloc
 	long long t_transfer;
 	long long num_requests_transfered;
-	long long row_buffer_hits; // number of acceses to row buffer which are hits
-	long long row_buffer_hits_pref;
-	long long row_buffer_hits_normal;
+	
 	long long num_pref_requests_transfered;
 	long long num_normal_requests_transfered;
 };

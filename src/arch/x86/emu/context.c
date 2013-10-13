@@ -108,7 +108,7 @@ static char *help_x86_ctx_mc_report =
 	"      interval divided by total acceses to mc in the current interval.\n"
 	"\n";
 
-static char *help_x86_ctx_cpu_report =
+/*static char *help_x86_ctx_cpu_report =
 	"The cpu report file shows some relevant statistics related to\n"
 	"prefetch at specific intervals.\n"
 	"The following fields are shown in each record:\n"
@@ -129,7 +129,7 @@ static char *help_x86_ctx_cpu_report =
 	"      Percent of stalled cycles due to a memory instruction, which stops the ROB\n"
 	"\n";
 
-
+*/
 static struct str_map_t x86_ctx_status_map =
 {
 	18, {
@@ -1060,14 +1060,11 @@ void x86_ctx_mc_report_handler(int event, void *data)
 	{
 		mem_controller = linked_list_get(mem_system->mem_controllers);
 
-		for(int c = 0; c < mem_controller->num_regs_channel; c++)
-		{
-			row_buffer_hits+=mem_controller->regs_channel[c].row_buffer_hits;
-			normal_row_buffer_hits+=
-				mem_controller->regs_channel[c].row_buffer_hits_normal;
-			pref_row_buffer_hits+=
-				mem_controller->regs_channel[c].row_buffer_hits_pref;
-		}
+		
+		row_buffer_hits=mem_controller->row_buffer_hits;
+		normal_row_buffer_hits=mem_controller->row_buffer_hits_normal;
+		pref_row_buffer_hits=mem_controller->row_buffer_hits_pref;
+		
 		t_pref_total_mc=(mem_controller->pref_accesses-
 			mem_controller->last_pref_accesses)>0?(double)(mem_controller->t_pref_wait
 			+mem_controller->t_pref_transfer+mem_controller->t_pref_acces_main_memory-
@@ -1155,66 +1152,67 @@ void x86_ctx_mc_report_handler(int event, void *data)
 
 void x86_ctx_cpu_report_schedule(struct x86_ctx_t *ctx)
 {
-	struct x86_ctx_report_stack_t *stack;
-	FILE *f = ctx->loader->cpu_report_file;
-	int i;
+	//struct x86_ctx_report_stack_t *stack;
+	//FILE *f = ctx->loader->cpu_report_file;
+	//int i;
 
 	/* Create new stack */
-	stack = xcalloc(1, sizeof(struct x86_ctx_report_stack_t));
+	//stack = xcalloc(1, sizeof(struct x86_ctx_report_stack_t));
 
 	/* Initialize */
-	assert(ctx->loader->cpu_report_file);
-	assert(ctx->loader->cpu_report_interval > 0);
-	stack->pid = ctx->pid;
+	//assert(ctx->loader->cpu_report_file);
+	//assert(ctx->loader->cpu_report_interval > 0);
+	//stack->pid = ctx->pid;
 
 	/* Print header */
-	fprintf(f, "%s", help_x86_ctx_cpu_report);
-	fprintf(f, "%10s %10s %8s %8s %10s\n", "cycle", "inst", "inst-int", "core", "%_stalled_due_mem_inst");
-	for (i = 0; i < 43; i++)
-		fprintf(f, "-");
-	fprintf(f, "\n");
+	//fprintf(f, "%s", help_x86_ctx_cpu_report);
+	//fprintf(f, "%10s %10s %8s %8s %10s\n", "cycle", "inst", "inst-int", "core", "%_stalled_due_mem_inst");
+	//for (i = 0; i < 43; i++)
+	//	fprintf(f, "-");
+	//fprintf(f, "\n");
 
-	ctx->cpu_report_stack = stack;
+	//ctx->cpu_report_stack = stack;
 
 	/* Schedule first event */
-	if(ctx->loader->interval_kind == interval_kind_cycles)
-		esim_schedule_event(EV_X86_CTX_CPU_REPORT, stack, ctx->loader->cpu_report_interval);
+	//if(ctx->loader->interval_kind == interval_kind_cycles)
+	//	esim_schedule_event(EV_X86_CTX_CPU_REPORT, stack, ctx->loader->cpu_report_interval);
 }
 
 
 void x86_ctx_cpu_report_handler(int event, void *data)
 {
-	struct x86_ctx_report_stack_t *stack = data;
+	/*struct x86_ctx_report_stack_t *stack = data;
 	struct x86_ctx_t *ctx;
 	long long inst_count;
-	int core;
-	float cycles_stalled;
+	int core;*/
+	//float cycles_stalled;
 
 	/* Get context. If it does not exist anymore, no more
 	 * events to schedule. */
-	ctx = x86_ctx_get(stack->pid);
+	/*ctx = x86_ctx_get(stack->pid);
 	if (!ctx || x86_ctx_get_state(ctx, x86_ctx_finished) || esim_finish)
-		return;
+		return;*/
 
-	X86_CORE_FOR_EACH
-	{
-		cycles_stalled = esim_cycle - stack->last_cycle > 0 ? (double)
-			100 * (X86_CORE.dispatch_stall_cycles_rob_mem - X86_CORE.last_dispatch_stall_cycles_rob_mem) /
-			(esim_cycle() - stack->last_cycle) : 0.0;
+	//X86_CORE_FOR_EACH
+	//{
+		//cycles_stalled = esim_cycle - stack->last_cycle > 0 ? (double)
+		//	100 * (X86_CORE.dispatch_stall_cycles_rob_mem - X86_CORE.last_dispatch_stall_cycles_rob_mem) /
+		//	(esim_cycle() - stack->last_cycle) : 0.0;
 
 		/* Dump new MC stat */
-		assert(ctx->loader->cpu_report_interval);
+		/*assert(ctx->loader->cpu_report_interval);
 		inst_count = ctx->inst_count - stack->inst_count;
-		fprintf(ctx->loader->cpu_report_file, "%10lld %10lld %8lld %d %10.4f\n", esim_cycle(), ctx->inst_count, inst_count, core, cycles_stalled);
-	}
+		fprintf(ctx->loader->cpu_report_file, "%10lld %10lld %8lld %d %10.4f\n", esim_cycle(), ctx->inst_count, inst_count, core, cycles_stalled);*/
+	//}
 
 	/* Update intermediate results */
-	stack->last_cycle = esim_cycle();
+	/*stack->last_cycle = esim_cycle();
 	X86_CORE_FOR_EACH
 		X86_CORE.last_dispatch_stall_cycles_rob_mem = X86_CORE.dispatch_stall_cycles_rob_mem;
-
+*/
 	/* Schedule new event */
-	stack->inst_count = ctx->inst_count;
+	/*stack->inst_count = ctx->inst_count;
 	if(ctx->loader->interval_kind == interval_kind_cycles)
 		esim_schedule_event(event, stack, ctx->loader->cpu_report_interval);
+	*/
 }

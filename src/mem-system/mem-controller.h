@@ -143,6 +143,14 @@ struct row_buffer_table_set_t
 
 struct row_buffer_table_t
 {
+	long long accesses;
+	long long normal_accesses;
+	long long pref_accesses;
+	long long hit_accesses;
+	long long pref_hit_accesses;
+	long long normal_hit_accesses;
+	long long transfered_blocks;
+	long long useful_blocks;
 
 	int num_entries;
 	unsigned int assoc; // associativity
@@ -241,6 +249,9 @@ struct mem_controller_t
 	long long pref_accesses;
 	long long normal_accesses;
 	long long num_requests_transfered;
+	long long row_buffer_hits;
+	long long row_buffer_hits_pref;
+	long long row_buffer_hits_normal;
 
 	long long blocks_transfered;
 	long long useful_blocks_transfered;
