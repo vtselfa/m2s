@@ -225,6 +225,7 @@ QueuePerBank = 1
 SizeQueue = 128
 MemoryControllerEnabled = 1
 EnableRowBufferTable = 0
+RowBufferPerBank = 2
 
 
 

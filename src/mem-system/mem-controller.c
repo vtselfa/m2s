@@ -136,11 +136,15 @@ int row_buffer_find_row(struct mem_controller_t * mem_controller, struct mod_t *
 	if(!mem_controller->enable_row_buffer_table)
 	{
 		/*Is the row inside the row buffer?*/
-		if(mem_controller->regs_channel[channel].regs_rank[rank].regs_bank[bank].row_buffer!=row){
-			PTR_ASSIGN(state_ptr, row_buffer_miss);
-			return 1;
+		for(int i=0; i<mem_controller->regs_channel[channel].regs_rank[rank].regs_bank[bank].row_buffer_per_bank; i++)
+		{
+			if(mem_controller->regs_channel[channel].regs_rank[rank].regs_bank[bank].row_buffers[i].row==row)
+			{
+				PTR_ASSIGN(state_ptr, row_buffer_hit);
+				return 1;
+			}
 		}
-		PTR_ASSIGN(state_ptr, row_buffer_hit);
+		PTR_ASSIGN(state_ptr, row_buffer_miss);
 		return 1;
 	}else{
 		
@@ -2910,7 +2914,8 @@ void mem_controller_row_buffer_table_reserve_entry(struct mod_stack_t *stack)
 				lru_entry=i;
 				found=1;
 			}else if(set->entries[lru_entry].lru!=-1 && set->entries[i].lru==-1)
-			{
+		
+	{
 				lru_entry=i;
 			}
 			else if( set->entries[lru_entry].lru>set->entries[i].lru )
@@ -2924,6 +2929,40 @@ void mem_controller_row_buffer_table_reserve_entry(struct mod_stack_t *stack)
 	//printf("%lld reserva entra %d  banc%d\n", stack->id, lru_entry , set->bank);
 	assert(lru_entry!=-1);
 	set->entries[lru_entry].reserved=stack->id;
+				
+}
+
+void mem_controller_row_buffer_allocate_row(struct mod_stack_t *stack)
+{
+	struct mem_controller_t *mem_controller = stack->mod->mem_controller;
+	int lru_entry = -1;
+	int found = 0;
+
+	struct reg_bank_t bank= mem_controller->regs_channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank];
+	for(int i =0 ;i <bank.row_buffer_per_bank; i++)
+	{		
+		if(!found)
+		{
+			lru_entry=i;
+			found=1;
+		}else if(bank.row_buffers[lru_entry].lru!=-1 && bank.row_buffers[i].lru==-1)
+		{
+			lru_entry=i;
+		}
+		else if( bank.row_buffers[lru_entry].lru>bank.row_buffers[i].lru )
+		{
+			lru_entry=i;
+			
+		}
+			
+	
+	}
+	//printf("asigna la fila %d en la fila%d b%d r%d\n",stack->row, lru_entry, stack->bank, stack->rank );
+	//printf("%lld reserva entra %d  banc%d\n", stack->id, lru_entry , set->bank);
+	assert(lru_entry!=-1);
+	//bank.row_buffers[lru_entry].reserved=stack->id;
+	bank.row_buffers[lru_entry].row = stack->row;
+	bank.row_buffers[lru_entry].lru=esim_cycle();
 				
 }
 

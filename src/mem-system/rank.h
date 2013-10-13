@@ -45,7 +45,7 @@ struct reg_rank_t{
 };
 
 
-struct reg_rank_t* regs_rank_create( int num_ranks, int num_banks, int t_row_buffer_miss, int t_row_buffer_hit);
+struct reg_rank_t* regs_rank_create( int num_ranks, int num_banks, int t_row_buffer_miss, int t_row_buffer_hit, int rb_per_bank);
 void reg_rank_free(struct reg_rank_t * ranks, int num_ranks);
 
 

@@ -338,6 +338,8 @@ void mem_controller_report_handler(int event, void *data);
 /*ROW BUFFER*/
 int row_buffer_find_row(struct mem_controller_t * mem_controller, struct mod_t *mod, unsigned int addr, unsigned int *channel_ptr,unsigned int *rank_ptr,
 	unsigned int *bank_ptr, unsigned int *row_ptr, int * tag_ptr, int *state_ptr);
+void mem_controller_row_buffer_allocate_row(struct mod_stack_t *stack);
+
 
 /*Table*/
 void mem_controller_row_buffer_table_reserve_entry(struct mod_stack_t *stack);

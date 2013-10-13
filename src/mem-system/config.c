@@ -807,6 +807,7 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config,
 	int enable_report;
 	int enable_table;
 	int assoc_table;
+	int rb_per_bank;
 
 	/* Read parameters */
 	str_token(mod_name, sizeof mod_name, section, 1, " ");
@@ -842,7 +843,7 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config,
 	adapt_interval_kind_str = config_read_string(config, section, "AdaptativeIntervalKind", "Cycles");
 	enable_table = config_read_int(config, section, "EnableRowBufferTable", 0);
 	assoc_table = config_read_int(config, section, "AssociativityRowBufferTable", 2);
-
+	rb_per_bank = config_read_int(config, section, "RowBufferPerBank", 1);
 
         /////////////////////////////////////////////////////////////////////
 
@@ -1029,6 +1030,9 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config,
 
 	if(enable_table&& coalesce_type != policy_coalesce_disabled) // PPPPP ESTA RESTRICCIO MES AVANT LA LLEVARE
 		fatal("Coalesce can not be enabled with row buffer table enabled\n");
+	 if (rb_per_bank < 1 )
+                fatal("%s: %s: invalid value for variable 'RowBufferPerBank'.\n%s",
+                        mem_config_file_name, mod_name, mem_err_config_note);
 
 	/* Create module */
 	mod = mod_create(mod_name, mod_kind_main_memory, num_ports,
@@ -1052,7 +1056,7 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config,
 		dir_assoc, cache_policy_lru);
 
 	 /* Create main memory */
-	mod->regs_rank = regs_rank_create(ranks, banks, t_acces_bank_hit, t_acces_bank_miss );
+	mod->regs_rank = regs_rank_create(ranks, banks, t_acces_bank_hit, t_acces_bank_miss, rb_per_bank );
 	mod->num_regs_rank = ranks;
 
 	/* Create memory controller */

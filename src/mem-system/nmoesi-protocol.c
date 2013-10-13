@@ -5790,6 +5790,16 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 			
 			t_acces= bank[stack->bank].t_row_buffer_hit*(1+n_coalesce);
 
+			/*Update LRU*/
+			for(int i=0; i< bank[stack->bank].row_buffer_per_bank; i++)
+			{
+				if(bank[stack->bank].row_buffers[i].row == stack->row)
+				{
+					bank[stack->bank].row_buffers[i].lru=esim_cycle();
+					//printf("accede %d de la fila%d b%d r%d\n", stack->row, i, stack->bank, stack->rank);
+				}
+			}
+
 			/* Stadistics */
                         mem_controller->row_buffer_hits+=1+ n_coalesce;
 			channel[stack->channel].regs_rank[stack->rank].regs_bank[stack->bank].row_buffer_hits+=1+ n_coalesce;
@@ -5852,11 +5862,12 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
                         mem_debug("  %lld %lld 0x%x %s miss acces bank\n", esim_time, stack->id,
                                 stack->addr&~mod->cache->block_mask, mod->name);
                        
-
 			
 			t_acces= bank[stack->bank].t_row_buffer_miss*(1+n_coalesce);
 			esim_schedule_event(EV_MOD_NMOESI_TRANSFER_FROM_BANK, stack, t_acces);
 
+			 /* Update the new row into row buffer */
+                	mem_controller_row_buffer_allocate_row(stack);
 			
 
                         /* Stadistics */
@@ -5882,8 +5893,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
                         }
                 }
 
-                /* Update the new row into row buffer */
-                bank[stack->bank].row_buffer = stack->row;
+               
 
 		
                 /* Stadistics */

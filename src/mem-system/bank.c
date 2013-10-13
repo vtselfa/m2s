@@ -34,16 +34,22 @@
  * Bank
  */
 
-struct reg_bank_t* regs_bank_create( int num_banks, int t_row_hit, int t_row_miss){
+struct reg_bank_t* regs_bank_create( int num_banks, int t_row_hit, int t_row_miss, int row_buffer_per_bank){
 
         struct reg_bank_t * banks;
         banks = xcalloc( num_banks, sizeof(struct reg_bank_t));
         if (!banks)
                 fatal("%s: out of memory", __FUNCTION__);
-
+	
         for(int i=0; i<num_banks;i++){
-                banks[i].row_buffer=-1;
-                banks[i].row_is_been_accesed=-1;
+		banks[i].row_buffer_per_bank = row_buffer_per_bank;
+		banks[i].row_buffers=xcalloc(row_buffer_per_bank, sizeof(struct row_buffer_t));
+		for(int j=0; j<row_buffer_per_bank;j++)
+		{
+               		banks[i].row_buffers[j].row=-1;
+			banks[i].row_buffers[j].lru=-1;
+		}
+                //banks[i].row_is_been_accesed=-1;
                 banks[i].t_row_buffer_miss=t_row_miss;
                 banks[i].t_row_buffer_hit=t_row_hit;
         }
