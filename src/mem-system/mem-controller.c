@@ -240,9 +240,9 @@ void mem_controller_init_main_memory(struct mem_controller_t *mem_controller, in
 	
 	/*ROw buffer table*/
 	mem_controller->enable_row_buffer_table = enable_rbtable;
+	mem_controller->row_buffer_table = xcalloc(1, sizeof(struct row_buffer_table_t ));
 	if(enable_rbtable)
 	{
-		mem_controller->row_buffer_table = xcalloc(1, sizeof(struct row_buffer_table_t ));
 		mem_controller->row_buffer_table->assoc = assoc_table;
 		mem_controller->row_buffer_table->num_entries = assoc_table*banks*ranks;
 		mem_controller->row_buffer_table->sets = xcalloc(ranks*banks, sizeof(struct row_buffer_table_set_t ));
@@ -346,9 +346,9 @@ void mem_controller_free(struct mem_controller_t *mem_controller){
 			free(mem_controller->row_buffer_table->sets[i].entries);
 				
 		free(mem_controller->row_buffer_table->sets);
-		free(mem_controller->row_buffer_table);
+		
 	}
-
+	free(mem_controller->row_buffer_table);
 	free(mem_controller);
 }
 

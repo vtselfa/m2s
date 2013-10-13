@@ -6036,7 +6036,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 				mem_controller->row_buffer_table->pref_hit_accesses+=1;
 			}else{
 			       mem_controller->row_buffer_hits_normal++;
-				mem_controller->row_buffer_table->normal_accesses+=1;
+				mem_controller->row_buffer_table->normal_hit_accesses+=1;
 			}
 
 			if(stack->coalesced_stacks!=NULL) // coalesce requests
@@ -6051,7 +6051,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 						mem_controller->row_buffer_table->pref_hit_accesses+=1;
 					}else{
 					       mem_controller->row_buffer_hits_normal++;
-						mem_controller->row_buffer_table->normal_accesses+=1;
+						mem_controller->row_buffer_table->normal_hit_accesses+=1;
 					}
 			                linked_list_next(stack->coalesced_stacks);
 			        }
