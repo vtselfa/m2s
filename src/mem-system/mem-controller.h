@@ -133,6 +133,9 @@ struct row_buffer_table_entry_t
 	long long int  reserved; // stack id which has reserved this space
 	int accessed;
 
+	/*Stadistics*/
+	struct linked_list_t * used_blocks;// save accesed blocks in a specific row
+
 };
 
 struct row_buffer_table_set_t
@@ -342,10 +345,14 @@ void mem_controller_row_buffer_allocate_row(struct mod_stack_t *stack);
 
 
 /*Table*/
+void mem_controller_row_buffer_table_create(struct mem_controller_t *mem_controller, int enable_rbtable, int assoc_table, int ranks, int banks);
+void mem_controller_row_buffer_table_free(struct mem_controller_t * mem_controller);
 void mem_controller_row_buffer_table_reserve_entry(struct mod_stack_t *stack);
 struct row_buffer_table_entry_t *mem_controller_row_buffer_table_get_entry(struct mod_stack_t *stack);
 struct row_buffer_table_set_t* mem_controller_row_buffer_table_get_set(struct mod_stack_t *stack);
 struct row_buffer_table_entry_t *mem_controller_row_buffer_table_get_reserved_entry(struct mod_stack_t *stack);
+void mem_controller_row_buffer_table_reset_used_block(struct mod_stack_t *stack);
+int mem_controller_row_buffer_table_count_used_block(struct mod_stack_t *stack);
 
 /*Adaptative*/
 void mem_controller_adapt_schedule(struct mem_controller_t * mem_controller);

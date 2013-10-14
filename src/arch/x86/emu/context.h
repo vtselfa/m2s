@@ -44,6 +44,7 @@ struct x86_ctx_report_stack_t
 	int pid;
 	long long inst_count;
 	long long last_cycle;
+	struct line_writer_t *lw;
 };
 
 struct x86_ctx_t
@@ -177,8 +178,6 @@ struct x86_ctx_t
 	/* Report stacks */
 	struct x86_ctx_report_stack_t *ipc_report_stack;
 	struct x86_ctx_report_stack_t *mc_report_stack;
-	struct x86_ctx_report_stack_t *misc_report_stack;
-	struct x86_ctx_report_stack_t *cpu_report_stack;
 
 	
 

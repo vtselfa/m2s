@@ -168,6 +168,7 @@ int line_writer_write(struct line_writer_t *lw, FILE *out)
 	*aux = '\n';
 
 	fputs(str, out);
+	fflush(out);
 	free(str);
 
 	return size - 1;

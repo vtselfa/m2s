@@ -6057,6 +6057,8 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 			        }
 			 }
 				  
+			mem_controller_row_buffer_table_count_used_block(stack); // counts accesed blocks only one time
+			
 
                 }
                 else    /* MISS */
@@ -6073,6 +6075,11 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 			assert(entry_table->accessed ==0);
 			entry_table->accessed = 1;
 			entry_table->row = stack->row;
+
+			/*Stadistics*/
+			mem_controller_row_buffer_table_reset_used_block(stack); // counts accesed blocks only one time
+			mem_controller_row_buffer_table_count_used_block(stack); // counts accesed blocks only one time
+			
 
 
                }

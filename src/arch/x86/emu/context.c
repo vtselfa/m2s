@@ -27,6 +27,7 @@
 #include <lib/util/debug.h>
 #include <lib/util/file.h>
 #include <lib/util/list.h>
+#include <lib/util/line-writer.h>
 #include <lib/util/linked-list.h>
 #include <lib/util/misc.h>
 #include <lib/util/string.h>
@@ -108,28 +109,8 @@ static char *help_x86_ctx_mc_report =
 	"      interval divided by total acceses to mc in the current interval.\n"
 	"\n";
 
-/*static char *help_x86_ctx_cpu_report =
-	"The cpu report file shows some relevant statistics related to\n"
-	"prefetch at specific intervals.\n"
-	"The following fields are shown in each record:\n"
-	"\n"
-	"  <cycle>\n"
-	"      Current simulation cycle. The increment between this value and the value\n"
-	"      shown in the next record is the interval specified in the context\n"
-	"      configuration file.\n"
-	"\n"
-	"  <inst>\n"
-	"      Current simulation instruction. The increment between thi value and the\n"
-	"      value shown in the next record is in the column inst-int.\n"
-	"\n"
-	"  <inst-int>\n"
-	"      Number of non-speculative instructions executed in the current interval.\n"
-	"\n"
-	"  <%_stalled_due_mem_inst>\n"
-	"      Percent of stalled cycles due to a memory instruction, which stops the ROB\n"
-	"\n";
 
-*/
+
 static struct str_map_t x86_ctx_status_map =
 {
 	18, {
@@ -201,7 +182,7 @@ static struct x86_ctx_t *ctx_do_create()
 struct x86_ctx_t *x86_ctx_create(void)
 {
 	struct x86_ctx_t *ctx;
-	
+
 	ctx = ctx_do_create();
 
 	/* Loader */
@@ -329,9 +310,11 @@ void x86_ctx_free(struct x86_ctx_t *ctx)
 	x86_ctx_debug("#%lld ctx %d freed\n", arch_x86->cycle, ctx->pid);
 
 	/* Free stats reporting stacks */
-	free(ctx->ipc_report_stack);
-	free(ctx->misc_report_stack);
-	free(ctx->cpu_report_stack);
+	if(ctx->ipc_report_stack)
+	{
+		line_writer_free(ctx->ipc_report_stack->lw);
+		free(ctx->ipc_report_stack);
+	}
 	free(ctx->mc_report_stack);
 
 	
@@ -371,6 +354,7 @@ void x86_ctx_dump(struct x86_ctx_t *ctx, FILE *f)
 	/* End */
 	fprintf(f, "\n\n");
 }
+
 
 
 
@@ -938,8 +922,9 @@ void x86_ctx_gen_proc_cpuinfo(struct x86_ctx_t *ctx, char *path, int size)
 void x86_ctx_ipc_report_schedule(struct x86_ctx_t *ctx)
 {
 	struct x86_ctx_report_stack_t *stack;
+	struct line_writer_t *lw;
 	FILE *f = ctx->loader->ipc_report_file;
-	int i;
+	int size, i;
 
 	/* Create new stack */
 	stack = xcalloc(1, sizeof(struct x86_ctx_report_stack_t));
@@ -951,12 +936,23 @@ void x86_ctx_ipc_report_schedule(struct x86_ctx_t *ctx)
 
 	/* Print header */
 	fprintf(f, "%s", help_x86_ctx_ipc_report);
-	fprintf(f, "%10s %10s %8s %10s %10s\n", "cycle", "inst", "inst-int", "ipc-glob", "ipc-int");
-	for (i = 0; i < 43; i++)
+	lw = line_writer_create(" ");
+	lw->heuristic_size_enabled = 1;
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "cycle");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "inst");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "inst-int");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "ipc-glob");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "ipc-int");
+
+	size = line_writer_write(lw, f);
+	line_writer_clear(lw);
+
+	for (i = 0; i < size - 1; i++)
 		fprintf(f, "-");
 	fprintf(f, "\n");
 
 	ctx->ipc_report_stack = stack;
+	stack->lw = lw;
 
 	/* Schedule first event */
 	if(ctx->loader->interval_kind == interval_kind_cycles)
@@ -986,6 +982,7 @@ void x86_ctx_ipc_report_handler(int event, void *data)
 	ipc_interval = (double) inst_count / (arch_x86->cycle - stack->last_cycle);
 	fprintf(ctx->loader->ipc_report_file, "%10lld %10lld %8lld %10.4f %10.4f\n",
 		esim_cycle(), ctx->inst_count, inst_count, ipc_global, ipc_interval);
+	fflush(ctx->loader->ipc_report_file);
 
 	stack->inst_count = ctx->inst_count;
 	stack->last_cycle = arch_x86->cycle;
@@ -1146,73 +1143,4 @@ void x86_ctx_mc_report_handler(int event, void *data)
 
 
 
-/*
- * CPU report
- */
 
-void x86_ctx_cpu_report_schedule(struct x86_ctx_t *ctx)
-{
-	//struct x86_ctx_report_stack_t *stack;
-	//FILE *f = ctx->loader->cpu_report_file;
-	//int i;
-
-	/* Create new stack */
-	//stack = xcalloc(1, sizeof(struct x86_ctx_report_stack_t));
-
-	/* Initialize */
-	//assert(ctx->loader->cpu_report_file);
-	//assert(ctx->loader->cpu_report_interval > 0);
-	//stack->pid = ctx->pid;
-
-	/* Print header */
-	//fprintf(f, "%s", help_x86_ctx_cpu_report);
-	//fprintf(f, "%10s %10s %8s %8s %10s\n", "cycle", "inst", "inst-int", "core", "%_stalled_due_mem_inst");
-	//for (i = 0; i < 43; i++)
-	//	fprintf(f, "-");
-	//fprintf(f, "\n");
-
-	//ctx->cpu_report_stack = stack;
-
-	/* Schedule first event */
-	//if(ctx->loader->interval_kind == interval_kind_cycles)
-	//	esim_schedule_event(EV_X86_CTX_CPU_REPORT, stack, ctx->loader->cpu_report_interval);
-}
-
-
-void x86_ctx_cpu_report_handler(int event, void *data)
-{
-	/*struct x86_ctx_report_stack_t *stack = data;
-	struct x86_ctx_t *ctx;
-	long long inst_count;
-	int core;*/
-	//float cycles_stalled;
-
-	/* Get context. If it does not exist anymore, no more
-	 * events to schedule. */
-	/*ctx = x86_ctx_get(stack->pid);
-	if (!ctx || x86_ctx_get_state(ctx, x86_ctx_finished) || esim_finish)
-		return;*/
-
-	//X86_CORE_FOR_EACH
-	//{
-		//cycles_stalled = esim_cycle - stack->last_cycle > 0 ? (double)
-		//	100 * (X86_CORE.dispatch_stall_cycles_rob_mem - X86_CORE.last_dispatch_stall_cycles_rob_mem) /
-		//	(esim_cycle() - stack->last_cycle) : 0.0;
-
-		/* Dump new MC stat */
-		/*assert(ctx->loader->cpu_report_interval);
-		inst_count = ctx->inst_count - stack->inst_count;
-		fprintf(ctx->loader->cpu_report_file, "%10lld %10lld %8lld %d %10.4f\n", esim_cycle(), ctx->inst_count, inst_count, core, cycles_stalled);*/
-	//}
-
-	/* Update intermediate results */
-	/*stack->last_cycle = esim_cycle();
-	X86_CORE_FOR_EACH
-		X86_CORE.last_dispatch_stall_cycles_rob_mem = X86_CORE.dispatch_stall_cycles_rob_mem;
-*/
-	/* Schedule new event */
-	/*stack->inst_count = ctx->inst_count;
-	if(ctx->loader->interval_kind == interval_kind_cycles)
-		esim_schedule_event(event, stack, ctx->loader->cpu_report_interval);
-	*/
-}

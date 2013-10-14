@@ -590,8 +590,10 @@ void mem_controller_dump_report()
 		fprintf(f,"TotalAccesses = %lld\n", mem_controller->row_buffer_table->accesses);
 		fprintf(f,"RowBufferHitPercent = %F\n", mem_controller->row_buffer_table->accesses?(double)
 			mem_controller->row_buffer_table->hit_accesses/mem_controller->row_buffer_table->accesses : 0.0);
-		fprintf(f,"TotalTransferedBlock = %lld\n", mem_controller->row_buffer_table->transfered_blocks);
+		fprintf(f,"TotalTransferedBlocks = %lld\n", mem_controller->row_buffer_table->transfered_blocks);
+		fprintf(f,"PercentUsefulBlocks = %f\n", mem_controller->row_buffer_table->transfered_blocks ?  (double)mem_controller->row_buffer_table->useful_blocks/mem_controller->row_buffer_table->transfered_blocks:0);
 		
+
 		fprintf(f,"TotalNormalAccesses = %lld\n", mem_controller->row_buffer_table->normal_accesses);
 		fprintf(f,"NormalRowBufferHitPercent = %F\n", mem_controller->row_buffer_table->normal_accesses?(double)
 			mem_controller->row_buffer_table->normal_hit_accesses/mem_controller->row_buffer_table->normal_accesses : 0.0);
