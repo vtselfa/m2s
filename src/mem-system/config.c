@@ -808,6 +808,7 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config,
 	int enable_table;
 	int assoc_table;
 	int rb_per_bank;
+	int rbt_coal;
 
 	/* Read parameters */
 	str_token(mod_name, sizeof mod_name, section, 1, " ");
@@ -843,6 +844,7 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config,
 	adapt_interval_kind_str = config_read_string(config, section, "AdaptativeIntervalKind", "Cycles");
 	enable_table = config_read_int(config, section, "EnableRowBufferTable", 0);
 	assoc_table = config_read_int(config, section, "AssociativityRowBufferTable", 2);
+	rbt_coal = config_read_int(config, section, "EnableCoalesceRowBufferTable", 0);
 	rb_per_bank = config_read_int(config, section, "RowBufferPerBank", 1);
 
         /////////////////////////////////////////////////////////////////////
@@ -1030,6 +1032,9 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config,
 
 	if(enable_table&& coalesce_type != policy_coalesce_disabled) // PPPPP ESTA RESTRICCIO MES AVANT LA LLEVARE
 		fatal("Coalesce can not be enabled with row buffer table enabled\n");
+	if (rbt_coal < 0 || rbt_coal > 1)
+		fatal("%s: %s: invalid value for variable 'EnableCoalesceRowBufferTable'.\n%s",
+			mem_config_file_name, mod_name, mem_err_config_note);
 	 if (rb_per_bank < 1 )
                 fatal("%s: %s: invalid value for variable 'RowBufferPerBank'.\n%s",
                         mem_config_file_name, mod_name, mem_err_config_note);
@@ -1063,8 +1068,13 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config,
 	mod->mem_controller = mem_controller_create();
 	mem_controller_init_main_memory(mod->mem_controller, channels, ranks, banks,
 	t_send_request, row_size, block_size, cycles_proc_bus, policy_type, prio_type,
-	size_queue, threshold, queue_per_bank, coalesce_type, mod->regs_rank, bandwith,
-	enable_table, assoc_table);
+	size_queue, threshold, queue_per_bank, coalesce_type, mod->regs_rank, bandwith);
+
+	/*Create row buffer table*/
+	mem_controller_row_buffer_table_create(mod->mem_controller, enable_table, assoc_table, rbt_coal, ranks, banks);
+
+
+
 	mod->mem_controller->photonic_net = photonic;
 	mod->mem_controller->piggybacking=piggybacking;
 	if(strcmp(adapt, "Disabled") == 0)

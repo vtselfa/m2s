@@ -592,6 +592,7 @@ void mem_controller_dump_report()
 			mem_controller->row_buffer_table->hit_accesses/mem_controller->row_buffer_table->accesses : 0.0);
 		fprintf(f,"TotalTransferedBlocks = %lld\n", mem_controller->row_buffer_table->transfered_blocks);
 		fprintf(f,"PercentUsefulBlocks = %f\n", mem_controller->row_buffer_table->transfered_blocks ?  (double)mem_controller->row_buffer_table->useful_blocks/mem_controller->row_buffer_table->transfered_blocks:0);
+		fprintf(f,"BlocksPerTransference = %f\n", mem_controller->row_buffer_table->num_transfers ?  (double)mem_controller->row_buffer_table->transfered_blocks/mem_controller->row_buffer_table->num_transfers:0);
 		
 
 		fprintf(f,"TotalNormalAccesses = %lld\n", mem_controller->row_buffer_table->normal_accesses);

@@ -45,8 +45,7 @@ gzFile trace_file;
 
 
 
-int row_buffer_find_row(struct mem_controller_t * mem_controller, struct mod_t *mod, unsigned int addr, unsigned int *channel_ptr,
-	unsigned int *rank_ptr, unsigned int *bank_ptr, unsigned int *row_ptr,  int * tag_ptr, int *state_ptr)
+int row_buffer_find_row(struct mem_controller_t * mem_controller, struct mod_t *mod, unsigned int addr, unsigned int *channel_ptr,unsigned int *rank_ptr, unsigned int *bank_ptr, unsigned int *row_ptr,  int * tag_ptr, int *state_ptr)
 {
 	//struct cache_t *cache = mod->cache;
 
@@ -78,7 +77,7 @@ int row_buffer_find_row(struct mem_controller_t * mem_controller, struct mod_t *
 	PTR_ASSIGN(row_ptr, row);
 	PTR_ASSIGN(channel_ptr, channel);
 	PTR_ASSIGN(tag_ptr, tag);
-
+	
 
 	/*If it's row buffer table, it is inside of mem controller*/
 	if(mem_controller->enable_row_buffer_table)
@@ -92,16 +91,35 @@ int row_buffer_find_row(struct mem_controller_t * mem_controller, struct mod_t *
 				mem_controller->row_buffer_table->sets[set_rbtable].entries[i].reserved!=-1)
 				{
 					PTR_ASSIGN(state_ptr, bank_accesed); // line being accessed
-					//printf(" espera xk estan accedint a entra %d bank %d\n",i, set_rbtable);
+					printf(" espera xk estan accedint a entra %d bank %d\n",i, set_rbtable);
 					return 0;
-				}else
+					
+				}else if(mem_controller->row_buffer_table->coalesce_enabled && 
+					( mem_controller->row_buffer_table->sets[set_rbtable].entries[i].block_max==-1 
+					&& mem_controller->row_buffer_table->sets[set_rbtable].entries[i].block_min == -1) ) // free	
 				{
+					PTR_ASSIGN(state_ptr, row_buffer_miss);
+					printf(" miss a entra %d bank %d\n",i, set_rbtable);
+					return 1;
+				
+				}else if(mem_controller->row_buffer_table->coalesce_enabled && 
+					( row_buffer <= mem_controller->row_buffer_table->sets[set_rbtable].entries[i].block_max 
+					&& row_buffer >= mem_controller->row_buffer_table->sets[set_rbtable].entries[i].block_min) ) // it's inside of the limits		
+				{
+					printf("limite %d-%d b%d block %d\n", mem_controller->row_buffer_table->sets[set_rbtable].entries[i].block_min,mem_controller->row_buffer_table->sets[set_rbtable].entries[i].block_max, bank, tag);
 					PTR_ASSIGN(state_ptr, row_buffer_hit);
-					//printf(" hit a entra %d bank %d\n",i, set_rbtable);
+					printf(" hit a entra %d bank %d\n",i, set_rbtable);
+					return 1;
+				}
+				else
+				{
+					PTR_ASSIGN(state_ptr, row_buffer_miss);
+					printf(" miss a entra %d bank %d\n",i, set_rbtable);
 					return 1;
 				}
 			}
 		}
+		
 
 		/*miss in row buffer table, we have to ensure a place to put the row*/
 		/*for(int i =0 ;i <mem_controller->row_buffer_table->assoc; i++)
@@ -147,9 +165,21 @@ int row_buffer_find_row(struct mem_controller_t * mem_controller, struct mod_t *
 		PTR_ASSIGN(state_ptr, row_buffer_miss);
 		return 1;
 	}else{
+
+		for(int i =0 ;i <mem_controller->row_buffer_table->assoc; i++)
+		{		
+			assert(mem_controller->row_buffer_table->sets[set_rbtable].bank == set_rbtable);
+			if(!mem_controller->row_buffer_table->sets[set_rbtable].entries[i].accessed &&
+			mem_controller->row_buffer_table->sets[set_rbtable].entries[i].reserved==-1)
+			{
+				PTR_ASSIGN(state_ptr, row_buffer_miss); // is not inside table
+				return 1;
+			}
+		}
+
+		PTR_ASSIGN(state_ptr, bank_accesed);
+		return 0;
 		
-		PTR_ASSIGN(state_ptr, row_buffer_miss); // is not inside table
-		return 1;
 	}
 
 
@@ -201,7 +231,7 @@ struct mem_controller_t *mem_controller_create(void){
 }
 
 
-void mem_controller_init_main_memory(struct mem_controller_t *mem_controller, int channels, int ranks, int banks, int t_send_request, int row_size, int block_size,int cycles_proc_bus, enum policy_mc_queue_t policy, enum priority_t priority, long long size_queue,  long long threshold, int queue_per_bank, enum policy_coalesce_t coalesce, struct reg_rank_t *regs_rank, int bandwith, int enable_rbtable, int assoc_table){
+void mem_controller_init_main_memory(struct mem_controller_t *mem_controller, int channels, int ranks, int banks, int t_send_request, int row_size, int block_size,int cycles_proc_bus, enum policy_mc_queue_t policy, enum priority_t priority, long long size_queue,  long long threshold, int queue_per_bank, enum policy_coalesce_t coalesce, struct reg_rank_t *regs_rank, int bandwith){
 
 	mem_controller->num_queues=1;
 
@@ -238,9 +268,7 @@ void mem_controller_init_main_memory(struct mem_controller_t *mem_controller, in
 
 	mem_controller->regs_channel = regs_channel_create(channels, ranks, banks, bandwith, regs_rank);
 	
-	/*ROw buffer table*/
-	mem_controller_row_buffer_table_create(mem_controller, enable_rbtable, assoc_table, ranks, banks);
-
+	
 
 	/*mem_controller->row_in_buffer_banks = xcalloc(channels, sizeof(int **));
 	if (!mem_controller->row_in_buffer_banks)
@@ -265,13 +293,14 @@ void mem_controller_init_main_memory(struct mem_controller_t *mem_controller, in
 
 }
 
-void mem_controller_row_buffer_table_create(struct mem_controller_t *mem_controller, int enable_rbtable, int assoc_table, int ranks, int banks)
+void mem_controller_row_buffer_table_create(struct mem_controller_t *mem_controller, int enable_rbtable, int assoc_table, int enable_coalesce, int ranks, int banks)
 {
 
 	mem_controller->enable_row_buffer_table = enable_rbtable;
 	mem_controller->row_buffer_table = xcalloc(1, sizeof(struct row_buffer_table_t ));
 	if(enable_rbtable)
 	{
+		mem_controller->row_buffer_table->coalesce_enabled=enable_coalesce;
 		mem_controller->row_buffer_table->assoc = assoc_table;
 		mem_controller->row_buffer_table->num_entries = assoc_table*banks*ranks;
 		mem_controller->row_buffer_table->sets = xcalloc(ranks*banks, sizeof(struct row_buffer_table_set_t ));
@@ -285,6 +314,8 @@ void mem_controller_row_buffer_table_create(struct mem_controller_t *mem_control
 				mem_controller->row_buffer_table->sets[i].entries[j].reserved=-1;
 				mem_controller->row_buffer_table->sets[i].entries[j].lru=-1;
 				mem_controller->row_buffer_table->sets[i].entries[j].used_blocks=linked_list_create();
+				mem_controller->row_buffer_table->sets[i].entries[j].block_max=-1;
+				mem_controller->row_buffer_table->sets[i].entries[j].block_min=-1;
 			}
 		}
 	}
@@ -1990,6 +2021,61 @@ int mem_controller_coalesce_acces_row_buffer( struct mod_stack_t * stack, struct
 	return count;
 }
 
+int mem_controller_coalesce_acces_row_buffer_table( struct mod_stack_t * stack, struct linked_list_t * queue)
+{
+	struct mod_stack_t * stack_aux;
+	struct mem_controller_t * mem_controller=stack->mod->mem_controller;
+	unsigned int num_ranks = mem_controller->num_regs_rank ;
+	unsigned int num_banks = mem_controller->num_regs_bank ;
+	unsigned int log2_row_size= log_base2( mem_controller->row_buffer_size);
+	int count =0;
+	unsigned int block_min;
+	unsigned int block_max;
+
+	if(stack->coal_table_block_max==-1)
+		block_max =stack->addr % mem_controller->row_buffer_size;
+	else 		
+		block_max=stack->coal_table_block_max;
+
+	if(stack->coal_table_block_min==-1)
+		block_min =stack->addr % mem_controller->row_buffer_size;
+	else
+		block_min= stack->coal_table_block_min;
+
+	linked_list_head(queue);
+	while(!linked_list_is_end(queue)&&linked_list_current(queue)<mem_controller->size_queue)
+	{
+		stack_aux=linked_list_get(queue);
+
+		/*This stack has its block in the same main mamory row than origin stack*/
+		int row=(stack_aux->addr>>(log2_row_size+log_base2(num_banks)+log_base2(num_ranks)));
+		int rank = (stack_aux->addr >> (log2_row_size+ log_base2(num_banks))) % num_ranks;
+		int bank = (stack_aux->addr >> log2_row_size) % num_banks;
+
+
+		assert(rank==stack->rank && bank==stack->bank);
+
+		if(row==stack->row)
+		{
+			
+			count++;
+			if((stack_aux->addr % mem_controller->row_buffer_size) < block_min)
+				block_min=stack_aux->addr % mem_controller->row_buffer_size;
+
+			else if((stack_aux->addr % mem_controller->row_buffer_size) > block_max)
+				block_max=stack_aux->addr % mem_controller->row_buffer_size;
+		}
+		linked_list_next(queue);
+
+	}
+
+	assert(block_max>=block_min);
+	stack->coal_table_block_max=block_max;
+	stack->coal_table_block_min=block_min;
+				
+	return count;
+}
+
 int mem_controller_coalesce_acces_between_blocks(struct mod_stack_t * stack, struct linked_list_t *queue, int block_min, int block_max)
 {
 
@@ -2887,7 +2973,10 @@ struct row_buffer_table_entry_t *mem_controller_row_buffer_table_get_entry(struc
 	for(int i =0 ;i <mem_controller->row_buffer_table->assoc; i++)
 	{		
 		if(set->entries[i].row==stack->row)
+		{
+			printf("	%lld agarran entra %i del b%d\n", stack->id, i, stack->bank);
 			return &set->entries[i];
+		}
 		
 	}
 	
@@ -2906,7 +2995,7 @@ struct row_buffer_table_entry_t *mem_controller_row_buffer_table_get_reserved_en
 	{		
 		if(set->entries[i].reserved==stack->id)
 		{
-			//printf("%lld agarra la reserva  %d  banc%d\n", stack->id, i , set->bank);				
+			printf("%lld agarra la reserva  %d  banc%d\n", stack->id, i , set->bank);				
 			return &set->entries[i];
 		}
 		
@@ -2936,9 +3025,8 @@ int mem_controller_row_buffer_table_count_used_block(struct mod_stack_t *stack)
 	}
 	unsigned int new_block=stack->addr %  mem_controller->row_buffer_size;
 	linked_list_add(entry->used_blocks,&new_block );
-	//printf("	afegit bloc %d b%d r%d\n", new_block, stack->bank, stack->rank);
+	printf("	afegit bloc %d b%d r%d\n", new_block, stack->bank, stack->rank);
 	mem_controller->row_buffer_table->useful_blocks++;
-			
 			
 	return 0;
 
@@ -2952,7 +3040,7 @@ void mem_controller_row_buffer_table_reset_used_block(struct mod_stack_t *stack)
 	
 	assert(entry);
 
-	//printf("reset bloc b%d r%d\n", stack->bank, stack->rank);
+	printf("reset bloc b%d r%d\n", stack->bank, stack->rank);
 			
 	linked_list_clear(entry->used_blocks );
 	assert(linked_list_count(entry->used_blocks)==0);
@@ -2968,6 +3056,9 @@ void mem_controller_row_buffer_table_reserve_entry(struct mod_stack_t *stack)
 
 	assert(mem_controller->enable_row_buffer_table);
 	struct row_buffer_table_set_t *set= mem_controller_row_buffer_table_get_set(stack);
+
+	
+	/*LRU*/
 	for(int i =0 ;i <mem_controller->row_buffer_table->assoc; i++)
 	{		
 		if(set->entries[i].reserved == -1 && !set->entries[i].accessed)
@@ -2978,7 +3069,7 @@ void mem_controller_row_buffer_table_reserve_entry(struct mod_stack_t *stack)
 				found=1;
 			}else if(set->entries[lru_entry].lru!=-1 && set->entries[i].lru==-1)
 		
-	{
+			{
 				lru_entry=i;
 			}
 			else if( set->entries[lru_entry].lru>set->entries[i].lru )
@@ -2989,9 +3080,22 @@ void mem_controller_row_buffer_table_reserve_entry(struct mod_stack_t *stack)
 			
 		}
 	}
-	//printf("%lld reserva entra %d  banc%d\n", stack->id, lru_entry , set->bank);
+
+	/*Look for a entry with the same row*/
+	for(int i =0 ;i <mem_controller->row_buffer_table->assoc; i++)
+	{		
+		if(set->entries[i].reserved == -1 && !set->entries[i].accessed && set->entries[i].row==stack->row)
+		{
+			
+				lru_entry=i;
+				break;
+				
+		}
+	}
+	printf("%lld reserva entra %d  banc%d\n", stack->id, lru_entry , set->bank);
 	assert(lru_entry!=-1);
 	set->entries[lru_entry].reserved=stack->id;
+	set->entries[lru_entry].row=stack->row;
 				
 }
 

@@ -23,7 +23,7 @@ Sets = 256
 Assoc = 8
 BlockSize = 64
 Latency = 10
-EnablePrefetcher = True
+EnablePrefetcher = False
 PrefetcherType = czone_streams
 PrefetcherStreams = 32
 PrefetcherSlots = 4
@@ -225,7 +225,8 @@ QueuePerBank = 1
 SizeQueue = 128
 MemoryControllerEnabled = 1
 EnableRowBufferTable = 1
-RowBufferPerBank = 2
+RowBufferPerBank = 1
+EnableCoalesceRowBufferTable = 1
 
 
 
