@@ -270,6 +270,7 @@ void mem_controller_init_main_memory(struct mem_controller_t *mem_controller, in
 	mem_controller->num_cores = x86_cpu->num_cores;
 	mem_controller->t_core_wait=  xcalloc(x86_cpu->num_cores, sizeof(long long));
 	mem_controller->t_core_acces=xcalloc(x86_cpu->num_cores, sizeof(long long));
+	
 	mem_controller->t_core_transfer=xcalloc(x86_cpu->num_cores, sizeof(long long));
 	mem_controller->core_normal_mc_accesses=xcalloc(x86_cpu->num_cores, sizeof(long long));
 	mem_controller->core_pref_mc_accesses=xcalloc(x86_cpu->num_cores, sizeof(long long));
