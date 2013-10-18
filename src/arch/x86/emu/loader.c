@@ -657,7 +657,8 @@ void x86_loader_report_dump(struct x86_loader_t *ctx, FILE *f)
 
 	
 	fprintf(f, "[MAIN-MEMORY]\n");
-	fprintf(f, "TotalTime = %f\n",ctx->mc_accesses ? (double) (ctx->t_wait+ ctx->t_acces+ctx->t_transfer+ctx->t_inside_net)/ctx->mc_accesses:0.0);
+	fprintf(f, "TotalTimeGoComeL2 = %f\n",ctx->mc_accesses ? (double) (ctx->t_wait+ ctx->t_acces+ctx->t_transfer+ctx->t_inside_net)/ctx->mc_accesses:0.0);
+	fprintf(f, "TotalTime = %f\n",ctx->mc_accesses ? (double) (ctx->t_wait+ ctx->t_acces+ctx->t_transfer)/ctx->mc_accesses:0.0);
 	fprintf(f, "AvgTimeWaitMCQueue = %f\n",ctx->mc_accesses ? (double)ctx->t_wait/ctx->mc_accesses:0.0);
 	fprintf(f, "AvgTimeAccesMM = %f\n",ctx->mc_accesses ? (double) ctx->t_acces/ctx->mc_accesses :0.0);
 	fprintf(f, "AvgTimeTransferFromMM = %f\n",ctx->mc_accesses?(double)ctx->t_transfer/ctx->mc_accesses:0.0 );

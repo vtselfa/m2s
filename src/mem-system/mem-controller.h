@@ -302,6 +302,7 @@ struct mem_controller_t
 struct mem_controller_t * mem_controller_create(void);
 void mem_controller_free(struct mem_controller_t * mem_controller);
 void mem_controller_dump_report();
+void mem_controller_dump_core_report();
 void mem_controller_normal_queue_add(struct mod_stack_t * stack);
 void mem_controller_prefetch_queue_add(struct mod_stack_t * stack);
 int mem_controller_remove(struct mod_stack_t * stack, struct mem_controller_queue_t * queue);

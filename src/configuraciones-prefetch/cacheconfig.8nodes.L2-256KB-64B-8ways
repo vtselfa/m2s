@@ -224,10 +224,10 @@ PriorityMCQueues = Threshold-FCFS-Normal-Prefetch
 QueuePerBank = 1
 SizeQueue = 128
 MemoryControllerEnabled = 1
-EnableRowBufferTable = 0
-EnableRBTableBuffersPerBankPerCore = 0
+EnableRowBufferTable = 1
+EnableRBTableBuffersPerBankPerCore = 1
 RowBufferPerBank = 1
-EnableCoalesceRowBufferTable = 0
+EnableCoalesceRowBufferTable = 1
 
 
 
