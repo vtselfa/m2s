@@ -32,7 +32,7 @@
 #include <lib/util/misc.h>
 #include <lib/util/string.h>
 #include <mem-system/memory.h>
-
+#include <mem-system/mem-controller.h>
 #include "context.h"
 #include "emu.h"
 #include "file-desc.h"
@@ -655,7 +655,7 @@ void x86_loader_report_dump(struct x86_loader_t *ctx, FILE *f)
 	if (!f)
 		return;
 
-		
+	
 	fprintf(f, "[MAIN-MEMORY]\n");
 	fprintf(f, "TotalTime = %f\n",ctx->mc_accesses ? (double) (ctx->t_wait+ ctx->t_acces+ctx->t_transfer+ctx->t_inside_net)/ctx->mc_accesses:0.0);
 	fprintf(f, "AvgTimeWaitMCQueue = %f\n",ctx->mc_accesses ? (double)ctx->t_wait/ctx->mc_accesses:0.0);
@@ -669,6 +669,9 @@ void x86_loader_report_dump(struct x86_loader_t *ctx, FILE *f)
 	fprintf(f, "NumTotalBanks = %d\n",ctx->num_banks);
 	fprintf(f, "NumRanks = %d\n",ctx->num_ranks);
 	fprintf(f,"\n\n");
+
+
+	
 
 
 	for (int i=0; i<ctx->num_banks;i++)

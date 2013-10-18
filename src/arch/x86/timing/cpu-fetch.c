@@ -298,6 +298,10 @@ static void x86_cpu_fetch_thread(int core, int thread)
 		client_info->prefetcher_eip = -1; /* Set it to an "invalid" address */
 		client_info->core = core;
 		client_info->thread = thread;
+		
+		if(X86_THREAD.ctx)
+			client_info->ctx_pid = X86_THREAD.ctx->pid;
+		
 
 		phy_addr = mmu_translate(X86_THREAD.ctx->address_space_index, X86_THREAD.fetch_neip);
 		X86_THREAD.fetch_block = block;

@@ -159,11 +159,10 @@ struct row_buffer_table_t
 	long long num_transfers;
 
 	int coalesce_enabled; // enable bank line coalesce transfer
-	
-
 	int num_entries;
 	unsigned int assoc; // associativity
 	struct row_buffer_table_set_t * sets; // sets of assoc entries , sets*assoc = num_entries
+	unsigned int core; // this table is used by core
 };
 
 struct mem_controller_t
@@ -212,7 +211,9 @@ struct mem_controller_t
 	/*ROW buffer*/
 	int row_buffer_size;
 	int enable_row_buffer_table;
-	struct row_buffer_table_t * row_buffer_table; // a row buffer table inside mem controller
+	struct row_buffer_table_t ** row_buffer_table; // a row buffer table inside mem controller
+	int row_buf_per_bank_per_ctx; // indicates if row buffer entries in the table are distribuited betwen contexts, and between banks for each context
+	int num_tables;
 
 	/*Channels*/
 	struct reg_channel_t * regs_channel;
@@ -267,6 +268,17 @@ struct mem_controller_t
 
 	int ** successive_hit; // inside a burst consecutive blocks
 	int * burst_size; //counter of coalesced requests
+
+	int num_cores;
+	long long *t_core_wait;
+	long long *t_core_acces;
+	long long *t_core_transfer; 
+	long long * core_normal_mc_accesses;
+	long long * core_pref_mc_accesses;
+	long long * core_mc_accesses;
+	long long * core_row_buffer_hits;
+	long long **core_row_buffer_hits_per_bank;
+	long long **core_mc_accesses_per_bank;
 
 	/*Interval acumulative stadistics*/
 	long long last_accesses;
@@ -345,13 +357,15 @@ void mem_controller_report_handler(int event, void *data);
 
 
 /*ROW BUFFER*/
-int row_buffer_find_row(struct mem_controller_t * mem_controller, struct mod_t *mod, unsigned int addr, unsigned int *channel_ptr,unsigned int *rank_ptr,
+int row_buffer_find_row(struct mem_controller_t * mem_controller, struct mod_stack_t * stack, struct mod_t *mod, unsigned int addr, unsigned int *channel_ptr,unsigned int *rank_ptr,
 	unsigned int *bank_ptr, unsigned int *row_ptr, int * tag_ptr, int *state_ptr);
 void mem_controller_row_buffer_allocate_row(struct mod_stack_t *stack);
 
 
 /*Table*/
-void mem_controller_row_buffer_table_create(struct mem_controller_t *mem_controller, int enable_rbtable, int assoc_table, int enable_coalesce, int ranks, int banks);
+struct row_buffer_table_t* mem_controller_get_row_buffer_table(struct mem_controller_t * mem_controller, int pid);
+void mem_controller_row_buffer_table_create(struct mem_controller_t *mem_controller, int enable_rbtable, int assoc_table, int enable_coalesce, int buf_per_bank_per_ctx ,int ranks, int banks);
+void mem_controller_row_buffer_table_per_ctx_create(struct mem_controller_t *mem_controller, int enable_rbtable, int assoc_table, int enable_coalesce, int buf_per_bank_per_ctx ,int ranks, int banks);
 void mem_controller_row_buffer_table_free(struct mem_controller_t * mem_controller);
 void mem_controller_row_buffer_table_reserve_entry(struct mod_stack_t *stack);
 struct row_buffer_table_entry_t *mem_controller_row_buffer_table_get_entry(struct mod_stack_t *stack);

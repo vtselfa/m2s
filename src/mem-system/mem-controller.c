@@ -4,6 +4,7 @@
 #include <zlib.h>
 
 #include <arch/x86/timing/cpu.h>
+#include <arch/x86/emu/emu.h>
 #include <arch/x86/emu/loader.h>
 #include <arch/x86/emu/context.h>
 
@@ -45,7 +46,7 @@ gzFile trace_file;
 
 
 
-int row_buffer_find_row(struct mem_controller_t * mem_controller, struct mod_t *mod, unsigned int addr, unsigned int *channel_ptr,unsigned int *rank_ptr, unsigned int *bank_ptr, unsigned int *row_ptr,  int * tag_ptr, int *state_ptr)
+int row_buffer_find_row(struct mem_controller_t * mem_controller, struct mod_stack_t * stack, struct mod_t *mod, unsigned int addr, unsigned int *channel_ptr,unsigned int *rank_ptr, unsigned int *bank_ptr, unsigned int *row_ptr,  int * tag_ptr, int *state_ptr)
 {
 	//struct cache_t *cache = mod->cache;
 
@@ -55,7 +56,12 @@ int row_buffer_find_row(struct mem_controller_t * mem_controller, struct mod_t *
 	unsigned int row;
 	unsigned int row_buffer;
 	int tag;
+	
+	assert(stack->client_info->core>=0 &&stack->client_info->thread>=0);
+	
+	struct row_buffer_table_t * table;
 
+	
 	row_buffer = addr %  mem_controller->row_buffer_size;
 
 	unsigned int num_ranks = mem_controller->num_regs_rank ;
@@ -82,39 +88,44 @@ int row_buffer_find_row(struct mem_controller_t * mem_controller, struct mod_t *
 	/*If it's row buffer table, it is inside of mem controller*/
 	if(mem_controller->enable_row_buffer_table)
 	{
-		for(int i =0 ;i <mem_controller->row_buffer_table->assoc; i++)
+		table= mem_controller_get_row_buffer_table(mem_controller,stack->client_info->core);
+		assert(table);
+		for(int i =0 ;i <table->assoc; i++)
 		{		
-			assert(mem_controller->row_buffer_table->sets[set_rbtable].bank == set_rbtable);
-			if(mem_controller->row_buffer_table->sets[set_rbtable].entries[i].row==row)
+			assert(table->sets[set_rbtable].bank == set_rbtable);
+			if(table->sets[set_rbtable].entries[i].row==row)
 			{
-				if(mem_controller->row_buffer_table->sets[set_rbtable].entries[i].accessed ||
-				mem_controller->row_buffer_table->sets[set_rbtable].entries[i].reserved!=-1)
+				if(table->sets[set_rbtable].entries[i].accessed ||
+				table->sets[set_rbtable].entries[i].reserved!=-1)
 				{
 					PTR_ASSIGN(state_ptr, bank_accesed); // line being accessed
-					printf(" espera xk estan accedint a entra %d bank %d\n",i, set_rbtable);
 					return 0;
 					
-				}else if(mem_controller->row_buffer_table->coalesce_enabled && 
-					( mem_controller->row_buffer_table->sets[set_rbtable].entries[i].block_max==-1 
-					&& mem_controller->row_buffer_table->sets[set_rbtable].entries[i].block_min == -1) ) // free	
+				}else if(table->coalesce_enabled)
 				{
-					PTR_ASSIGN(state_ptr, row_buffer_miss);
-					printf(" miss a entra %d bank %d\n",i, set_rbtable);
-					return 1;
+					 
+					if( table->sets[set_rbtable].entries[i].block_max==-1 
+					&& table->sets[set_rbtable].entries[i].block_min == -1 ) // free	
+					{
+						PTR_ASSIGN(state_ptr, row_buffer_miss);
+						//printf(" miss a entra %d bank %d\n",i, set_rbtable);
+						return 1;
 				
-				}else if(mem_controller->row_buffer_table->coalesce_enabled && 
-					( row_buffer <= mem_controller->row_buffer_table->sets[set_rbtable].entries[i].block_max 
-					&& row_buffer >= mem_controller->row_buffer_table->sets[set_rbtable].entries[i].block_min) ) // it's inside of the limits		
-				{
-					printf("limite %d-%d b%d block %d\n", mem_controller->row_buffer_table->sets[set_rbtable].entries[i].block_min,mem_controller->row_buffer_table->sets[set_rbtable].entries[i].block_max, bank, tag);
+					}else if(table->coalesce_enabled && 
+						( row_buffer <= table->sets[set_rbtable].entries[i].block_max 
+						&& row_buffer >= table->sets[set_rbtable].entries[i].block_min) ) // it's inside of the limits		
+					{
+						PTR_ASSIGN(state_ptr, row_buffer_hit);
+						return 1;
+					}
+					else
+					{
+						PTR_ASSIGN(state_ptr, row_buffer_miss);
+						//printf(" miss a entra %d bank %d\n",i, set_rbtable);
+						return 1;
+					}
+				}else{
 					PTR_ASSIGN(state_ptr, row_buffer_hit);
-					printf(" hit a entra %d bank %d\n",i, set_rbtable);
-					return 1;
-				}
-				else
-				{
-					PTR_ASSIGN(state_ptr, row_buffer_miss);
-					printf(" miss a entra %d bank %d\n",i, set_rbtable);
 					return 1;
 				}
 			}
@@ -153,6 +164,7 @@ int row_buffer_find_row(struct mem_controller_t * mem_controller, struct mod_t *
 
 	if(!mem_controller->enable_row_buffer_table)
 	{
+		
 		/*Is the row inside the row buffer?*/
 		for(int i=0; i<mem_controller->regs_channel[channel].regs_rank[rank].regs_bank[bank].row_buffer_per_bank; i++)
 		{
@@ -165,12 +177,13 @@ int row_buffer_find_row(struct mem_controller_t * mem_controller, struct mod_t *
 		PTR_ASSIGN(state_ptr, row_buffer_miss);
 		return 1;
 	}else{
-
-		for(int i =0 ;i <mem_controller->row_buffer_table->assoc; i++)
+		table= mem_controller_get_row_buffer_table(mem_controller,stack->client_info->core);
+		assert(table);
+		for(int i =0 ;i <table->assoc; i++)
 		{		
-			assert(mem_controller->row_buffer_table->sets[set_rbtable].bank == set_rbtable);
-			if(!mem_controller->row_buffer_table->sets[set_rbtable].entries[i].accessed &&
-			mem_controller->row_buffer_table->sets[set_rbtable].entries[i].reserved==-1)
+			assert(table->sets[set_rbtable].bank == set_rbtable);
+			if(!table->sets[set_rbtable].entries[i].accessed &&
+			table->sets[set_rbtable].entries[i].reserved==-1)
 			{
 				PTR_ASSIGN(state_ptr, row_buffer_miss); // is not inside table
 				return 1;
@@ -253,6 +266,26 @@ void mem_controller_init_main_memory(struct mem_controller_t *mem_controller, in
 	mem_controller->coalesce= coalesce;
 	mem_controller->bandwith = bandwith;
 
+	/*Core*/
+	mem_controller->num_cores = x86_cpu->num_cores;
+	mem_controller->t_core_wait=  xcalloc(x86_cpu->num_cores, sizeof(long long));
+	mem_controller->t_core_acces=xcalloc(x86_cpu->num_cores, sizeof(long long));
+	mem_controller->t_core_transfer=xcalloc(x86_cpu->num_cores, sizeof(long long));
+	mem_controller->core_normal_mc_accesses=xcalloc(x86_cpu->num_cores, sizeof(long long));
+	mem_controller->core_pref_mc_accesses=xcalloc(x86_cpu->num_cores, sizeof(long long));
+	mem_controller->core_row_buffer_hits=xcalloc(x86_cpu->num_cores, sizeof(long long));
+	mem_controller->core_row_buffer_hits_per_bank=xcalloc(x86_cpu->num_cores, sizeof(long long * ));
+	mem_controller->core_mc_accesses_per_bank=xcalloc(x86_cpu->num_cores, sizeof(long long *));
+	mem_controller->core_mc_accesses=xcalloc(x86_cpu->num_cores, sizeof(long long));
+
+	for( int i = 0 ; i< x86_cpu->num_cores;i++)
+	{
+		mem_controller->core_row_buffer_hits_per_bank[i]=xcalloc(banks*ranks, sizeof(long long ));
+		mem_controller->core_mc_accesses_per_bank[i]=xcalloc(banks*ranks, sizeof(long long));
+
+	}
+
+	/*Queues*/
 	mem_controller->normal_queue = xcalloc(mem_controller->num_queues, sizeof(struct mem_controller_queue_t *));
 	mem_controller->pref_queue = xcalloc(mem_controller->num_queues, sizeof(struct mem_controller_queue_t *));
 	for(int i=0; i<mem_controller->num_queues;i++)
@@ -261,11 +294,13 @@ void mem_controller_init_main_memory(struct mem_controller_t *mem_controller, in
 		mem_controller->pref_queue[i]=mem_controller_queue_create();
 	}
 
+	/*Coalesce*/
 	mem_controller->burst_size = xcalloc(row_size/block_size,sizeof(int*));
 	mem_controller->successive_hit = xcalloc(row_size/block_size,sizeof(int*));
 	for(int i = 0; i < row_size / block_size; i++)
 		mem_controller->successive_hit[i] = xcalloc(row_size/block_size,sizeof(int));
 
+	/*Channels*/
 	mem_controller->regs_channel = regs_channel_create(channels, ranks, banks, bandwith, regs_rank);
 	
 	
@@ -293,34 +328,85 @@ void mem_controller_init_main_memory(struct mem_controller_t *mem_controller, in
 
 }
 
-void mem_controller_row_buffer_table_create(struct mem_controller_t *mem_controller, int enable_rbtable, int assoc_table, int enable_coalesce, int ranks, int banks)
+void mem_controller_row_buffer_table_create(struct mem_controller_t *mem_controller, int enable_rbtable, int assoc_table, int enable_coalesce, int buf_per_bank_per_ctx, int ranks, int banks)
 {
 
+	int c=0;
 	mem_controller->enable_row_buffer_table = enable_rbtable;
-	mem_controller->row_buffer_table = xcalloc(1, sizeof(struct row_buffer_table_t ));
+	
+	mem_controller->row_buf_per_bank_per_ctx = buf_per_bank_per_ctx;
+	
+	
 	if(enable_rbtable)
 	{
-		mem_controller->row_buffer_table->coalesce_enabled=enable_coalesce;
-		mem_controller->row_buffer_table->assoc = assoc_table;
-		mem_controller->row_buffer_table->num_entries = assoc_table*banks*ranks;
-		mem_controller->row_buffer_table->sets = xcalloc(ranks*banks, sizeof(struct row_buffer_table_set_t ));
+		mem_controller->num_tables=1;
+		mem_controller->row_buffer_table = xcalloc(1, sizeof(struct row_buffer_table_t *));
+		mem_controller->row_buffer_table[c] = xcalloc(1, sizeof(struct row_buffer_table_t));
+		mem_controller->row_buffer_table[c]->core = -1 ;// all context use this
+		mem_controller->row_buffer_table[c]->coalesce_enabled=enable_coalesce;
+		mem_controller->row_buffer_table[c]->assoc = assoc_table;
+		mem_controller->row_buffer_table[c]->num_entries = assoc_table*banks*ranks;
+		mem_controller->row_buffer_table[c]->sets = xcalloc(ranks*banks, sizeof(struct row_buffer_table_set_t ));
 		for(int i=0; i<ranks*banks;i++)
 		{
-			mem_controller->row_buffer_table->sets[i].bank=i;
-			mem_controller->row_buffer_table->sets[i].entries = xcalloc(assoc_table, sizeof(struct row_buffer_table_entry_t));
+			mem_controller->row_buffer_table[c]->sets[i].bank=i;
+			mem_controller->row_buffer_table[c]->sets[i].entries = xcalloc(assoc_table, sizeof(struct row_buffer_table_entry_t));
 			for(int j=0; j<assoc_table;j++)	
 			{
-				mem_controller->row_buffer_table->sets[i].entries[j].row=-1;
-				mem_controller->row_buffer_table->sets[i].entries[j].reserved=-1;
-				mem_controller->row_buffer_table->sets[i].entries[j].lru=-1;
-				mem_controller->row_buffer_table->sets[i].entries[j].used_blocks=linked_list_create();
-				mem_controller->row_buffer_table->sets[i].entries[j].block_max=-1;
-				mem_controller->row_buffer_table->sets[i].entries[j].block_min=-1;
+				mem_controller->row_buffer_table[c]->sets[i].entries[j].row=-1;
+				mem_controller->row_buffer_table[c]->sets[i].entries[j].reserved=-1;
+				mem_controller->row_buffer_table[c]->sets[i].entries[j].lru=-1;
+				mem_controller->row_buffer_table[c]->sets[i].entries[j].used_blocks=linked_list_create();
+				mem_controller->row_buffer_table[c]->sets[i].entries[j].block_max=-1;
+				mem_controller->row_buffer_table[c]->sets[i].entries[j].block_min=-1;
 			}
 		}
+
+
+		
+		
 	}
 }
 
+void mem_controller_row_buffer_table_per_ctx_create(struct mem_controller_t *mem_controller, int enable_rbtable, int assoc_table, int enable_coalesce, int buf_per_bank_per_ctx, int ranks, int banks)
+{
+	
+	
+	mem_controller->enable_row_buffer_table = enable_rbtable;
+	
+	mem_controller->row_buf_per_bank_per_ctx = buf_per_bank_per_ctx;
+
+	if(enable_rbtable)
+	{
+		mem_controller->num_tables=x86_cpu->num_cores;
+		mem_controller->row_buffer_table = xcalloc(mem_controller->num_tables, sizeof(struct row_buffer_table_t *));
+		for(int c=0 ;c<mem_controller->num_tables; c++)
+		{
+			mem_controller->row_buffer_table[c] = xcalloc(1, sizeof(struct row_buffer_table_t));
+			mem_controller->row_buffer_table[c]->core = c;
+			mem_controller->row_buffer_table[c]->coalesce_enabled=enable_coalesce;
+			mem_controller->row_buffer_table[c]->assoc = assoc_table;
+			mem_controller->row_buffer_table[c]->num_entries = assoc_table*banks*ranks;
+			mem_controller->row_buffer_table[c]->sets = xcalloc(ranks*banks, sizeof(struct row_buffer_table_set_t ));
+			for(int i=0; i<ranks*banks;i++)
+			{
+				mem_controller->row_buffer_table[c]->sets[i].bank=i;
+				mem_controller->row_buffer_table[c]->sets[i].entries = xcalloc(assoc_table, sizeof(struct row_buffer_table_entry_t));
+				for(int j=0; j<assoc_table;j++)	
+				{
+					mem_controller->row_buffer_table[c]->sets[i].entries[j].row=-1;
+					mem_controller->row_buffer_table[c]->sets[i].entries[j].reserved=-1;
+					mem_controller->row_buffer_table[c]->sets[i].entries[j].lru=-1;
+					mem_controller->row_buffer_table[c]->sets[i].entries[j].used_blocks=linked_list_create();
+					mem_controller->row_buffer_table[c]->sets[i].entries[j].block_max=-1;
+					mem_controller->row_buffer_table[c]->sets[i].entries[j].block_min=-1;
+				}
+			}
+			
+		}
+		
+	}
+}
 
 void mem_controller_free(struct mem_controller_t *mem_controller){
 
@@ -380,6 +466,25 @@ void mem_controller_free(struct mem_controller_t *mem_controller){
 	/*Free table*/
 	mem_controller_row_buffer_table_free(mem_controller);
 
+
+	/*Cores*/
+	for( int i = 0; i < mem_controller->num_cores;i++)
+	{
+
+		free(mem_controller->core_row_buffer_hits_per_bank[i]);
+		free(mem_controller->core_mc_accesses_per_bank[i]);
+	}
+	free(mem_controller->core_row_buffer_hits_per_bank);
+	free(mem_controller->core_mc_accesses_per_bank);
+	free(mem_controller->t_core_wait);
+	free(mem_controller->t_core_acces);
+	free(mem_controller->t_core_transfer);
+	free(mem_controller->core_normal_mc_accesses);
+	free(mem_controller->core_pref_mc_accesses);
+	free(mem_controller->core_row_buffer_hits);
+	free(mem_controller->core_mc_accesses);
+
+
 	free(mem_controller);
 
 	
@@ -387,20 +492,27 @@ void mem_controller_free(struct mem_controller_t *mem_controller){
 
 void mem_controller_row_buffer_table_free(struct mem_controller_t * mem_controller){
 
+	
+	
 	if(mem_controller->enable_row_buffer_table)
 	{
-		for(int i=0; i<mem_controller->num_regs_rank*mem_controller->num_regs_bank;i++)
-		{	
-			for(int j=0; j<mem_controller->row_buffer_table->assoc;j++)
-				linked_list_free(mem_controller->row_buffer_table->sets[i].entries[j].used_blocks);
 		
-			free(mem_controller->row_buffer_table->sets[i].entries);
-		}
+		for(int c=0; c<mem_controller->num_tables ;c++)
+		{
+			for(int i=0; i<mem_controller->num_regs_rank*mem_controller->num_regs_bank;i++)
+			{	
+				for(int j=0; j<mem_controller->row_buffer_table[c]->assoc;j++)
+					linked_list_free(mem_controller->row_buffer_table[c]->sets[i].entries[j].used_blocks);
+		
+				free(mem_controller->row_buffer_table[c]->sets[i].entries);
+			}
 				
-		free(mem_controller->row_buffer_table->sets);
-		
+			free(mem_controller->row_buffer_table[c]->sets);
+			free(mem_controller->row_buffer_table[c]);
+		}
+		free(mem_controller->row_buffer_table);
 	}
-	free(mem_controller->row_buffer_table);
+	
 	
 }
 
@@ -411,7 +523,8 @@ void mem_controller_normal_queue_add(struct mod_stack_t * stack)
 	unsigned int bank;
 	long long ctx_threshold;
 	assert(stack->client_info->core>=0 && stack->client_info->thread>=0);
-	struct x86_ctx_t *ctx = x86_cpu->core[stack->client_info->core].thread[stack->client_info->thread].ctx;
+	struct x86_ctx_t *ctx = x86_ctx_get(stack->client_info->ctx_pid);
+	     
 
 	//row_buffer = stack->addr &  mem_controller->row_buffer_size;
 //	channel=(row_buffer >>7 )%mem_controller->num_regs_channel;
@@ -423,6 +536,10 @@ void mem_controller_normal_queue_add(struct mod_stack_t * stack)
 		bank=0;
 
 	
+	mem_controller->core_mc_accesses_per_bank[stack->client_info->core][bank]+=1;	
+	mem_controller->core_mc_accesses[stack->client_info->core]++;
+		
+                      
 
 	stack->threshold =mem_controller->threshold;
 
@@ -444,8 +561,8 @@ void mem_controller_normal_queue_add(struct mod_stack_t * stack)
 				ctx->loader->num_banks = 1;
 			ctx->loader->num_ranks = mem_controller->num_regs_rank;
 		}
-		ctx->loader->mc_accesses_per_bank[bank]++;
-		ctx->loader->mc_accesses++;
+		ctx->loader->mc_accesses_per_bank[bank]+=1;
+		ctx->loader->mc_accesses+=1;
 		
 		
 	}
@@ -471,8 +588,9 @@ void mem_controller_prefetch_queue_add(struct mod_stack_t * stack){
 	unsigned int log2_row_size= log_base2( mem_controller->row_buffer_size);
 	unsigned int bank;
 	long long ctx_threshold;
-	struct x86_ctx_t *ctx = x86_cpu->core[stack->client_info->core].thread[stack->client_info->thread].ctx;
-              
+	struct x86_ctx_t *ctx = x86_ctx_get(stack->client_info->ctx_pid);
+	
+	         
 	
 	assert(stack->client_info->core>=0 && stack->client_info->thread>=0);
 	assert(stack->client_info->stream_request_kind>=0);
@@ -481,6 +599,11 @@ void mem_controller_prefetch_queue_add(struct mod_stack_t * stack){
 		bank =((stack->addr >> log2_row_size) % (mem_controller->num_regs_bank*mem_controller->num_regs_rank));
 	else
 		bank=0;
+
+	mem_controller->core_mc_accesses_per_bank[stack->client_info->core][bank]+=1;	
+	mem_controller->core_mc_accesses[stack->client_info->core]++;
+	
+     
 	/*If mem controller policy is adaptative, mark useful and lived streams*/
 	if(mem_controller->adaptative  && stack->client_info->stream_request_kind == stream_request_single)
 	{
@@ -503,7 +626,7 @@ void mem_controller_prefetch_queue_add(struct mod_stack_t * stack){
 
 	if(ctx!=NULL)
 	{
-		ctx_threshold = x86_cpu->core[stack->client_info->core].thread[stack->client_info->thread].ctx->loader->max_cycles_wait_MC;
+		ctx_threshold = ctx->loader->max_cycles_wait_MC;
 
 		if(ctx_threshold != 100000000000) // if threshold if different than by default, context threshold is priorier
 			stack->threshold = ctx_threshold;
@@ -589,7 +712,7 @@ int mem_controller_get_bank_queue(int num_queue_examined,struct mem_controller_t
 		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
 		if(stack->threshold==0)
 		{
-			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
+			can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
 			if(can_acces_bank)
 				return stack;
 		}
@@ -603,7 +726,7 @@ int mem_controller_get_bank_queue(int num_queue_examined,struct mem_controller_t
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
 		if(stack->threshold==0)
 		{
-			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
+			can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
 			if(can_acces_bank)
 				return stack;
 		}
@@ -618,7 +741,7 @@ int mem_controller_get_bank_queue(int num_queue_examined,struct mem_controller_t
 	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 		if(can_acces_bank&&stack->state==row_buffer_hit)
 			return stack;
 		linked_list_next(normal_queue->queue);
@@ -631,7 +754,7 @@ int mem_controller_get_bank_queue(int num_queue_examined,struct mem_controller_t
 		while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
 		{
 			struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
-			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+			can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 			if(can_acces_bank)
 				return stack;
 			linked_list_next(normal_queue->queue);
@@ -642,7 +765,7 @@ int mem_controller_get_bank_queue(int num_queue_examined,struct mem_controller_t
 		while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
 		{
 			struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
-			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+			can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 			if(can_acces_bank&&stack->state==row_buffer_hit)
 				return stack;
 			linked_list_next(pref_queue->queue);
@@ -657,7 +780,7 @@ int mem_controller_get_bank_queue(int num_queue_examined,struct mem_controller_t
 		while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
 		{
 			struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
-			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+			can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 			if(can_acces_bank&&stack->state==row_buffer_hit)
 				return stack;
 			linked_list_next(pref_queue->queue);
@@ -668,7 +791,7 @@ int mem_controller_get_bank_queue(int num_queue_examined,struct mem_controller_t
 		while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
 		{
 			struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
-			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+			can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 			if(can_acces_bank)
 				return stack;
 			linked_list_next(normal_queue->queue);
@@ -680,7 +803,7 @@ int mem_controller_get_bank_queue(int num_queue_examined,struct mem_controller_t
 	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 		if(can_acces_bank)
 			return stack;
 		linked_list_next(pref_queue->queue);
@@ -707,7 +830,7 @@ struct mod_stack_t * mem_controller_select_prefRBH_normalRBH_normal_pref_prio(st
 		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
 		if(stack->threshold==0)
 		{
-			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
+			can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
 			if(can_acces_bank)
 				return stack;
 		}
@@ -721,7 +844,7 @@ struct mod_stack_t * mem_controller_select_prefRBH_normalRBH_normal_pref_prio(st
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
 		if(stack->threshold==0)
 		{
-			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
+			can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
 			if(can_acces_bank)
 				return stack;
 		}
@@ -735,7 +858,7 @@ struct mod_stack_t * mem_controller_select_prefRBH_normalRBH_normal_pref_prio(st
 	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack, stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 		if(can_acces_bank&&stack->state==row_buffer_hit)
 			return stack;
 		linked_list_next(pref_queue->queue);
@@ -746,7 +869,7 @@ struct mod_stack_t * mem_controller_select_prefRBH_normalRBH_normal_pref_prio(st
 	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 		if(can_acces_bank&&stack->state==row_buffer_hit)
 			return stack;
 		linked_list_next(normal_queue->queue);
@@ -757,7 +880,7 @@ struct mod_stack_t * mem_controller_select_prefRBH_normalRBH_normal_pref_prio(st
 	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 		if(can_acces_bank)
 			return stack;
 		linked_list_next(normal_queue->queue);
@@ -767,7 +890,7 @@ struct mod_stack_t * mem_controller_select_prefRBH_normalRBH_normal_pref_prio(st
 	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 		if(can_acces_bank)
 			return stack;
 		linked_list_next(pref_queue->queue);
@@ -794,7 +917,7 @@ struct mod_stack_t * mem_controller_select_prefHit_normal_prefGroup_prio(struct 
 		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
 		if(stack->threshold==0)
 		{
-			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
+			can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
 			if(can_acces_bank)
 				return stack;
 		}
@@ -808,7 +931,7 @@ struct mod_stack_t * mem_controller_select_prefHit_normal_prefGroup_prio(struct 
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
 		if(stack->threshold==0)
 		{
-			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
+			can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
 			if(can_acces_bank)
 				return stack;
 		}
@@ -822,7 +945,7 @@ struct mod_stack_t * mem_controller_select_prefHit_normal_prefGroup_prio(struct 
 	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 		if(can_acces_bank&&stack->state==row_buffer_hit && stack->client_info->stream_request_kind == stream_request_single)
 			return stack;
 		linked_list_next(pref_queue->queue);
@@ -833,7 +956,7 @@ struct mod_stack_t * mem_controller_select_prefHit_normal_prefGroup_prio(struct 
 	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack, stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 		if(can_acces_bank && stack->client_info->stream_request_kind == stream_request_single)
 			return stack;
 		linked_list_next(pref_queue->queue);
@@ -845,7 +968,7 @@ struct mod_stack_t * mem_controller_select_prefHit_normal_prefGroup_prio(struct 
 	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 		if(can_acces_bank&&stack->state==row_buffer_hit)
 			return stack;
 		linked_list_next(normal_queue->queue);
@@ -856,7 +979,7 @@ struct mod_stack_t * mem_controller_select_prefHit_normal_prefGroup_prio(struct 
 	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 		if(can_acces_bank)
 			return stack;
 		linked_list_next(normal_queue->queue);
@@ -866,7 +989,7 @@ struct mod_stack_t * mem_controller_select_prefHit_normal_prefGroup_prio(struct 
 	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,&stack->channel, &stack->rank,
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,&stack->channel, &stack->rank,
 				&stack->bank, &stack->row, & stack->tag, &stack->state_main_memory);
 		if(can_acces_bank)
 		{
@@ -917,7 +1040,7 @@ struct mod_stack_t * mem_controller_select_prefHitRBH_normalRBH_normal_prefHit_p
 		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
 		if(stack->threshold==0)
 		{
-			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
+			can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
 			if(can_acces_bank)
 				return stack;
 		}
@@ -931,7 +1054,7 @@ struct mod_stack_t * mem_controller_select_prefHitRBH_normalRBH_normal_prefHit_p
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
 		if(stack->threshold==0)
 		{
-			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
+			can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
 			if(can_acces_bank)
 				return stack;
 		}
@@ -945,7 +1068,7 @@ struct mod_stack_t * mem_controller_select_prefHitRBH_normalRBH_normal_prefHit_p
 	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 		if(can_acces_bank&&stack->state==row_buffer_hit && stack->client_info->stream_request_kind == stream_request_single)
 			return stack;
 		linked_list_next(pref_queue->queue);
@@ -956,7 +1079,7 @@ struct mod_stack_t * mem_controller_select_prefHitRBH_normalRBH_normal_prefHit_p
 	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 		if(can_acces_bank&&stack->state==row_buffer_hit)
 			return stack;
 		linked_list_next(normal_queue->queue);
@@ -967,7 +1090,7 @@ struct mod_stack_t * mem_controller_select_prefHitRBH_normalRBH_normal_prefHit_p
 	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 		if(can_acces_bank)
 			return stack;
 		linked_list_next(normal_queue->queue);
@@ -978,7 +1101,7 @@ struct mod_stack_t * mem_controller_select_prefHitRBH_normalRBH_normal_prefHit_p
 	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 		if(can_acces_bank && stack->client_info->stream_request_kind == stream_request_single)
 			return stack;
 		linked_list_next(pref_queue->queue);
@@ -990,7 +1113,7 @@ struct mod_stack_t * mem_controller_select_prefHitRBH_normalRBH_normal_prefHit_p
 	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,&stack->channel, &stack->rank,
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,&stack->channel, &stack->rank,
 				&stack->bank, &stack->row, & stack->tag, &stack->state_main_memory);
 		if(can_acces_bank)
 		{
@@ -1080,7 +1203,7 @@ struct mod_stack_t * mem_controller_select_FCFS_prio(struct mem_controller_queue
 		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
 		if(stack->threshold==0)
 		{
-			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
+			can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
 			if(can_acces_bank)
 				return stack;
 		}
@@ -1094,7 +1217,7 @@ struct mod_stack_t * mem_controller_select_FCFS_prio(struct mem_controller_queue
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
 		if(stack->threshold==0)
 		{
-			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
+			can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
 			if(can_acces_bank)
 				return stack;
 		}
@@ -1108,7 +1231,7 @@ struct mod_stack_t * mem_controller_select_FCFS_prio(struct mem_controller_queue
 	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 		if(can_acces_bank)
 			return stack;
 		linked_list_next(normal_queue->queue);
@@ -1119,7 +1242,7 @@ struct mod_stack_t * mem_controller_select_FCFS_prio(struct mem_controller_queue
 	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 		if(can_acces_bank)
 			return stack;
 		linked_list_next(pref_queue->queue);
@@ -1147,7 +1270,7 @@ struct mod_stack_t * mem_controller_select_dynamic_prio(struct mem_controller_qu
 		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
 		if(stack->threshold==0)
 		{
-			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
+			can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
 			if(can_acces_bank)
 				return stack;
 		}
@@ -1161,7 +1284,7 @@ struct mod_stack_t * mem_controller_select_dynamic_prio(struct mem_controller_qu
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
 		if(stack->threshold==0)
 		{
-			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
+			can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
 			if(can_acces_bank)
 				return stack;
 		}
@@ -1175,7 +1298,7 @@ struct mod_stack_t * mem_controller_select_dynamic_prio(struct mem_controller_qu
 	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 		if(can_acces_bank&&stack->state==row_buffer_hit && stack->client_info->stream_request_kind == stream_request_single && stack->priority>=2) // 3 requests
 			return stack;
 		linked_list_next(pref_queue->queue);
@@ -1186,7 +1309,7 @@ struct mod_stack_t * mem_controller_select_dynamic_prio(struct mem_controller_qu
 	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 		if(can_acces_bank&&stack->state==row_buffer_hit)
 			return stack;
 		linked_list_next(normal_queue->queue);
@@ -1197,7 +1320,7 @@ struct mod_stack_t * mem_controller_select_dynamic_prio(struct mem_controller_qu
 	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 		if(can_acces_bank&&stack->state==row_buffer_hit && stack->client_info->stream_request_kind == stream_request_grouped && stack->priority>=3) //4requests
 			return stack;
 		linked_list_next(pref_queue->queue);
@@ -1207,7 +1330,7 @@ struct mod_stack_t * mem_controller_select_dynamic_prio(struct mem_controller_qu
 	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 		if(can_acces_bank&&stack->state==row_buffer_hit && stack->client_info->stream_request_kind == stream_request_single && stack->priority>=1) // 2 requests
 			return stack;
 		linked_list_next(pref_queue->queue);
@@ -1218,7 +1341,7 @@ struct mod_stack_t * mem_controller_select_dynamic_prio(struct mem_controller_qu
 	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 		if(can_acces_bank&&stack->state==row_buffer_hit && stack->client_info->stream_request_kind == stream_request_single)
 			return stack;
 		linked_list_next(pref_queue->queue);
@@ -1231,7 +1354,7 @@ struct mod_stack_t * mem_controller_select_dynamic_prio(struct mem_controller_qu
 	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 		if(can_acces_bank)
 			return stack;
 		linked_list_next(normal_queue->queue);
@@ -1242,7 +1365,7 @@ struct mod_stack_t * mem_controller_select_dynamic_prio(struct mem_controller_qu
 	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 		if(can_acces_bank&&stack->state==row_buffer_hit)
 			return stack;
 		linked_list_next(pref_queue->queue);
@@ -1253,7 +1376,7 @@ struct mod_stack_t * mem_controller_select_dynamic_prio(struct mem_controller_qu
 	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 		if(can_acces_bank)
 			return stack;
 		linked_list_next(pref_queue->queue);
@@ -1278,7 +1401,7 @@ struct mod_stack_t * mem_controller_select_pref_normal_prio(struct mem_controlle
 		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
 		if(stack->threshold==0)
 		{
-			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
+			can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
 			if(can_acces_bank)
 				return stack;
 		}
@@ -1292,7 +1415,7 @@ struct mod_stack_t * mem_controller_select_pref_normal_prio(struct mem_controlle
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
 		if(stack->threshold==0)
 		{
-			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
+			can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
 			if(can_acces_bank)
 				return stack;
 		}
@@ -1306,7 +1429,7 @@ struct mod_stack_t * mem_controller_select_pref_normal_prio(struct mem_controlle
 	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 		if(can_acces_bank&&stack->state==row_buffer_hit)
 			return stack;
 		linked_list_next(pref_queue->queue);
@@ -1317,7 +1440,7 @@ struct mod_stack_t * mem_controller_select_pref_normal_prio(struct mem_controlle
 	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 		if(can_acces_bank)
 			return stack;
 		linked_list_next(pref_queue->queue);
@@ -1328,7 +1451,7 @@ struct mod_stack_t * mem_controller_select_pref_normal_prio(struct mem_controlle
 	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 		if(can_acces_bank&&stack->state==row_buffer_hit)
 			return stack;
 		linked_list_next(normal_queue->queue);
@@ -1339,7 +1462,7 @@ struct mod_stack_t * mem_controller_select_pref_normal_prio(struct mem_controlle
 	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 		if(can_acces_bank)
 			return stack;
 		linked_list_next(normal_queue->queue);
@@ -1365,7 +1488,7 @@ struct mod_stack_t * mem_controller_select_rbh_fcfs_prio(struct mem_controller_q
 		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
 		if(stack->threshold==0)
 		{
-			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
+			can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
 			if(can_acces_bank)
 				return stack;
 		}
@@ -1379,7 +1502,7 @@ struct mod_stack_t * mem_controller_select_rbh_fcfs_prio(struct mem_controller_q
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
 		if(stack->threshold==0)
 		{
-			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
+			can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
 			if(can_acces_bank)
 				return stack;
 		}
@@ -1394,7 +1517,7 @@ struct mod_stack_t * mem_controller_select_rbh_fcfs_prio(struct mem_controller_q
 	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 		if(can_acces_bank&&stack->state==row_buffer_hit)
 			return stack;
 		linked_list_next(normal_queue->queue);
@@ -1406,7 +1529,7 @@ struct mod_stack_t * mem_controller_select_rbh_fcfs_prio(struct mem_controller_q
 	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 		if(can_acces_bank&&stack->state==row_buffer_hit)
 			return stack;
 		linked_list_next(pref_queue->queue);
@@ -1417,7 +1540,7 @@ struct mod_stack_t * mem_controller_select_rbh_fcfs_prio(struct mem_controller_q
 	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 		if(can_acces_bank)
 			return stack;
 		linked_list_next(normal_queue->queue);
@@ -1431,7 +1554,7 @@ struct mod_stack_t * mem_controller_select_rbh_fcfs_prio(struct mem_controller_q
 	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 		if(can_acces_bank)
 			return stack;
 		linked_list_next(pref_queue->queue);
@@ -1455,7 +1578,7 @@ struct mod_stack_t * mem_controller_select_normal_pref_prio(struct mem_controlle
 		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
 		if(stack->threshold==0)
 		{
-			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
+			can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
 			if(can_acces_bank)
 				return stack;
 		}
@@ -1469,7 +1592,7 @@ struct mod_stack_t * mem_controller_select_normal_pref_prio(struct mem_controlle
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
 		if(stack->threshold==0)
 		{
-			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
+			can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
 			if(can_acces_bank)
 				return stack;
 		}
@@ -1484,7 +1607,7 @@ struct mod_stack_t * mem_controller_select_normal_pref_prio(struct mem_controlle
 	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 		if(can_acces_bank&&stack->state==row_buffer_hit)
 			return stack;
 		linked_list_next(normal_queue->queue);
@@ -1496,7 +1619,7 @@ struct mod_stack_t * mem_controller_select_normal_pref_prio(struct mem_controlle
 	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 		if(can_acces_bank)
 			return stack;
 		linked_list_next(normal_queue->queue);
@@ -1507,7 +1630,7 @@ struct mod_stack_t * mem_controller_select_normal_pref_prio(struct mem_controlle
 	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 		if(can_acces_bank&&stack->state==row_buffer_hit)
 			return stack;
 		linked_list_next(pref_queue->queue);
@@ -1521,7 +1644,7 @@ struct mod_stack_t * mem_controller_select_normal_pref_prio(struct mem_controlle
 	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 		if(can_acces_bank)
 			return stack;
 		linked_list_next(pref_queue->queue);
@@ -1545,7 +1668,7 @@ struct mod_stack_t * mem_controller_select_normal_prefHit_prefGroup_prio(struct 
 		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
 		if(stack->threshold==0)
 		{
-			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
+			can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
 			if(can_acces_bank)
 				return stack;
 		}
@@ -1559,7 +1682,7 @@ struct mod_stack_t * mem_controller_select_normal_prefHit_prefGroup_prio(struct 
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
 		if(stack->threshold==0)
 		{
-			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
+			can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
 			if(can_acces_bank)
 				return stack;
 		}
@@ -1573,7 +1696,7 @@ struct mod_stack_t * mem_controller_select_normal_prefHit_prefGroup_prio(struct 
 	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 		if(can_acces_bank&&stack->state==row_buffer_hit)
 			return stack;
 		linked_list_next(normal_queue->queue);
@@ -1585,7 +1708,7 @@ struct mod_stack_t * mem_controller_select_normal_prefHit_prefGroup_prio(struct 
 	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 		if(can_acces_bank)
 			return stack;
 		linked_list_next(normal_queue->queue);
@@ -1597,7 +1720,7 @@ struct mod_stack_t * mem_controller_select_normal_prefHit_prefGroup_prio(struct 
 	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 		if(can_acces_bank&&stack->state==row_buffer_hit && stack->client_info->stream_request_kind == stream_request_single)
 			return stack;
 		linked_list_next(pref_queue->queue);
@@ -1610,7 +1733,7 @@ struct mod_stack_t * mem_controller_select_normal_prefHit_prefGroup_prio(struct 
 	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 		if(can_acces_bank&&stack->client_info->stream_request_kind == stream_request_single)
 			return stack;
 		linked_list_next(pref_queue->queue);
@@ -1621,7 +1744,7 @@ struct mod_stack_t * mem_controller_select_normal_prefHit_prefGroup_prio(struct 
 	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,&stack->channel, &stack->rank,
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,&stack->channel, &stack->rank,
 				&stack->bank, &stack->row, & stack->tag, &stack->state_main_memory);
 		if(can_acces_bank)
 		{
@@ -1669,7 +1792,7 @@ struct mod_stack_t * mem_controller_select_rbh_prefHit_normal_prefGroup_prio(str
 		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
 		if(stack->threshold==0)
 		{
-			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
+			can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
 			if(can_acces_bank)
 				return stack;
 		}
@@ -1683,7 +1806,7 @@ struct mod_stack_t * mem_controller_select_rbh_prefHit_normal_prefGroup_prio(str
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
 		if(stack->threshold==0)
 		{
-			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
+			can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
 			if(can_acces_bank)
 				return stack;
 		}
@@ -1697,7 +1820,7 @@ struct mod_stack_t * mem_controller_select_rbh_prefHit_normal_prefGroup_prio(str
 	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 		if(can_acces_bank&&stack->state==row_buffer_hit)
 			return stack;
 		linked_list_next(normal_queue->queue);
@@ -1708,7 +1831,7 @@ struct mod_stack_t * mem_controller_select_rbh_prefHit_normal_prefGroup_prio(str
 	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 		if(can_acces_bank&&stack->state==row_buffer_hit && stack->client_info->stream_request_kind == stream_request_single)
 			return stack;
 		linked_list_next(pref_queue->queue);
@@ -1719,7 +1842,7 @@ struct mod_stack_t * mem_controller_select_rbh_prefHit_normal_prefGroup_prio(str
 	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 		if(can_acces_bank&&stack->client_info->stream_request_kind == stream_request_single)
 			return stack;
 		linked_list_next(pref_queue->queue);
@@ -1731,7 +1854,7 @@ struct mod_stack_t * mem_controller_select_rbh_prefHit_normal_prefGroup_prio(str
 	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 		if(can_acces_bank)
 			return stack;
 		linked_list_next(normal_queue->queue);
@@ -1742,7 +1865,7 @@ struct mod_stack_t * mem_controller_select_rbh_prefHit_normal_prefGroup_prio(str
 	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,&stack->channel, &stack->rank,
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,&stack->channel, &stack->rank,
 				&stack->bank, &stack->row, & stack->tag, &stack->state_main_memory);
 		if(can_acces_bank)
 		{
@@ -1789,7 +1912,7 @@ struct mod_stack_t * mem_controller_select_rbh_normal_prefHit_prefGroup_prio(str
 		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
 		if(stack->threshold==0)
 		{
-			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
+			can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
 			if(can_acces_bank)
 				return stack;
 		}
@@ -1803,7 +1926,7 @@ struct mod_stack_t * mem_controller_select_rbh_normal_prefHit_prefGroup_prio(str
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
 		if(stack->threshold==0)
 		{
-			can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
+			can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, NULL);
 			if(can_acces_bank)
 				return stack;
 		}
@@ -1816,7 +1939,7 @@ struct mod_stack_t * mem_controller_select_rbh_normal_prefHit_prefGroup_prio(str
 	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 		if(can_acces_bank&&stack->state==row_buffer_hit)
 			return stack;
 		linked_list_next(normal_queue->queue);
@@ -1827,7 +1950,7 @@ struct mod_stack_t * mem_controller_select_rbh_normal_prefHit_prefGroup_prio(str
 	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 		if(can_acces_bank&&stack->state==row_buffer_hit && stack->client_info->stream_request_kind == stream_request_single)
 			return stack;
 		linked_list_next(pref_queue->queue);
@@ -1838,7 +1961,7 @@ struct mod_stack_t * mem_controller_select_rbh_normal_prefHit_prefGroup_prio(str
 	while(!linked_list_is_end(normal_queue->queue)&&linked_list_current(normal_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(normal_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 		if(can_acces_bank)
 			return stack;
 		linked_list_next(normal_queue->queue);
@@ -1849,7 +1972,7 @@ struct mod_stack_t * mem_controller_select_rbh_normal_prefHit_prefGroup_prio(str
 	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,NULL,NULL, NULL,NULL,NULL, &stack->state);
 		if(can_acces_bank&&stack->client_info->stream_request_kind == stream_request_single)
 			return stack;
 		linked_list_next(pref_queue->queue);
@@ -1860,7 +1983,7 @@ struct mod_stack_t * mem_controller_select_rbh_normal_prefHit_prefGroup_prio(str
 	while(!linked_list_is_end(pref_queue->queue)&&linked_list_current(pref_queue->queue)<size_queue)
 	{
 		struct mod_stack_t *stack=linked_list_get(pref_queue->queue);
-		can_acces_bank=row_buffer_find_row(mem_controller,stack->mod,stack->addr,&stack->channel, &stack->rank,
+		can_acces_bank=row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,&stack->channel, &stack->rank,
 				&stack->bank, &stack->row, & stack->tag, &stack->state_main_memory);
 		if(can_acces_bank)
 		{
@@ -1947,7 +2070,8 @@ void mem_controller_update_requests_threshold(int cycles, struct mem_controller_
 		/*Decrease threshold of normal request 1 cycle */
 		linked_list_head(mem_controller->normal_queue[i]->queue);
 		while(!linked_list_is_end(mem_controller->normal_queue[i]->queue)&&
-		linked_list_current(mem_controller->normal_queue[i]->queue)<mem_controller->size_queue){
+		linked_list_current(mem_controller->normal_queue[i]->queue)<mem_controller->size_queue)
+		{
 			stack=linked_list_get(mem_controller->normal_queue[i]->queue);
 			if((stack->threshold-cycles)>0)
 				stack->threshold-=cycles;
@@ -2640,7 +2764,7 @@ int mem_controller_is_useful_stream(struct mod_stack_t* stack, struct mem_contro
 	int state;
 	struct mod_stack_t* stack_aux;
 
-	row_buffer_find_row(stack->mod->mem_controller, stack->mod, stack->addr, NULL, NULL, NULL, &row, NULL, &state);
+	row_buffer_find_row(stack->mod->mem_controller, stack,stack->mod, stack->addr, NULL, NULL, NULL, &row, NULL, &state);
 
 
 	/*It has to be a hit in row buffer*/
@@ -2673,8 +2797,8 @@ int mem_controller_count_requests_same_stream(struct mod_stack_t* stack, struct 
 	LINKED_LIST_FOR_EACH(queue)
 	{
 		stack_aux=linked_list_get(queue);
-		row_buffer_find_row(mem_controller,stack_aux->mod,stack_aux->addr,&stack_aux->channel, &stack_aux->rank,&stack_aux->bank,&stack_aux->row, NULL, NULL);
-		row_buffer_find_row(mem_controller,stack->mod,stack->addr,&stack->channel, &stack->rank,&stack->bank,&stack->row, NULL, NULL);
+		row_buffer_find_row(mem_controller,stack_aux,stack_aux->mod,stack_aux->addr,&stack_aux->channel, &stack_aux->rank,&stack_aux->bank,&stack_aux->row, NULL, NULL);
+		row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,&stack->channel, &stack->rank,&stack->bank,&stack->row, NULL, NULL);
 
 		assert(stack_aux->channel==stack->channel && stack_aux->rank == stack->rank && stack->bank == stack_aux->bank);
 		if(stack_aux->client_info->stream==stack->client_info->stream && stack->id!=stack_aux->id && stack->row == stack_aux->row)
@@ -2694,8 +2818,8 @@ void mem_controller_mark_requests_same_stream(struct mod_stack_t* stack, struct 
 	LINKED_LIST_FOR_EACH(queue)
 	{
 		stack_aux=linked_list_get(queue);
-		row_buffer_find_row(mem_controller,stack_aux->mod,stack_aux->addr,&stack_aux->channel, &stack_aux->rank,&stack_aux->bank,&stack_aux->row, NULL, NULL);
-		row_buffer_find_row(mem_controller,stack->mod,stack->addr,&stack->channel, &stack->rank,&stack->bank,&stack->row, NULL, NULL);
+		row_buffer_find_row(mem_controller,stack_aux,stack_aux->mod,stack_aux->addr,&stack_aux->channel, &stack_aux->rank,&stack_aux->bank,&stack_aux->row, NULL, NULL);
+		row_buffer_find_row(mem_controller,stack,stack->mod,stack->addr,&stack->channel, &stack->rank,&stack->bank,&stack->row, NULL, NULL);
 
 		assert(stack_aux->rank == stack->rank && stack->bank == stack_aux->bank);
 		if(stack_aux->client_info->stream == stack->client_info->stream &&
@@ -2947,19 +3071,40 @@ void mem_controller_report_handler(int event, void *data)
 		esim_schedule_event(event, stack, mem_controller->report_interval);
 }
 
+struct row_buffer_table_t* mem_controller_get_row_buffer_table(struct mem_controller_t * mem_controller, int core)
+{
+	
+	if(!mem_controller->row_buf_per_bank_per_ctx)
+	{
+		assert(mem_controller->num_tables==1);
+		return mem_controller->row_buffer_table[0];
+	}
+
+	for(int i=0; i< mem_controller->num_tables; i++)
+	{
+		assert(mem_controller->row_buffer_table[i]);
+		if(mem_controller->row_buffer_table[i]->core==core)
+			return mem_controller->row_buffer_table[i];
+	}
+
+	fatal("There is not a row buffer table for core %d\n", core);
+	return NULL;
+} 
 
 struct row_buffer_table_set_t* mem_controller_row_buffer_table_get_set(struct mod_stack_t *stack)
 {
 	struct mem_controller_t *mem_controller = stack->mod->mem_controller;
 	
+	struct row_buffer_table_t * table= mem_controller_get_row_buffer_table(mem_controller,stack->client_info->core);
+
 	unsigned int num_ranks = mem_controller->num_regs_rank ;
 	unsigned int num_banks = mem_controller->num_regs_bank ;
 	unsigned int log2_row_size= log_base2( mem_controller->row_buffer_size);
 	
 	int set_rbtable = ((stack->addr >> log2_row_size) % (num_banks*num_ranks));
 	
-	assert(mem_controller->row_buffer_table->sets[set_rbtable].bank == set_rbtable);
-	return 	&mem_controller->row_buffer_table->sets[set_rbtable];	
+	assert(table->sets[set_rbtable].bank == set_rbtable);
+	return 	&table->sets[set_rbtable];	
 
 } 
 
@@ -2969,12 +3114,14 @@ struct row_buffer_table_entry_t *mem_controller_row_buffer_table_get_entry(struc
 	
 	struct row_buffer_table_set_t *set= mem_controller_row_buffer_table_get_set(stack);
 	
+	struct row_buffer_table_t * table= mem_controller_get_row_buffer_table(mem_controller,stack->client_info->core);
 
-	for(int i =0 ;i <mem_controller->row_buffer_table->assoc; i++)
+
+	for(int i =0 ;i <table->assoc; i++)
 	{		
 		if(set->entries[i].row==stack->row)
 		{
-			printf("	%lld agarran entra %i del b%d\n", stack->id, i, stack->bank);
+			//printf("	%lld agarran entra %i del b%d\n", stack->id, i, stack->bank);
 			return &set->entries[i];
 		}
 		
@@ -2990,12 +3137,14 @@ struct row_buffer_table_entry_t *mem_controller_row_buffer_table_get_reserved_en
 	
 	struct row_buffer_table_set_t *set= mem_controller_row_buffer_table_get_set(stack);
 	
+	struct row_buffer_table_t * table= mem_controller_get_row_buffer_table(mem_controller,stack->client_info->core);
 
-	for(int i =0 ;i <mem_controller->row_buffer_table->assoc; i++)
+
+	for(int i =0 ;i <table->assoc; i++)
 	{		
 		if(set->entries[i].reserved==stack->id)
 		{
-			printf("%lld agarra la reserva  %d  banc%d\n", stack->id, i , set->bank);				
+			//printf("%lld agarra la reserva  %d  banc%d\n", stack->id, i , set->bank);				
 			return &set->entries[i];
 		}
 		
@@ -3011,6 +3160,9 @@ int mem_controller_row_buffer_table_count_used_block(struct mod_stack_t *stack)
 	
 	struct row_buffer_table_entry_t *entry= mem_controller_row_buffer_table_get_entry(stack);
 	unsigned int *block;
+	
+	struct row_buffer_table_t * table= mem_controller_get_row_buffer_table(mem_controller,stack->client_info->core);
+
 	assert(entry);
 
 	LINKED_LIST_FOR_EACH(entry->used_blocks)
@@ -3025,8 +3177,8 @@ int mem_controller_row_buffer_table_count_used_block(struct mod_stack_t *stack)
 	}
 	unsigned int new_block=stack->addr %  mem_controller->row_buffer_size;
 	linked_list_add(entry->used_blocks,&new_block );
-	printf("	afegit bloc %d b%d r%d\n", new_block, stack->bank, stack->rank);
-	mem_controller->row_buffer_table->useful_blocks++;
+	//printf("	afegit bloc %d b%d r%d\n", new_block, stack->bank, stack->rank);
+	table->useful_blocks++;
 			
 	return 0;
 
@@ -3040,7 +3192,7 @@ void mem_controller_row_buffer_table_reset_used_block(struct mod_stack_t *stack)
 	
 	assert(entry);
 
-	printf("reset bloc b%d r%d\n", stack->bank, stack->rank);
+	//printf("reset bloc b%d r%d\n", stack->bank, stack->rank);
 			
 	linked_list_clear(entry->used_blocks );
 	assert(linked_list_count(entry->used_blocks)==0);
@@ -3053,13 +3205,16 @@ void mem_controller_row_buffer_table_reserve_entry(struct mod_stack_t *stack)
 	struct mem_controller_t *mem_controller = stack->mod->mem_controller;
 	int lru_entry = -1;
 	int found = 0;
+	
+	struct row_buffer_table_t * table= mem_controller_get_row_buffer_table(mem_controller,stack->client_info->core);
+
 
 	assert(mem_controller->enable_row_buffer_table);
 	struct row_buffer_table_set_t *set= mem_controller_row_buffer_table_get_set(stack);
 
 	
 	/*LRU*/
-	for(int i =0 ;i <mem_controller->row_buffer_table->assoc; i++)
+	for(int i =0 ;i <table->assoc; i++)
 	{		
 		if(set->entries[i].reserved == -1 && !set->entries[i].accessed)
 		{
@@ -3082,7 +3237,7 @@ void mem_controller_row_buffer_table_reserve_entry(struct mod_stack_t *stack)
 	}
 
 	/*Look for a entry with the same row*/
-	for(int i =0 ;i <mem_controller->row_buffer_table->assoc; i++)
+	for(int i =0 ;i <table->assoc; i++)
 	{		
 		if(set->entries[i].reserved == -1 && !set->entries[i].accessed && set->entries[i].row==stack->row)
 		{
@@ -3092,7 +3247,7 @@ void mem_controller_row_buffer_table_reserve_entry(struct mod_stack_t *stack)
 				
 		}
 	}
-	printf("%lld reserva entra %d  banc%d\n", stack->id, lru_entry , set->bank);
+	//printf("%lld reserva entra %d  banc%d\n", stack->id, lru_entry , set->bank);
 	assert(lru_entry!=-1);
 	set->entries[lru_entry].reserved=stack->id;
 	set->entries[lru_entry].row=stack->row;

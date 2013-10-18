@@ -23,7 +23,7 @@ Sets = 256
 Assoc = 8
 BlockSize = 64
 Latency = 10
-EnablePrefetcher = False
+EnablePrefetcher = True
 PrefetcherType = czone_streams
 PrefetcherStreams = 32
 PrefetcherSlots = 4
@@ -224,9 +224,10 @@ PriorityMCQueues = Threshold-FCFS-Normal-Prefetch
 QueuePerBank = 1
 SizeQueue = 128
 MemoryControllerEnabled = 1
-EnableRowBufferTable = 1
+EnableRowBufferTable = 0
+EnableRBTableBuffersPerBankPerCore = 0
 RowBufferPerBank = 1
-EnableCoalesceRowBufferTable = 1
+EnableCoalesceRowBufferTable = 0
 
 
 

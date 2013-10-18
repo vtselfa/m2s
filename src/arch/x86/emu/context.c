@@ -161,7 +161,6 @@ static struct x86_ctx_t *ctx_do_create()
 	 * effect, since it will be updated later. */
 	x86_ctx_set_state(ctx, x86_ctx_running);
 	DOUBLE_LINKED_LIST_INSERT_HEAD(x86_emu, context, ctx);
-
 	/* Structures */
 	ctx->regs = x86_regs_create();
 	ctx->backup_regs = x86_regs_create();
@@ -350,6 +349,7 @@ void x86_ctx_dump(struct x86_ctx_t *ctx, FILE *f)
 	fprintf(f, "\nAffinity = ");
 	bit_map_dump(ctx->affinity, 0, x86_cpu_num_cores * x86_cpu_num_threads, f);
 	fprintf(f, "\n");
+
 
 	/* End */
 	fprintf(f, "\n\n");

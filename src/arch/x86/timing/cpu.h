@@ -141,6 +141,7 @@ struct x86_thread_t
 	/* Context currently running in this thread. This is a context present
 	 * in the thread's 'mapped' list. */
 	struct x86_ctx_t *ctx;
+	int ctx_pid;
 
 	/* Double-linked list of mapped contexts */
 	struct x86_ctx_t *mapped_list_head;
@@ -358,6 +359,7 @@ struct x86_cpu_t
 {
 	/* Array of cores */
 	struct x86_core_t *core;
+	int num_cores;
 
 	/* Some fields */
 	long long uop_id_counter;  /* Counter of uop ID assignment */
