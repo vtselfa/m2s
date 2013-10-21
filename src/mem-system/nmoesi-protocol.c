@@ -3554,9 +3554,9 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			struct stream_block_t *block = cache_get_pref_block(target_mod->cache, stack->pref_stream, stack->pref_slot);
 			assert(stack->tag == block->tag);
 			cache_set_block(target_mod->cache, stack->set, stack->way, block->tag, block->state);
+			stack->state = block->state;
 			block->state = cache_block_invalid;
 			block->tag = -1;
-			stack->state = block->state;
 			struct stream_buffer_t *sb = &target_mod->cache->prefetch.streams[stack->pref_stream];
 			sb->count--; //COUNT
 			if (stack->stream_head_hit)
