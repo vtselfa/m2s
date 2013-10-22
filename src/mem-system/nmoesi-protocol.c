@@ -2476,7 +2476,7 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 
 				/* This stack will be fast resumed */
 				stack->fast_resume = 1;
-				stack->state = cache_block_invalid;
+				stack->state = block->state;
 
 				/* Free stream entry */
 				cache_set_pref_block(cache, stack->pref_stream, stack->pref_slot, -1, cache_block_invalid);
