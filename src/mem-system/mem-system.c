@@ -687,6 +687,7 @@ void mem_controller_dump_report()
 		fprintf(f,"TotalAccesses = %lld\n", table_accesses);
 		fprintf(f,"RowBufferHitPercent = %F\n", table_accesses?(double)table_hit_accesses/table_accesses : 0.0);
 		fprintf(f,"TotalTransferedBlocks = %lld\n", table_trans_blocks);
+		fprintf(f,"TotalUsefulBlocks = %lld\n", table_useful_blocks);
 		fprintf(f,"PercentUsefulBlocks = %f\n", table_trans_blocks ?  (double)table_useful_blocks/table_trans_blocks:0);
 		fprintf(f,"BlocksPerTransference = %f\n", table_num_trans ?  (double)table_trans_blocks/table_num_trans:0);
 		

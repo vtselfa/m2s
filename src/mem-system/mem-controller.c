@@ -329,7 +329,7 @@ void mem_controller_init_main_memory(struct mem_controller_t *mem_controller, in
 
 }
 
-void mem_controller_row_buffer_table_create(struct mem_controller_t *mem_controller, int enable_rbtable, int assoc_table, int enable_coalesce, int buf_per_bank_per_ctx, int ranks, int banks)
+void mem_controller_row_buffer_table_create(struct mem_controller_t *mem_controller, int enable_rbtable, int assoc_table, int enable_coalesce, int buf_per_bank_per_ctx, int ranks, int banks, int block_size)
 {
 
 	int c=0;
@@ -357,7 +357,7 @@ void mem_controller_row_buffer_table_create(struct mem_controller_t *mem_control
 				mem_controller->row_buffer_table[c]->sets[i].entries[j].row=-1;
 				mem_controller->row_buffer_table[c]->sets[i].entries[j].reserved=-1;
 				mem_controller->row_buffer_table[c]->sets[i].entries[j].lru=-1;
-				mem_controller->row_buffer_table[c]->sets[i].entries[j].used_blocks=linked_list_create();
+				mem_controller->row_buffer_table[c]->sets[i].entries[j].used_blocks=xcalloc(mem_controller->row_buffer_size/block_size,sizeof(int));
 				mem_controller->row_buffer_table[c]->sets[i].entries[j].block_max=-1;
 				mem_controller->row_buffer_table[c]->sets[i].entries[j].block_min=-1;
 			}
@@ -369,7 +369,7 @@ void mem_controller_row_buffer_table_create(struct mem_controller_t *mem_control
 	}
 }
 
-void mem_controller_row_buffer_table_per_ctx_create(struct mem_controller_t *mem_controller, int enable_rbtable, int assoc_table, int enable_coalesce, int buf_per_bank_per_ctx, int ranks, int banks)
+void mem_controller_row_buffer_table_per_ctx_create(struct mem_controller_t *mem_controller, int enable_rbtable, int assoc_table, int enable_coalesce, int buf_per_bank_per_ctx, int ranks, int banks, int block_size)
 {
 	
 	
@@ -398,7 +398,7 @@ void mem_controller_row_buffer_table_per_ctx_create(struct mem_controller_t *mem
 					mem_controller->row_buffer_table[c]->sets[i].entries[j].row=-1;
 					mem_controller->row_buffer_table[c]->sets[i].entries[j].reserved=-1;
 					mem_controller->row_buffer_table[c]->sets[i].entries[j].lru=-1;
-					mem_controller->row_buffer_table[c]->sets[i].entries[j].used_blocks=linked_list_create();
+					mem_controller->row_buffer_table[c]->sets[i].entries[j].used_blocks=xcalloc(mem_controller->row_buffer_size/block_size,sizeof(int));
 					mem_controller->row_buffer_table[c]->sets[i].entries[j].block_max=-1;
 					mem_controller->row_buffer_table[c]->sets[i].entries[j].block_min=-1;
 				}
@@ -503,7 +503,7 @@ void mem_controller_row_buffer_table_free(struct mem_controller_t * mem_controll
 			for(int i=0; i<mem_controller->num_regs_rank*mem_controller->num_regs_bank;i++)
 			{	
 				for(int j=0; j<mem_controller->row_buffer_table[c]->assoc;j++)
-					linked_list_free(mem_controller->row_buffer_table[c]->sets[i].entries[j].used_blocks);
+					free(mem_controller->row_buffer_table[c]->sets[i].entries[j].used_blocks);
 		
 				free(mem_controller->row_buffer_table[c]->sets[i].entries);
 			}
@@ -3160,24 +3160,21 @@ int mem_controller_row_buffer_table_count_used_block(struct mod_stack_t *stack)
 	struct mem_controller_t *mem_controller = stack->mod->mem_controller;
 	
 	struct row_buffer_table_entry_t *entry= mem_controller_row_buffer_table_get_entry(stack);
-	unsigned int *block;
 	
 	struct row_buffer_table_t * table= mem_controller_get_row_buffer_table(mem_controller,stack->client_info->core);
-
+	unsigned int new_block=stack->addr %  mem_controller->row_buffer_size;
 	assert(entry);
 
-	LINKED_LIST_FOR_EACH(entry->used_blocks)
-	{		
-		block = linked_list_get(entry->used_blocks);
-		if(*block == stack->addr %  mem_controller->row_buffer_size)
-		{
+	assert(new_block/stack->mod->block_size>=0 );
+	if(entry->used_blocks[new_block/stack->mod->block_size])
+	{
 	//		printf("	util bloc %d b%d r%d\n", *block, stack->bank, stack->rank);
-			return 1;
-		}
-		
+		return 1;
 	}
-	unsigned int new_block=stack->addr %  mem_controller->row_buffer_size;
-	linked_list_add(entry->used_blocks,&new_block );
+		
+	entry->used_blocks[new_block/stack->mod->block_size] = 1;
+	
+	
 	//printf("	afegit bloc %d b%d r%d\n", new_block, stack->bank, stack->rank);
 	table->useful_blocks++;
 			
@@ -3195,8 +3192,9 @@ void mem_controller_row_buffer_table_reset_used_block(struct mod_stack_t *stack)
 
 	//printf("reset bloc b%d r%d\n", stack->bank, stack->rank);
 			
-	linked_list_clear(entry->used_blocks );
-	assert(linked_list_count(entry->used_blocks)==0);
+	free(entry->used_blocks );
+	entry->used_blocks = xcalloc(stack->mod->mem_controller->row_buffer_size/stack->mod->block_size,sizeof(int));
+
 
 }
 

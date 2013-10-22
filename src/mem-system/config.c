@@ -1077,9 +1077,9 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config,
 
 	/*Create row buffer table*/
 	if(!rbt_per_bank_per_ctx)
-		mem_controller_row_buffer_table_create(mod->mem_controller, enable_table, assoc_table, rbt_coal, rbt_per_bank_per_ctx, ranks, banks);
+		mem_controller_row_buffer_table_create(mod->mem_controller, enable_table, assoc_table, rbt_coal, rbt_per_bank_per_ctx, ranks, banks, block_size);
 	else
-		mem_controller_row_buffer_table_per_ctx_create(mod->mem_controller, enable_table, assoc_table, rbt_coal, rbt_per_bank_per_ctx, ranks, banks);
+		mem_controller_row_buffer_table_per_ctx_create(mod->mem_controller, enable_table, assoc_table, rbt_coal, rbt_per_bank_per_ctx, ranks, banks,block_size);
 
 
 

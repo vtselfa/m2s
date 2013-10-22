@@ -136,7 +136,7 @@ struct row_buffer_table_entry_t
 	unsigned int block_min;
 
 	/*Stadistics*/
-	struct linked_list_t * used_blocks;// save accesed blocks in a specific row
+	int * used_blocks;// save accesed blocks in a specific row
 
 };
 
@@ -365,8 +365,8 @@ void mem_controller_row_buffer_allocate_row(struct mod_stack_t *stack);
 
 /*Table*/
 struct row_buffer_table_t* mem_controller_get_row_buffer_table(struct mem_controller_t * mem_controller, int pid);
-void mem_controller_row_buffer_table_create(struct mem_controller_t *mem_controller, int enable_rbtable, int assoc_table, int enable_coalesce, int buf_per_bank_per_ctx ,int ranks, int banks);
-void mem_controller_row_buffer_table_per_ctx_create(struct mem_controller_t *mem_controller, int enable_rbtable, int assoc_table, int enable_coalesce, int buf_per_bank_per_ctx ,int ranks, int banks);
+void mem_controller_row_buffer_table_create(struct mem_controller_t *mem_controller, int enable_rbtable, int assoc_table, int enable_coalesce, int buf_per_bank_per_ctx ,int ranks, int banks, int block_size);
+void mem_controller_row_buffer_table_per_ctx_create(struct mem_controller_t *mem_controller, int enable_rbtable, int assoc_table, int enable_coalesce, int buf_per_bank_per_ctx ,int ranks, int banks, int block_size);
 void mem_controller_row_buffer_table_free(struct mem_controller_t * mem_controller);
 void mem_controller_row_buffer_table_reserve_entry(struct mod_stack_t *stack);
 struct row_buffer_table_entry_t *mem_controller_row_buffer_table_get_entry(struct mod_stack_t *stack);
