@@ -369,12 +369,23 @@ void mem_system_init(void)
 	EV_MOD_REPORT = esim_register_event_with_name(mod_report_handler, mem_domain_index, "mod_report");
 	EV_MEM_CONTROLLER_REPORT = esim_register_event_with_name(mem_controller_report_handler, mem_domain_index, "mem_controller_report");
 
-	/* Interval report for cache modules */
+	/* Event for adaptative prefetch */
+	EV_MOD_ADAPT_PREF = esim_register_event_with_name(mod_adapt_pref_handler, mem_domain_index, "mod_adapt_pref");
+
 	LIST_FOR_EACH(mem_system->mod_list, i)
 	{
 		struct mod_t *mod = list_get(mem_system->mod_list, i);
-		if (mod->report_enabled && mod->kind == mod_kind_cache)
+
+		if (mod->kind != mod_kind_cache)
+			continue;
+
+		/* Schedule interval reporting */
+		if (mod->report_enabled)
 			mod_report_schedule(mod);
+
+		/* Shedule adaptative prefetch */
+		if (mod->cache->prefetch.adapt_policy)
+			mod_adapt_pref_schedule(mod);
 	}
 
 	LINKED_LIST_FOR_EACH(mem_system->mem_controllers)

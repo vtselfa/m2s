@@ -72,7 +72,7 @@ struct str_map_t mod_access_kind_map =
 };
 
 /* Event used for updating the state of adaptative prefetch policy */
-int EV_CACHE_ADAPT_PREF;
+int EV_MOD_ADAPT_PREF;
 
 /* For reporting interval statistics */
 int EV_MOD_REPORT;
@@ -514,7 +514,7 @@ void mod_unlock_port(struct mod_t *mod, struct mod_port_t *port,
 	/* Check if there was any access waiting for free port */
 	if (!mod->port_waiting_list_count)
 		return;
-	
+
 
 	/* Wake up one access waiting for a free port */
 	stack = mod->port_waiting_list_head;
@@ -858,6 +858,8 @@ void mod_adapt_pref_schedule(struct mod_t *mod)
 	struct mod_adapt_pref_stack_t *stack;
 	struct cache_t *cache = mod->cache;
 
+	assert(mod->cache->prefetch.adapt_policy);
+
 	/* Create new stack */
 	stack = xcalloc(1, sizeof(struct mod_adapt_pref_stack_t));
 	stack->mod = mod;
@@ -867,7 +869,7 @@ void mod_adapt_pref_schedule(struct mod_t *mod)
 	{
 		/* Schedule first event */
 		assert(mod->cache->prefetch.adapt_interval);
-		esim_schedule_event(EV_CACHE_ADAPT_PREF, stack, mod->cache->prefetch.adapt_interval);
+		esim_schedule_event(EV_MOD_ADAPT_PREF, stack, mod->cache->prefetch.adapt_interval);
 	}
 }
 

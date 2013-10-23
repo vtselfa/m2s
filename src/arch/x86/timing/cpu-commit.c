@@ -155,7 +155,7 @@ static void x86_cpu_commit_thread(int core, int thread, int quant)
 			mod->adapt_pref_stack->inst_count++;
 			if(mod->cache->prefetch.adapt_interval_kind == interval_kind_instructions &&
 				mod->adapt_pref_stack->inst_count % mod->cache->prefetch.adapt_interval == 0)
-				mod_adapt_pref_handler(EV_CACHE_ADAPT_PREF, (void *) mod->adapt_pref_stack);
+				mod_adapt_pref_handler(EV_MOD_ADAPT_PREF, (void *) mod->adapt_pref_stack);
 		}
 
 		/* FIXME: Açò ja no té sentit. Eliminar tot el codi asociat quan es puga.

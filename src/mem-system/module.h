@@ -26,7 +26,7 @@
 #include "cache.h"
 #include "stream-prefetcher.h"
 
-extern int EV_CACHE_ADAPT_PREF;
+extern int EV_MOD_ADAPT_PREF;
 extern int EV_MOD_REPORT;
 
 struct core_thread_tuple_t
@@ -158,7 +158,7 @@ struct mod_t
 
 	/* Mem controller associated to mm */
 	struct mem_controller_t *mem_controller;
-	
+
 
 	/* Module level starting from entry points */
 	int level;
@@ -274,9 +274,9 @@ struct mod_t
 	FILE *report_file;
 
 	/* Statistics */
-	
+
 	long long cycles_queue_full;
-	long long start_queue_full; 
+	long long start_queue_full;
 
 
 	long long accesses;

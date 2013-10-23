@@ -670,25 +670,12 @@ static struct mod_t *mem_config_read_cache(struct config_t *config,
 		}
 
 		/* Apdaptative prefetch policy */
-		prefetcher_adp_policy = str_map_string_case(&adapt_pref_policy_map,
-			prefetcher_adp_policy_str);
-		if (!prefetcher_adp_policy && strcasecmp(prefetcher_adp_policy_str, "none"))
-		fatal("%s: cache %s: %s: invalid adaptative prefetch policy. "
-			"Valid values are {None Misses Misses_Enhanced}.\n%s",
-			mem_config_file_name, mod_name,
-			prefetcher_adp_policy_str, mem_err_config_note);
+		prefetcher_adp_policy = str_map_string_case_err_msg(&adapt_pref_policy_map, prefetcher_adp_policy_str, "%s: cache %s: Invalid adaptative prefetch policy", mem_config_file_name, mod_name);
 		if (prefetcher_adp_policy)
 		{
 			/* Interval kind (instructions or cycles) */
-			prefetcher_adp_interval_kind = str_map_string_case(&interval_kind_map,
-				prefetcher_adp_interval_kind_str);
-			if(!prefetcher_adp_interval_kind)
-				fatal("%s: cache %s: %s: invalid adaptative prefetch interval kind. "
-					"Valid values are {Cycles Instructions}.\n%s",
-					mem_config_file_name, mod_name,
-					prefetcher_adp_policy_str, mem_err_config_note);
+			prefetcher_adp_interval_kind = str_map_string_case_err_msg(&interval_kind_map, prefetcher_adp_interval_kind_str, "%s: cache %s: Invalid interval kind", mem_config_file_name, mod_name);
 		}
-
 	}
 
 	/* Create module */
@@ -723,10 +710,6 @@ static struct mod_t *mem_config_read_cache(struct config_t *config,
 	/* Create cache */
 	mod->cache = cache_create(mod->name, num_sets, prefetcher_num_streams, prefetcher_num_slots, block_size, assoc,
 		policy);
-
-	/* Schedule adaptative prefetch */
-	if(prefetcher_adp_policy)
-		mod_adapt_pref_schedule(mod);
 
 	/* Fill in prefetcher parameters */
 	mod->cache->pref_enabled = enable_prefetcher;
