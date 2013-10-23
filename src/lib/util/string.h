@@ -38,11 +38,11 @@ struct str_map_t
 
 int str_map_string(struct str_map_t *map, char *s);
 int str_map_string_err(struct str_map_t *map, char *s, int *err_ptr);
-int str_map_string_err_msg(struct str_map_t *map, char *s, char *err_msg);
+int str_map_string_err_msg(struct str_map_t *map, char *s, char *err_msg, ...) __attribute__ ((format (printf, 3, 4)));
 
 int str_map_string_case(struct str_map_t *map, char *s);
 int str_map_string_case_err(struct str_map_t *map, char *s, int *err_ptr);
-int str_map_string_case_err_msg(struct str_map_t *map, char *s, char *err_msg);
+int str_map_string_case_err_msg(struct str_map_t *map, char *s, char *err_msg, ...) __attribute__ ((format (printf, 3, 4)));
 
 char *str_map_value(struct str_map_t *map, int value);
 void str_map_value_buf(struct str_map_t *map, int value, char *buf, int size);
