@@ -886,6 +886,10 @@ void mod_adapt_pref_handler(int event, void *data)
 	if (esim_finish)
 		return;
 
+	/* Completed prefetches */
+	long long completed_prefetches_int = mod->completed_prefetches -
+		stack->last_completed_prefetches;
+
 	/* Useful prefetches */
 	long long useful_prefetches_int = mod->useful_prefetches -
 		stack->last_useful_prefetches;
@@ -898,6 +902,11 @@ void mod_adapt_pref_handler(int event, void *data)
 	/* Pseudocoverage */
 	double pseudocoverage_int = (misses_int + useful_prefetches_int) ?
 		(double) useful_prefetches_int / (misses_int + useful_prefetches_int) : 0.0;
+
+	/* Accuracy */
+	double accuracy_int = completed_prefetches_int ?
+		(double) useful_prefetches_int / completed_prefetches_int : 0.0;
+	accuracy_int = accuracy_int > 1 ? 1 : accuracy_int; /* May be slightly greather than 1 due bad timing with cycles */
 
 	/* ROB % stalled cicles due a memory instruction */
 	long long cycles_stalled = 0;
@@ -949,6 +958,16 @@ void mod_adapt_pref_handler(int event, void *data)
 					mod->cache->pref_enabled = 0;
 				break;
 
+			case adapt_pref_policy_fdp:
+				assert(mod->cache->prefetch.num_slots == 4);
+				if (accuracy_int < 0.2)
+					mod->cache->prefetch.aggressivity = 1;
+				else if (accuracy_int < 0.6)
+					mod->cache->prefetch.aggressivity = 2;
+				else
+					mod->cache->prefetch.aggressivity = 4;
+				break;
+
 			default:
 				fatal("Invalid adaptative prefetch policy");
 				break;
@@ -968,8 +987,7 @@ void mod_adapt_pref_handler(int event, void *data)
 			case adapt_pref_policy_misses:
 				if (misses_int > stack->last_misses_int * 1.1)
 					mod->cache->pref_enabled = 1;
-
-			break;
+				break;
 
 			case adapt_pref_policy_misses_enhanced:
 				if ((misses_int > stack->last_misses_int * 1.1) ||
@@ -978,7 +996,12 @@ void mod_adapt_pref_handler(int event, void *data)
 				{
 					mod->cache->pref_enabled = 1;
 				}
-				break;
+			break;
+
+			case adapt_pref_policy_fdp:
+				fatal("Current policy doesn't disable prefetch");
+
+			break;
 
 			default:
 				fatal("Invalid adaptative prefetch policy");
@@ -989,6 +1012,7 @@ void mod_adapt_pref_handler(int event, void *data)
 	stack->last_cycle = esim_cycle();
 	stack->last_cycles_stalled = cycles_stalled;
 	stack->last_useful_prefetches = mod->useful_prefetches;
+	stack->last_completed_prefetches = mod->completed_prefetches;
 	stack->last_no_retry_accesses = mod->no_retry_accesses;
 	stack->last_no_retry_hits = mod->no_retry_hits;
 	stack->last_misses_int = misses_int;

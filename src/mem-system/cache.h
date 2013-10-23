@@ -47,7 +47,8 @@ enum adapt_pref_policy_t
 	adapt_pref_policy_none = 0,
 	adapt_pref_policy_misses,
 	adapt_pref_policy_misses_enhanced,
-	adapt_pref_policy_pseudocoverage
+	adapt_pref_policy_pseudocoverage,
+	adapt_pref_policy_fdp,
 };
 
 enum cache_block_state_t
@@ -148,7 +149,8 @@ struct cache_t
 	struct {
 		enum prefetcher_type_t type; /* Type of prefetcher */
 		unsigned int num_streams; 	/* Number of streams for prefetch */
-		unsigned int aggressivity; 	/* Number of blocks per stream */
+		unsigned int num_slots; /* Max number of blocks per stream */
+		unsigned int aggressivity; /* Max number of slots to use (< num_slots)*/
 		unsigned int stream_mask; 	/* For obtaining stream_tag */
 
 		struct stream_buffer_t *streams;

@@ -126,6 +126,7 @@ struct mod_adapt_pref_stack_t
 	long long last_inst_count;
 	long long last_cycle;
 	long long last_useful_prefetches;
+	long long last_completed_prefetches;
 	long long last_no_retry_accesses;
 	long long last_no_retry_hits;
 	long long last_cycles_stalled;

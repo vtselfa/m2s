@@ -56,11 +56,12 @@ struct str_map_t cache_block_state_map =
 
 struct str_map_t adapt_pref_policy_map =
 {
-	4, {
+	5, {
 		{ "None", adapt_pref_policy_none },
 		{ "Misses", adapt_pref_policy_misses },
 		{ "Misses_Enhanced", adapt_pref_policy_misses_enhanced },
-		{ "Misses_Pseudocoverage", adapt_pref_policy_pseudocoverage }
+		{ "Misses_Pseudocoverage", adapt_pref_policy_pseudocoverage },
+		{ "FDP", adapt_pref_policy_fdp },
 	}
 };
 
@@ -145,7 +146,7 @@ static void cache_update_waylist(struct cache_set_t *set,
  */
 
 
-struct cache_t *cache_create(char *name, unsigned int num_sets, int num_streams, int pref_aggr, unsigned int block_size,
+struct cache_t *cache_create(char *name, unsigned int num_sets, int num_streams, int num_slots, unsigned int block_size,
 	unsigned int assoc, enum cache_policy_t policy)
 {
 	struct cache_t *cache;
@@ -160,7 +161,8 @@ struct cache_t *cache_create(char *name, unsigned int num_sets, int num_streams,
 	cache->assoc = assoc;
 	cache->policy = policy;
 	cache->prefetch.num_streams = num_streams;
-	cache->prefetch.aggressivity = pref_aggr;
+	cache->prefetch.num_slots = num_slots;
+	cache->prefetch.aggressivity = num_slots; /* Max aggr. by default */
 
 	/* Derived fields */
 	assert(!(num_sets & (num_sets - 1)));
@@ -172,7 +174,7 @@ struct cache_t *cache_create(char *name, unsigned int num_sets, int num_streams,
 	/* Create matrix of prefetched blocks */
 	cache->prefetch.streams = xcalloc(num_streams, sizeof(struct stream_buffer_t));
 	for(int stream = 0; stream < num_streams; stream++)
-		cache->prefetch.streams[stream].blocks = xcalloc(pref_aggr, sizeof(struct stream_block_t));
+		cache->prefetch.streams[stream].blocks = xcalloc(num_slots, sizeof(struct stream_block_t));
 
 	/* Initialize streams */
 	cache->prefetch.stream_head = &cache->prefetch.streams[0];
@@ -183,11 +185,11 @@ struct cache_t *cache_create(char *name, unsigned int num_sets, int num_streams,
 		sb->stream = stream;
 		sb->stream_tag = -1; /* 0xFFFF...FFFF */
 		sb->stream_transcient_tag = -1; /* 0xFFFF...FFFF */
-		sb->num_slots = pref_aggr;
+		sb->num_slots = num_slots;
 		sb->stream_prev = stream ? &cache->prefetch.streams[stream-1] : NULL;
 		sb->stream_next = stream < num_streams - 1 ?
 			&cache->prefetch.streams[stream + 1] : NULL;
-		for(int slot = 0; slot < pref_aggr; slot++)
+		for(int slot = 0; slot < num_slots; slot++)
 			sb->blocks[slot].slot = slot;
 	}
 
