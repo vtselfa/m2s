@@ -152,6 +152,7 @@ struct cache_t
 		unsigned int num_slots; /* Max number of blocks per stream */
 		unsigned int aggressivity; /* Max number of slots to use (< num_slots)*/
 		unsigned int stream_mask; 	/* For obtaining stream_tag */
+		unsigned int distance;
 
 		struct stream_buffer_t *streams;
 		struct stream_buffer_t *stream_head;

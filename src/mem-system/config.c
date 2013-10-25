@@ -544,6 +544,7 @@ static struct mod_t *mem_config_read_cache(struct config_t *config,
 	/* Czone Streams prefetcher */
 	int prefetcher_num_streams;
 	int prefetcher_num_slots;
+	int prefetcher_distance;
 	int prefetcher_czone_bits;
 
 	/* Adaptative prefetch */
@@ -594,6 +595,8 @@ static struct mod_t *mem_config_read_cache(struct config_t *config,
 		"PrefetcherStreams", 4);
 	prefetcher_num_slots = config_read_int(config, buf,
 		"PrefetcherSlots", 4);
+	prefetcher_distance = config_read_int(config, buf,
+		"PrefetcherDistance", 0);
 	prefetcher_czone_bits = config_read_int(config, buf,
 		"PrefetcherCZoneBits", 13);
 	prefetcher_adp_policy_str = config_read_string(config, buf,
@@ -654,6 +657,10 @@ static struct mod_t *mem_config_read_cache(struct config_t *config,
 
 			if (prefetcher_num_slots < 1)
 				fatal("%s: cache %s: invalid value for variable 'PrefetcherSlots'.\n%s",
+					mem_config_file_name, mod_name, mem_err_config_note);
+
+			if (prefetcher_distance < 0)
+				fatal("%s: cache %s: invalid value for variable 'PrefetcherDistance'.\n%s",
 					mem_config_file_name, mod_name, mem_err_config_note);
 		}
 		else
@@ -716,6 +723,7 @@ static struct mod_t *mem_config_read_cache(struct config_t *config,
 	if (enable_prefetcher)
 	{
 		mod->cache->prefetch.type = prefetcher_type;
+		mod->cache->prefetch.distance = prefetcher_distance;
 		mod->cache->prefetch.adapt_policy = prefetcher_adp_policy;
 		mod->cache->prefetch.adapt_interval = prefetcher_adp_interval;
 		mod->cache->prefetch.adapt_interval_kind = prefetcher_adp_interval_kind;

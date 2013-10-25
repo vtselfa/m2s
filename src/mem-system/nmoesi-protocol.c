@@ -303,6 +303,7 @@ void enqueue_prefetch_group(int core, int thread, struct mod_t *mod, unsigned in
 void enqueue_prefetch_on_miss(struct mod_stack_t *stack)
 {
 	struct mod_t *mod;
+	int distance; /* Blocks of the stream to skip to enhance prefetch timeliness */
 
 	assert(stack->stride);
 
@@ -314,16 +315,18 @@ void enqueue_prefetch_on_miss(struct mod_stack_t *stack)
 	else
 		mod = stack->target_mod;
 
+	distance = mod->cache->prefetch.distance;
+
 	/* Underflow */
-	if(stack->stride < 0 && (stack->addr + stack->stride) > stack->addr) return;
+	if(stack->stride < 0 && (stack->addr + stack->stride * (distance + 1)) > stack->addr) return;
 
 	/* Overflow */
-	if(stack->stride > 0 && (stack->addr + stack->stride) < stack->addr) return;
+	if(stack->stride > 0 && (stack->addr + stack->stride * (distance + 1)) < stack->addr) return;
 
 	/* End of page */
-	if((stack->addr & ~mmu_page_mask) != ((stack->addr + stack->stride) & ~mmu_page_mask)) return;
+	if((stack->addr & ~mmu_page_mask) != ((stack->addr + stack->stride * (distance + 1)) & ~mmu_page_mask)) return;
 
-	enqueue_prefetch_group(stack->client_info->core, stack->client_info->thread, mod, stack->addr + stack->stride, stack->stride);
+	enqueue_prefetch_group(stack->client_info->core, stack->client_info->thread, mod, stack->addr + stack->stride * (distance + 1), stack->stride);
 
 	return;
 }
