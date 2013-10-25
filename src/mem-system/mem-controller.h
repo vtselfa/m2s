@@ -355,6 +355,7 @@ void mem_controller_mark_requests_same_stream(struct mod_stack_t* stack, struct 
 /*Stadistics*/
 void mem_controller_report_schedule(struct mem_controller_t *mem_controller);
 void mem_controller_report_handler(int event, void *data);
+void mem_controller_BWCore(struct mem_controller_t *mem_controller);
 
 
 /*ROW BUFFER*/

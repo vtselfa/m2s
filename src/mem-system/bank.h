@@ -27,6 +27,7 @@ struct row_buffer_t
 {
 	long long int lru; // cycle accessed
 	int row;
+	int current_core;
 
 };
 

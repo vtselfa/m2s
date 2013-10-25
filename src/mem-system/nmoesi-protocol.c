@@ -5842,6 +5842,7 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 				if(bank[stack->bank].row_buffers[i].row == stack->row)
 				{
 					bank[stack->bank].row_buffers[i].lru=esim_cycle();
+					bank[stack->bank].row_buffers[i].current_core= stack->client_info->core;
 					found = 1;
 					break;
 					//printf("accede %d de la fila%d b%d r%d\n", stack->row, i, stack->bank, stack->rank);
