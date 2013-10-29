@@ -121,7 +121,7 @@ struct stream_buffer_t
 
 	int pending_prefetches; /* Remaining prefetches of a prefetch group */
 	long long cycle; /* Cycle last prefetch was asigned to this stream. For debug. */
-	int num_slots;
+	int eff_num_slots; /* Effective number of slots in this stream. May be different from the value set by the policy at cache_t because it's updated when the stream is replaced. */
 	int count;
 	int head;
 	int tail;
@@ -147,11 +147,12 @@ struct cache_t
 	unsigned int pref_enabled : 1;
 
 	struct {
-		enum prefetcher_type_t type; /* Type of prefetcher */
-		unsigned int num_streams; 	/* Number of streams for prefetch */
-		unsigned int num_slots; /* Max number of blocks per stream */
-		unsigned int aggressivity; /* Max number of slots to use (< num_slots)*/
-		unsigned int stream_mask; 	/* For obtaining stream_tag */
+		enum prefetcher_type_t type; 	/* Type of prefetcher */
+		unsigned int max_num_streams; 	/* Max number of stream buffers */
+		unsigned int max_num_slots; 	/* Max number of blocks per stream */
+		unsigned int pol_num_slots; 	/* Number of slots to use determined by a prefetch policy */
+		unsigned int stream_mask; 		/* For obtaining stream_tag */
+
 		unsigned int distance;
 
 		struct stream_buffer_t *streams;

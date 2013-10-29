@@ -274,9 +274,11 @@ int mod_find_block_in_stream(struct mod_t *mod, unsigned int addr, int stream)
 	int tag = addr & ~cache->block_mask;
 	int i, slot, count;
 
-	count = sb->head + sb->num_slots;
+	assert(sb->eff_num_slots);
+
+	count = sb->head + sb->eff_num_slots;
 	for(i = sb->head; i < count; i++){
-		slot = i % sb->num_slots;
+		slot = i % sb->eff_num_slots;
 		block = cache_get_pref_block(cache, sb->stream, slot);
 		if(block->tag == tag && block->state)
 			return slot;
@@ -357,8 +359,9 @@ int mod_find_pref_block(struct mod_t *mod, unsigned int addr, int *pref_stream_p
 
 	unsigned int stream_tag = addr & ~cache->prefetch.stream_mask;
 	int stream, slot;
-	int num_streams = cache->prefetch.num_streams;
-	for(stream=0; stream<num_streams; stream++)
+	int num_streams = cache->prefetch.max_num_streams;
+
+	for(stream = 0; stream < num_streams; stream++)
 	{
 		int i, count;
 		sb = &cache->prefetch.streams[stream];
@@ -367,10 +370,10 @@ int mod_find_pref_block(struct mod_t *mod, unsigned int addr, int *pref_stream_p
 		/*if(!sb->stream_tag == stream_tag)
 			continue;*/
 
-		count = sb->head + sb->num_slots;
+		count = sb->head + sb->eff_num_slots;
 		for(i = sb->head; i < count; i++)
 		{
-			slot = i % sb->num_slots;
+			slot = i % sb->eff_num_slots;
 			blk = cache_get_pref_block(cache, stream, slot);
 
 			/* Increment any invalid unlocked head */
@@ -379,7 +382,7 @@ int mod_find_pref_block(struct mod_t *mod, unsigned int addr, int *pref_stream_p
 				dir_lock = dir_pref_lock_get(mod->dir, stream, slot);
 				if(!dir_lock->lock)
 				{
-					sb->head = (sb->head + 1) % sb->num_slots;
+					sb->head = (sb->head + 1) % sb->eff_num_slots;
 					continue;
 				}
 			}
@@ -894,6 +897,12 @@ void mod_adapt_pref_handler(int event, void *data)
 	long long useful_prefetches_int = mod->useful_prefetches -
 		stack->last_useful_prefetches;
 
+	/* Delayed prefe hits */
+	long long delayed_hits_int = mod->delayed_hits - stack->last_delayed_hits;
+
+	/* Lateness */
+	double lateness_int = useful_prefetches_int ? (double) delayed_hits_int / useful_prefetches_int : 0.0;
+
 	/* Cache misses */
 	long long accesses_int = mod->no_retry_accesses - stack->last_no_retry_accesses;
 	long long hits_int = mod->no_retry_hits - stack->last_no_retry_hits;
@@ -959,14 +968,107 @@ void mod_adapt_pref_handler(int event, void *data)
 				break;
 
 			case adapt_pref_policy_fdp:
-				assert(mod->cache->prefetch.num_slots == 4);
-				if (accuracy_int < 0.2)
-					mod->cache->prefetch.aggressivity = 1;
-				else if (accuracy_int < 0.6)
-					mod->cache->prefetch.aggressivity = 2;
+			{
+				const double ahigh = 0.75;
+				const double alow = 0.40;
+				const double tlateness = 0.05;
+				const int a1 = 1;
+				const int a2 = 2;
+				const int a3 = 4;
+
+				assert(mod->cache->prefetch.max_num_slots >= a3);
+				assert(accuracy_int >= 0 && accuracy_int <= 1);
+				assert(lateness_int >= 0 && lateness_int <= 1);
+
+				/* Low accuracy */
+				if (accuracy_int < alow)
+				{
+					/* Level 1 */
+					if (mod->cache->prefetch.pol_num_slots == a1)
+					{
+						/* Nothing, maybe disable? */
+					}
+
+					/* Level 2 */
+					else if (mod->cache->prefetch.pol_num_slots == a2)
+					{
+						/* Late */
+						if (lateness_int > tlateness)
+							mod->cache->prefetch.pol_num_slots = a1; /* Bad and late prefetches -> decrement */
+					}
+
+					/* Level 3 */
+					else if (mod->cache->prefetch.pol_num_slots == a3)
+					{
+						/* Late */
+						if (lateness_int > tlateness)
+							mod->cache->prefetch.pol_num_slots = a2; /* Bad and late prefetches -> decrement */
+					}
+
+					else
+						fatal("Invalid FDP level");
+				}
+
+				/* Medium accuracy */
+				else if (accuracy_int < ahigh)
+				{
+					/* Level 1 */
+					if (mod->cache->prefetch.pol_num_slots == a1)
+					{
+						/* Late */
+						if (lateness_int > tlateness)
+							mod->cache->prefetch.pol_num_slots = a2; /* Increment to increase timeliness */
+					}
+
+					/* Level 2 */
+					else if (mod->cache->prefetch.pol_num_slots == a2)
+					{
+						/* Late */
+						if (lateness_int > tlateness)
+							mod->cache->prefetch.pol_num_slots = a3; /* Increment to increase timeliness */
+
+					}
+
+					/* Level 3 */
+					else if (mod->cache->prefetch.pol_num_slots == a3)
+					{
+						/* Nothing, as we are not touching distance */
+					}
+
+					else
+						fatal("Invalid FDP level");
+				}
+
+				/* High accuracy */
 				else
-					mod->cache->prefetch.aggressivity = 4;
+				{
+					/* Level 1 */
+					if (mod->cache->prefetch.pol_num_slots == a1)
+					{
+						/* Late */
+						if (lateness_int > tlateness)
+							mod->cache->prefetch.pol_num_slots = a2; /* Increment to increase timeliness */
+					}
+
+					/* Level 2 */
+					else if (mod->cache->prefetch.pol_num_slots == a2)
+					{
+						/* Late */
+						if (lateness_int > tlateness) /* Increment to increase timeliness */
+							mod->cache->prefetch.pol_num_slots = a3;
+					}
+
+					/* Level 3 */
+					else if (mod->cache->prefetch.pol_num_slots == a3)
+					{
+						/* Nothing, as we are not touching distance */
+					}
+
+					else
+						fatal("Invalid FDP level");
+				}
 				break;
+			}
 
 			default:
 				fatal("Invalid adaptative prefetch policy");
@@ -1012,6 +1114,7 @@ void mod_adapt_pref_handler(int event, void *data)
 	stack->last_cycle = esim_cycle();
 	stack->last_cycles_stalled = cycles_stalled;
 	stack->last_useful_prefetches = mod->useful_prefetches;
+	stack->last_delayed_hits = mod->delayed_hits;
 	stack->last_completed_prefetches = mod->completed_prefetches;
 	stack->last_no_retry_accesses = mod->no_retry_accesses;
 	stack->last_no_retry_hits = mod->no_retry_hits;

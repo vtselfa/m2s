@@ -132,6 +132,7 @@ struct mod_adapt_pref_stack_t
 	long long last_cycles_stalled;
 	long long last_misses_int;
 	long long last_strides_detected;
+	long long last_delayed_hits;
 	long long last_cycle_pref_disabled;
 	double last_ipc_int;
 };
