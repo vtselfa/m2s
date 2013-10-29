@@ -1146,11 +1146,14 @@ int x86_cpu_run(void)
 
 	/* Fast-forward simulation */
 	if (x86_cpu_fast_forward_count && arch_x86->inst_count < x86_cpu_fast_forward_count)
+	{
+		x86_emu_max_inst += x86_cpu_fast_forward_count;
 		x86_cpu_run_fast_forward();
+		x86_emu_max_inst -= x86_cpu_fast_forward_count;
+	}
 
 	/* Stop if maximum number of CPU instructions exceeded */
-	if (x86_emu_max_inst && x86_cpu->num_committed_inst >=
-			x86_emu_max_inst - x86_cpu_fast_forward_count)
+	if (x86_emu_max_inst && x86_cpu->num_committed_inst >= x86_emu_max_inst)
 		esim_finish = esim_finish_x86_max_inst;
 
 	/* Stop if maximum number of cycles exceeded */
