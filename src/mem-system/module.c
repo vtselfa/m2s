@@ -902,6 +902,7 @@ void mod_adapt_pref_handler(int event, void *data)
 
 	/* Lateness */
 	double lateness_int = useful_prefetches_int ? (double) delayed_hits_int / useful_prefetches_int : 0.0;
+	lateness_int = lateness_int > 1 ? 1 : lateness_int; /* May be slightly greather than 1 due bad timing with cycles */
 
 	/* Cache misses */
 	long long accesses_int = mod->no_retry_accesses - stack->last_no_retry_accesses;
@@ -909,12 +910,10 @@ void mod_adapt_pref_handler(int event, void *data)
 	long long misses_int = accesses_int - hits_int;
 
 	/* Pseudocoverage */
-	double pseudocoverage_int = (misses_int + useful_prefetches_int) ?
-		(double) useful_prefetches_int / (misses_int + useful_prefetches_int) : 0.0;
+	double pseudocoverage_int = (misses_int + useful_prefetches_int) ? (double) useful_prefetches_int / (misses_int + useful_prefetches_int) : 0.0;
 
 	/* Accuracy */
-	double accuracy_int = completed_prefetches_int ?
-		(double) useful_prefetches_int / completed_prefetches_int : 0.0;
+	double accuracy_int = completed_prefetches_int ? (double) useful_prefetches_int / completed_prefetches_int : 0.0;
 	accuracy_int = accuracy_int > 1 ? 1 : accuracy_int; /* May be slightly greather than 1 due bad timing with cycles */
 
 	/* ROB % stalled cicles due a memory instruction */
