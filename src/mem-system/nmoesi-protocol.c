@@ -3762,30 +3762,23 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			 * mod (the higher-level cache) should never be exclusive */
 			if (stack->state == cache_block_owned ||
 				stack->state == cache_block_noncoherent ||
-				stack->state == cache_block_shared )
+				stack->state == cache_block_shared)
 				shared = 1;
 		}
 
-
-
 		dir_entry_unlock(dir, stack->set, stack->way);
 
-		/* A background stack has no more work to do */
-		if(stack->background)
-		{
-			if(stack->client_info)
-				mod_client_info_free(stack->target_mod, stack->client_info);
-			mod_stack_return(stack);
-			return;
-		}
-
 		if (stack->stream_hit)
+		{
+			assert(!stack->background);
 			dir_pref_entry_unlock(target_mod->dir, stack->pref_stream, stack->pref_slot);
+		}
 
 		/* If no sub-block requested by mod is shared by other cache, set mod
 		 * as owner of all of them. Otherwise, notify requester that the block is
 		 * shared by setting the 'shared' return value to true. */
-		ret->shared = shared;
+		if (ret)
+			ret->shared = shared;
 		if (!shared)
 		{
 			for (z = 0; z < dir->zsize; z++)
@@ -3796,6 +3789,15 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 				dir_entry = dir_entry_get(dir, stack->set, stack->way, z);
 				dir_entry_set_owner(dir, stack->set, stack->way, z, mod->low_net_node->index);
 			}
+		}
+
+		/* A background stack has no more work to do */
+		if(stack->background)
+		{
+			if(stack->client_info)
+				mod_client_info_free(stack->target_mod, stack->client_info);
+			mod_stack_return(stack);
+			return;
 		}
 
 		/* Delete access */
