@@ -141,6 +141,7 @@ struct x86_thread_t
 	/* Context currently running in this thread. This is a context present
 	 * in the thread's 'mapped' list. */
 	struct x86_ctx_t *ctx;
+	int ctx_pid;
 
 	/* Double-linked list of mapped contexts */
 	struct x86_ctx_t *mapped_list_head;
@@ -272,6 +273,7 @@ struct x86_core_t
 	struct linked_list_t *event_queue;
 	struct x86_fu_t *fu;
 	struct prefetch_history_t *prefetch_history;
+	
 
 	/* Per core counters */
 	long long uop_id_counter;  /* Counter for uop ID assignment */
@@ -350,6 +352,11 @@ struct x86_core_t
 	long long reg_file_xmm_full;
 	long long reg_file_xmm_reads;
 	long long reg_file_xmm_writes;
+
+	/*Main mem stadis.*/
+	long long BWC;
+	long long BWN;
+	long long BWNO;
 };
 
 
@@ -358,6 +365,7 @@ struct x86_cpu_t
 {
 	/* Array of cores */
 	struct x86_core_t *core;
+	int num_cores;
 
 	/* Some fields */
 	long long uop_id_counter;  /* Counter of uop ID assignment */

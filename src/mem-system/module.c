@@ -181,6 +181,7 @@ long long mod_access(struct mod_t *mod, enum mod_access_kind_t access_kind,
 	stack->event_queue = event_queue;
 	stack->event_queue_item = event_queue_item;
 	stack->client_info = client_info;
+	
 
 	/* Select initial CPU/GPU event */
 	if (mod->kind == mod_kind_cache || mod->kind == mod_kind_main_memory)
@@ -188,6 +189,7 @@ long long mod_access(struct mod_t *mod, enum mod_access_kind_t access_kind,
 		if (access_kind == mod_access_load)
 		{
 			event = EV_MOD_NMOESI_LOAD;
+			assert(client_info->ctx_pid>=0);
 		}
 		else if (access_kind == mod_access_store)
 		{
@@ -1140,6 +1142,7 @@ struct mod_client_info_t *mod_client_info_create(struct mod_t *mod)
 
 	client_info->core = -1;
 	client_info->thread = -1;
+	client_info->ctx_pid = -1;
 
 	client_info->stream = -1;
 	client_info->slot = -1;

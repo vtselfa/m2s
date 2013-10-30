@@ -100,6 +100,7 @@ struct mod_client_info_t
 {
 	int core;
 	int thread;
+	int ctx_pid;
 
 	/* Fields used by stream prefetchers */
 	int stream;

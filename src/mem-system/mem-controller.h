@@ -132,6 +132,11 @@ struct row_buffer_table_entry_t
 	int row;
 	long long int  reserved; // stack id which has reserved this space
 	int accessed;
+	unsigned int block_max; //used for the coalesce
+	unsigned int block_min;
+
+	/*Stadistics*/
+	int * used_blocks;// save accesed blocks in a specific row
 
 };
 
@@ -143,10 +148,21 @@ struct row_buffer_table_set_t
 
 struct row_buffer_table_t
 {
+	long long accesses;
+	long long normal_accesses;
+	long long pref_accesses;
+	long long hit_accesses;
+	long long pref_hit_accesses;
+	long long normal_hit_accesses;
+	long long transfered_blocks;
+	long long useful_blocks;
+	long long num_transfers;
 
+	int coalesce_enabled; // enable bank line coalesce transfer
 	int num_entries;
 	unsigned int assoc; // associativity
 	struct row_buffer_table_set_t * sets; // sets of assoc entries , sets*assoc = num_entries
+	unsigned int core; // this table is used by core
 };
 
 struct mem_controller_t
@@ -195,7 +211,9 @@ struct mem_controller_t
 	/*ROW buffer*/
 	int row_buffer_size;
 	int enable_row_buffer_table;
-	struct row_buffer_table_t * row_buffer_table; // a row buffer table inside mem controller
+	struct row_buffer_table_t ** row_buffer_table; // a row buffer table inside mem controller
+	int row_buf_per_bank_per_ctx; // indicates if row buffer entries in the table are distribuited betwen contexts, and between banks for each context
+	int num_tables;
 
 	/*Channels*/
 	struct reg_channel_t * regs_channel;
@@ -240,12 +258,27 @@ struct mem_controller_t
 	long long non_coalesced_accesses;
 	long long pref_accesses;
 	long long normal_accesses;
+	long long num_requests_transfered;
+	long long row_buffer_hits;
+	long long row_buffer_hits_pref;
+	long long row_buffer_hits_normal;
 
 	long long blocks_transfered;
 	long long useful_blocks_transfered;
 
 	int ** successive_hit; // inside a burst consecutive blocks
 	int * burst_size; //counter of coalesced requests
+
+	int num_cores;
+	long long *t_core_wait;
+	long long *t_core_acces;
+	long long *t_core_transfer; 
+	long long * core_normal_mc_accesses;
+	long long * core_pref_mc_accesses;
+	long long * core_mc_accesses;
+	long long * core_row_buffer_hits;
+	long long **core_row_buffer_hits_per_bank;
+	long long **core_mc_accesses_per_bank;
 
 	/*Interval acumulative stadistics*/
 	long long last_accesses;
@@ -261,7 +294,7 @@ struct mem_controller_t
 	/* Reporting statistics at intervals */
 	int report_enabled;
 	struct mem_controller_report_stack_t *report_stack;
-	long long report_interval;
+	int report_interval;
 	enum interval_kind_t report_interval_kind;
 	FILE *report_file;
 };
@@ -269,12 +302,13 @@ struct mem_controller_t
 struct mem_controller_t * mem_controller_create(void);
 void mem_controller_free(struct mem_controller_t * mem_controller);
 void mem_controller_dump_report();
+void mem_controller_dump_core_report();
 void mem_controller_normal_queue_add(struct mod_stack_t * stack);
 void mem_controller_prefetch_queue_add(struct mod_stack_t * stack);
 int mem_controller_remove(struct mod_stack_t * stack, struct mem_controller_queue_t * queue);
 void mem_controller_init_main_memory(struct mem_controller_t *mem_controller, int channels, int ranks,
 	int banks, int t_send_request, int row_size, int block_size,int cycles_proc_bus,  enum policy_mc_queue_t policy,
-	enum priority_t priority, long long size_queue, long long cycles_wait_MCqueue, int queue_per_bank, enum policy_coalesce_t coalesce, struct reg_rank_t * regs_rank, int bandwith, int enable_table, int assoc_table);
+	enum priority_t priority, long long size_queue, long long cycles_wait_MCqueue, int queue_per_bank, enum policy_coalesce_t coalesce, struct reg_rank_t * regs_rank, int bandwith);
 void mem_controller_update_requests_threshold(int cycles,struct mem_controller_t * mem_controller);
 int mem_controller_queue_has_consumed_threshold(struct linked_list_t * queue, long long size);
 struct mod_stack_t* mem_controller_select_request(int queues_examined, enum priority_t select, struct mem_controller_t * mem_controller);
@@ -321,17 +355,27 @@ void mem_controller_mark_requests_same_stream(struct mod_stack_t* stack, struct 
 /*Stadistics*/
 void mem_controller_report_schedule(struct mem_controller_t *mem_controller);
 void mem_controller_report_handler(int event, void *data);
+void mem_controller_BWCore(struct mem_controller_t *mem_controller);
 
 
 /*ROW BUFFER*/
-int row_buffer_find_row(struct mem_controller_t * mem_controller, struct mod_t *mod, unsigned int addr, unsigned int *channel_ptr,unsigned int *rank_ptr,
+int row_buffer_find_row(struct mem_controller_t * mem_controller, struct mod_stack_t * stack, struct mod_t *mod, unsigned int addr, unsigned int *channel_ptr,unsigned int *rank_ptr,
 	unsigned int *bank_ptr, unsigned int *row_ptr, int * tag_ptr, int *state_ptr);
+void mem_controller_row_buffer_allocate_row(struct mod_stack_t *stack);
+
 
 /*Table*/
+struct row_buffer_table_t* mem_controller_get_row_buffer_table(struct mem_controller_t * mem_controller, int pid);
+void mem_controller_row_buffer_table_create(struct mem_controller_t *mem_controller, int enable_rbtable, int assoc_table, int enable_coalesce, int buf_per_bank_per_ctx ,int ranks, int banks, int block_size);
+void mem_controller_row_buffer_table_per_ctx_create(struct mem_controller_t *mem_controller, int enable_rbtable, int assoc_table, int enable_coalesce, int buf_per_bank_per_ctx ,int ranks, int banks, int block_size);
+void mem_controller_row_buffer_table_free(struct mem_controller_t * mem_controller);
 void mem_controller_row_buffer_table_reserve_entry(struct mod_stack_t *stack);
 struct row_buffer_table_entry_t *mem_controller_row_buffer_table_get_entry(struct mod_stack_t *stack);
 struct row_buffer_table_set_t* mem_controller_row_buffer_table_get_set(struct mod_stack_t *stack);
 struct row_buffer_table_entry_t *mem_controller_row_buffer_table_get_reserved_entry(struct mod_stack_t *stack);
+void mem_controller_row_buffer_table_reset_used_block(struct mod_stack_t *stack);
+int mem_controller_row_buffer_table_count_used_block(struct mod_stack_t *stack);
+int mem_controller_coalesce_acces_row_buffer_table( struct mod_stack_t * stack, struct linked_list_t * queue);
 
 /*Adaptative*/
 void mem_controller_adapt_schedule(struct mem_controller_t * mem_controller);

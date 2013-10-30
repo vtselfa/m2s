@@ -458,12 +458,76 @@ void mem_system_done(void)
 	mem_system_dump_report();
 
 	/* Dump mem controller report*/
+
 	mem_controller_dump_report();
 
 	/* Free memory system */
 	mem_system_free(mem_system);
 }
 
+void mem_controller_dump_core_report(char * name)
+{
+	
+	struct mem_controller_t *mem_controller = linked_list_get(mem_system->mem_controllers);
+	char buf[MAX_STRING_SIZE];
+	FILE * f;
+	for (int i=0; i< mem_controller->num_cores;i++)
+	{
+		snprintf(buf, sizeof buf, "%s.core%d", name,i);
+		
+	
+		f = file_open_for_write(buf);
+		if (!f)
+			return;
+
+	
+		fprintf(f, "[MAIN-MEMORY]\n");
+		fprintf(f, "TotalTime = %f\n",mem_controller->core_mc_accesses[i] ? (double) (mem_controller->t_core_wait[i]+ mem_controller->t_core_acces[i]+mem_controller->t_core_transfer[i])/mem_controller->core_mc_accesses[i]:0.0);
+		fprintf(f, "AvgTimeWaitMCQueue = %f\n",mem_controller->core_mc_accesses[i] ? (double)mem_controller->t_core_wait[i]/mem_controller->core_mc_accesses[i]:0.0);
+		fprintf(f, "AvgTimeAccesMM = %f\n",mem_controller->core_mc_accesses[i] ? (double) mem_controller->t_core_acces[i]/mem_controller->core_mc_accesses[i] :0.0);
+		fprintf(f, "AvgTimeTransferFromMM = %f\n",mem_controller->core_mc_accesses[i] ?(double)mem_controller->t_core_transfer[i]/mem_controller->core_mc_accesses[i]:0.0 );
+	
+		fprintf(f,"TotalAccessesMC = %lld\n",mem_controller->core_mc_accesses[i]);
+		fprintf(f,"TotalNormalAccessesMC = %lld\n", mem_controller->core_normal_mc_accesses[i]);
+		fprintf(f,"TotalPrefetchAccessesMC = %lld\n", mem_controller->core_pref_mc_accesses[i]);
+		fprintf(f, "PercentRowBufferHit = %f\n",mem_controller->core_mc_accesses[i]?(double) mem_controller->core_row_buffer_hits[i]/mem_controller->core_mc_accesses[i]:0.0 );
+	
+		fprintf(f,"\n\n");
+
+
+
+
+		for (int j=0; j<mem_controller->num_regs_bank*mem_controller->num_regs_rank;j++)
+		{
+			fprintf(f, "[Bank-%d]\n",j);
+			fprintf(f, "PercentRowBufferHit = %f\n",mem_controller->core_mc_accesses_per_bank[i][j]?(double) mem_controller->core_row_buffer_hits_per_bank[i][j]/mem_controller->core_mc_accesses_per_bank[i][j]:0.0 );
+			fprintf(f,"TotalAccessesMC = %lld\n", mem_controller->core_mc_accesses_per_bank[i][j]);
+	
+
+		}
+		fprintf(f,"\n\n");
+
+	
+		struct row_buffer_table_t * table = mem_controller_get_row_buffer_table(mem_controller,i);
+		
+		fprintf(f, "[RowBufferTable]\n");
+		fprintf(f,"TotalAccesses = %lld\n", table->accesses);
+		fprintf(f,"RowBufferHitPercent = %F\n", table->accesses?(double)table->hit_accesses/table->accesses : 0.0);
+		fprintf(f,"TotalTransferedBlocks = %lld\n", table->transfered_blocks);
+		fprintf(f,"PercentUsefulBlocks = %f\n", table->transfered_blocks ?  (double)table->useful_blocks/table->transfered_blocks:0);
+		fprintf(f,"BlocksPerTransference = %f\n", table->num_transfers ?  (double)table->transfered_blocks/table->num_transfers:0);
+		fprintf(f,"TotalNormalAccesses = %lld\n", table->normal_accesses);
+		fprintf(f,"NormalRowBufferHitPercent = %F\n",table->normal_accesses?(double)
+			table->normal_hit_accesses/table->normal_accesses : 0.0);
+		fprintf(f,"TotalPrefetchAccesses = %lld\n", table->pref_accesses);
+		fprintf(f,"PrefetchRowBufferHitPercent = %F\n", table->pref_accesses?(double)
+			table->pref_hit_accesses/table->pref_accesses : 0.0);
+		fprintf(f,"\n");
+		
+
+		fclose(f);
+	}
+}
 
 void mem_controller_dump_report()
 {
@@ -480,6 +544,19 @@ void mem_controller_dump_report()
 	long long total_pref_acces = 0;
 	long long total_bursts = 0;
 	long long total_burst_accesses = 0;
+	long long table_accesses = 0;
+	long long table_hit_accesses = 0;
+	long long table_normal_accesses = 0;
+	long long table_normal_hit_accesses = 0;
+	long long table_pref_accesses = 0;
+	long long table_pref_hit_accesses = 0;
+	long long table_trans_blocks = 0;
+	long long table_useful_blocks = 0;
+	long long table_num_trans = 0;
+	char buf[MAX_STRING_SIZE];
+		
+
+
 
 	/* Open file */
 	f = file_open_for_write(main_mem_report_file_name);
@@ -525,6 +602,10 @@ void mem_controller_dump_report()
 			}
 		}
 
+
+		snprintf(buf, sizeof buf, "%s.%s", main_mem_report_file_name,mod->name );
+		mem_controller_dump_core_report(buf);
+
 		for(int i=0; i<mem_controller->row_buffer_size/mod->cache->block_size;i++)
 		{
 			total_bursts+=mem_controller->burst_size[i];
@@ -532,8 +613,10 @@ void mem_controller_dump_report()
 		}
 
 		fprintf(f, "[MAIN-MEMORY-%s]\n",mod->name);
-		fprintf(f, "TotalTime = %f\n",mem_controller->accesses ? (double) (mem_controller->t_wait+
+		fprintf(f, "TotalTimeGoComeL2 = %f\n",mem_controller->accesses ? (double) (mem_controller->t_wait+
 					mem_controller->t_acces_main_memory+mem_controller->t_transfer+mem_controller->t_inside_net)/mem_controller->accesses:0.0);
+		fprintf(f, "TotalTime = %f\n",mem_controller->accesses ? (double) (mem_controller->t_wait+
+					mem_controller->t_acces_main_memory+mem_controller->t_transfer)/mem_controller->accesses:0.0);
 		fprintf(f, "AvgTimeWaitMCQueue = %f\n",mem_controller->accesses ? (double)
 				mem_controller->t_wait/mem_controller->accesses:0.0);
 		fprintf(f, "AvgTimeAccesMM = %f\n",mem_controller->accesses ? (double)
@@ -543,6 +626,8 @@ void mem_controller_dump_report()
 		fprintf(f, "AvgTimeInsideNet = %f\n",mem_controller->accesses?(double)
 				mem_controller->t_inside_net/mem_controller->accesses:0.0 );
 		fprintf(f,"TotalAccessesMC = %lld\n", mem_controller->accesses);
+		fprintf(f, "RowBufferHitPercent = %F\n", mem_controller->accesses?(double)
+					mem_controller->row_buffer_hits/mem_controller->accesses : 0.0);
 		fprintf(f,"TotalNonCoalescedAccessesMC = %lld\n", mem_controller->non_coalesced_accesses);
 		fprintf(f,"RequestsPerCoalesdedAcces = %f\n", mem_controller->non_coalesced_accesses ?(double)
 				mem_controller->accesses/mem_controller->non_coalesced_accesses:0);
@@ -561,6 +646,8 @@ void mem_controller_dump_report()
 		fprintf(f,"AvgTimeNormalTransferFromMM = %f\n",mem_controller->normal_accesses?(double)
 				mem_controller->t_normal_transfer/mem_controller->normal_accesses:0.0 );
 		fprintf(f,"TotalNormalAccessesMC = %lld\n", mem_controller->normal_accesses);
+		fprintf(f, "NormalhRowBufferHitPercent = %F\n", mem_controller->normal_accesses?(double)
+					mem_controller->row_buffer_hits_normal/mem_controller->normal_accesses : 0.0);
 
 		fprintf(f,"\n");
 
@@ -574,7 +661,8 @@ void mem_controller_dump_report()
 		fprintf(f,"AvgTimePrefetchTransferFromMM = %f\n",mem_controller->pref_accesses?(double)
 				mem_controller->t_pref_transfer/mem_controller->pref_accesses:0.0 );
 		fprintf(f,"TotalPrefetchAccessesMC = %lld\n", mem_controller->pref_accesses);
-
+		fprintf(f, "PrefetchRowBufferHitPercent = %F\n", mem_controller->pref_accesses?(double)
+					mem_controller->row_buffer_hits_pref/mem_controller->pref_accesses : 0.0);
 		fprintf(f,"\n");
 
 		for(int i=0; i<mem_controller->row_buffer_size/mod->cache->block_size;i++)
@@ -591,13 +679,66 @@ void mem_controller_dump_report()
 		}
 		fprintf(f,"\n\n");
 
+		for(int i=0; i< mem_controller->num_tables;i++)
+		{
+			table_accesses+=mem_controller->row_buffer_table[i]->accesses;
+			table_hit_accesses+=mem_controller->row_buffer_table[i]->hit_accesses;
+			table_normal_accesses+=mem_controller->row_buffer_table[i]->normal_accesses;
+			table_normal_hit_accesses+=mem_controller->row_buffer_table[i]->normal_hit_accesses;
+
+			table_pref_accesses+=mem_controller->row_buffer_table[i]->pref_accesses;
+			table_pref_hit_accesses+=mem_controller->row_buffer_table[i]->pref_hit_accesses;
+
+			table_trans_blocks+=mem_controller->row_buffer_table[i]->transfered_blocks;
+			table_useful_blocks+=mem_controller->row_buffer_table[i]->useful_blocks;
+			table_num_trans+=mem_controller->row_buffer_table[i]->num_transfers;
+		}
+
+		fprintf(f, "[RowBufferTable-Average]\n");
+		fprintf(f,"TotalAccesses = %lld\n", table_accesses);
+		fprintf(f,"RowBufferHitPercent = %F\n", table_accesses?(double)table_hit_accesses/table_accesses : 0.0);
+		fprintf(f,"TotalTransferedBlocks = %lld\n", table_trans_blocks);
+		fprintf(f,"TotalUsefulBlocks = %lld\n", table_useful_blocks);
+		fprintf(f,"PercentUsefulBlocks = %f\n", table_trans_blocks ?  (double)table_useful_blocks/table_trans_blocks:0);
+		fprintf(f,"BlocksPerTransference = %f\n", table_num_trans ?  (double)table_trans_blocks/table_num_trans:0);
+		
+
+		fprintf(f,"TotalNormalAccesses = %lld\n", table_normal_accesses);
+		fprintf(f,"NormalRowBufferHitPercent = %F\n",table_normal_accesses?(double)
+			table_normal_hit_accesses/table_normal_accesses : 0.0);
+		
+		fprintf(f,"TotalPrefetchAccesses = %lld\n", table_pref_accesses);
+		fprintf(f,"PrefetchRowBufferHitPercent = %F\n", table_pref_accesses?(double)
+			table_pref_hit_accesses/table_pref_accesses : 0.0);
+		
+fprintf(f,"\n\n");
+
+		printf("%d\n", mem_controller->num_tables);
+		for (int c=0; c<mem_controller->num_tables;c++)
+		{
+			struct row_buffer_table_t * table = mem_controller_get_row_buffer_table(mem_controller,c);
+			
+			fprintf(f, "[RowBufferTable-Core%d]\n",c);
+			fprintf(f,"TotalAccesses = %lld\n", table->accesses);
+			fprintf(f,"RowBufferHitPercent = %F\n", table->accesses?(double)table->hit_accesses/table->accesses : 0.0);
+			fprintf(f,"TotalTransferedBlocks = %lld\n", table->transfered_blocks);
+			fprintf(f,"PercentUsefulBlocks = %f\n", table->transfered_blocks ?  (double)table->useful_blocks/table->transfered_blocks:0);
+			fprintf(f,"BlocksPerTransference = %f\n", table->num_transfers ?  (double)table->transfered_blocks/table->num_transfers:0);
+			fprintf(f,"TotalNormalAccesses = %lld\n", table->normal_accesses);
+			fprintf(f,"NormalRowBufferHitPercent = %F\n",table->normal_accesses?(double)
+				table->normal_hit_accesses/table->normal_accesses : 0.0);
+			fprintf(f,"TotalPrefetchAccesses = %lld\n", table->pref_accesses);
+			fprintf(f,"PrefetchRowBufferHitPercent = %F\n", table->pref_accesses?(double)
+				table->pref_hit_accesses/table->pref_accesses : 0.0);
+			fprintf(f,"\n");
+		}
+		fprintf(f,"\n\n");
 
 		for(int c=0; c<mem_controller->num_regs_channel;c++)
 		{
 			fprintf(f, "[Channel-%d (%s)]\n", c,mod->name);
 
-			fprintf(f, "RowBufferHitPercent = %F\n", mem_controller->regs_channel[c].acceses?
-					(double)mem_controller->regs_channel[c].row_buffer_hits/mem_controller->regs_channel[c].acceses : 0.0);
+			
 			fprintf(f, "AvgTimeWaitRequestSend = %f\n",mem_controller->regs_channel[c].acceses?
 					(double)mem_controller->regs_channel[c].t_wait_send_request/mem_controller->regs_channel[c].acceses : 0.0);
 			fprintf(f, "AvgTimeWaitRequestSendChannelBusy = %f\n",mem_controller->regs_channel[c].num_requests_transfered ?
@@ -611,8 +752,7 @@ void mem_controller_dump_report()
 			fprintf(f,"\n");
 
 			/*Normal requests*/
-			fprintf(f, "NormalRowBufferHitPercent = %F\n", mem_controller->regs_channel[c].normal_accesses?(double)
-					mem_controller->regs_channel[c].row_buffer_hits_normal/mem_controller->regs_channel[c].normal_accesses : 0);
+			
 			fprintf(f, "AvgTimeNormalWaitRequestSend = %f\n",mem_controller->regs_channel[c].normal_accesses?(double)
 					mem_controller->regs_channel[c].t_normal_wait_send_request/
 					mem_controller->regs_channel[c].normal_accesses:0);
@@ -626,8 +766,7 @@ void mem_controller_dump_report()
 			fprintf(f,"\n");
 
 			/*Prefetch requests*/
-			fprintf(f, "PrefetchRowBufferHitPercent = %F\n", mem_controller->regs_channel[c].pref_accesses?(double)
-					mem_controller->regs_channel[c].row_buffer_hits_pref/mem_controller->regs_channel[c].pref_accesses : 0.0);
+			
 			fprintf(f, "AvgTimePrefetchWaitRequestSend = %f\n",mem_controller->regs_channel[c].pref_accesses?(double)
 					mem_controller->regs_channel[c].t_pref_wait_send_request/mem_controller->regs_channel[c].pref_accesses : 0);
 			fprintf(f, "AvgTimePrefetchWaitRequestSendChannelBusy = %f\n",

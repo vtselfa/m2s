@@ -179,16 +179,7 @@ struct x86_ctx_t
 	struct x86_ctx_report_stack_t *ipc_report_stack;
 	struct x86_ctx_report_stack_t *mc_report_stack;
 
-	/* Statistics */
-	FILE *report_file;
-	long long mc_accesses;
-	long long normal_mc_accesses;
-	long long pref_mc_accesses;
-	long long row_buffer_hits;
-	long long t_wait;
-	long long t_acces;
-	long long t_transfer;
-	long long t_inside_net;
+	
 
 	/* Number of non-speculate micro-instructions.
 	 * Updated by the architectural simulator at the commit stage. */
@@ -270,6 +261,5 @@ void x86_ctx_mc_report_handler(int event, void *data);
 void x86_ctx_cpu_report_schedule(struct x86_ctx_t *ctx);
 void x86_ctx_cpu_report_handler(int event, void *data);
 
-void x86_ctx_report_dump(struct x86_ctx_t *ctx, FILE *f);
 
 #endif

@@ -22,17 +22,28 @@
 
 #include <stdio.h>
 
+/*Row buffer*/
+struct row_buffer_t
+{
+	long long int lru; // cycle accessed
+	int row;
+	int current_core;
+
+};
 
 /*
  * Bank
  */
 
+
+
 struct reg_bank_t{
 
         int row_is_been_accesed; // row which is been accessed
-        int row_buffer; // row which is inside row buffer
+        struct row_buffer_t * row_buffers; // row which is inside row buffer
         int is_been_accesed;// show if a bank is been accedid for some instruction
 	long long int t_row_come; // instant when the row starts to be transfered into row buffer
+	int row_buffer_per_bank; // number of row buffer inside a bank
 
         /*Stadistics*/
         long long row_buffer_hits; // number of acceses to row buffer which are hits
@@ -50,7 +61,7 @@ struct reg_bank_t{
 	long long parallelism;////////////
 };
 
-struct reg_bank_t* regs_bank_create( int num_banks, int t_row_hit, int t_row_miss);
+struct reg_bank_t* regs_bank_create( int num_banks, int t_row_hit, int t_row_miss, int rb_per_bank);
 
 
 #endif

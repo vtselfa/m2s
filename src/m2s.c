@@ -1368,13 +1368,7 @@ static void m2s_read_command_line(int *argc_ptr, char **argv)
 			continue;
 		}
 
-		/* Option dump main memory and row buffer statistics */
-		if (!strcmp(argv[argi], "--main-mem-report"))
-		{
-			m2s_need_argument(argc, argv, argi);
-			main_mem_report_file_name = argv[++argi];
-			continue;
-		}
+		
 
 
 

@@ -55,6 +55,7 @@ int x86_ctx_debug_category;
 
 int EV_X86_CTX_IPC_REPORT;
 int EV_X86_CTX_MC_REPORT;
+int EV_X86_CTX_CPU_REPORT;
 
 static char *help_x86_ctx_ipc_report =
 	"The IPC (instructions-per-cycle) report file shows performance value for a\n"
@@ -160,7 +161,6 @@ static struct x86_ctx_t *ctx_do_create()
 	 * effect, since it will be updated later. */
 	x86_ctx_set_state(ctx, x86_ctx_running);
 	DOUBLE_LINKED_LIST_INSERT_HEAD(x86_emu, context, ctx);
-
 	/* Structures */
 	ctx->regs = x86_regs_create();
 	ctx->backup_regs = x86_regs_create();
@@ -280,8 +280,8 @@ void x86_ctx_free(struct x86_ctx_t *ctx)
 		x86_ctx_finish(ctx, 0);
 
 
-	/* Dump global report */
-	x86_ctx_report_dump(ctx, ctx->report_file);
+	/*Dump global report*/
+	//x86_ctx_report_dump(ctx, ctx->report_file);
 
 	/* Remove context from finished contexts list. This should
 	 * be the only list the context is in right now. */
@@ -316,8 +316,8 @@ void x86_ctx_free(struct x86_ctx_t *ctx)
 	}
 	free(ctx->mc_report_stack);
 
-	/* Free report */
-	file_close(ctx->report_file);
+	
+	
 
 	/* Free context */
 	free(ctx);
@@ -350,32 +350,14 @@ void x86_ctx_dump(struct x86_ctx_t *ctx, FILE *f)
 	bit_map_dump(ctx->affinity, 0, x86_cpu_num_cores * x86_cpu_num_threads, f);
 	fprintf(f, "\n");
 
+
 	/* End */
 	fprintf(f, "\n\n");
 }
 
 
 
-void x86_ctx_report_dump(struct x86_ctx_t *ctx, FILE *f)
-{
-	if (!f)
-		return;
 
-
-	fprintf(f, "[MAIN-MEMORY]\n");
-	fprintf(f, "TotalTime = %f\n",ctx->mc_accesses ? (double) (ctx->t_wait+ ctx->t_acces+ctx->t_transfer+ctx->t_inside_net)/ctx->mc_accesses:0.0);
-	fprintf(f, "AvgTimeWaitMCQueue = %f\n",ctx->mc_accesses ? (double)ctx->t_wait/ctx->mc_accesses:0.0);
-	fprintf(f, "AvgTimeAccesMM = %f\n",ctx->mc_accesses ? (double) ctx->t_acces/ctx->mc_accesses :0.0);
-	fprintf(f, "AvgTimeTransferFromMM = %f\n",ctx->mc_accesses?(double)ctx->t_transfer/ctx->mc_accesses:0.0 );
-	fprintf(f, "AvgTimeInsideNet = %f\n",ctx->mc_accesses?(double) ctx->t_inside_net/ctx->mc_accesses:0.0 );
-	fprintf(f,"TotalAccessesMC = %lld\n", ctx->mc_accesses);
-	fprintf(f,"TotalNormalAccessesMC = %lld\n", ctx->normal_mc_accesses);
-	fprintf(f,"TotalPrefetchAccessesMC = %lld\n", ctx->pref_mc_accesses);
-	fprintf(f, "PercentRowBufferHit = %f\n",ctx->mc_accesses?(double) ctx->row_buffer_hits/ctx->mc_accesses:0.0 );
-
-
-	fprintf(f, "\n\n");
-}
 
 void x86_ctx_execute(struct x86_ctx_t *ctx)
 {
@@ -1075,14 +1057,11 @@ void x86_ctx_mc_report_handler(int event, void *data)
 	{
 		mem_controller = linked_list_get(mem_system->mem_controllers);
 
-		for(int c = 0; c < mem_controller->num_regs_channel; c++)
-		{
-			row_buffer_hits+=mem_controller->regs_channel[c].row_buffer_hits;
-			normal_row_buffer_hits+=
-				mem_controller->regs_channel[c].row_buffer_hits_normal;
-			pref_row_buffer_hits+=
-				mem_controller->regs_channel[c].row_buffer_hits_pref;
-		}
+		
+		row_buffer_hits=mem_controller->row_buffer_hits;
+		normal_row_buffer_hits=mem_controller->row_buffer_hits_normal;
+		pref_row_buffer_hits=mem_controller->row_buffer_hits_pref;
+		
 		t_pref_total_mc=(mem_controller->pref_accesses-
 			mem_controller->last_pref_accesses)>0?(double)(mem_controller->t_pref_wait
 			+mem_controller->t_pref_transfer+mem_controller->t_pref_acces_main_memory-

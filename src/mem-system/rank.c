@@ -35,7 +35,7 @@
  * Rank
  */
 
-struct reg_rank_t* regs_rank_create( int num_ranks, int num_banks, int t_row_hit, int t_row_miss){
+struct reg_rank_t* regs_rank_create( int num_ranks, int num_banks, int t_row_hit, int t_row_miss, int rb_per_bank){
 
         struct reg_rank_t * ranks;
         ranks = xcalloc(num_ranks, sizeof(struct reg_rank_t));
@@ -45,7 +45,7 @@ struct reg_rank_t* regs_rank_create( int num_ranks, int num_banks, int t_row_hit
 
         for(int i=0; i<num_ranks;i++){
                 ranks[i].num_regs_bank=num_banks;
-                ranks[i].regs_bank=regs_bank_create(num_banks, t_row_hit, t_row_miss);
+                ranks[i].regs_bank=regs_bank_create(num_banks, t_row_hit, t_row_miss, rb_per_bank);
 
         }
 
@@ -56,7 +56,11 @@ struct reg_rank_t* regs_rank_create( int num_ranks, int num_banks, int t_row_hit
 void reg_rank_free(struct reg_rank_t * rank, int num_ranks){
 
         for(int r=0; r<num_ranks;r++ )
+	{
+		for(int b=0 ; b<rank[r].num_regs_bank;b++)
+			free(rank[r].regs_bank[b].row_buffers);
                 free(rank[r].regs_bank);
+	}
 
         free(rank);
 

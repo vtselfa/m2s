@@ -798,6 +798,9 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config,
 	int enable_report;
 	int enable_table;
 	int assoc_table;
+	int rb_per_bank;
+	int rbt_coal;
+	int rbt_per_bank_per_ctx;
 
 	/* Read parameters */
 	str_token(mod_name, sizeof mod_name, section, 1, " ");
@@ -833,8 +836,9 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config,
 	adapt_interval_kind_str = config_read_string(config, section, "AdaptativeIntervalKind", "Cycles");
 	enable_table = config_read_int(config, section, "EnableRowBufferTable", 0);
 	assoc_table = config_read_int(config, section, "AssociativityRowBufferTable", 2);
-
-
+	rbt_per_bank_per_ctx = config_read_int(config, section, "EnableRBTableBuffersPerBankPerCore", 0);
+	rbt_coal = config_read_int(config, section, "EnableCoalesceRowBufferTable", 0);
+	rb_per_bank = config_read_int(config, section, "RowBufferPerBank", 1);
         /////////////////////////////////////////////////////////////////////
 
 	/* Enables for this mem controller interval reporting statistics */
@@ -1020,6 +1024,16 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config,
 
 	if(enable_table&& coalesce_type != policy_coalesce_disabled) // PPPPP ESTA RESTRICCIO MES AVANT LA LLEVARE
 		fatal("Coalesce can not be enabled with row buffer table enabled\n");
+	if (rbt_coal < 0 || rbt_coal > 1)
+		fatal("%s: %s: invalid value for variable 'EnableCoalesceRowBufferTable'.\n%s",
+			mem_config_file_name, mod_name, mem_err_config_note);
+	 if (rb_per_bank < 1 )
+                fatal("%s: %s: invalid value for variable 'RowBufferPerBank'.\n%s",
+                        mem_config_file_name, mod_name, mem_err_config_note);
+	if (rbt_per_bank_per_ctx < 0 || rbt_per_bank_per_ctx > 1)
+		fatal("%s: %s: invalid value for variable 'EnableRBTableBuffersPerBankPerCore'.\n%s",
+			mem_config_file_name, mod_name, mem_err_config_note);
+		
 
 	/* Create module */
 	mod = mod_create(mod_name, mod_kind_main_memory, num_ports,
@@ -1043,15 +1057,23 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config,
 		dir_assoc, cache_policy_lru);
 
 	 /* Create main memory */
-	mod->regs_rank = regs_rank_create(ranks, banks, t_acces_bank_hit, t_acces_bank_miss );
+	mod->regs_rank = regs_rank_create(ranks, banks, t_acces_bank_hit, t_acces_bank_miss, rb_per_bank );
 	mod->num_regs_rank = ranks;
 
 	/* Create memory controller */
 	mod->mem_controller = mem_controller_create();
 	mem_controller_init_main_memory(mod->mem_controller, channels, ranks, banks,
 	t_send_request, row_size, block_size, cycles_proc_bus, policy_type, prio_type,
-	size_queue, threshold, queue_per_bank, coalesce_type, mod->regs_rank, bandwith,
-	enable_table, assoc_table);
+	size_queue, threshold, queue_per_bank, coalesce_type, mod->regs_rank, bandwith);
+
+	/*Create row buffer table*/
+	if(!rbt_per_bank_per_ctx)
+		mem_controller_row_buffer_table_create(mod->mem_controller, enable_table, assoc_table, rbt_coal, rbt_per_bank_per_ctx, ranks, banks, block_size);
+	else
+		mem_controller_row_buffer_table_per_ctx_create(mod->mem_controller, enable_table, assoc_table, rbt_coal, rbt_per_bank_per_ctx, ranks, banks,block_size);
+
+
+
 	mod->mem_controller->photonic_net = photonic;
 	mod->mem_controller->piggybacking=piggybacking;
 	if(strcmp(adapt, "Disabled") == 0)
@@ -1064,18 +1086,18 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config,
 		mod->mem_controller->adapt_percent=adapt_limit;
 	}
 	mod->mem_controller->enabled = enabled_mc;
-
+	mod->mem_controller->report_interval = report_interval;
 	if(enable_report)
 	{
 		mod->mem_controller->report_enabled = enable_report;
 		mod->mem_controller->report_file = file_open_for_write(report_file_name);
 		if (!mod->mem_controller->report_file)
 			fatal("%s: cannot open mem controller report file", report_file_name);
-		mod->mem_controller->report_interval = report_interval;
+		
 		mod->mem_controller->report_interval_kind = str_map_string_case(&interval_kind_map, report_interval_kind_str);
-		if(!mod->mem_controller->report_interval_kind)
+		if(!mod->mem_controller->report_interval_kind || mod->mem_controller->report_interval_kind==interval_kind_instructions )
 			fatal("%s: mem controller %s: invalid value for variable "
-				"'ReportIntervalKind'.\n%s", mem_config_file_name,
+				"'ReportMCIntervalKind'.\n%s", mem_config_file_name,
 				mod->name, mem_err_config_note);
 	}
 

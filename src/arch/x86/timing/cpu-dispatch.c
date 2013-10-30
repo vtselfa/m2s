@@ -43,7 +43,7 @@ static enum x86_dispatch_stall_t x86_cpu_can_dispatch_thread(int core, int threa
 	if (!uop)
 		return !X86_THREAD.ctx || !x86_ctx_get_state(X86_THREAD.ctx, x86_ctx_running) ?
 			x86_dispatch_stall_ctx : x86_dispatch_stall_uop_queue;
-
+	
 	/* If iq/lq/sq/rob full, done */
 	if (!x86_rob_can_enqueue(uop))
 	{

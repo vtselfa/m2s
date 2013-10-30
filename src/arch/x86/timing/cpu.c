@@ -750,6 +750,7 @@ void x86_cpu_read_config(void)
 	/* Create cpu and cores for storing the configuration */
 	x86_cpu = xcalloc(1, sizeof(struct x86_cpu_t));
 	x86_cpu->core = xcalloc(x86_cpu_num_cores, sizeof(struct x86_core_t));
+	x86_cpu->num_cores = x86_cpu_num_cores;
 
 	/* Section '[ Core N ]' */
 	for (int core = 0; core < x86_cpu_num_cores; core++)
@@ -953,6 +954,7 @@ void x86_cpu_dump(FILE *f)
 
 		fprintf(f, "Reorder Buffer:\n");
 		x86_rob_dump(core, f);
+
 
 		X86_THREAD_FOR_EACH
 		{

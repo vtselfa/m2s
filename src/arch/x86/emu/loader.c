@@ -32,7 +32,7 @@
 #include <lib/util/misc.h>
 #include <lib/util/string.h>
 #include <mem-system/memory.h>
-
+#include <mem-system/mem-controller.h>
 #include "context.h"
 #include "emu.h"
 #include "file-desc.h"
@@ -629,15 +629,65 @@ void x86_loader_free(struct x86_loader_t *ld)
 	file_close(ld->ipc_report_file);
 	file_close(ld->mc_report_file);
 
+	x86_loader_report_dump(ld, ld->report_file);
+	file_close(ld->report_file);
+
 	/* Free loader */
 	str_free(ld->interp);
 	str_free(ld->exe);
 	str_free(ld->cwd);
 	str_free(ld->stdin_file);
 	str_free(ld->stdout_file);
+
+	
+	if(ld->mc_accesses_per_bank!=NULL)
+		free(ld->mc_accesses_per_bank);
+	if(ld->row_buffer_hits_per_bank!=NULL)
+		free(ld->row_buffer_hits_per_bank);
+	
+
 	free(ld);
 }
 
+
+void x86_loader_report_dump(struct x86_loader_t *ctx, FILE *f)
+{
+	if (!f)
+		return;
+
+	
+	fprintf(f, "[MAIN-MEMORY]\n");
+	fprintf(f, "TotalTimeGoComeL2 = %f\n",ctx->mc_accesses ? (double) (ctx->t_wait+ ctx->t_acces+ctx->t_transfer+ctx->t_inside_net)/ctx->mc_accesses:0.0);
+	fprintf(f, "TotalTime = %f\n",ctx->mc_accesses ? (double) (ctx->t_wait+ ctx->t_acces+ctx->t_transfer)/ctx->mc_accesses:0.0);
+	fprintf(f, "AvgTimeWaitMCQueue = %f\n",ctx->mc_accesses ? (double)ctx->t_wait/ctx->mc_accesses:0.0);
+	fprintf(f, "AvgTimeAccesMM = %f\n",ctx->mc_accesses ? (double) ctx->t_acces/ctx->mc_accesses :0.0);
+	fprintf(f, "AvgTimeTransferFromMM = %f\n",ctx->mc_accesses?(double)ctx->t_transfer/ctx->mc_accesses:0.0 );
+	fprintf(f, "AvgTimeInsideNet = %f\n",ctx->mc_accesses?(double) ctx->t_inside_net/ctx->mc_accesses:0.0 );
+	fprintf(f,"TotalAccessesMC = %lld\n", ctx->mc_accesses);
+	fprintf(f,"TotalNormalAccessesMC = %lld\n", ctx->normal_mc_accesses);
+	fprintf(f,"TotalPrefetchAccessesMC = %lld\n", ctx->pref_mc_accesses);
+	fprintf(f, "PercentRowBufferHit = %f\n",ctx->mc_accesses?(double) ctx->row_buffer_hits/ctx->mc_accesses:0.0 );
+	fprintf(f, "NumTotalBanks = %d\n",ctx->num_banks);
+	fprintf(f, "NumRanks = %d\n",ctx->num_ranks);
+	fprintf(f,"\n\n");
+
+
+	
+
+
+	for (int i=0; i<ctx->num_banks;i++)
+	{
+		fprintf(f, "[Bank-%d]\n",i);
+		fprintf(f, "PercentRowBufferHit = %f\n",ctx->mc_accesses_per_bank[i]?(double) ctx->row_buffer_hits_per_bank[i]/ctx->mc_accesses_per_bank[i]:0.0 );
+		fprintf(f,"TotalAccessesMC = %lld\n", ctx->mc_accesses_per_bank[i]);
+	
+
+	}
+
+
+	
+	fprintf(f, "\n\n");
+}
 
 struct x86_loader_t *x86_loader_link(struct x86_loader_t *ld)
 {
@@ -812,8 +862,8 @@ void x86_loader_load_from_ctx_config(struct config_t *config, char *section)
 
 	if (*report_file_name)
 	{
-		ctx->report_file = file_open_for_write(report_file_name);
-		if (!ctx->report_file)
+		ld->report_file = file_open_for_write(report_file_name);
+		if (!ld->report_file)
 			fatal("%s: cannot open global report file",
 					report_file_name);
 	}

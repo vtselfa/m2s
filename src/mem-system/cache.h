@@ -31,7 +31,8 @@ enum interval_kind_t
 {
 	interval_kind_invalid = 0,
 	interval_kind_instructions,
-	interval_kind_cycles
+	interval_kind_cycles,	
+	interval_kind_accesses
 };
 
 enum cache_policy_t
