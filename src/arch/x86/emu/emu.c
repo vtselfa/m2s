@@ -743,7 +743,7 @@ int x86_emu_run(void)
 
 	/* Stop if there is no context running */
 	if (x86_emu->finished_list_count >= x86_emu->context_list_count)
-		return FALSE;
+		esim_finish = esim_finish_ctx;
 
 	/* Stop if maximum number of CPU instructions exceeded */
 	if (x86_emu_max_inst && arch_x86->inst_count >= x86_emu_max_inst)
