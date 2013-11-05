@@ -40,6 +40,7 @@ static char *help_mem_controller_report =
 
 int EV_MEM_CONTROLLER_ADAPT;
 int EV_MEM_CONTROLLER_REPORT;
+int EV_MEM_CONTROLLER_BW_CTRL_STATS;
 
 /* For main memory access traces */
 gzFile trace_file;
@@ -3065,8 +3066,6 @@ void mem_controller_report_handler(int event, void *data)
 	stack->t_transfer = mem_controller->t_transfer;
 
 
-	/*BW core*/
-	mem_controller_BWCore(stack->mem_controller);
 
 	/* Schedule new event */
 	assert(mem_controller->report_interval);
@@ -3289,83 +3288,84 @@ void mem_controller_row_buffer_allocate_row(struct mod_stack_t *stack)
 	bank.row_buffers[lru_entry].row = stack->row;
 	bank.row_buffers[lru_entry].lru=esim_cycle();
 	bank.row_buffers[lru_entry].current_core= stack->client_info->core;
-				
+
 }
 
 
-void mem_controller_BWCore(struct mem_controller_t * mem_controller)
+void mem_controller_bandwidth_control_stats_schedule(struct mem_controller_t *mem_controller)
 {
+	const long long interval = 1000; /* Take samples every 1000 cycles */
+	esim_schedule_event(EV_MEM_CONTROLLER_BW_CTRL_STATS, mem_controller, interval);
+}
 
-	struct linked_list_t * queue;
-	struct mod_stack_t * stack;
+
+void mem_controller_bandwidth_control_stats_handler(int event, void *data)
+{
+	const long long interval = 1000; /* Take samples every 1000 cycles */
+	struct mem_controller_t *mem_controller = data;
+	struct linked_list_t *queue;
+	struct mod_stack_t *stack;
+	struct reg_rank_t *regs_rank = mem_controller->regs_channel[0].regs_rank;
+	int *bitmap;
 	int core;
-	assert(mem_controller->policy_queues == policy_one_queue_FCFS);	
-	int * bitmap = xcalloc(x86_cpu->num_cores, sizeof(int));
-	struct reg_rank_t * regs_rank = mem_controller->regs_channel[0].regs_rank;
 
+	assert(mem_controller->policy_queues == policy_one_queue_FCFS);
 	assert(regs_rank);
-	
-	/*BWC*/
-	for(int r=0 ; r< mem_controller->num_regs_rank;r++)
-		for(int b=0; b< mem_controller->num_regs_bank;b++)
+
+	/* If simulation has ended, no more
+	 * events to schedule. */
+	if (esim_finish)
+		return;
+
+	bitmap = xcalloc(x86_cpu->num_cores, sizeof(int));
+
+	/* BWC */
+	for(int r = 0; r < mem_controller->num_regs_rank; r++)
+	{
+		for(int b = 0; b < mem_controller->num_regs_bank; b++)
 		{
-			
 			assert(regs_rank[r].regs_bank);
-			for(int rb=0; rb<regs_rank[r].regs_bank[b].row_buffer_per_bank;rb++)
+			for(int rb = 0; rb < regs_rank[r].regs_bank[b].row_buffer_per_bank; rb++)
 			{
-				
-				core=regs_rank[r].regs_bank[b].row_buffers[rb].current_core;
+				core = regs_rank[r].regs_bank[b].row_buffers[rb].current_core;
 				x86_cpu->core[core].BWC++;
 			}
-
-			
 		}
-	/*BWN*/
+	}
 
-
-	for(int r=0 ; r< mem_controller->num_regs_rank;r++)
-		for(int b=0; b< mem_controller->num_regs_bank;b++)
+	/* BWN */
+	for(int r = 0; r < mem_controller->num_regs_rank; r++)
+	{
+		for(int b = 0; b < mem_controller->num_regs_bank; b++)
 		{
-			
-			queue= mem_controller->normal_queue[r*mem_controller->num_regs_bank+b]->queue;
+			queue = mem_controller->normal_queue[r * mem_controller->num_regs_bank + b]->queue;
 
-			/*If this core is accesing to the bank, it doesnt stall the queue procesment*/
-			for(int rb=0; rb<regs_rank[r].regs_bank[b].row_buffer_per_bank;rb++)
+			/* Mark cores accessing the bank */
+			for(int rb = 0; rb < regs_rank[r].regs_bank[b].row_buffer_per_bank; rb++)
 				bitmap[regs_rank[r].regs_bank[b].row_buffers[rb].current_core] = -1;
-				
 
-			
 			LINKED_LIST_FOR_EACH(queue)
 			{
 				stack = linked_list_get(queue);
-				core=stack->client_info->core;
-				if(bitmap[core]==0)
+				core = stack->client_info->core;
+				if (bitmap[core] == 0)
 					bitmap[core] = 1;
-				
 			}
-			
-			for( int i=0; i< x86_cpu->num_cores;i++)
+
+			/* printf("Banc %d ", b); */
+			for (int i = 0; i < x86_cpu->num_cores; i++)
 			{
-				printf("%d ", bitmap[i]);
-				if(bitmap[i]==1)
+				/* printf("%d ", bitmap[i]); */
+				if (bitmap[i] == 1)
 					x86_cpu->core[i].BWN++;
-				bitmap[i]=0;
+				bitmap[i] = 0; /* Reset bitmap */
 			}
-			
-			printf("\n ");
+			/* printf("\n "); */
 		}
+	}
+	free(bitmap);
+	x86_cpu->BWTics++; /* How many times this function has been executed */
 
-		free(bitmap);
-		/*for(int r=0 ; r< mem_controller->num_regs_rank;r++)
-			for(int b=0; b< mem_controller->num_regs_bank;b++)
-				for (int c=0; c<x86_cpu->num_cores;c++)
-			
-					printf("Bank:%d Core:%d BWC:%lld BWN:%lld\n", b, c, x86_cpu->core[c].BWC, x86_cpu->core[c].BWN );*/
-
-		
-	
-	
-	
-
+	esim_schedule_event(EV_MEM_CONTROLLER_BW_CTRL_STATS, mem_controller, interval);
 }
 

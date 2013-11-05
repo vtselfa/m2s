@@ -353,10 +353,9 @@ struct x86_core_t
 	long long reg_file_xmm_reads;
 	long long reg_file_xmm_writes;
 
-	/*Main mem stadis.*/
-	long long BWC;
-	long long BWN;
-	long long BWNO;
+	/* Badwidth control stats */
+	long long BWC; /* Raw value. Must be divided by BWTics */
+	long long BWN; /* Raw value. Must be divided by BWTics */
 };
 
 
@@ -397,6 +396,9 @@ struct x86_cpu_t
 	/* For dumping */
 	long long last_committed;
 	long long last_dump;
+
+	/* For bandwidth control */
+	long long BWTics;
 };
 
 

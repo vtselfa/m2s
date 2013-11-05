@@ -372,6 +372,9 @@ void mem_system_init(void)
 	/* Event for adaptative prefetch */
 	EV_MOD_ADAPT_PREF = esim_register_event_with_name(mod_adapt_pref_handler, mem_domain_index, "mod_adapt_pref");
 
+	/* Event for calculing the stats needed for adaptative bandwidth control */
+	EV_MEM_CONTROLLER_BW_CTRL_STATS = esim_register_event_with_name(mem_controller_bandwidth_control_stats_handler, mem_domain_index, "mem_controller_bandwidth_control_stats");
+
 	LIST_FOR_EACH(mem_system->mod_list, i)
 	{
 		struct mod_t *mod = list_get(mem_system->mod_list, i);
@@ -393,6 +396,8 @@ void mem_system_init(void)
 		struct mem_controller_t * mem_controller= linked_list_get(mem_system->mem_controllers);
 		if(mem_controller->report_enabled)
 			mem_controller_report_schedule(mem_controller);
+		/*if (mem_controller->bandwidth_control_stats_enabled)*/ /* Always enabled, for now */
+			mem_controller_bandwidth_control_stats_schedule(mem_controller);
 	}
 
 	/* Main memory */

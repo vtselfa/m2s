@@ -7,6 +7,8 @@ extern struct str_map_t interval_kind_map;
 
 extern int EV_MEM_CONTROLLER_ADAPT;
 extern int EV_MEM_CONTROLLER_REPORT;
+extern int EV_MEM_CONTROLLER_BW_CTRL_STATS;
+
 extern char * main_mem_report_file_name;
 
 struct tuple_adapt_t
@@ -355,7 +357,9 @@ void mem_controller_mark_requests_same_stream(struct mod_stack_t* stack, struct 
 /*Stadistics*/
 void mem_controller_report_schedule(struct mem_controller_t *mem_controller);
 void mem_controller_report_handler(int event, void *data);
-void mem_controller_BWCore(struct mem_controller_t *mem_controller);
+
+void mem_controller_bandwidth_control_stats_schedule(struct mem_controller_t *mem_controller);
+void mem_controller_bandwidth_control_stats_handler(int event, void *data);
 
 
 /*ROW BUFFER*/
