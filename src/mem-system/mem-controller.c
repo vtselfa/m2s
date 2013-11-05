@@ -2578,9 +2578,9 @@ int mem_controller_get_size_queue(struct mod_stack_t* stack)
 		size = mem_controller->pref_queue[bank]->current_request_num;
 
 	if(size == mem_controller->size_queue)
-		 mem_debug("  %lld %lld 0x%x %s queue %d pref %d full \n", esim_cycle(), stack->id,
-                        stack->addr, stack->target_mod->name, bank, stack->prefetch);
-	mem_debug("%lld %d b%d p%d.......\n", stack->id, size, bank, stack->prefetch );
+		 //mem_debug("    %lld %lld 0x%x %s queue %d pref %d full \n", esim_time, stack->id,
+                        //stack->addr, stack->target_mod->name, bank, stack->prefetch);
+	//mem_debug("%lld %d b%d p%d.......\n", stack->id, size, bank, stack->prefetch );
 	assert(size>=0);
 
 	assert(size<=mem_controller->size_queue);
@@ -2603,13 +2603,13 @@ void mem_controller_register_in_queue(struct mod_stack_t* stack)
 	if(!stack->prefetch)
 	{
 	 	mem_controller->normal_queue[bank]->current_request_num++;
-		mem_debug("  %lld %lld 0x%x %s queue %d pref %d count before %lld insert \n", esim_cycle(), stack->id,stack->addr, stack->target_mod->name, bank, stack->prefetch, mem_controller->normal_queue[bank]->current_request_num);
+		//mem_debug("  %lld %lld 0x%x %s queue %d pref %d count before %lld insert \n", esim_time, stack->id,stack->addr, stack->target_mod->name, bank, stack->prefetch, mem_controller->normal_queue[bank]->current_request_num);
 
 	}else{
 		mem_controller->pref_queue[bank]->current_request_num++;
-		mem_debug("  %lld %lld 0x%x %s queue %d pref %d count before %lld insert \n", esim_cycle(), stack->id,stack->addr, stack->target_mod->name, bank, stack->prefetch, mem_controller->pref_queue[bank]->current_request_num);
+		//mem_debug("  %lld %lld 0x%x %s queue %d pref %d count before %lld insert \n", esim_time, stack->id,stack->addr, stack->target_mod->name, bank, stack->prefetch, mem_controller->pref_queue[bank]->current_request_num);
 	}
-	
+
 }
 
 
@@ -2629,12 +2629,12 @@ void mem_controller_remove_in_queue(struct mod_stack_t* stack)
 	if(!stack->prefetch)
 	{
 	 	mem_controller->normal_queue[bank]->current_request_num--;
-		mem_debug("  %lld %lld 0x%x %s queue %d pref %d count after %lld delete \n", esim_cycle(), stack->id,stack->addr, stack->target_mod->name, bank, stack->prefetch, mem_controller->normal_queue[bank]->current_request_num);
+		//mem_debug("  %lld %lld 0x%x %s queue %d pref %d count after %lld delete \n", esim_time, stack->id,stack->addr, stack->target_mod->name, bank, stack->prefetch, mem_controller->normal_queue[bank]->current_request_num);
 		assert(mem_controller->normal_queue[bank]->current_request_num>=0);
 	}else
 	{
 		mem_controller->pref_queue[bank]->current_request_num--;
-		mem_debug("  %lld %lld 0x%x %s queue %d pref %d count after %lld delete \n", esim_cycle(), stack->id,stack->addr, stack->target_mod->name, bank, stack->prefetch, mem_controller->pref_queue[bank]->current_request_num);
+		//mem_debug("  %lld %lld 0x%x %s queue %d pref %d count after %lld delete \n", esim_time, stack->id,stack->addr, stack->target_mod->name, bank, stack->prefetch, mem_controller->pref_queue[bank]->current_request_num);
 		assert(mem_controller->pref_queue[bank]->current_request_num>=0);
 	}
 
