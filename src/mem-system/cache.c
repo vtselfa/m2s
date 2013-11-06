@@ -56,12 +56,14 @@ struct str_map_t cache_block_state_map =
 
 struct str_map_t adapt_pref_policy_map =
 {
-	5, {
+	7, {
 		{ "None", adapt_pref_policy_none },
 		{ "Misses", adapt_pref_policy_misses },
 		{ "Misses_Enhanced", adapt_pref_policy_misses_enhanced },
+		{ "ADP_GBWC", adapt_pref_policy_adp_gbwc },
 		{ "Misses_Pseudocoverage", adapt_pref_policy_pseudocoverage },
 		{ "FDP", adapt_pref_policy_fdp },
+		{ "FDP_GBWC", adapt_pref_policy_fdp_gbwc },
 	}
 };
 

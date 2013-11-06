@@ -181,7 +181,7 @@ long long mod_access(struct mod_t *mod, enum mod_access_kind_t access_kind,
 	stack->event_queue = event_queue;
 	stack->event_queue_item = event_queue_item;
 	stack->client_info = client_info;
-	
+
 
 	/* Select initial CPU/GPU event */
 	if (mod->kind == mod_kind_cache || mod->kind == mod_kind_main_memory)
@@ -918,9 +918,17 @@ void mod_adapt_pref_handler(int event, void *data)
 	double accuracy_int = completed_prefetches_int ? (double) useful_prefetches_int / completed_prefetches_int : 0.0;
 	accuracy_int = accuracy_int > 1 ? 1 : accuracy_int; /* May be slightly greather than 1 due bad timing with cycles */
 
+	//double BWC_int;
+	//double BWN_int;
+	double BWNO_int; /* Bandwidth Needed By Others */
+	double BWTics_int = x86_cpu->BWTics - stack->last_BWTics; /* Number of samples taken */
+
 	/* ROB % stalled cicles due a memory instruction */
 	long long cycles_stalled = 0;
 	long long cycles_stalled_int;
+	long long BWC = 0;
+	long long BWN = 0;
+	long long BWNO = 0;
 	{
 		int cores = 0;
 		int *cores_presence_vector = xcalloc(x86_cpu_num_cores, sizeof(int));
@@ -930,16 +938,31 @@ void mod_adapt_pref_handler(int event, void *data)
 			if(!cores_presence_vector[tuple->core])
 			{
 				cycles_stalled += x86_cpu->core[tuple->core].dispatch_stall_cycles_rob_mem;
+				BWC += x86_cpu->core[tuple->core].BWC;
+				BWN += x86_cpu->core[tuple->core].BWN;
+
 				cores_presence_vector[tuple->core] = 1;
 				cores++;
 			}
 		}
-		free(cores_presence_vector);
 		cycles_stalled /= cores;
 		cycles_stalled_int = cycles_stalled - stack->last_cycles_stalled;
+		BWC /= cores; /* Ignore lost precision due integuer division */
+		BWN /= cores; /* Ignore lost precision due integuer division */
+
+		for (int core = 0; core < x86_cpu->num_cores; core++)
+			if (!cores_presence_vector[core])
+				BWNO += x86_cpu->core[tuple->core].BWN;
+
+		free(cores_presence_vector);
 	}
+
 	double percentage_cycles_stalled = esim_cycle() - stack->last_cycle > 0 ? (double)
 		100 * cycles_stalled_int / (esim_cycle() - stack->last_cycle) : 0.0;
+
+	//BWC_int = BWTics_int ? (double) (BWC - stack->last_BWC) / BWTics_int : 0.0;
+	//BWN_int = BWTics_int ? (double) (BWN - stack->last_BWN) / BWTics_int : 0.0;
+	BWNO_int = BWTics_int ? (double) (BWNO - stack->last_BWNO) / BWTics_int : 0.0;
 
 	/* Mean IPC for all the contexts accessing this module */
 	double ipc_int = (double) (stack->inst_count - stack->last_inst_count) /
@@ -969,7 +992,9 @@ void mod_adapt_pref_handler(int event, void *data)
 				break;
 
 			case adapt_pref_policy_fdp:
+			case adapt_pref_policy_fdp_gbwc:
 			{
+				/* FDP */
 				const double ahigh = 0.75;
 				const double alow = 0.40;
 				const double tlateness = 0.05;
@@ -977,97 +1002,118 @@ void mod_adapt_pref_handler(int event, void *data)
 				const int a2 = 2;
 				const int a3 = 4;
 
+				/* GBWC */
+				const double BWNO_th = 2.75;
+				const double acc_th = 0.6;
+
 				assert(mod->cache->prefetch.max_num_slots >= a3);
 				assert(accuracy_int >= 0 && accuracy_int <= 1);
 				assert(lateness_int >= 0 && lateness_int <= 1);
 
-				/* Low accuracy */
-				if (accuracy_int < alow)
+				/* Level 1 */
+				if (mod->cache->prefetch.pol_num_slots == a1)
 				{
-					/* Level 1 */
-					if (mod->cache->prefetch.pol_num_slots == a1)
+					/* Low accuracy */
+					if (accuracy_int < alow)
+					{}
+
+					/* Medium accuracy */
+					else if (accuracy_int < ahigh)
 					{
-						/* Nothing, maybe disable? */
+						/* Late */
+						if (lateness_int > tlateness)
+							mod->cache->prefetch.pol_num_slots = a2; /* Increment to increase timeliness */
 					}
 
-					/* Level 2 */
-					else if (mod->cache->prefetch.pol_num_slots == a2)
+					/* High accuracy */
+					else
+					{
+						/* Late */
+						if (lateness_int > tlateness)
+							mod->cache->prefetch.pol_num_slots = a2; /* Increment to increase timeliness */
+					}
+
+					/* Global Bandwidth Control */
+					if (mod->cache->prefetch.adapt_policy == adapt_pref_policy_fdp_gbwc)
+					{}
+				}
+
+				/* Level 2 */
+				else if (mod->cache->prefetch.pol_num_slots == a2)
+				{
+					/* Low accuracy */
+					if (accuracy_int < alow)
 					{
 						/* Late */
 						if (lateness_int > tlateness)
 							mod->cache->prefetch.pol_num_slots = a1; /* Bad and late prefetches -> decrement */
 					}
 
-					/* Level 3 */
-					else if (mod->cache->prefetch.pol_num_slots == a3)
-					{
-						/* Late */
-						if (lateness_int > tlateness)
-							mod->cache->prefetch.pol_num_slots = a2; /* Bad and late prefetches -> decrement */
-					}
-
-					else
-						fatal("Invalid FDP level");
-				}
-
-				/* Medium accuracy */
-				else if (accuracy_int < ahigh)
-				{
-					/* Level 1 */
-					if (mod->cache->prefetch.pol_num_slots == a1)
-					{
-						/* Late */
-						if (lateness_int > tlateness)
-							mod->cache->prefetch.pol_num_slots = a2; /* Increment to increase timeliness */
-					}
-
-					/* Level 2 */
-					else if (mod->cache->prefetch.pol_num_slots == a2)
+					/* Medium accuracy */
+					else if (accuracy_int < ahigh)
 					{
 						/* Late */
 						if (lateness_int > tlateness)
 							mod->cache->prefetch.pol_num_slots = a3; /* Increment to increase timeliness */
-
 					}
 
-					/* Level 3 */
-					else if (mod->cache->prefetch.pol_num_slots == a3)
-					{
-						/* Nothing, as we are not touching distance */
-					}
-
+					/* High accuracy */
 					else
-						fatal("Invalid FDP level");
-				}
-
-				/* High accuracy */
-				else
-				{
-					/* Level 1 */
-					if (mod->cache->prefetch.pol_num_slots == a1)
-					{
-						/* Late */
-						if (lateness_int > tlateness)
-							mod->cache->prefetch.pol_num_slots = a2; /* Increment to increase timeliness */
-					}
-
-					/* Level 2 */
-					else if (mod->cache->prefetch.pol_num_slots == a2)
 					{
 						/* Late */
 						if (lateness_int > tlateness) /* Increment to increase timeliness */
 							mod->cache->prefetch.pol_num_slots = a3;
 					}
 
-					/* Level 3 */
-					else if (mod->cache->prefetch.pol_num_slots == a3)
+					/* Global Bandwidth Control */
+					if (mod->cache->prefetch.adapt_policy == adapt_pref_policy_fdp_gbwc)
 					{
-						/* Nothing, as we are not touching distance */
+						if (accuracy_int < acc_th)
+						{
+							if (BWNO_int > BWNO_th)
+								mod->cache->prefetch.pol_num_slots = a1; /* Enforce throttle down */
+							else if(mod->cache->prefetch.pol_num_slots > a2)
+								mod->cache->prefetch.pol_num_slots = a2; /* Only allow throttle down */
+						}
+					}
+				}
+
+				/* Level 3 */
+				else if (mod->cache->prefetch.pol_num_slots == a3)
+				{
+					/* Low accuracy */
+					if (accuracy_int < alow)
+					{
+						/* Late */
+						if (lateness_int > tlateness)
+							mod->cache->prefetch.pol_num_slots = a2; /* Bad and late prefetches -> decrement */
 					}
 
+					/* Medium accuracy */
+					else if (accuracy_int < ahigh)
+					{}
+
+					/* High accuracy */
 					else
-						fatal("Invalid FDP level");
+					{}
+
+					/* Global Bandwidth Control */
+					if (mod->cache->prefetch.adapt_policy == adapt_pref_policy_fdp_gbwc)
+					{
+						if (accuracy_int < acc_th)
+						{
+							if (BWNO_int > BWNO_th)
+								mod->cache->prefetch.pol_num_slots = a2; /* Enforce throttle down */
+							else if(mod->cache->prefetch.pol_num_slots > a3)
+								mod->cache->prefetch.pol_num_slots = a3; /* Only allow throttle down */
+						}
+					}
 				}
+
+				/* Invalid level */
+				else
+					fatal("Invalid FDP level");
+
 				break;
 			}
 
@@ -1099,12 +1145,11 @@ void mod_adapt_pref_handler(int event, void *data)
 				{
 					mod->cache->pref_enabled = 1;
 				}
-			break;
+				break;
 
 			case adapt_pref_policy_fdp:
 				fatal("Current policy doesn't disable prefetch");
-
-			break;
+				break;
 
 			default:
 				fatal("Invalid adaptative prefetch policy");
@@ -1123,6 +1168,10 @@ void mod_adapt_pref_handler(int event, void *data)
 	stack->last_strides_detected = cache->prefetch.stride_detector.strides_detected;
 	stack->last_inst_count = stack->inst_count;
 	stack->last_ipc_int = ipc_int;
+	stack->last_BWC = BWC;
+	stack->last_BWN = BWN;
+	stack->last_BWNO = BWNO;
+	stack->last_BWTics = x86_cpu->BWTics;
 
 	if (cache->prefetch.adapt_interval_kind == interval_kind_cycles)
 	{

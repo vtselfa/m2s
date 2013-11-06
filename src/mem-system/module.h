@@ -136,6 +136,10 @@ struct mod_adapt_pref_stack_t
 	long long last_delayed_hits;
 	long long last_cycle_pref_disabled;
 	double last_ipc_int;
+	long long last_BWC;
+	long long last_BWN;
+	long long last_BWNO;
+	long long last_BWTics;
 };
 
 #define MOD_ACCESS_HASH_TABLE_SIZE  17
