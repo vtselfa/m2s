@@ -729,9 +729,9 @@ static struct mod_t *mem_config_read_cache(struct config_t *config,
 		mod->cache->prefetch.adapt_interval_kind = prefetcher_adp_interval_kind;
 		mod->cache->prefetch.stream_mask = ~(-1 << prefetcher_czone_bits);
 
-		mod->cache->prefetcher = prefetcher_create(prefetcher_ghb_size,
-			prefetcher_it_size, prefetcher_lookup_depth,
-			prefetcher_type);
+		if (prefetcher_type == prefetcher_type_ghb_pc_cs || prefetcher_type == prefetcher_type_ghb_pc_dc)
+			mod->cache->prefetcher = prefetcher_create(prefetcher_ghb_size,
+				prefetcher_it_size, prefetcher_lookup_depth, prefetcher_type);
 	}
 
 	/* Return */
@@ -1033,7 +1033,7 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config,
 	if (rbt_per_bank_per_ctx < 0 || rbt_per_bank_per_ctx > 1)
 		fatal("%s: %s: invalid value for variable 'EnableRBTableBuffersPerBankPerCore'.\n%s",
 			mem_config_file_name, mod_name, mem_err_config_note);
-		
+
 
 	/* Create module */
 	mod = mod_create(mod_name, mod_kind_main_memory, num_ports,
@@ -1093,7 +1093,7 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config,
 		mod->mem_controller->report_file = file_open_for_write(report_file_name);
 		if (!mod->mem_controller->report_file)
 			fatal("%s: cannot open mem controller report file", report_file_name);
-		
+
 		mod->mem_controller->report_interval_kind = str_map_string_case(&interval_kind_map, report_interval_kind_str);
 		if(!mod->mem_controller->report_interval_kind || mod->mem_controller->report_interval_kind==interval_kind_instructions )
 			fatal("%s: mem controller %s: invalid value for variable "
