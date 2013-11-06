@@ -391,7 +391,6 @@ void cache_set_pref_block(struct cache_t *cache, int pref_stream, int pref_slot,
 	assert(pref_stream >= 0 && pref_stream < cache->prefetch.max_num_streams);
 	struct stream_buffer_t *sb = &cache->prefetch.streams[pref_stream];
 	assert(pref_slot >= 0 && pref_slot < cache->prefetch.max_num_slots);
-	assert(pref_slot >= 0 && pref_slot < sb->eff_num_slots);
 
 	mem_trace("mem.set_block in prefetch buffer of \"%s\"\
 			pref_stream=%d tag=0x%x state=\"%s\"\n",

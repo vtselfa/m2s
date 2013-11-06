@@ -193,7 +193,7 @@ void enqueue_prefetch_group(int ctx_pid, int core, int thread, struct mod_t *mod
 	unsigned int mmu_page_tag;
 	unsigned int prev_address;
 	int num_prefetches;
-	int stream;
+	int stream, slot;
 	int dead = 0; /* Address over/underflow or mem page changed */
 	int eos = 0; /* End of stream */
 	int i;
@@ -289,7 +289,6 @@ void enqueue_prefetch_group(int ctx_pid, int core, int thread, struct mod_t *mod
 		client_info->slot = (sb->head + i) % sb->eff_num_slots;
 		client_info->stream_request_kind = stream_request_grouped;
 
-
 		if (invalidate)
 		{
 			mod->canceled_prefetches++;
@@ -300,6 +299,15 @@ void enqueue_prefetch_group(int ctx_pid, int core, int thread, struct mod_t *mod
 			access_kind = mod_access_prefetch;
 
 		mod_access(mod, access_kind, prefetch_addr, NULL, NULL, NULL, client_info);
+	}
+
+	/* Invalidate blocks outside effective stream size that are not locked.
+	 * Locked blocks may be a problem, although. Stacks owning locks may break some assertions. */
+	for (slot = sb->eff_num_slots; slot < cache->prefetch.max_num_slots; slot++)
+	{
+		struct dir_lock_t *dir_lock = dir_pref_lock_get(mod->dir, stream, slot);
+		if (!dir_lock->lock)
+			cache_set_pref_block(cache, stream, i, block_invalid_tag, cache_block_invalid);
 	}
 
 	/* Statistics */

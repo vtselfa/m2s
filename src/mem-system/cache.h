@@ -20,6 +20,8 @@
 #ifndef MEM_SYSTEM_CACHE_H
 #define MEM_SYSTEM_CACHE_H
 
+#define block_invalid_tag -1
+
 #include "prefetcher.h"
 
 extern struct str_map_t cache_policy_map;
