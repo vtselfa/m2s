@@ -1254,11 +1254,13 @@ void mod_report_schedule(struct mod_t *mod)
 	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "delayed-hit-avg-lost-cycles-int");
 	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "misses-int");
 	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "stream-hits-int");
-	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "effective-prefetch-accuracy-int");
-	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "mpki-int");
+//	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "effective-prefetch-accuracy-int");
+	line_writer_add_column(lw, 8, line_writer_align_right, "%s", "mpki-int");
 	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "pseudocoverage-int");
 	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "prefetch-active-int");
 	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "strides-detected-int");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "saved-misses-int");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "pct-rob-stalled-int");
 
 	size = line_writer_write(lw, f);
 	line_writer_clear(lw);
@@ -1319,8 +1321,37 @@ void mod_report_handler(int event, void *data)
 		(double) effective_useful_prefetches_int / completed_prefetches_int : 0.0;
 	effective_prefetch_accuracy_int = effective_prefetch_accuracy_int > 1 ? 1 : effective_prefetch_accuracy_int; /* May be slightly greather than 1 due bad timing with cycles */
 
+	int cores = 0;
+	long long inst_count = 0;
+	long long cycles_stalled = 0;
+	char *cores_presence_vector = xcalloc(x86_cpu_num_cores, sizeof(char));
+	LINKED_LIST_FOR_EACH(mod->threads)
+	{
+		struct core_thread_tuple_t *tuple = (struct core_thread_tuple_t *) linked_list_get(mod->threads);
+		int core = tuple->core;
+		if(!cores_presence_vector[tuple->core])
+		{
+			cycles_stalled += X86_CORE.dispatch_stall_cycles_rob_mem;
+			inst_count += X86_CORE.num_committed_uinst;
+
+			cores_presence_vector[tuple->core] = 1;
+			cores++;
+		}
+	}
+	free(cores_presence_vector);
+
+	/* Percentage cycles stalled */
+	cycles_stalled /= cores; /* Ignore lost precision */
+	long long cycles_stalled_int = cycles_stalled - stack->cycles_stalled;
+	long long cycles_int = esim_cycle() - stack->last_cycle;
+	double pct_rob_stalled_int = (esim_cycle() - stack->last_cycle) ? (double)
+		100 * cycles_stalled_int / cycles_int : 0.0;
+
 	/* MPKI */
-	double mpki_int = (double) misses_int / (stack->inst_count / 1000.0);
+	double mpki_int = (double) misses_int / ((inst_count - stack->inst_count) / 1000.0);
+
+	/* Saved misses */
+	double saved_misses_int = (misses_int + useful_prefetches_int) ? (double) misses_int / (misses_int + useful_prefetches_int) : 0.0;
 
 	/* Pseudocoverage */
 	double pseudocoverage_int = (misses_int + useful_prefetches_int) ?
@@ -1331,7 +1362,7 @@ void mod_report_handler(int event, void *data)
 
 	/* Dump stats */
 	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", esim_cycle());
-	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", stack->inst_count);
+	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", inst_count);
 	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", completed_prefetches_int);
 	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", mod->completed_prefetches);
 	line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", prefetch_accuracy_int);
@@ -1342,13 +1373,17 @@ void mod_report_handler(int event, void *data)
 	line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", effective_prefetch_accuracy_int);
 	line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", mpki_int);
 	line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", pseudocoverage_int);
-	line_writer_add_column(lw, 9, line_writer_align_right, "%u", mod->cache->pref_enabled);
+	line_writer_add_column(lw, 9, line_writer_align_right, "%u", mod->cache->pref_enabled ? mod->cache->prefetch.pol_num_slots : 0);
 	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", detected_strides_int);
+	line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", saved_misses_int);
+	line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", pct_rob_stalled_int);
 
 	line_writer_write(lw, mod->report_file);
 	line_writer_clear(lw);
 
 	/* Update counters */
+	stack->last_cycle = esim_cycle();
+	stack->inst_count = inst_count;
 	stack->delayed_hits = mod->delayed_hits;
 	stack->delayed_hit_cycles = mod->delayed_hit_cycles;
 	stack->useful_prefetches = mod->useful_prefetches;
@@ -1359,6 +1394,7 @@ void mod_report_handler(int event, void *data)
 	stack->effective_useful_prefetches = mod->effective_useful_prefetches;
 	stack->misses_int = misses_int;
 	stack->strides_detected = mod->cache->prefetch.stride_detector.strides_detected;
+	stack->cycles_stalled = cycles_stalled;
 
 	/* Schedule new event */
 	assert(mod->report_interval);

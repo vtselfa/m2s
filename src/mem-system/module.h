@@ -39,6 +39,7 @@ struct mod_report_stack_t
 {
 	struct mod_t *mod;
 	struct line_writer_t *line_writer;
+	long long last_cycle;
 	long long inst_count;
 	long long delayed_hits;
 	long long delayed_hit_cycles;
@@ -50,6 +51,7 @@ struct mod_report_stack_t
 	long long effective_useful_prefetches;
 	long long misses_int;
 	long long strides_detected;
+	long long cycles_stalled;
 };
 
 
@@ -179,7 +181,6 @@ struct mod_t
 		{
 			unsigned int low;
 			unsigned int high;
-	long long last_delayed_hit_cycles;
 		} bounds;
 
 		/* For range_kind = mod_range_interleaved */
