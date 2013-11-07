@@ -127,7 +127,9 @@ static void x86_cpu_commit_thread(int core, int thread, int quant)
 		/* Statistics */
 		X86_THREAD.last_commit_cycle = arch_x86->cycle;
 		X86_THREAD.num_committed_uinst_array[uop->uinst->opcode]++;
+		X86_THREAD.num_committed_uinst++;
 		X86_CORE.num_committed_uinst_array[uop->uinst->opcode]++;
+		X86_CORE.num_committed_uinst++;
 		x86_cpu->num_committed_uinst_array[uop->uinst->opcode]++;
 		x86_cpu->num_committed_uinst++;
 		ctx->inst_count++;
@@ -169,7 +171,7 @@ static void x86_cpu_commit_thread(int core, int thread, int quant)
 				mod_report_handler(EV_MOD_REPORT, (void *) mod->report_stack);
 		}*/
 
-		
+
 		/* Interval stats */
 		if(ctx->loader->interval_kind == interval_kind_instructions)
 		{

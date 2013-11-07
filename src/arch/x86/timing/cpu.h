@@ -202,6 +202,7 @@ struct x86_thread_t
 	long long num_dispatched_uinst_array[x86_uinst_opcode_count];
 	long long num_issued_uinst_array[x86_uinst_opcode_count];
 	long long num_committed_uinst_array[x86_uinst_opcode_count];
+	long long num_committed_uinst;
 	long long num_squashed_uinst;
 	long long num_branch_uinst;
 	long long num_mispred_branch_uinst;
@@ -273,7 +274,7 @@ struct x86_core_t
 	struct linked_list_t *event_queue;
 	struct x86_fu_t *fu;
 	struct prefetch_history_t *prefetch_history;
-	
+
 
 	/* Per core counters */
 	long long uop_id_counter;  /* Counter for uop ID assignment */
@@ -316,6 +317,7 @@ struct x86_core_t
 	long long num_dispatched_uinst_array[x86_uinst_opcode_count];
 	long long num_issued_uinst_array[x86_uinst_opcode_count];
 	long long num_committed_uinst_array[x86_uinst_opcode_count];
+	long long num_committed_uinst;
 	long long num_squashed_uinst;
 	long long num_branch_uinst;
 	long long num_mispred_branch_uinst;
