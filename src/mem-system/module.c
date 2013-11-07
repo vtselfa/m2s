@@ -986,6 +986,14 @@ void mod_adapt_pref_handler(int event, void *data)
 					mod->cache->pref_enabled = 0;
 				break;
 
+			case adapt_pref_policy_adp2:
+			{
+				double saved_misses_int = (misses_int + useful_prefetches_int) ? 1 - (double) misses_int / (misses_int + useful_prefetches_int) : 0.0;
+				if (saved_misses_int < 0.25 && accuracy_int < 0.35)
+					mod->cache->pref_enabled = 0;
+				break;
+			}
+
 			case adapt_pref_policy_pseudocoverage:
 				if(pseudocoverage_int < 0.2)
 					mod->cache->pref_enabled = 0;
@@ -1139,6 +1147,7 @@ void mod_adapt_pref_handler(int event, void *data)
 				break;
 
 			case adapt_pref_policy_misses_enhanced:
+			case adapt_pref_policy_adp2:
 				if ((misses_int > stack->last_misses_int * 1.1) ||
 					(percentage_cycles_stalled > 0.4 && strides_detected_int > 250) ||
 					(stack->last_cycle_pref_disabled == stack->last_cycle && ipc_int < 0.9 * stack->last_ipc_int))
