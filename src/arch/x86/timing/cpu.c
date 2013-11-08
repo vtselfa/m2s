@@ -553,6 +553,7 @@ static void x86_cpu_dump_report(void)
 			DUMP_DISPATCH_STAT(spec);
 			DUMP_DISPATCH_STAT(uop_queue);
 			DUMP_DISPATCH_STAT(rob);
+			fprintf(f, "Dispatch.Stall.Cycles.Rob.Mem = %lld\n", X86_CORE.dispatch_stall_cycles_rob_mem);
 			DUMP_DISPATCH_STAT(iq);
 			DUMP_DISPATCH_STAT(lsq);
 			DUMP_DISPATCH_STAT(rename);
