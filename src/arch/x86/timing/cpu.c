@@ -553,11 +553,20 @@ static void x86_cpu_dump_report(void)
 			DUMP_DISPATCH_STAT(spec);
 			DUMP_DISPATCH_STAT(uop_queue);
 			DUMP_DISPATCH_STAT(rob);
-			fprintf(f, "Dispatch.Stall.Cycles.Rob.Mem = %lld\n", X86_CORE.dispatch_stall_cycles_rob_mem);
 			DUMP_DISPATCH_STAT(iq);
 			DUMP_DISPATCH_STAT(lsq);
 			DUMP_DISPATCH_STAT(rename);
 			DUMP_DISPATCH_STAT(ctx);
+
+			fprintf(f, "Dispatch.Stall.Cycles.Rob = %lld\n", X86_CORE.dispatch_stall_cycles_rob);
+			fprintf(f, "Dispatch.Stall.Cycles.Rob.Mem = %lld\n", X86_CORE.dispatch_stall_cycles_rob_mem);
+			fprintf(f, "Dispatch.Stall.Cycles.Rob.Load = %lld\n", X86_CORE.dispatch_stall_cycles_rob_load);
+			fprintf(f, "Dispatch.Stall.Cycles.IQ = %lld\n", X86_CORE.dispatch_stall_cycles_iq);
+			fprintf(f, "Dispatch.Stall.Cycles.Rob.LSQ = %lld\n", X86_CORE.dispatch_stall_cycles_lsq);
+			fprintf(f, "Dispatch.Stall.Cycles.Rob.UOPQ = %lld\n", X86_CORE.dispatch_stall_cycles_uop_queue);
+			fprintf(f, "Dispatch.Stall.Cycles.Rob.Rename = %lld\n", X86_CORE.dispatch_stall_cycles_rename);
+			fprintf(f, "Dispatch.Stall.Cycles.Rob.Mem = %lld\n", X86_CORE.dispatch_stall_cycles_rob_mem);
+
 			fprintf(f, "\n");
 		}
 
@@ -1244,7 +1253,7 @@ void x86_cpu_core_report_handler(int event, void *data)
 {
 	struct x86_cpu_core_report_stack_t *stack = data;
 	struct line_writer_t *lw = stack->line_writer;
-	double percentage_cycles_stalled;
+	double percentage_cycles_stalled,percentage_cycles_stalled_load;
 	int core = stack->core;
 
 	if (esim_finish)
@@ -1254,8 +1263,13 @@ void x86_cpu_core_report_handler(int event, void *data)
 		100 * (X86_CORE.dispatch_stall_cycles_rob_mem - stack->dispatch_stall_cycles_rob_mem) /
 		(esim_cycle() - stack->last_cycle) : 0.0;
 
+	percentage_cycles_stalled_load = esim_cycle() - stack->last_cycle > 0 ? (double)
+		100 * (X86_CORE.dispatch_stall_cycles_rob_load - stack->dispatch_stall_cycles_rob_load) /
+		(esim_cycle() - stack->last_cycle) : 0.0;
+
 	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", esim_cycle());
 	line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", percentage_cycles_stalled);
+	line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", percentage_cycles_stalled_load);
 
 	line_writer_write(lw, X86_CORE.report_file);
 	line_writer_clear(lw);
@@ -1264,6 +1278,7 @@ void x86_cpu_core_report_handler(int event, void *data)
 	/* Update intermediate results */
 	stack->last_cycle = esim_cycle();
 	stack->dispatch_stall_cycles_rob_mem = X86_CORE.dispatch_stall_cycles_rob_mem;
+	stack->dispatch_stall_cycles_rob_load = X86_CORE.dispatch_stall_cycles_rob_load;
 
 	/* Schedule new event */
 	assert(X86_CORE.report_interval);
