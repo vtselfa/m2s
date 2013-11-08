@@ -142,6 +142,7 @@ struct mod_adapt_pref_stack_t
 	long long last_BWN;
 	long long last_BWNO;
 	long long last_BWTics;
+	long long *level_stats; /* Number of times the prefetcher has been in every level */
 };
 
 #define MOD_ACCESS_HASH_TABLE_SIZE  17

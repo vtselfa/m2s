@@ -140,15 +140,24 @@ void mod_free(struct mod_t *mod)
 	if(mod->regs_rank)
 		reg_rank_free(mod->regs_rank, mod->num_regs_rank);
 
-	free(mod->adapt_pref_stack);
 	free(mod->ports);
 	repos_free(mod->client_info_repos);
 	free(mod->name);
 
+	/* Adaptative prefetch */
+	if (mod->adapt_pref_stack)
+	{
+		if (mod->adapt_pref_stack->level_stats)
+			free(mod->adapt_pref_stack->level_stats);
+		free(mod->adapt_pref_stack);
+	}
+
 	/* Interval report */
 	if(mod->report_stack)
+	{
 		line_writer_free(mod->report_stack->line_writer);
-	free(mod->report_stack);
+		free(mod->report_stack);
+	}
 	file_close(mod->report_file);
 
 	free(mod);
@@ -862,12 +871,37 @@ void mod_adapt_pref_schedule(struct mod_t *mod)
 {
 	struct mod_adapt_pref_stack_t *stack;
 	struct cache_t *cache = mod->cache;
+	int levels = 0;
 
 	assert(mod->cache->prefetch.adapt_policy);
 
+	/* Number of levels per policy */
+	switch(mod->cache->prefetch.adapt_policy)
+	{
+		case adapt_pref_policy_misses:
+		case adapt_pref_policy_misses_enhanced:
+		case adapt_pref_policy_pseudocoverage:
+		case adapt_pref_policy_adp2:
+			levels = 2;
+			break;
+
+		case adapt_pref_policy_fdp:
+		case adapt_pref_policy_fdp_gbwc:
+			levels = 3;
+			break;
+
+		case adapt_pref_policy_none:
+		default:
+			/* fatal("Invalid prefetch policy"); */
+			levels = 3;
+			break;
+	}
+
 	/* Create new stack */
+	assert(levels);
 	stack = xcalloc(1, sizeof(struct mod_adapt_pref_stack_t));
 	stack->mod = mod;
+	stack->level_stats = xcalloc(levels, sizeof(long long));
 	mod->adapt_pref_stack = stack;
 
 	if (cache->prefetch.adapt_interval_kind == interval_kind_cycles)
@@ -982,17 +1016,53 @@ void mod_adapt_pref_handler(int event, void *data)
 
 			case adapt_pref_policy_misses:
 			case adapt_pref_policy_misses_enhanced:
-				if((double) misses_int / (misses_int + useful_prefetches_int) > 0.8)
-					mod->cache->pref_enabled = 0;
+				if ((double) misses_int / (misses_int + useful_prefetches_int) > 0.8)
+					cache->pref_enabled = 0;
 				break;
 
 			case adapt_pref_policy_adp2:
 			{
 				double saved_misses_int = (misses_int + useful_prefetches_int) ? 1 - (double) misses_int / (misses_int + useful_prefetches_int) : 0.0;
 				if (saved_misses_int < 0.25 && accuracy_int < 0.35)
-					mod->cache->pref_enabled = 0;
+					cache->pref_enabled = 0;
 				break;
 			}
+
+			case adapt_pref_policy_adp3:
+			{
+				double saved_misses_int = (misses_int + useful_prefetches_int) ? 1 - (double) misses_int / (misses_int + useful_prefetches_int) : 0.0;
+				if (saved_misses_int < 0.85 && percentage_cycles_stalled < 0.6 && accuracy_int < 0.35)
+					cache->pref_enabled = 0;
+				break;
+			}
+
+			case adapt_pref_policy_adp4:
+			case adapt_pref_policy_adp5:
+			{
+				double saved_misses_int = (misses_int + useful_prefetches_int) ? 1 - (double) misses_int / (misses_int + useful_prefetches_int) : 0.0;
+				if (saved_misses_int < 0.85 && percentage_cycles_stalled < 0.6 && accuracy_int < 0.35)
+				{
+					if (cache->prefetch.pol_num_slots == mod->cache->prefetch.max_num_slots) /* MAX and bad */
+						cache->prefetch.pol_num_slots = 1; /* You have been warned! */
+					else if (cache->prefetch.pol_num_slots == 1) /* Die! */
+						mod->cache->pref_enabled = 0;
+				}
+				else
+				{
+					if (cache->prefetch.pol_num_slots == 1) /* Ok, new opportunity */
+					{
+						if (accuracy_int > 0.55)
+							cache->prefetch.pol_num_slots = 2;
+					}
+					else if (cache->prefetch.pol_num_slots == 2) /* Ok, new opportunity */
+					{
+						if (accuracy_int > 0.75)
+							cache->prefetch.pol_num_slots = cache->prefetch.max_num_slots;
+					}
+				}
+				break;
+			}
+
 
 			case adapt_pref_policy_pseudocoverage:
 				if(pseudocoverage_int < 0.2)
@@ -1147,10 +1217,29 @@ void mod_adapt_pref_handler(int event, void *data)
 				break;
 
 			case adapt_pref_policy_misses_enhanced:
-			case adapt_pref_policy_adp2:
 				if ((misses_int > stack->last_misses_int * 1.1) ||
 					(percentage_cycles_stalled > 0.4 && strides_detected_int > 250) ||
 					(stack->last_cycle_pref_disabled == stack->last_cycle && ipc_int < 0.9 * stack->last_ipc_int))
+				{
+					mod->cache->pref_enabled = 1;
+				}
+				break;
+
+			case adapt_pref_policy_adp2:
+			case adapt_pref_policy_adp3:
+			case adapt_pref_policy_adp4:
+				if ((misses_int > stack->last_misses_int * 1.1) ||
+					(percentage_cycles_stalled > 0.6 && strides_detected_int > 250) ||
+					(stack->last_cycle_pref_disabled == stack->last_cycle && ipc_int < 0.9 * stack->last_ipc_int))
+				{
+					mod->cache->pref_enabled = 1;
+				}
+				break;
+
+			case adapt_pref_policy_adp5:
+				if ((misses_int > stack->last_misses_int * 1.15) ||
+					(percentage_cycles_stalled > 0.6) ||
+					(ipc_int < 0.9 * stack->last_ipc_int))
 				{
 					mod->cache->pref_enabled = 1;
 				}
@@ -1379,7 +1468,7 @@ void mod_report_handler(int event, void *data)
 	line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", delayed_hit_avg_lost_cycles_int);
 	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", misses_int);
 	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", stream_hits_int);
-	line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", effective_prefetch_accuracy_int);
+	/* line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", effective_prefetch_accuracy_int); */
 	line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", mpki_int);
 	line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", pseudocoverage_int);
 	line_writer_add_column(lw, 9, line_writer_align_right, "%u", mod->cache->pref_enabled ? mod->cache->prefetch.pol_num_slots : 0);
