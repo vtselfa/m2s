@@ -1020,6 +1020,71 @@ void mod_adapt_pref_handler(int event, void *data)
 					cache->pref_enabled = 0;
 				break;
 
+			case adapt_pref_policy_adp_gbwc:
+			{
+				double saved_misses_int = (misses_int + useful_prefetches_int) ? 1 - (double) misses_int / (misses_int + useful_prefetches_int) : 0.0;
+				const double BWNO_th = 2.75;
+
+				const double ahigh = 0.80;
+				const double alow = 0.40;
+				const double alowlow = 0.20;
+
+				if (saved_misses_int < 0.8)
+					cache->pref_enabled = 0;
+
+				/* Very low accuracy */
+				if (accuracy_int < alowlow)
+					cache->pref_enabled = 0;
+
+				/* Low accuracy */
+				if (accuracy_int < alow)
+				{
+					/* Others need bandwidth */
+					if (BWNO_int > BWNO_th)
+						cache->pref_enabled = 0; /* Disable prefetch */
+
+					/* Others don't need a lot of bw */
+					else
+						cache->prefetch.pol_num_slots = cache->prefetch.max_num_slots / 2; /* Reduce aggr. */
+
+				}
+
+				/* Medium accuracy */
+				else if(accuracy_int < ahigh)
+				{
+					/* Others need bandwidth */
+					if (BWNO_int > BWNO_th)
+						cache->prefetch.pol_num_slots = cache->prefetch.max_num_slots / 2; /* Reduce aggr. */
+						/* Don't override a local disable decision */
+
+					/* Others don't need a lot of bw */
+					else
+					{
+						cache->prefetch.pol_num_slots = cache->prefetch.max_num_slots / 2; /* Reduce aggr. */
+						cache->pref_enabled = 1; /* Override a local disable decision */
+					}
+				}
+
+				/* High accuracy */
+				else
+				{
+					/* Others need bandwidth */
+					if (BWNO_int > BWNO_th)
+					{
+						cache->prefetch.pol_num_slots = cache->prefetch.max_num_slots / 2; /* Reduce aggr. */
+						cache->pref_enabled = 1; /* Override a local disable decision */
+					}
+
+					/* Others don't need a lot of bw */
+					else
+					{
+						cache->prefetch.pol_num_slots = cache->prefetch.max_num_slots; /* Reduce aggr. */
+						cache->pref_enabled = 1; /* Override a local disable decision */
+					}
+				}
+				break;
+			}
+
 			case adapt_pref_policy_adp2:
 			{
 				double saved_misses_int = (misses_int + useful_prefetches_int) ? 1 - (double) misses_int / (misses_int + useful_prefetches_int) : 0.0;
@@ -1244,6 +1309,23 @@ void mod_adapt_pref_handler(int event, void *data)
 					mod->cache->pref_enabled = 1;
 				}
 				break;
+
+
+			case adapt_pref_policy_adp_gbwc:
+			{
+				const double BWNO_th = 2.75;
+
+				if ((misses_int > stack->last_misses_int * 1.15) ||
+					(percentage_cycles_stalled > 0.6) ||
+					(ipc_int < 0.9 * stack->last_ipc_int))
+				{
+					cache->pref_enabled = 1;
+
+					if (BWNO_int > BWNO_th)
+						cache->pref_enabled = 0; /* Keep disabled */
+				}
+				break;
+			}
 
 			case adapt_pref_policy_fdp:
 				fatal("Current policy doesn't disable prefetch");

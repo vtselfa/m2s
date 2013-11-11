@@ -57,6 +57,7 @@ enum adapt_pref_policy_t
 	adapt_pref_policy_pseudocoverage,
 	adapt_pref_policy_fdp,
 	adapt_pref_policy_fdp_gbwc,
+	adapt_pref_policy_adp_gbwc,
 };
 
 enum cache_block_state_t

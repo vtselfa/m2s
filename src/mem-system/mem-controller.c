@@ -3294,14 +3294,14 @@ void mem_controller_row_buffer_allocate_row(struct mod_stack_t *stack)
 
 void mem_controller_bandwidth_control_stats_schedule(struct mem_controller_t *mem_controller)
 {
-	const long long interval = 1000; /* Take samples every 1000 cycles */
+	const long long interval = 100; /* Take samples every X cycles */
 	esim_schedule_event(EV_MEM_CONTROLLER_BW_CTRL_STATS, mem_controller, interval);
 }
 
 
 void mem_controller_bandwidth_control_stats_handler(int event, void *data)
 {
-	const long long interval = 1000; /* Take samples every 1000 cycles */
+	const long long interval = 100; /* Take samples every X cycles */
 	struct mem_controller_t *mem_controller = data;
 	struct linked_list_t *queue;
 	struct mod_stack_t *stack;
