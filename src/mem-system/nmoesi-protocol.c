@@ -2317,8 +2317,8 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 				slot = i % cache->prefetch.max_num_slots;
 				block = &cache->prefetch.streams[sb->stream].blocks[slot];
 				dir_lock = dir_pref_lock_get(mod->dir, sb->stream, slot);
-				if (i == sb->head + sb->eff_num_slots)
-					mem_debug("\t\t-----");
+				if (i == 0 || i == sb->eff_num_slots)
+					mem_debug("\t\t-----\n");
 				mem_debug("\t\t{slot=%d, tag=0x%x, transient_tag=0x%x, state=%s, locked=%d}\n", slot, block->tag, block->transient_tag, str_map_value(&cache_block_state_map, block->state), dir_lock->lock);
 			}
 

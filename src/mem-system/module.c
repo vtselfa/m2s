@@ -500,7 +500,7 @@ void mod_lock_port(struct mod_t *mod, struct mod_stack_t *stack, int event)
 	mod->num_locked_ports++;
 
 	/* Debug */
-	mem_debug("  %lld stack %lld %s port %d locked\n", esim_cycle(), stack->id, mod->name, i);
+	mem_debug("  %lld stack %lld %s port %d locked\n", esim_time, stack->id, mod->name, i);
 
 	/* Schedule event */
 	esim_schedule_event(event, stack, 0);
@@ -522,7 +522,7 @@ void mod_unlock_port(struct mod_t *mod, struct mod_port_t *port,
 	mod->num_locked_ports--;
 
 	/* Debug */
-	mem_debug("  %lld %lld %s port unlocked\n", esim_cycle(),
+	mem_debug("  %lld %lld %s port unlocked\n", esim_time,
 		stack->id, mod->name);
 
 	/* Check if there was any access waiting for free port */
