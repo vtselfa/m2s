@@ -1029,7 +1029,7 @@ void mod_adapt_pref_handler(int event, void *data)
 				const double alow = 0.40;
 				const double alowlow = 0.20;
 
-				if (saved_misses_int < 0.8)
+				if (saved_misses_int < 0.3)
 					cache->pref_enabled = 0;
 
 				/* Very low accuracy */
@@ -1046,7 +1046,6 @@ void mod_adapt_pref_handler(int event, void *data)
 					/* Others don't need a lot of bw */
 					else
 						cache->prefetch.pol_num_slots = cache->prefetch.max_num_slots / 2; /* Reduce aggr. */
-
 				}
 
 				/* Medium accuracy */
@@ -1435,7 +1434,7 @@ void mod_report_schedule(struct mod_t *mod)
 	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "misses-int");
 	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "stream-hits-int");
 //	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "effective-prefetch-accuracy-int");
-	line_writer_add_column(lw, 8, line_writer_align_right, "%s", "mpki-int");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "mpki-int");
 	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "pseudocoverage-int");
 	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "prefetch-active-int");
 	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "strides-detected-int");
@@ -1531,7 +1530,7 @@ void mod_report_handler(int event, void *data)
 	double mpki_int = (double) misses_int / ((inst_count - stack->inst_count) / 1000.0);
 
 	/* Saved misses */
-	double saved_misses_int = (misses_int + useful_prefetches_int) ? (double) misses_int / (misses_int + useful_prefetches_int) : 0.0;
+	double saved_misses_int = (misses_int + useful_prefetches_int) ? 1 - (double) misses_int / (misses_int + useful_prefetches_int) : 0.0;
 
 	/* Pseudocoverage */
 	double pseudocoverage_int = (misses_int + useful_prefetches_int) ?
