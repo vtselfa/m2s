@@ -943,7 +943,7 @@ void mod_handler_nmoesi_load(int event, void *data)
 		}
 		else if (stack->background)
 		{
-			struct write_buffer_block_t *block;
+			struct write_buffer_block_t *block = (struct write_buffer_block_t *) -1;
 			assert(linked_list_count(cache->wb.blocks));
 			LINKED_LIST_FOR_EACH(cache->wb.blocks)
 			{
@@ -3534,7 +3534,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 		/* Write block from write buffer to cache */
 		if(stack->background)
 		{
-			struct write_buffer_block_t *wb_block;
+			struct write_buffer_block_t *wb_block = (struct write_buffer_block_t *) -1; /* Used as canary */
 			struct cache_t *target_cache = target_mod->cache;
 			assert(linked_list_count(target_cache->wb.blocks));
 			LINKED_LIST_FOR_EACH(target_cache->wb.blocks)
@@ -4511,7 +4511,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			/* Block in write buffer */
 			if(stack->background)
 			{
-				struct write_buffer_block_t *wb_block;
+				struct write_buffer_block_t *wb_block = NULL;
 				struct cache_t *target_cache = target_mod->cache;
 				assert(linked_list_count(target_cache->wb.blocks));
 				LINKED_LIST_FOR_EACH(target_cache->wb.blocks)
@@ -4768,7 +4768,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 		/* Remove block from write buffer */
 		if(stack->background)
 		{
-			struct write_buffer_block_t *wb_block;
+			struct write_buffer_block_t *wb_block = (struct write_buffer_block_t *) -1;
 			struct cache_t *target_cache = target_mod->cache;
 			assert(linked_list_count(target_cache->wb.blocks));
 			LINKED_LIST_FOR_EACH(target_cache->wb.blocks)
