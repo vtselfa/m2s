@@ -306,8 +306,9 @@ void enqueue_prefetch_group(int ctx_pid, int core, int thread, struct mod_t *mod
 	for (slot = sb->eff_num_slots; slot < cache->prefetch.max_num_slots; slot++)
 	{
 		struct dir_lock_t *dir_lock = dir_pref_lock_get(mod->dir, stream, slot);
+		assert(!dir_lock->lock);
 		if (!dir_lock->lock)
-			cache_set_pref_block(cache, stream, i, block_invalid_tag, cache_block_invalid);
+			cache_set_pref_block(cache, stream, slot, block_invalid_tag, cache_block_invalid);
 	}
 
 	/* Statistics */
