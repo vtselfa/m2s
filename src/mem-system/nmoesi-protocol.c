@@ -3341,6 +3341,28 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			return;
 		}
 
+		/* A fast resumed stack only has to return the block to the upper level cache */
+		if (stack->fast_resume)
+		{
+			assert(target_mod->kind != mod_kind_main_memory);
+
+			/* If the block is owned, non-coherent, or shared,
+			 * mod (the higher-level cache) should never be exclusive */
+			if (stack->state == cache_block_owned ||
+				stack->state == cache_block_noncoherent ||
+				stack->state == cache_block_shared)
+				ret->shared = 1;
+
+			mod_access_finish(target_mod, stack);
+
+			/* Set reply message and size */
+			stack->reply_size = mod->block_size + 8;
+			mod_stack_set_reply(stack, reply_ack_data);
+
+			esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST_REPLY, stack, target_mod->latency);
+			return;
+		}
+
 		esim_schedule_event(stack->request_dir == mod_request_up_down ?
 			EV_MOD_NMOESI_READ_REQUEST_UPDOWN : EV_MOD_NMOESI_READ_REQUEST_DOWNUP, stack, 0);
 		return;
@@ -3361,14 +3383,6 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 		 * a transfer occur between peers. */
 		stack->reply_size = mod->block_size + 8;
 		mod_stack_set_reply(stack, reply_ack_data);
-
-		/* If acces fast resumed, finish */
-		if (stack->fast_resume)
-		{
-			assert(target_mod->kind != mod_kind_main_memory);
-			esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST_UPDOWN_FINISH, stack, 0);
-			return;
-		}
 
 		/* If stream_hit or background stack, block can't be in any upper cache */
 		if (stack->stream_hit || stack->background)
@@ -3632,29 +3646,6 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			else
 				fatal("Invalid reply size: %d", stack->reply_size);
 		}
-
-		if(stack->fast_resume)
-		{
-			int latency = stack->reply == reply_ack_data_sent_to_peer ? 0 : target_mod->latency;
-			mod_access_finish(target_mod, stack);
-			esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST_REPLY, stack, latency);
-
-			/*if(target_mod->kind == mod_kind_main_memory &&
-			stack->request_dir == mod_request_up_down && mem_controller->enabled)
-			{
-				if( target_mod->num_req_input_buffer == target_mod->num_ports)
-				{
-					assert(target_mod->start_queue_full>-1);
-					target_mod->cycles_queue_full += esim_cycle() - target_mod->start_queue_full;
-					target_mod->start_queue_full = -1;
-				}
-				target_mod->num_req_input_buffer--;
-
-			}*/
-			return;
-		}
-
-
 
 		esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST_UPDOWN_LATENCY, stack, 0);
 		return;
