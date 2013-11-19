@@ -3,5 +3,3 @@ exe = gromacs_base.i386
 args = -silent -deffnm gromacs -nice 0
 cwd = benchmarks/spec2006/435.gromacs
 StdOut = gromacs.out
-IPCReport = gromacs.ipc
-IPCReportInterval = 100000
