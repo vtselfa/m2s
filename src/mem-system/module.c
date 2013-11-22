@@ -1552,7 +1552,7 @@ void mod_report_handler(int event, void *data)
 	/* line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", effective_prefetch_accuracy_int); */
 	line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", mpki_int);
 	line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", pseudocoverage_int);
-	line_writer_add_column(lw, 9, line_writer_align_right, "%u", mod->cache->pref_enabled ? mod->cache->prefetch.pol_num_slots : 0);
+	line_writer_add_column(lw, 9, line_writer_align_right, "%u", mod->cache->pref_enabled && mod->accesses ? mod->cache->prefetch.pol_num_slots : 0);
 	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", detected_strides_int);
 	line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", saved_misses_int);
 	line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", pct_rob_stalled_int);

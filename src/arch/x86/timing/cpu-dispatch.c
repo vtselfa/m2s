@@ -50,6 +50,8 @@ static enum x86_dispatch_stall_t x86_cpu_can_dispatch_thread(int core, int threa
 		struct x86_uop_t *head = x86_rob_head(core, thread);
 		if(head->flags & X86_UINST_MEM)
 			X86_CORE.dispatch_stall_cycles_rob_mem++;
+		if(head->uinst->opcode == x86_uinst_load)
+			X86_CORE.dispatch_stall_cycles_rob_load++;
 		X86_CORE.dispatch_stall_cycles_rob++;
 		return x86_dispatch_stall_rob;
 	}
