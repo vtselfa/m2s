@@ -546,6 +546,7 @@ static struct mod_t *mem_config_read_cache(struct config_t *config,
 	int prefetcher_num_slots;
 	int prefetcher_distance;
 	int prefetcher_czone_bits;
+	int prefetcher_stream_tag_bits;
 
 	/* Adaptative prefetch */
 	char *prefetcher_adp_policy_str;
@@ -599,10 +600,12 @@ static struct mod_t *mem_config_read_cache(struct config_t *config,
 		"PrefetcherDistance", 0);
 	prefetcher_czone_bits = config_read_int(config, buf,
 		"PrefetcherCZoneBits", 13);
+	prefetcher_stream_tag_bits = config_read_int(config, buf,
+		"PrefetcherStreamTagBits", sizeof(int) * 8 - prefetcher_czone_bits);
 	prefetcher_adp_policy_str = config_read_string(config, buf,
 		"PrefetcherAdpPolicy", "none");
 	prefetcher_adp_interval = config_read_llint(config, buf,
-		"PrefetcherAdpInterval", 500000);
+		"PrefetcherAdpInterval", 50000);
 	prefetcher_adp_interval_kind_str = config_read_string(config, buf,
 		"PrefetcherAdpIntervalKind", "cycles");
 
@@ -640,16 +643,10 @@ static struct mod_t *mem_config_read_cache(struct config_t *config,
 
 	if (enable_prefetcher)
 	{
-		prefetcher_type = str_map_string_case(&prefetcher_type_map,
-			prefetcher_type_str);
+		prefetcher_type = str_map_string_case_err_msg(&prefetcher_type_map, prefetcher_type_str,
+			"%s: cache %s: Invalid prefetcher type", mem_config_file_name, mod_name);
 
-		if (prefetcher_type == prefetcher_type_invalid)
-		{
-			fatal("%s: cache %s: invalid prefetcher type. Valid "
-				"values are {ghb_pc_cs ghb_pc_dc czone_streams}.\n%s",
-				mem_config_file_name, mod_name, mem_err_config_note);
-		}
-		else if (prefetcher_type == prefetcher_type_czone_streams)
+		if (prefetcher_type == prefetcher_type_czone_streams)
 		{
 			if (prefetcher_num_streams < 1)
 				fatal("%s: cache %s: invalid value for variable 'PrefetcherStreams'.\n%s",
@@ -665,23 +662,24 @@ static struct mod_t *mem_config_read_cache(struct config_t *config,
 		}
 		else
 		{
-			if (prefetcher_ghb_size < 1 || prefetcher_it_size < 1 ||
+			if (prefetcher_ghb_size < 1 ||
+				prefetcher_it_size < 1 ||
 		    	prefetcher_lookup_depth < 2 ||
 		    	prefetcher_lookup_depth > PREFETCHER_LOOKUP_DEPTH_MAX)
 			{
-				fatal("%s: cache %s: invalid prefetcher "
-					"configuration.\n%s",
-					mem_config_file_name, mod_name,
-					mem_err_config_note);
+				fatal("%s: cache %s: invalid prefetcher configuration.\n%s",
+					mem_config_file_name, mod_name, mem_err_config_note);
 			}
 		}
 
 		/* Apdaptative prefetch policy */
-		prefetcher_adp_policy = str_map_string_case_err_msg(&adapt_pref_policy_map, prefetcher_adp_policy_str, "%s: cache %s: Invalid adaptative prefetch policy", mem_config_file_name, mod_name);
+		prefetcher_adp_policy = str_map_string_case_err_msg(&adapt_pref_policy_map, prefetcher_adp_policy_str,
+			"%s: cache %s: Invalid adaptative prefetch policy", mem_config_file_name, mod_name);
 		if (prefetcher_adp_policy)
 		{
 			/* Interval kind (instructions or cycles) */
-			prefetcher_adp_interval_kind = str_map_string_case_err_msg(&interval_kind_map, prefetcher_adp_interval_kind_str, "%s: cache %s: Invalid interval kind", mem_config_file_name, mod_name);
+			prefetcher_adp_interval_kind = str_map_string_case_err_msg(&interval_kind_map, prefetcher_adp_interval_kind_str,
+				"%s: cache %s: Invalid interval kind", mem_config_file_name, mod_name);
 		}
 	}
 
@@ -727,7 +725,21 @@ static struct mod_t *mem_config_read_cache(struct config_t *config,
 		mod->cache->prefetch.adapt_policy = prefetcher_adp_policy;
 		mod->cache->prefetch.adapt_interval = prefetcher_adp_interval;
 		mod->cache->prefetch.adapt_interval_kind = prefetcher_adp_interval_kind;
-		mod->cache->prefetch.stream_mask = ~(-1 << prefetcher_czone_bits);
+		mod->cache->prefetch.czone_bits = prefetcher_czone_bits;
+		mod->cache->prefetch.czone_mask = ~(-1 << prefetcher_czone_bits);
+		mod->cache->prefetch.stream_tag_bits = prefetcher_stream_tag_bits;
+		mod->cache->prefetch.stream_tag_mask = -1 << (sizeof(mod->cache->prefetch.stream_tag_mask) * 8 - prefetcher_stream_tag_bits);
+
+		mod->cache->prefetch.thresholds.bwno = config_read_double(config, buf, "BWNOThreshold", 2.75);
+		mod->cache->prefetch.thresholds.pseudocoverage = config_read_double(config, buf, "PseudocoverageThreshold", 0.3);
+
+		mod->cache->prefetch.thresholds.accuracy_very_low = config_read_double(config, buf, "AccuracyVeryLowThreshold", 0.2);
+		mod->cache->prefetch.thresholds.accuracy_low = config_read_double(config, buf, "AccuracyLowThreshold", 0.4);
+		mod->cache->prefetch.thresholds.accuracy_high = config_read_double(config, buf, "AccuracyHighThreshold", 0.8);
+
+		mod->cache->prefetch.thresholds.misses = config_read_double(config, buf, "MissesThreshold", 1.15);
+		mod->cache->prefetch.thresholds.ipc = config_read_double(config, buf, "IPCThreshold", 0.9);
+		mod->cache->prefetch.thresholds.ratio_cycles_stalled = config_read_double(config, buf, "RatioCyclesStalledThreshold", 0.6);
 
 		if (prefetcher_type == prefetcher_type_ghb_pc_cs || prefetcher_type == prefetcher_type_ghb_pc_dc)
 			mod->cache->prefetcher = prefetcher_create(prefetcher_ghb_size,

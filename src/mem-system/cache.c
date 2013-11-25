@@ -56,19 +56,12 @@ struct str_map_t cache_block_state_map =
 
 struct str_map_t adapt_pref_policy_map =
 {
-	12, {
+	5, {
 		{ "None", adapt_pref_policy_none },
-		{ "Misses", adapt_pref_policy_misses },
-		{ "Misses_Enhanced", adapt_pref_policy_misses_enhanced },
-		{ "ADP2", adapt_pref_policy_adp2 },
-		{ "ADP3", adapt_pref_policy_adp3 },
-		{ "ADP4", adapt_pref_policy_adp4 },
-		{ "ADP5", adapt_pref_policy_adp5 },
-		{ "Misses_Pseudocoverage", adapt_pref_policy_pseudocoverage },
+		{ "ADP", adapt_pref_policy_adp },
 		{ "FDP", adapt_pref_policy_fdp },
 		{ "FDP_GBWC", adapt_pref_policy_fdp_gbwc },
 		{ "ADP_GBWC", adapt_pref_policy_adp_gbwc },
-		{ "ADP_GBWC2", adapt_pref_policy_adp_gbwc },
 	}
 };
 
@@ -243,7 +236,7 @@ int cache_detect_stride(struct cache_t *cache, int addr)
 {
 	struct linked_list_t *sd = cache->prefetch.stride_detector.camps;
 	struct stride_detector_camp_t *camp;
-	int tag = addr & ~cache->prefetch.stream_mask;
+	int tag = addr & ~cache->prefetch.czone_mask;
 	int stride;
 	const int table_max_size = 128;
 	LINKED_LIST_FOR_EACH(sd){

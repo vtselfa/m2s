@@ -48,17 +48,10 @@ enum cache_policy_t
 enum adapt_pref_policy_t
 {
 	adapt_pref_policy_none = 0,
-	adapt_pref_policy_misses,
-	adapt_pref_policy_misses_enhanced,
-	adapt_pref_policy_adp2,
-	adapt_pref_policy_adp3,
-	adapt_pref_policy_adp4,
-	adapt_pref_policy_adp5,
-	adapt_pref_policy_pseudocoverage,
+	adapt_pref_policy_adp,
 	adapt_pref_policy_fdp,
 	adapt_pref_policy_fdp_gbwc,
 	adapt_pref_policy_adp_gbwc,
-	adapt_pref_policy_adp_gbwc2,
 };
 
 enum cache_block_state_t
@@ -161,7 +154,12 @@ struct cache_t
 		unsigned int max_num_streams; 	/* Max number of stream buffers */
 		unsigned int max_num_slots; 	/* Max number of blocks per stream */
 		unsigned int pol_num_slots; 	/* Number of slots to use determined by a prefetch policy */
-		unsigned int stream_mask; 		/* For obtaining stream_tag */
+
+		unsigned int stream_tag_bits; 	/* For obtaining stream_tag */
+		unsigned int stream_tag_mask; 	/* For obtaining stream_tag */
+
+		unsigned int czone_bits; 		/* For obtaining czone */
+		unsigned int czone_mask; 		/* For obtaining czone */
 
 		unsigned int distance;
 
@@ -178,6 +176,19 @@ struct cache_t
 			struct linked_list_t *camps;
 			long long strides_detected;
 		} stride_detector;
+
+		struct
+		{
+			double pseudocoverage;
+			double accuracy_very_low;
+			double accuracy_low;
+			double accuracy_high;
+			double bwno;
+			double ratio_cycles_stalled;
+			double ipc;
+			double misses;
+		} thresholds; /* Only for tunning thresholds */
+
 	} prefetch;
 
 	struct prefetcher_t *prefetcher;

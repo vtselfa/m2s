@@ -199,7 +199,7 @@ void enqueue_prefetch_group(int ctx_pid, int core, int thread, struct mod_t *mod
 	int i;
 
 	/* If there is a stream with the same tag, replace it. If not, replace the last recently used one. */
-	stream = cache_find_stream(cache, base_addr & ~cache->prefetch.stream_mask);
+	stream = cache_find_stream(cache, base_addr & cache->prefetch.stream_tag_mask);
 	if (stream == -1) /* Stream tag not found */
 		stream = cache_select_stream(cache);
 	sb = &cache->prefetch.streams[stream];
@@ -224,7 +224,7 @@ void enqueue_prefetch_group(int ctx_pid, int core, int thread, struct mod_t *mod
 	num_prefetches = cache->prefetch.pol_num_slots; /* Number of prefetches to issue. Determined by prefetch policy. */
 
 	/* Set stream's transcient tag to indicate the block is being brought */
-	sb->stream_transcient_tag = base_addr & ~cache->prefetch.stream_mask;
+	sb->stream_transcient_tag = base_addr & cache->prefetch.stream_tag_mask;
 
 	/* Set stream's new stride */
 	sb->stride = stride;
@@ -277,7 +277,7 @@ void enqueue_prefetch_group(int ctx_pid, int core, int thread, struct mod_t *mod
 				dead = 1;
 
 			/* End of stream */
-			else if (sb->stream_transcient_tag != (sb->next_address & ~cache->prefetch.stream_mask))
+			else if (sb->stream_transcient_tag != (sb->next_address & cache->prefetch.stream_tag_mask))
 				eos = 1;
 		}
 
@@ -391,7 +391,7 @@ void enqueue_prefetch_on_hit(struct mod_stack_t *stack)
 	assert(sb->stride < 0 || (prev_address + sb->stride) > prev_address); /* Overflow */
 
 	/* Enqueue a new prefetch group if next_address is not in the stream anymore */
-	if (sb->stream_transcient_tag != (sb->next_address & ~cache->prefetch.stream_mask))
+	if (sb->stream_transcient_tag != (sb->next_address & cache->prefetch.stream_tag_mask))
 	{
 		sb->dead = 1; /* Only do this the first time */
 		enqueue_prefetch_group(stack->client_info->ctx_pid, stack->client_info->core, stack->client_info->thread, mod, sb->next_address, sb->stride);
@@ -702,7 +702,7 @@ void mod_handler_pref(int event, void *data)
 		assert(sb->pending_prefetches > 0);
 		if (sb->pending_prefetches == 1)
 		{
-			sb->stream_tag = stack->addr & ~cache->prefetch.stream_mask;
+			sb->stream_tag = stack->addr & cache->prefetch.stream_tag_mask;
 			assert(sb->stream_tag == sb->stream_transcient_tag);
 		}
 		sb->pending_prefetches--;
@@ -3108,7 +3108,7 @@ void mod_handler_nmoesi_invalidate_slot(int event, void *data)
 		{
 			if (sb->pending_prefetches == 1)
 			{
-				sb->stream_tag = stack->addr & ~cache->prefetch.stream_mask;
+				sb->stream_tag = stack->addr & cache->prefetch.stream_tag_mask;
 				assert(sb->stream_tag == sb->stream_transcient_tag);
 			}
 			sb->pending_prefetches--;
