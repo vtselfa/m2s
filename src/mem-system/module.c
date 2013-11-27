@@ -1084,6 +1084,66 @@ void mod_adapt_pref_handler(int event, void *data)
 				break;
 			}
 
+			case adapt_pref_policy_adp_gbwc2:
+			{
+				const double BWNO_th = 2.75;
+
+				const double pseudocoverage_th = 0.3;
+				const double ahigh = 0.80;
+				const double alow = 0.4;
+				const double alowlow = 0.2;
+
+				/* Very low accuracy */
+				if (accuracy_int < alowlow)
+				{
+					/* Reduce aggr. and disable */
+					cache->prefetch.pol_num_slots = cache->prefetch.max_num_slots / 2;
+					cache->pref_enabled = 0;
+
+					/* Good coverage and others don't require lots of BW */
+					if (pseudocoverage_int > pseudocoverage_th && BWNO_int < BWNO_th)
+						cache->pref_enabled = 1;
+				}
+
+				/* Low accuracy */
+				if (accuracy_int < alow)
+				{
+					/* Reduce aggr. */
+					cache->prefetch.pol_num_slots = cache->prefetch.max_num_slots / 2;
+
+					/* Bad coverage or others need bw */
+					if (pseudocoverage_int < pseudocoverage_th && BWNO_int > BWNO_th)
+						cache->pref_enabled = 0;
+				}
+
+				/* Medium accuracy */
+				else if(accuracy_int < ahigh)
+				{
+					/* Others need bandwidth */
+					if (BWNO_int > BWNO_th)
+						cache->prefetch.pol_num_slots = cache->prefetch.max_num_slots / 2; /* Reduce aggr. */
+				}
+
+				/* High accuracy */
+				else
+				{
+					/* Others need bandwidth */
+					if (BWNO_int > BWNO_th)
+						cache->prefetch.pol_num_slots = cache->prefetch.max_num_slots / 2;
+
+					/* Others don't need a lot of bw */
+					else
+					{
+						/* Bad coverage */
+						if (pseudocoverage_int < pseudocoverage_th)
+						{
+							cache->prefetch.pol_num_slots = cache->prefetch.max_num_slots;
+						}
+					}
+				}
+				break;
+			}
+
 			case adapt_pref_policy_adp2:
 			{
 				double saved_misses_int = (misses_int + useful_prefetches_int) ? 1 - (double) misses_int / (misses_int + useful_prefetches_int) : 0.0;
