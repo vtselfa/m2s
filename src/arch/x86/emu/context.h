@@ -44,6 +44,8 @@ struct x86_ctx_report_stack_t
 	int pid;
 	long long inst_count;
 	long long last_cycle;
+	long long mm_accesses;
+	long long mm_pref_accesses;
 	struct line_writer_t *lw;
 };
 
@@ -104,8 +106,6 @@ struct x86_ctx_t
 	 * node (core/thread) associated with the context. */
 	int core;
 	int thread;
-
-
 
 	/* For segmented memory access in glibc */
 	unsigned int glibc_segment_base;
@@ -179,11 +179,13 @@ struct x86_ctx_t
 	struct x86_ctx_report_stack_t *ipc_report_stack;
 	struct x86_ctx_report_stack_t *mc_report_stack;
 
-	
-
 	/* Number of non-speculate micro-instructions.
 	 * Updated by the architectural simulator at the commit stage. */
 	long long inst_count;
+
+	/* Statistics */
+	long long mm_accesses;
+	long long mm_pref_accesses;
 };
 
 enum x86_ctx_state_t

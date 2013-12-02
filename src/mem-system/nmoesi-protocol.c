@@ -5011,16 +5011,20 @@ void mod_handler_nmoesi_request_main_memory(int event, void *data )
 
 
         channel = mem_controller->regs_channel;
+
 	if (event == EV_MOD_NMOESI_INSERT_MEMORY_CONTROLLER)
 	{
-
 		assert(stack->client_info->core>=0 &&  stack->client_info->core<mem_controller->num_cores&& stack->client_info->thread>=0);
 
 		struct x86_ctx_t *ctx = x86_ctx_get(stack->client_info->ctx_pid);
 
+		/* Ctx main memory stats */
+		ctx->mm_accesses++;
+		if (stack->prefetch)
+			ctx->mm_pref_accesses++;
 
-	        mem_debug("  %lld %lld 0x%x %s insert request in mem. controller\n", esim_time, stack->id, stack->addr&~mod->cache->block_mask, mod->name);
-	        mem_trace("mem.access name=\"A-%lld\" state=\"%s:insert request in MC (pref=%d)\"\n", stack->id,mod->name , stack->prefetch);
+		mem_debug("  %lld %lld 0x%x %s insert request in mem. controller\n", esim_time, stack->id, stack->addr&~mod->cache->block_mask, mod->name);
+		mem_trace("mem.access name=\"A-%lld\" state=\"%s:insert request in MC (pref=%d)\"\n", stack->id,mod->name , stack->prefetch);
 
 	        assert(mod->kind==mod_kind_main_memory);
 	        /* Statistics */

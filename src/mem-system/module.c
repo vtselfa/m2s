@@ -19,6 +19,8 @@
 #include <assert.h>
 
 #include <arch/x86/timing/cpu.h>
+#include <arch/x86/emu/context.h>
+#include <arch/x86/emu/emu.h>
 #include <lib/esim/esim.h>
 #include <lib/mhandle/mhandle.h>
 #include <lib/util/debug.h>
@@ -1111,7 +1113,7 @@ void mod_adapt_pref_handler(int event, void *data)
 					/* Reduce aggr. */
 					cache->prefetch.pol_num_slots = cache->prefetch.max_num_slots / 2;
 
-					/* Bad coverage or others need bw */
+					/* Bad coverage and others need bw */
 					if (pseudocoverage_int < pseudocoverage_th && BWNO_int > BWNO_th)
 						cache->pref_enabled = 0;
 				}
@@ -1526,6 +1528,20 @@ void mod_report_handler(int event, void *data)
 	/* If simulation has ended, no more
 	 * events to schedule. */
 	if (esim_finish)
+		return;
+
+	/* Don't write statistics if number of instructions has been reached */
+	int limit = 1;
+	LINKED_LIST_FOR_EACH(mod->threads)
+	{
+		struct core_thread_tuple_t *tuple = (struct core_thread_tuple_t *) linked_list_get(mod->threads);
+		int core = tuple->core;
+		int thread = tuple->thread;
+
+		if (x86_emu_min_inst_per_ctx &&  X86_THREAD.ctx && X86_THREAD.ctx->inst_count < x86_emu_min_inst_per_ctx)
+			limit = 0;
+	}
+	if (limit)
 		return;
 
 	/* Prefetch accuracy */

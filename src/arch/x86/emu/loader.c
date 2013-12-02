@@ -826,7 +826,7 @@ void x86_loader_load_from_ctx_config(struct config_t *config, char *section)
 	enable_report = config_read_bool(config, section,
 			"EnableReport", 0);
 	ipc_report_file_name = config_read_string(config, section,
-			"ReportFile", "");
+			"ReportFile", default_report_file_name);
 	ld->ipc_report_interval = config_read_llint(config, section,
 			"ReportInterval", 50000);
 	if (enable_report)

@@ -943,6 +943,8 @@ void x86_ctx_ipc_report_schedule(struct x86_ctx_t *ctx)
 	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "inst-int");
 	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "ipc-glob");
 	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "ipc-int");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "mm-accesses");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "mm-pref-accesses");
 
 	size = line_writer_write(lw, f);
 	line_writer_clear(lw);
@@ -963,11 +965,14 @@ void x86_ctx_ipc_report_schedule(struct x86_ctx_t *ctx)
 void x86_ctx_ipc_report_handler(int event, void *data)
 {
 	struct x86_ctx_report_stack_t *stack = data;
+	struct line_writer_t *lw = stack->lw;
 	struct x86_ctx_t *ctx;
 
 	long long inst_count;
 	double ipc_interval;
 	double ipc_global;
+	long long mm_accesses;
+	long long mm_pref_accesses;
 
 	/* Get context. If it does not exist anymore, no more
 	 * events to schedule. */
@@ -975,17 +980,35 @@ void x86_ctx_ipc_report_handler(int event, void *data)
 	if (!ctx || x86_ctx_get_state(ctx, x86_ctx_finished) || esim_finish)
 		return;
 
-	/* Dump new IPC */
-	assert(ctx->loader->ipc_report_interval);
+	/* Don't write statistics if number of instructions has been reached */
+	if (x86_emu_min_inst_per_ctx && ctx->inst_count >= x86_emu_min_inst_per_ctx)
+		return;
+
 	inst_count = ctx->inst_count - stack->inst_count;
 	ipc_global = arch_x86->cycle ? (double) ctx->inst_count / arch_x86->cycle : 0.0;
 	ipc_interval = (double) inst_count / (arch_x86->cycle - stack->last_cycle);
-	fprintf(ctx->loader->ipc_report_file, "%10lld %10lld %8lld %10.4f %10.4f\n",
-		esim_cycle(), ctx->inst_count, inst_count, ipc_global, ipc_interval);
+	mm_accesses = ctx->mm_accesses - stack->mm_accesses;
+	mm_pref_accesses = ctx->mm_pref_accesses - stack->mm_pref_accesses;
+
+
+	/* Dump stats */
+	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", esim_cycle());
+	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", ctx->inst_count);
+	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", inst_count);
+	line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", ipc_global);
+	line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", ipc_interval);
+	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", mm_accesses);
+	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", mm_pref_accesses);
+
+	line_writer_write(lw, ctx->loader->ipc_report_file);
+	line_writer_clear(lw);
+
 	fflush(ctx->loader->ipc_report_file);
 
 	stack->inst_count = ctx->inst_count;
 	stack->last_cycle = arch_x86->cycle;
+	stack->mm_accesses = ctx->mm_accesses;
+	stack->mm_pref_accesses = ctx->mm_pref_accesses;
 
 	/* Schedule new event */
 	if(ctx->loader->interval_kind == interval_kind_cycles)
