@@ -242,7 +242,7 @@ void enqueue_prefetch_group(int ctx_pid, int core, int thread, struct mod_t *mod
 	sb->tail = num_prefetches % sb->eff_num_slots; //TAIL
 
 	/* Debug */
-	mem_debug("    Enqueued prefetch group at addr=0x%x to stream=%d with stride=0x%x(%d)\n", base_addr, stream, stride, stride);
+	mem_debug("    Enqueued prefetch group at addr=0x%x to stream=%d with stride=0x%x(%d) and eff_num_slots=%d\n", base_addr, stream, stride, stride, sb->eff_num_slots);
 
 	sb->cycle = esim_cycle();
 
@@ -2308,7 +2308,7 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 			stack->stream_hit = 1;
 			if (result == 1) /* {0 miss, 1 head hit, 2 middle stream hit} */
 				stack->stream_head_hit = 1;
-			mem_debug("    %lld 0x%x %s stream_hit=%d stream=%d slot=%d in head=%d up_down=%d\n", stack->id, stack->tag, mod->name, stack->stream_hit, stack->pref_stream, stack->pref_slot, stack->stream_head_hit, stack->request_dir == mod_request_up_down);
+			mem_debug("    %lld 0x%x %s stream_hit=%d stream=%d slot=%d in head=%d up_down=%d eff_num_slots=%d pending_prefetches=%d\n", stack->id, stack->tag, mod->name, stack->stream_hit, stack->pref_stream, stack->pref_slot, stack->stream_head_hit, stack->request_dir == mod_request_up_down, sb->eff_num_slots, sb->pending_prefetches);
 
 			/* Print debug info */
 			int i, slot, count;
