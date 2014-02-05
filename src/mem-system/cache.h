@@ -171,6 +171,8 @@ struct cache_t
 		long long adapt_interval; /* Interval at wich the adaptative policy is aplied */
 		enum interval_kind_t adapt_interval_kind; /* Tells if the interval is in cycles or in instructions */
 
+		int flags; /* Multiporpose flags for stats reporting */
+
 		struct
 		{
 			struct linked_list_t *camps;

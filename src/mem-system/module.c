@@ -1004,6 +1004,8 @@ void mod_adapt_pref_handler(int event, void *data)
 				const double alow = cache->prefetch.thresholds.accuracy_low;
 				const double averylow = cache->prefetch.thresholds.accuracy_very_low;
 
+				cache->prefetch.flags = 0; /* Stats reporting */
+
 				/* Very low accuracy */
 				if (accuracy_int < averylow)
 				{
@@ -1215,15 +1217,26 @@ void mod_adapt_pref_handler(int event, void *data)
 				const double ipc_th = cache->prefetch.thresholds.ipc;
 				const double ratio_cycles_stalled_th = cache->prefetch.thresholds.ratio_cycles_stalled;
 
-				if ((misses_int > stack->last_misses_int * misses_th) ||
-					(percentage_cycles_stalled > ratio_cycles_stalled_th) ||
-					(ipc_int < stack->last_ipc_int * ipc_th))
-				{
+				int conditions_fulfilled = 0;
+
+				/* In order to reenable the prefetcher one of the three first conditions AND the forth one must be fulfilled */
+				if (misses_int > stack->last_misses_int * misses_th) /* Cond 1 */
+					conditions_fulfilled |= 1;
+
+				if (percentage_cycles_stalled > ratio_cycles_stalled_th) /* Cond 2 */
+					conditions_fulfilled |= 2;
+
+				if (ipc_int < stack->last_ipc_int * ipc_th) /* Cond 3 */
+					conditions_fulfilled |= 4;
+
+				if (BWNO_int < BWNO_th) /* Cond 4 */
+					conditions_fulfilled |= 8;
+
+				if (conditions_fulfilled > 8)
 					cache->pref_enabled = 1;
 
-					if (BWNO_int > BWNO_th)
-						cache->pref_enabled = 0; /* Keep disabled */
-				}
+				cache->prefetch.flags = conditions_fulfilled;
+
 				break;
 			}
 
@@ -1340,6 +1353,7 @@ void mod_report_schedule(struct mod_t *mod)
 	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "prefetch-active-int");
 	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "strides-detected-int");
 	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "pct-rob-stalled-int");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "flags");
 
 	size = line_writer_write(lw, f);
 	line_writer_clear(lw);
@@ -1466,6 +1480,7 @@ void mod_report_handler(int event, void *data)
 	line_writer_add_column(lw, 9, line_writer_align_right, "%u", mod->cache->pref_enabled && mod->accesses ? mod->cache->prefetch.pol_num_slots : 0);
 	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", detected_strides_int);
 	line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", pct_rob_stalled_int);
+	line_writer_add_column(lw, 9, line_writer_align_right, "%u", mod->cache->prefetch.flags);
 
 	line_writer_write(lw, mod->report_file);
 	line_writer_clear(lw);
