@@ -864,8 +864,8 @@ void mod_handler_nmoesi_load(int event, void *data)
 			}
 		}
 
-		/* Hit in write buffer */
-		if (stack->wb_hit)
+		/* Fast resumed or hit in write buffer */
+		if (stack->wb_hit || stack->fast_resume)
 		{
 			esim_schedule_event(EV_MOD_NMOESI_LOAD_FINISH, stack, 0);
 			return;
@@ -1211,10 +1211,41 @@ void mod_handler_nmoesi_store(int event, void *data)
 			}
 		}
 
-		/* Set state if hit in stream */
-		if (stack->stream_hit)
-			cache_get_pref_block_data(mod->cache, stack->pref_stream, stack->pref_slot, NULL, &stack->state);
+		/* Fast resumed stack */
+		if (stack->fast_resume)
+		{
+			/* Impose the access latency before continuing */
+			esim_schedule_event(EV_MOD_NMOESI_STORE_FINISH, stack,
+				mod->latency);
+			return;
+		}
 
+		/* Background stack for a fast resumed one */
+		else if (stack->background)
+		{
+			/* Write block from write buffer to cache */
+			struct write_buffer_block_t *wb_block = (struct write_buffer_block_t *) -1; /* Used as canary */
+			assert(linked_list_count(cache->wb.blocks));
+			LINKED_LIST_FOR_EACH(cache->wb.blocks)
+			{
+				wb_block = linked_list_get(cache->wb.blocks);
+				if (wb_block->tag == stack->tag)
+				{
+					cache_set_block(cache, stack->set, stack->way, stack->tag, wb_block->state);
+					stack->state = wb_block->state;
+					mod_stack_wake_up_write_buffer(wb_block);
+					linked_list_remove(cache->wb.blocks);
+					free(wb_block);
+					wb_block = NULL;
+					break;
+				}
+			}
+			assert(!wb_block);
+		}
+
+		/* Normal stack with a prefetch hit */
+		else if (stack->stream_hit)
+			cache_get_pref_block_data(mod->cache, stack->pref_stream, stack->pref_slot, NULL, &stack->state);
 
 		/* Hit - state=M/E */
 		if (stack->state == cache_block_modified ||
@@ -1269,10 +1300,29 @@ void mod_handler_nmoesi_store(int event, void *data)
 			return;
 		}
 
-		/* Update tag/state and unlock */
+		/* Update tag/state and unlock cache block */
 		cache_set_block(mod->cache, stack->set, stack->way,
 			stack->tag, cache_block_modified);
 		dir_entry_unlock(mod->dir, stack->set, stack->way);
+
+		/* Block comes from stream buffer */
+		if (stack->stream_hit)
+		{
+			struct stream_buffer_t *sb;
+
+			/* Free stream buffer entry */
+			cache_set_pref_block(cache, stack->pref_stream, stack->pref_slot, block_invalid_tag, cache_block_invalid);
+			sb = &cache->prefetch.streams[stack->pref_stream];
+			sb->count--; //COUNT
+
+			/* Unlock stream buffer entry */
+			assert(!stack->background);
+			assert(!stack->fast_resume);
+			dir_pref_entry_unlock(mod->dir, stack->pref_stream, stack->pref_slot);
+
+			/* Statistics */
+			mod->useful_prefetches++;
+		}
 
 		/* Impose the access latency before continuing */
 		esim_schedule_event(EV_MOD_NMOESI_STORE_FINISH, stack,
@@ -1712,7 +1762,7 @@ void mod_handler_nmoesi_pref_find_and_lock(int event, void *data)
 		if (stack->access_kind != mod_access_invalidate_slot)
 		{
 			assert(sb->stream == stack->pref_stream);
-			if (!block->state && !stack->hit)
+			if (!block->state && !stack->hit && !ret->stream_hit)
 				sb->count++; //COUNT
 		}
 
@@ -2456,8 +2506,12 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 				mem_debug("  %lld %lld 0x%x %s fast resume access\n", esim_time, stack->id, stack->tag, mod->name);
 
 				assert(!(mod->kind==mod_kind_main_memory && stack->request_dir == mod_request_up_down));// P
+				assert(stack->pref_stream >= 0 && stack->pref_stream < cache->prefetch.max_num_streams);
+				assert(stack->pref_slot >= 0 && stack->pref_slot < cache->prefetch.max_num_slots);
 
-				assert(!(mod->level==1 && stack->write)); //TODO: Arreglar stores
+				sb = &cache->prefetch.streams[stack->pref_stream];
+
+				assert(stack->pref_slot >= 0 && stack->pref_slot < sb->eff_num_slots);
 
 				/* Stack that will write block from prefetch buffer to cache */
 				background_stack = mod_stack_create(stack->id, ret->mod, stack->addr, ESIM_EV_NONE,
@@ -2504,8 +2558,7 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 				stack->state = block->state;
 
 				/* Free stream entry */
-				cache_set_pref_block(cache, stack->pref_stream, stack->pref_slot, -1, cache_block_invalid);
-				sb = &cache->prefetch.streams[stack->pref_stream];
+				cache_set_pref_block(cache, stack->pref_stream, stack->pref_slot, block_invalid_tag, cache_block_invalid);
 				sb->count--; //COUNT
 
 				/* Update head */

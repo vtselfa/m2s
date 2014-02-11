@@ -567,6 +567,9 @@ void mod_access_finish(struct mod_t *mod, struct mod_stack_t *stack)
 {
 	int index;
 
+	if (stack->background)
+		return;
+
 	/* Remove from access list */
 	DOUBLE_LINKED_LIST_REMOVE(mod, access, stack);
 
