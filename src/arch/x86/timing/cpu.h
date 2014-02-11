@@ -101,6 +101,8 @@ extern enum x86_cpu_commit_kind_t
 } x86_cpu_commit_kind;
 extern int x86_cpu_commit_width;
 
+/* Number of instructions to fast forward */
+extern long long x86_cpu_fast_forward_count;
 
 /* Trace */
 #define x86_tracing() trace_status(x86_trace_category)

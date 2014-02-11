@@ -745,7 +745,8 @@ void x86_cpu_read_config(void)
 	x86_cpu_num_cores = config_read_int(config, section, "Cores", x86_cpu_num_cores);
 	x86_cpu_num_threads = config_read_int(config, section, "Threads", x86_cpu_num_threads);
 
-	x86_cpu_fast_forward_count = config_read_llint(config, section, "FastForward", 0);
+	if (x86_cpu_fast_forward_count <= 0)
+		x86_cpu_fast_forward_count = config_read_llint(config, section, "FastForward", 0);
 
 	x86_cpu_context_quantum = config_read_int(config, section, "ContextQuantum", 100000);
 	x86_cpu_thread_quantum = config_read_int(config, section, "ThreadQuantum", 1000);

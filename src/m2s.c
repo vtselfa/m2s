@@ -852,6 +852,18 @@ static void m2s_read_command_line(int *argc_ptr, char **argv)
 			continue;
 		}
 
+		/* Number of x86 instructions to fast forward */
+		if (!strcmp(argv[argi], "--x86-fast-forward"))
+		{
+			m2s_need_argument(argc, argv, argi);
+			x86_cpu_fast_forward_count = str_to_llint(argv[argi + 1], &err);
+			if (err)
+				fatal("option %s, value '%s': %s", argv[argi],
+						argv[argi + 1], str_error(err));
+			argi++;
+			continue;
+		}
+
 
 		/*
 		 * Evergreen GPU Options
