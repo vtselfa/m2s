@@ -213,12 +213,24 @@ void enqueue_prefetch_group(int ctx_pid, int core, int thread, struct mod_t *mod
 	assert(stride > 0 || (prev_address + stride) < prev_address); /* No underflow */
 	assert(stride < 0 || (prev_address + stride) > prev_address); /* No overflow */
 
-	/* Not enqueue prefetch if there are pending prefetches */
+	/* Not enqueue prefetch if there are pending prefetches... */
 	if (sb->pending_prefetches)
 	{
 		mem_debug("    Canceled prefetch group at addr=0x%x to stream=%d with stride=0x%x(%d)\n", base_addr, stream, stride, stride);
 		mod->canceled_prefetch_groups++;
 		return;
+	}
+
+	/*... or blocks locked */
+	for (slot = 0; slot < sb->eff_num_slots; slot++)
+	{
+		struct dir_lock_t *dir_lock = dir_pref_lock_get(mod->dir, sb->stream, slot);
+		if (dir_lock->lock)
+		{
+			mem_debug("    Canceled prefetch group at addr=0x%x to stream=%d with stride=0x%x(%d)\n", base_addr, stream, stride, stride);
+			mod->canceled_prefetch_groups++;
+			return;
+		}
 	}
 
 	num_prefetches = cache->prefetch.pol_num_slots; /* Number of prefetches to issue. Determined by prefetch policy. */
