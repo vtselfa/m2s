@@ -375,8 +375,6 @@ void enqueue_prefetch_on_hit(struct mod_stack_t *stack)
 
 	sb = &cache->prefetch.streams[stack->pref_stream];
 
-	assert(stack->pref_slot >= 0 && stack->pref_slot < sb->eff_num_slots);
-
 	/* Next address of this stream is out of page, over/underflowed or has a different stream tag */
 	if (sb->dead)
 		return;
