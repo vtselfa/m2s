@@ -69,10 +69,7 @@ static int x86_cpu_issue_sq(int core, int thread, int quant)
 		client_info->prefetcher_eip = store->eip;
 		client_info->core = core;
 		client_info->thread = thread;
-		
-		if(X86_THREAD.ctx)
-			client_info->ctx_pid = X86_THREAD.ctx->pid;
-		
+		client_info->ctx_pid = store->ctx->pid;
 
 		/* Issue store */
 		mod_access(X86_THREAD.data_mod, mod_access_store,
@@ -144,11 +141,8 @@ static int x86_cpu_issue_lq(int core, int thread, int quant)
 		client_info->prefetcher_eip = load->eip;
 		client_info->core = core;
 		client_info->thread = thread;
-		
-		if(X86_THREAD.ctx)
-			client_info->ctx_pid = X86_THREAD.ctx->pid;
-		
-		
+		client_info->ctx_pid = load->ctx->pid;
+
 		/* Access memory system */
 		mod_access(X86_THREAD.data_mod, mod_access_load,
 			load->phy_addr, NULL, X86_CORE.event_queue, load, client_info);

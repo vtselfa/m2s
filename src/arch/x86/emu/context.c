@@ -527,6 +527,8 @@ struct x86_ctx_t *x86_ctx_get(int pid)
 {
 	struct x86_ctx_t *ctx;
 
+	assert(pid > 0);
+
 	ctx = x86_emu->context_list_head;
 	while (ctx && ctx->pid != pid)
 		ctx = ctx->context_list_next;
