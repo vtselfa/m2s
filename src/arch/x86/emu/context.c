@@ -316,8 +316,8 @@ void x86_ctx_free(struct x86_ctx_t *ctx)
 	}
 	free(ctx->mc_report_stack);
 
-	
-	
+
+
 
 	/* Free context */
 	free(ctx);
@@ -1082,11 +1082,11 @@ void x86_ctx_mc_report_handler(int event, void *data)
 	{
 		mem_controller = linked_list_get(mem_system->mem_controllers);
 
-		
+
 		row_buffer_hits=mem_controller->row_buffer_hits;
 		normal_row_buffer_hits=mem_controller->row_buffer_hits_normal;
 		pref_row_buffer_hits=mem_controller->row_buffer_hits_pref;
-		
+
 		t_pref_total_mc=(mem_controller->pref_accesses-
 			mem_controller->last_pref_accesses)>0?(double)(mem_controller->t_pref_wait
 			+mem_controller->t_pref_transfer+mem_controller->t_pref_acces_main_memory-

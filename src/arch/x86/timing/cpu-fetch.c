@@ -48,16 +48,16 @@ static int x86_cpu_can_fetch(int core, int thread)
 	/* Context must be running */
 	if (!ctx || !x86_ctx_get_state(ctx, x86_ctx_running))
 		return 0;
-	
+
 	/* Fetch stalled or context evict signal activated */
 	if (X86_THREAD.fetch_stall_until >= arch_x86->cycle || ctx->evict_signal)
 		return 0;
-	
+
 	/* Fetch queue must have not exceeded the limit of stored bytes
 	 * to be able to store new macro-instructions. */
 	if (X86_THREAD.fetchq_occ >= x86_fetch_queue_size)
 		return 0;
-	
+
 	/* If the next fetch address belongs to a new block, cache system
 	 * must be accessible to read it. */
 	block = X86_THREAD.fetch_neip & ~(X86_THREAD.inst_mod->block_size - 1);
@@ -68,7 +68,7 @@ static int x86_cpu_can_fetch(int core, int thread)
 		if (!mod_can_access(X86_THREAD.inst_mod, phy_addr))
 			return 0;
 	}
-	
+
 	/* We can fetch */
 	return 1;
 }
@@ -231,7 +231,7 @@ static int x86_cpu_fetch_thread_trace_cache(int core, int thread)
 	assert(x86_trace_cache_present);
 	if (X86_THREAD.trace_cache_queue_occ >= x86_trace_cache_queue_size)
 		return 0;
-	
+
 	/* Access BTB, branch predictor, and trace cache */
 	eip_branch = x86_bpred_btb_next_branch(X86_THREAD.bpred,
 		X86_THREAD.fetch_neip, X86_THREAD.inst_mod->block_size);
@@ -241,14 +241,14 @@ static int x86_cpu_fetch_thread_trace_cache(int core, int thread)
 		&mop_count, &mop_array, &neip);
 	if (!hit)
 		return 0;
-	
+
 	/* Fetch instruction in trace cache line. */
 	for (i = 0; i < mop_count; i++)
 	{
 		/* If instruction caused context to suspend or finish */
 		if (!x86_ctx_get_state(X86_THREAD.ctx, x86_ctx_running))
 			break;
-		
+
 		/* Insert decoded uops into the trace cache queue. In the simulation,
 		 * the uop is inserted into the fetch queue, but its occupancy is not
 		 * increased. */
@@ -287,7 +287,7 @@ static void x86_cpu_fetch_thread(int core, int thread)
 	/* Try to fetch from trace cache first */
 	if (x86_trace_cache_present && x86_cpu_fetch_thread_trace_cache(core, thread))
 		return;
-	
+
 	/* If new block to fetch is not the same as the previously fetched (and stored)
 	 * block, access the instruction cache. */
 	block = X86_THREAD.fetch_neip & ~(X86_THREAD.inst_mod->block_size - 1);
@@ -303,7 +303,7 @@ static void x86_cpu_fetch_thread(int core, int thread)
 		phy_addr = mmu_translate(X86_THREAD.ctx->address_space_index, X86_THREAD.fetch_neip);
 		X86_THREAD.fetch_block = block;
 		X86_THREAD.fetch_address = phy_addr;
-		X86_THREAD.fetch_access = mod_access(X86_THREAD.inst_mod, 
+		X86_THREAD.fetch_access = mod_access(X86_THREAD.inst_mod,
 			mod_access_load, phy_addr, NULL, NULL, NULL, client_info);
 		X86_THREAD.btb_reads++;
 
@@ -318,11 +318,11 @@ static void x86_cpu_fetch_thread(int core, int thread)
 		/* If instruction caused context to suspend or finish */
 		if (!x86_ctx_get_state(ctx, x86_ctx_running))
 			break;
-	
+
 		/* If fetch queue full, stop fetching */
 		if (X86_THREAD.fetchq_occ >= x86_fetch_queue_size)
 			break;
-		
+
 		/* Insert macro-instruction into the fetch queue. Since the macro-instruction
 		 * information is only available at this point, we use it to decode
 		 * instruction now and insert uops into the fetch queue. However, the
@@ -383,7 +383,7 @@ static void x86_cpu_fetch_core(int core)
 		}
 		break;
 	}
-	
+
 	case x86_cpu_fetch_kind_switchonevent:
 	{
 		int must_switch;
@@ -414,7 +414,7 @@ static void x86_cpu_fetch_core(int core)
 				/* Do not choose it if it is not eligible for fetching */
 				if (!x86_cpu_can_fetch(core, new))
 					continue;
-					
+
 				/* Choose it if we need to switch */
 				if (must_switch)
 					break;
@@ -427,7 +427,7 @@ static void x86_cpu_fetch_core(int core)
 				if (!x86_event_queue_long_latency(core, new))
 					break;
 			}
-				
+
 			/* Thread switch successful? */
 			if (new != thread)
 			{
@@ -444,7 +444,7 @@ static void x86_cpu_fetch_core(int core)
 	}
 
 	default:
-		
+
 		panic("%s: wrong fetch policy", __FUNCTION__);
 	}
 }

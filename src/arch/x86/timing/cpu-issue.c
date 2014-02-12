@@ -48,7 +48,7 @@ static int x86_cpu_issue_sq(int core, int thread, int quant)
 	linked_list_head(sq);
 	while (!linked_list_is_end(sq) && quant)
 	{
-		
+
 		/* Get store */
 		store = linked_list_get(sq);
 		assert(store->uinst->opcode == x86_uinst_store);
@@ -191,7 +191,7 @@ static int x86_cpu_issue_preq(int core, int thread, int quant)
 	linked_list_head(preq);
 	while (!linked_list_is_end(preq) && quant)
 	{
-		
+
 		/* Get element from prefetch queue. If it is not ready, go to the next one */
 		prefetch = linked_list_get(preq);
 		if (!prefetch->ready && !x86_reg_file_ready(prefetch))
@@ -281,7 +281,7 @@ static int x86_cpu_issue_iq(int core, int thread, int quant)
 	linked_list_head(iq);
 	while (!linked_list_is_end(iq) && quant)
 	{
-		
+
 		/* Get element from IQ */
 		uop = linked_list_get(iq);
 		assert(x86_uop_exists(uop));
@@ -343,7 +343,7 @@ static int x86_cpu_issue_iq(int core, int thread, int quant)
 
 static int x86_cpu_issue_thread_lsq(int core, int thread, int quant)
 {
-	
+
 	quant = x86_cpu_issue_lq(core, thread, quant);
 	quant = x86_cpu_issue_sq(core, thread, quant);
 	quant = x86_cpu_issue_preq(core, thread, quant);
@@ -372,7 +372,7 @@ static void x86_cpu_issue_core(int core)
 		quant = x86_cpu_issue_width;
 		skip = x86_cpu_num_threads;
 		do {
-			
+
 			X86_CORE.issue_current = (X86_CORE.issue_current + 1) % x86_cpu_num_threads;
 			quant = x86_cpu_issue_thread_lsq(core, X86_CORE.issue_current, quant);
 			skip--;
@@ -382,7 +382,7 @@ static void x86_cpu_issue_core(int core)
 		quant = x86_cpu_issue_width;
 		skip = x86_cpu_num_threads;
 		do {
-			
+
 			X86_CORE.issue_current = (X86_CORE.issue_current + 1) % x86_cpu_num_threads;
 			quant = x86_cpu_issue_thread_iq(core, X86_CORE.issue_current, quant);
 			skip--;
@@ -397,7 +397,7 @@ static void x86_cpu_issue_core(int core)
 		quant = x86_cpu_issue_width;
 		skip = x86_cpu_num_threads;
 		do {
-			
+
 			X86_CORE.issue_current = (X86_CORE.issue_current + 1) % x86_cpu_num_threads;
 			quant = x86_cpu_issue_thread_lsq(core, X86_CORE.issue_current, quant);
 			skip--;
@@ -407,10 +407,10 @@ static void x86_cpu_issue_core(int core)
 		quant = x86_cpu_issue_width;
 		skip = x86_cpu_num_threads;
 		do {
-			
+
 			X86_CORE.issue_current = (X86_CORE.issue_current + 1) % x86_cpu_num_threads;
 			quant = x86_cpu_issue_thread_iq(core, X86_CORE.issue_current, quant);
-			
+
 			skip--;
 		} while (skip && quant == x86_cpu_issue_width);
 
@@ -428,9 +428,9 @@ static void x86_cpu_issue_core(int core)
 void x86_cpu_issue()
 {
 	int core;
-	
+
 	x86_cpu->stage = "issue";
 	X86_CORE_FOR_EACH
 		x86_cpu_issue_core(core);
-	
+
 }
