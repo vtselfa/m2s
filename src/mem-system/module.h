@@ -51,7 +51,11 @@ struct mod_report_stack_t
 	long long effective_useful_prefetches;
 	long long misses_int;
 	long long strides_detected;
-	long long cycles_stalled;
+	long long last_cycles_stalled;
+	long long last_BWC;
+	long long last_BWN;
+	long long last_BWNO;
+	long long last_BWTics;
 };
 
 

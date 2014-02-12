@@ -965,13 +965,13 @@ void mod_adapt_pref_handler(int event, void *data)
 
 		for (int core = 0; core < x86_cpu->num_cores; core++)
 			if (!cores_presence_vector[core])
-				BWNO += x86_cpu->core[tuple->core].BWN;
+				BWNO += x86_cpu->core[core].BWN;
 
 		free(cores_presence_vector);
 	}
 
-	double percentage_cycles_stalled = esim_cycle() - stack->last_cycle > 0 ? (double)
-		100 * cycles_stalled_int / (esim_cycle() - stack->last_cycle) : 0.0;
+	double ratio_cycles_stalled = esim_cycle() - stack->last_cycle > 0 ? (double)
+		cycles_stalled_int / (esim_cycle() - stack->last_cycle) : 0.0;
 
 	//BWC_int = BWTics_int ? (double) (BWC - stack->last_BWC) / BWTics_int : 0.0;
 	//BWN_int = BWTics_int ? (double) (BWN - stack->last_BWN) / BWTics_int : 0.0;
@@ -1205,7 +1205,7 @@ void mod_adapt_pref_handler(int event, void *data)
 			case adapt_pref_policy_adp:
 			{
 				if ((misses_int > stack->last_misses_int * 1.1) ||
-					(percentage_cycles_stalled > 0.4 && strides_detected_int > 250) ||
+					(ratio_cycles_stalled > 0.4 && strides_detected_int > 250) ||
 					(stack->last_cycle_pref_disabled == stack->last_cycle && ipc_int < 0.9 * stack->last_ipc_int))
 				{
 					mod->cache->pref_enabled = 1;
@@ -1226,7 +1226,7 @@ void mod_adapt_pref_handler(int event, void *data)
 				if (misses_int > stack->last_misses_int * misses_th) /* Cond 1 */
 					conditions_fulfilled |= 1;
 
-				if (percentage_cycles_stalled > ratio_cycles_stalled_th) /* Cond 2 */
+				if (ratio_cycles_stalled > ratio_cycles_stalled_th) /* Cond 2 */
 					conditions_fulfilled |= 2;
 
 				if (ipc_int < stack->last_ipc_int * ipc_th) /* Cond 3 */
@@ -1269,12 +1269,9 @@ void mod_adapt_pref_handler(int event, void *data)
 	stack->last_BWNO = BWNO;
 	stack->last_BWTics = x86_cpu->BWTics;
 
-	if (cache->prefetch.adapt_interval_kind == interval_kind_cycles)
-	{
-		/* Schedule new event */
-		assert(mod->cache->prefetch.adapt_interval);
-		esim_schedule_event(event, stack, mod->cache->prefetch.adapt_interval);
-	}
+	/* Schedule new event */
+	assert(mod->cache->prefetch.adapt_interval);
+	esim_schedule_event(event, stack, mod->cache->prefetch.adapt_interval);
 }
 
 
@@ -1351,11 +1348,14 @@ void mod_report_schedule(struct mod_t *mod)
 	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "misses-int");
 	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "stream-hits-int");
 //	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "effective-prefetch-accuracy-int");
-	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "mpki-int");
+	line_writer_add_column(lw, 8, line_writer_align_right, "%s", "mpki-int");
 	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "pseudocoverage-int");
 	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "prefetch-active-int");
 	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "strides-detected-int");
 	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "pct-rob-stalled-int");
+	line_writer_add_column(lw, 6, line_writer_align_right, "%s", "bwc-int");
+	line_writer_add_column(lw, 6, line_writer_align_right, "%s", "bwn-int");
+	line_writer_add_column(lw, 6, line_writer_align_right, "%s", "bwno-int");
 	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "flags");
 
 	size = line_writer_write(lw, f);
@@ -1431,31 +1431,62 @@ void mod_report_handler(int event, void *data)
 		(double) effective_useful_prefetches_int / completed_prefetches_int : 0.0;
 	effective_prefetch_accuracy_int = effective_prefetch_accuracy_int > 1 ? 1 : effective_prefetch_accuracy_int; /* May be slightly greather than 1 due bad timing with cycles */
 
-	int cores = 0;
-	long long inst_count = 0;
+	double BWC_int;
+	double BWN_int;
+	double BWNO_int; /* Bandwidth Needed By Others */
+
+	long long BWC = 0;
+	long long BWN = 0;
+	long long BWNO = 0;
+
 	long long cycles_stalled = 0;
-	char *cores_presence_vector = xcalloc(x86_cpu_num_cores, sizeof(char));
-	LINKED_LIST_FOR_EACH(mod->threads)
+	long long inst_count = 0;
+
+	double pct_rob_stalled_int; /* ROB % stalled cicles due a memory instruction */
 	{
-		struct core_thread_tuple_t *tuple = (struct core_thread_tuple_t *) linked_list_get(mod->threads);
-		int core = tuple->core;
-		if(!cores_presence_vector[tuple->core])
+		int core;
+		int cores = 0;
+		int *cores_presence_vector = xcalloc(x86_cpu_num_cores, sizeof(int));
+
+		long long cycles_int = esim_cycle() - stack->last_cycle;
+		long long cycles_stalled_int;
+
+		double BWTics_int = x86_cpu->BWTics - stack->last_BWTics; /* Number of samples taken */
+
+		struct core_thread_tuple_t *tuple;
+
+		LINKED_LIST_FOR_EACH(mod->threads)
 		{
-			cycles_stalled += X86_CORE.dispatch_stall_cycles_rob_mem;
-			inst_count += X86_CORE.num_committed_uinst;
+			tuple = (struct core_thread_tuple_t *) linked_list_get(mod->threads);
+			if(!cores_presence_vector[tuple->core])
+			{
+				core = tuple->core;
+				inst_count += X86_CORE.num_committed_uinst;
+				cycles_stalled += x86_cpu->core[tuple->core].dispatch_stall_cycles_rob_mem;
+				BWC += x86_cpu->core[tuple->core].BWC;
+				BWN += x86_cpu->core[tuple->core].BWN;
 
-			cores_presence_vector[tuple->core] = 1;
-			cores++;
+				cores_presence_vector[tuple->core] = 1;
+				cores++;
+			}
 		}
-	}
-	free(cores_presence_vector);
+		cycles_stalled /= cores;
+		cycles_stalled_int = cycles_stalled - stack->last_cycles_stalled;
+		pct_rob_stalled_int = (esim_cycle() - stack->last_cycle) ? (double)
+				100 * cycles_stalled_int / cycles_int : 0.0;
 
-	/* Percentage cycles stalled */
-	cycles_stalled /= cores; /* Ignore lost precision */
-	long long cycles_stalled_int = cycles_stalled - stack->cycles_stalled;
-	long long cycles_int = esim_cycle() - stack->last_cycle;
-	double pct_rob_stalled_int = (esim_cycle() - stack->last_cycle) ? (double)
-		100 * cycles_stalled_int / cycles_int : 0.0;
+		BWC /= cores; /* Ignore lost precision due integuer division */
+		BWN /= cores; /* Ignore lost precision due integuer division */
+		for (core = 0; core < x86_cpu->num_cores; core++)
+			if (!cores_presence_vector[core])
+				BWNO += x86_cpu->core[core].BWN;
+
+		BWC_int = BWTics_int ? (double) (BWC - stack->last_BWC) / BWTics_int : 0.0;
+		BWN_int = BWTics_int ? (double) (BWN - stack->last_BWN) / BWTics_int : 0.0;
+		BWNO_int = BWTics_int ? (double) (BWNO - stack->last_BWNO) / BWTics_int : 0.0;
+
+		free(cores_presence_vector);
+	}
 
 	/* MPKI */
 	double mpki_int = (double) misses_int / ((inst_count - stack->inst_count) / 1000.0);
@@ -1477,12 +1508,14 @@ void mod_report_handler(int event, void *data)
 	line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", delayed_hit_avg_lost_cycles_int);
 	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", misses_int);
 	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", stream_hits_int);
-	/* line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", effective_prefetch_accuracy_int); */
-	line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", mpki_int);
+	line_writer_add_column(lw, 8, line_writer_align_right, "%.2f", mpki_int);
 	line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", pseudocoverage_int);
 	line_writer_add_column(lw, 9, line_writer_align_right, "%u", mod->cache->pref_enabled && mod->accesses ? mod->cache->prefetch.pol_num_slots : 0);
 	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", detected_strides_int);
 	line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", pct_rob_stalled_int);
+	line_writer_add_column(lw, 6, line_writer_align_right, "%.2f", BWC_int);
+	line_writer_add_column(lw, 6, line_writer_align_right, "%.2f", BWN_int);
+	line_writer_add_column(lw, 6, line_writer_align_right, "%.2f", BWNO_int);
 	line_writer_add_column(lw, 9, line_writer_align_right, "%u", mod->cache->prefetch.flags);
 
 	line_writer_write(lw, mod->report_file);
@@ -1501,12 +1534,13 @@ void mod_report_handler(int event, void *data)
 	stack->effective_useful_prefetches = mod->effective_useful_prefetches;
 	stack->misses_int = misses_int;
 	stack->strides_detected = mod->cache->prefetch.stride_detector.strides_detected;
-	stack->cycles_stalled = cycles_stalled;
+	stack->last_cycles_stalled = cycles_stalled;
+	stack->last_BWC = BWC;
+	stack->last_BWN = BWN;
+	stack->last_BWNO = BWNO;
+	stack->last_BWTics = x86_cpu->BWTics;
 
 	/* Schedule new event */
 	assert(mod->report_interval);
-
-
-	if(mod->report_interval_kind == interval_kind_cycles)
-		esim_schedule_event(event, stack, mod->report_interval);
+	esim_schedule_event(event, stack, mod->report_interval);
 }
