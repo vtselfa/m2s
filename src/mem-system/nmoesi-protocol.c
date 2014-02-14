@@ -4445,18 +4445,6 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			if (target_mod->cache->prefetch.type && target_mod->kind != mod_kind_main_memory)
 				mod_access_finish(target_mod, stack);
 
-			/*if(target_mod->kind == mod_kind_main_memory &&
-			stack->request_dir == mod_request_up_down && mem_controller->enabled)
-			{
-				if( target_mod->num_req_input_buffer == target_mod->num_ports)
-				{
-					assert(target_mod->start_queue_full>-1);
-					target_mod->cycles_queue_full += esim_cycle() - target_mod->start_queue_full;
-					target_mod->start_queue_full = -1;
-				}
-				target_mod->num_req_input_buffer--;
-
-			}*/
 			esim_schedule_event(EV_MOD_NMOESI_WRITE_REQUEST_REPLY, stack, 0);
 			return;
 		}
@@ -4551,7 +4539,8 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 
 		/* state = M/E */
 		if (stack->state == cache_block_modified ||
-			stack->state == cache_block_exclusive)
+			stack->state == cache_block_exclusive ||
+			stack->background)
 		{
 			esim_schedule_event(EV_MOD_NMOESI_WRITE_REQUEST_UPDOWN_FINISH, stack, 0);
 		}
