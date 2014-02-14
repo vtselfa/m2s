@@ -308,9 +308,9 @@ int mod_find_block(struct mod_t *mod, unsigned int addr, int *set_ptr,
 	struct cache_block_t *blk;
 	struct dir_lock_t *dir_lock;
 
-	int set;
-	int way;
-	int tag;
+	int set = -1;
+	int way = -1;
+	int tag = -1;
 
 	/* A transient tag is considered a hit if the block is
 	 * locked in the corresponding directory. */
@@ -363,14 +363,15 @@ int mod_find_pref_block(struct mod_t *mod, unsigned int addr, int *pref_stream_p
 	struct cache_t *cache = mod->cache;
 	struct stream_block_t *blk;
 	struct dir_lock_t *dir_lock;
-	struct stream_buffer_t *sb;
+	struct stream_buffer_t *sb = NULL;
 
 	/* A transient tag is considered a hit if the block is
 	 * locked in the corresponding directory */
 	int tag = addr & ~cache->block_mask;
 
 	unsigned int stream_tag = addr & cache->prefetch.stream_tag_mask;
-	int stream, slot;
+	int stream = -1;
+	int slot = -1;
 	int num_streams = cache->prefetch.max_num_streams;
 
 	for(stream = 0; stream < num_streams; stream++)

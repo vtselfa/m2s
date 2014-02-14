@@ -107,6 +107,10 @@ int line_writer_add_column(struct line_writer_t *lw, int min_size, enum line_wri
 		case line_writer_align_center:
 			aux = tmp + spaces / 2;
 		break;
+
+		default:
+			panic("Invalid alignment");
+		break;
 	}
 	tmp[len + spaces] = '\0';
 
