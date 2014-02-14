@@ -707,7 +707,8 @@ AC_SUBST([PKGDATADIR])
 ###################
 
 debug=false
-CFLAGS="-msse2 -O3 -std=gnu99 -DNDEBUG"
+#CFLAGS="-msse2 -O3 -std=gnu99 -DNDEBUG"
+CFLAGS="-msse2 -Wall -O3 -std=gnu99"
 AC_ARG_ENABLE(debug,
 [  --enable-debug    Turn on debugging],
 [
