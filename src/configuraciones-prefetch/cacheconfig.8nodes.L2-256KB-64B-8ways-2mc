@@ -17,6 +17,10 @@ Sets = 256
 Assoc = 8
 BlockSize = 64
 Latency = 10
+EnablePrefetcher = True
+PrefetcherType = czone_streams
+PrefetcherStreams = 32
+PrefetcherSlots = 4
 
 #
 # Level 1 Caches
@@ -209,6 +213,8 @@ PriorityMCQueues = Threshold-FCFS-Normal-Prefetch
 QueuePerBank = 1
 SizeQueue = 128
 MemoryControllerEnabled = 1
+EnableReport = True
+ReportFile = mod-mm-1-2mc.interval.report
 AddressRange = ADDR DIV 4096 MOD 2 EQ 0
 
 #
@@ -236,6 +242,8 @@ PriorityMCQueues = Threshold-FCFS-Normal-Prefetch
 QueuePerBank = 1
 SizeQueue = 128
 MemoryControllerEnabled = 1
+EnableReport = True
+ReportFile = mod-mm-2-2mc.interval.report
 AddressRange = ADDR DIV 4096 MOD 2 EQ 1
 
 #

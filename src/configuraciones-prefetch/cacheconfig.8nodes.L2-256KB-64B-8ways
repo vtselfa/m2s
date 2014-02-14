@@ -23,7 +23,7 @@ Sets = 256
 Assoc = 8
 BlockSize = 64
 Latency = 10
-EnablePrefetcher = False
+EnablePrefetcher = True
 PrefetcherType = czone_streams
 PrefetcherStreams = 32
 PrefetcherSlots = 4
@@ -137,9 +137,6 @@ HighNetwork = net-0
 LowNetwork = mesh
 LowNetworkNode = n0
 LowModules = mod-mm-1
-EnableReport = True
-ReportInterval = 10000
-ReportIntervalKind = Instructions
 
 [ Module l2-1 ]
 Type = Cache
@@ -221,6 +218,7 @@ PolicyMCQueues = OneQueue
 PriorityMCQueues = Threshold-FCFS-Normal-Prefetch
 QueuePerBank = 1
 SizeQueue = 128
+EnableReport = True
 MemoryControllerEnabled = 1
 
 #
