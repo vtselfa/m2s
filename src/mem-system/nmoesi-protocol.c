@@ -411,7 +411,7 @@ void enqueue_prefetch_on_hit(struct mod_stack_t *stack)
 	/* Statistics */
 	mod->single_prefetches++;
 
-	mem_debug("    Enqueued single prefetch at addr=0x%x to stream=%d with stride=0x%x(%d)\n", sb->next_address + sb->stride, sb->stream, sb->stride, sb->stride);
+	mem_debug("    Enqueued single prefetch at addr=0x%x to stream=%d with stride=0x%x(%d)\n", sb->next_address, sb->stream, sb->stride, sb->stride);
 	client_info = mod_client_info_create(mod);
 	client_info->core = stack->client_info->core;
 	client_info->thread = stack->client_info->thread;
@@ -3564,6 +3564,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 				if (wb_block->tag == stack->tag)
 				{
 					cache_set_block(target_cache, stack->set, stack->way, stack->tag, wb_block->state);
+					stack->state = wb_block->state;
 					mod_stack_wake_up_write_buffer(wb_block);
 					linked_list_remove(target_cache->wb.blocks);
 					free(wb_block);
