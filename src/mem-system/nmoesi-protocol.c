@@ -3690,16 +3690,16 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			mem_controller->enabled &&
 			stack->request_dir == mod_request_up_down &&
 			!stack->main_memory_accessed &&
-		stack->reply != reply_ack_data_sent_to_peer)
+			stack->reply != reply_ack_data_sent_to_peer)
 		{
-			assert(mem_controller_get_size_queue(stack)<=mem_controller->size_queue);
-			if(mem_controller_get_size_queue(stack)>=mem_controller->size_queue)
+			assert(mem_controller_get_size_queue(stack) <= mem_controller->size_queue);
+			if(mem_controller_get_size_queue(stack) >= mem_controller->size_queue)
 			{
 				stack->err=1;
-                                ret->err = 1;
-                                ret->retry |= 1 << target_mod->level;
-                                mod_stack_set_reply(ret, reply_ack_error);
-                                stack->reply_size = 8;
+				ret->err = 1;
+				ret->retry |= 1 << target_mod->level;
+				mod_stack_set_reply(ret, reply_ack_error);
+				stack->reply_size = 8;
 
 				dir_entry_unlock(dir, stack->set, stack->way);
 
@@ -3707,12 +3707,12 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 				assert(stack->t_access_net >= 0);
 				mem_controller->t_inside_net += esim_cycle() - stack->t_access_net;
 
-				if (ctx)
-					ctx->loader->t_inside_net += esim_cycle() - stack->t_access_net;
+				ctx->loader->t_inside_net += esim_cycle() - stack->t_access_net;
 
 				stack->t_access_net = -1;
-                     		esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST_REPLY, stack, 0);
-                        	return;
+
+				esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST_REPLY, stack, 0);
+				return;
 			}
 
 			mem_controller_register_in_queue(stack);
@@ -3721,8 +3721,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 
 			mem_controller->t_inside_net += esim_cycle() - stack->t_access_net;
 
-			if (ctx)
-				ctx->loader->t_inside_net += esim_cycle() - stack->t_access_net;
+			ctx->loader->t_inside_net += esim_cycle() - stack->t_access_net;
 
 			stack->t_access_net = -1;
 
@@ -3737,7 +3736,8 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 		}
 
 		else if(target_mod->kind == mod_kind_main_memory &&
-			mem_controller->enabled && !stack->main_memory_accessed)
+			mem_controller->enabled &&
+			!stack->main_memory_accessed)
 		{
 			/* Discard result */
 			assert(stack->t_access_net >= 0);
@@ -3753,8 +3753,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			{
 				dir_entry = dir_entry_get(dir, stack->set, stack->way, z);
 				if (dir_entry->owner != mod->low_net_node->index)
-					dir_entry_set_owner(dir, stack->set, stack->way, z,
-						DIR_ENTRY_OWNER_NONE);
+					dir_entry_set_owner(dir, stack->set, stack->way, z, DIR_ENTRY_OWNER_NONE);
 			}
 		}
 
