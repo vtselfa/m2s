@@ -1,3 +1,5 @@
+[ General ]
+
 [ CacheGeometry dl1 ]
 Sets = 128
 Assoc = 4
@@ -219,6 +221,7 @@ PriorityMCQueues = Threshold-FCFS-Normal-Prefetch
 QueuePerBank = 1
 SizeQueue = 128
 EnableReport = True
+RowSize = 8192
 MemoryControllerEnabled = 1
 
 #
