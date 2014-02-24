@@ -825,15 +825,15 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config,
 	dir_assoc = config_read_int(config, section, "DirectoryAssoc", 8);
 	/////////////////////////////////////////////////////////////////////
 	enabled_mc = config_read_int(config, section, "MemoryControllerEnabled", 0);
-	row_size = config_read_int(config, section, "RowSize", 4096);
+	row_size = config_read_int(config, section, "RowSize", 8192); //DDR3
 	ranks = config_read_int(config, section, "Ranks", 1);
 	banks = config_read_int(config, section, "Banks", 8);
 	channels = config_read_int(config, section, "Channels", 1);
 	t_send_request = config_read_int(config, section, "CyclesSendRequest", 1);
-	t_acces_bank_hit = config_read_int(config, section, "CyclesRowBufferHit", 4);
-	t_acces_bank_miss = config_read_int(config, section, "CyclesRowBufferMiss", 20);
+	t_acces_bank_hit = config_read_int(config, section, "CyclesRowBufferHit", 40); /* DDR3@800MHz && CPU@3GHz */
+	t_acces_bank_miss = config_read_int(config, section, "CyclesRowBufferMiss", 120); /* DDR3@800MHz && CPU@3GHz */
 	bandwith = config_read_int(config, section, "Bandwith", 64);
-	cycles_proc_bus = config_read_int(config, section, "CyclesProcByCyclesBus", 4);
+	cycles_proc_bus = config_read_int(config, section, "CyclesProcByCyclesBus", 4); /* DDR3@800MHz && CPU@3GHz */
 	piggybacking = config_read_int(config, section, "Piggybacking", 1);
 	policy = config_read_string(config, section, "PolicyMCQueues", "PrefetchNormalQueue");
 	coalesce = config_read_string(config, section, "Coalesce", "Disabled");
