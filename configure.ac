@@ -812,6 +812,7 @@ AC_CONFIG_FILES([
 		src/mem-system/Makefile
 		src/network/Makefile
 		src/dram/Makefile
+		src/dramsim/Makefile
 
 		src/visual/Makefile
 		src/visual/common/Makefile

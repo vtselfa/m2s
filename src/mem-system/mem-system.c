@@ -16,12 +16,16 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#include <assert.h>
+
 #include <arch/common/arch.h>
+#include <dramsim/bindings-c.h>
 #include <lib/esim/esim.h>
 #include <lib/esim/trace.h>
 #include <lib/mhandle/mhandle.h>
 #include <lib/util/debug.h>
 #include <lib/util/file.h>
+#include <lib/util/hash-table.h>
 #include <lib/util/list.h>
 #include <lib/util/linked-list.h>
 #include <lib/util/string.h>
@@ -46,6 +50,8 @@
 int mem_debug_category;
 int mem_trace_category;
 int mem_peer_transfers;
+
+int EV_MAIN_MEMORY_TIC;
 
 /* Frequency domain, as returned by function 'esim_new_domain'. */
 int mem_frequency = 3000;
@@ -72,6 +78,8 @@ struct mem_system_t *mem_system_create(void)
 	mem_system->mm_mod_list = list_create();
 	mem_system->mem_controllers = linked_list_create();
 	mem_system->pref_into_normal = linked_list_create();
+	mem_system->dram_systems = hash_table_create(0, 0); /* Dram systems, if any */
+
 	/* Return */
 	return mem_system;
 }
@@ -79,7 +87,8 @@ struct mem_system_t *mem_system_create(void)
 
 void mem_system_free(struct mem_system_t *mem_system)
 {
-
+	char *key;
+	struct dram_system_t *dram_system;
 
 	/* Free piggybaking */
 	linked_list_head(mem_system->pref_into_normal);
@@ -106,11 +115,20 @@ void mem_system_free(struct mem_system_t *mem_system)
 		net_free(list_pop(mem_system->net_list));
 	list_free(mem_system->net_list);
 
+	/* Free dram_systems */
+	HASH_TABLE_FOR_EACH(mem_system->dram_systems, key, dram_system)
+	{
+		free(dram_system->name);
+		assert(linked_list_count(dram_system->pending_reads) == 0);
+		linked_list_free(dram_system->pending_reads);
+		dram_system_free(dram_system->handler);
+		free(dram_system);
+	}
+	hash_table_free(mem_system->dram_systems);
+
 	/* Free memory system */
 	free(mem_system);
 }
-
-
 
 
 /*
@@ -453,7 +471,6 @@ void mem_system_init(void)
 			mem_domain_index, "mod_local_mem_find_and_lock_action");
 	EV_MOD_LOCAL_MEM_FIND_AND_LOCK_FINISH = esim_register_event_with_name(mod_handler_local_mem_find_and_lock,
 			mem_domain_index, "mod_local_mem_find_and_lock_finish");
-
 }
 
 
@@ -470,45 +487,39 @@ void mem_system_done(void)
 	mem_system_free(mem_system);
 }
 
+
 void mem_controller_dump_core_report(char * name)
 {
-	
+
 	struct mem_controller_t *mem_controller = linked_list_get(mem_system->mem_controllers);
 	char buf[MAX_STRING_SIZE];
 	FILE * f;
 	for (int i=0; i< mem_controller->num_cores;i++)
 	{
 		snprintf(buf, sizeof buf, "%s.core%d", name,i);
-		
-	
+
 		f = file_open_for_write(buf);
 		if (!f)
 			return;
 
-	
 		fprintf(f, "[MAIN-MEMORY]\n");
 		fprintf(f, "TotalTime = %f\n",mem_controller->core_mc_accesses[i] ? (double) (mem_controller->t_core_wait[i]+ mem_controller->t_core_acces[i]+mem_controller->t_core_transfer[i])/mem_controller->core_mc_accesses[i]:0.0);
 		fprintf(f, "AvgTimeWaitMCQueue = %f\n",mem_controller->core_mc_accesses[i] ? (double)mem_controller->t_core_wait[i]/mem_controller->core_mc_accesses[i]:0.0);
 		fprintf(f, "AvgTimeAccesMM = %f\n",mem_controller->core_mc_accesses[i] ? (double) mem_controller->t_core_acces[i]/mem_controller->core_mc_accesses[i] :0.0);
 		fprintf(f, "AvgTimeTransferFromMM = %f\n",mem_controller->core_mc_accesses[i] ?(double)mem_controller->t_core_transfer[i]/mem_controller->core_mc_accesses[i]:0.0 );
-	
+
 		fprintf(f,"TotalAccessesMC = %lld\n",mem_controller->core_mc_accesses[i]);
 		fprintf(f,"TotalNormalAccessesMC = %lld\n", mem_controller->core_normal_mc_accesses[i]);
 		fprintf(f,"TotalPrefetchAccessesMC = %lld\n", mem_controller->core_pref_mc_accesses[i]);
 		fprintf(f, "PercentRowBufferHit = %f\n",mem_controller->core_mc_accesses[i]?(double) mem_controller->core_row_buffer_hits[i]/mem_controller->core_mc_accesses[i]:0.0 );
-	
+
 		fprintf(f,"\n\n");
-
-
-
 
 		for (int j=0; j<mem_controller->num_regs_bank*mem_controller->num_regs_rank;j++)
 		{
 			fprintf(f, "[Bank-%d]\n",j);
 			fprintf(f, "PercentRowBufferHit = %f\n",mem_controller->core_mc_accesses_per_bank[i][j]?(double) mem_controller->core_row_buffer_hits_per_bank[i][j]/mem_controller->core_mc_accesses_per_bank[i][j]:0.0 );
 			fprintf(f,"TotalAccessesMC = %lld\n", mem_controller->core_mc_accesses_per_bank[i][j]);
-
-
 		}
 		fprintf(f,"\n\n");
 
@@ -535,6 +546,7 @@ void mem_controller_dump_core_report(char * name)
 	}
 }
 
+
 void mem_controller_dump_report()
 {
 	FILE *f;
@@ -560,9 +572,6 @@ void mem_controller_dump_report()
 	long long table_useful_blocks = 0;
 	long long table_num_trans = 0;
 	char buf[MAX_STRING_SIZE];
-		
-
-
 
 	/* Open file */
 	f = file_open_for_write(main_mem_report_file_name);
@@ -585,7 +594,6 @@ void mem_controller_dump_report()
 	fprintf(f, ";    TimeFullPercent - Percent of time which queue is full \n");
 	fprintf(f, "\n\n");
 
-
 	/* Select main memory module */
 	for (int m = 0; m < list_count(mem_system->mod_list); m++)
 	{
@@ -607,7 +615,6 @@ void mem_controller_dump_report()
 					total_bank_parallelism+=mem_controller->regs_channel[c].regs_rank[r].regs_bank[b].parallelism;
 			}
 		}
-
 
 		snprintf(buf, sizeof buf, "%s.%s", main_mem_report_file_name,mod->name );
 		mem_controller_dump_core_report(buf);
@@ -743,7 +750,7 @@ fprintf(f,"\n\n");
 		{
 			fprintf(f, "[Channel-%d (%s)]\n", c,mod->name);
 
-			
+
 			fprintf(f, "AvgTimeWaitRequestSend = %f\n",mem_controller->regs_channel[c].acceses?
 					(double)mem_controller->regs_channel[c].t_wait_send_request/mem_controller->regs_channel[c].acceses : 0.0);
 			fprintf(f, "AvgTimeWaitRequestSendChannelBusy = %f\n",mem_controller->regs_channel[c].num_requests_transfered ?
@@ -757,7 +764,7 @@ fprintf(f,"\n\n");
 			fprintf(f,"\n");
 
 			/*Normal requests*/
-			
+
 			fprintf(f, "AvgTimeNormalWaitRequestSend = %f\n",mem_controller->regs_channel[c].normal_accesses?(double)
 					mem_controller->regs_channel[c].t_normal_wait_send_request/
 					mem_controller->regs_channel[c].normal_accesses:0);
@@ -771,7 +778,7 @@ fprintf(f,"\n\n");
 			fprintf(f,"\n");
 
 			/*Prefetch requests*/
-			
+
 			fprintf(f, "AvgTimePrefetchWaitRequestSend = %f\n",mem_controller->regs_channel[c].pref_accesses?(double)
 					mem_controller->regs_channel[c].t_pref_wait_send_request/mem_controller->regs_channel[c].pref_accesses : 0);
 			fprintf(f, "AvgTimePrefetchWaitRequestSendChannelBusy = %f\n",
@@ -1068,5 +1075,68 @@ struct net_t *mem_system_get_net(char *net_name)
 
 	/* Not found */
 	return NULL;
+}
+
+
+void main_memory_power_callback(double a, double b, double c, double d)
+{
+}
+
+
+void main_memory_read_callback(void *payload, unsigned int id, uint64_t address, uint64_t clock_cycle)
+{
+	int found = 0;
+	struct dram_system_t *dram_system = (struct dram_system_t *) payload;
+
+	/* printf("[Callback] %s read complete: %d 0x%lx cycle=%lu\n", dram_system->name, id, address, clock_cycle); */
+
+	LINKED_LIST_FOR_EACH(dram_system->pending_reads)
+	{
+		struct mod_stack_t *stack = linked_list_get(dram_system->pending_reads);
+		if (stack->addr == address)
+		{
+			stack->main_memory_accessed = 1;
+			esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST_UPDOWN_LATENCY, stack, 0);
+			linked_list_remove(dram_system->pending_reads);
+			found++;
+		}
+	}
+	assert(found == 1);
+}
+
+
+void main_memory_write_callback(void *payload, unsigned int id, uint64_t address, uint64_t clock_cycle)
+{
+}
+
+
+/* Schedules an event to notify dramsim that a main memory cycle has passed */
+void main_memory_tic_scheduler(struct dram_system_t *ds)
+{
+	int cpu_freq = arch_x86->frequency; /* In MHz */
+	int dram_freq = dram_system_get_dram_freq(ds->handler) / 1000000; /* In MHz */
+
+	assert(cpu_freq >= dram_freq);
+
+	/* New domain and event for dramsim clock tics */
+	ds->dram_domain_index = esim_new_domain(dram_freq);
+	EV_MAIN_MEMORY_TIC = esim_register_event_with_name(main_memory_tic_handler, ds->dram_domain_index, "dram_system_tic");
+
+	esim_schedule_event(EV_MAIN_MEMORY_TIC, ds, 1);
+}
+
+
+/* Notifies dramsim that a main memory cycle has passed */
+void main_memory_tic_handler(int event, void *data)
+{
+	struct dram_system_t *ds = (struct dram_system_t*) data;
+
+	/* If simulation has ended and dram system has no more petitions, no more
+	 * events to schedule. */
+	if (esim_finish && !linked_list_count(ds->pending_reads))
+		return;
+
+	dram_system_update(ds->handler);
+	esim_schedule_event(event, ds, 1);
 }
 

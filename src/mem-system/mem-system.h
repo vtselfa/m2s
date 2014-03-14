@@ -20,10 +20,13 @@
 #ifndef MEM_SYSTEM_MEM_SYSTEM_H
 #define MEM_SYSTEM_MEM_SYSTEM_H
 
+#include <stdint.h>
+
 
 /*
  * Memory System Object
  */
+
 
 struct mem_system_t
 {
@@ -39,9 +42,18 @@ struct mem_system_t
 
 	/* Piggybacking */
 	struct linked_list_t *pref_into_normal;
+
+	/* Main memory systems */
+	struct hash_table_t *dram_systems;
 };
 
-
+struct dram_system_t
+{
+	char *name;
+	struct dram_system_handler_t *handler; /* Handler for dramsim */
+	int dram_domain_index;
+	struct linked_list_t *pending_reads; /* We only track pending read requests because writes are enqueue-and-forget */
+};
 
 
 /*
@@ -72,7 +84,8 @@ extern int mem_domain_index;
 /* Global memory system */
 extern struct mem_system_t *mem_system;
 
-
+/* Event for dramsim clock tics */
+extern int EV_MAIN_MEMORY_TIC;
 
 
 /*
@@ -89,5 +102,13 @@ void mem_system_dump_report(void);
 struct mod_t *mem_system_get_mod(char *mod_name);
 struct net_t *mem_system_get_net(char *net_name);
 
+
+void main_memory_power_callback(double a, double b, double c, double d);
+void main_memory_read_callback(void *payload, unsigned int id, uint64_t address, uint64_t clock_cycle);
+void main_memory_write_callback(void *payload, unsigned int id, uint64_t address, uint64_t clock_cycle);
+
+struct main_mem_system_t *mms;
+void main_memory_tic_scheduler(struct dram_system_t *ds);
+void main_memory_tic_handler(int event, void *data);
 
 #endif

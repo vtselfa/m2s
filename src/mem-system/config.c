@@ -22,11 +22,13 @@
 #include <arch/common/arch.h>
 #include <arch/southern-islands/timing/gpu.h>
 #include <arch/x86/timing/cpu.h>
+#include <dramsim/bindings-c.h>
 #include <lib/esim/esim.h>
 #include <lib/esim/trace.h>
 #include <lib/mhandle/mhandle.h>
 #include <lib/util/debug.h>
 #include <lib/util/file.h>
+#include <lib/util/hash-table.h>
 #include <lib/util/linked-list.h>
 #include <lib/util/list.h>
 #include <lib/util/misc.h>
@@ -754,65 +756,21 @@ static struct mod_t *mem_config_read_cache(struct config_t *config,
 static struct mod_t *mem_config_read_main_memory(struct config_t *config,
 	char *section)
 {
+	char *dram_system_name;
+	char *net_name;
+	char *net_node_name;
+
 	char mod_name[MAX_STRING_SIZE];
 
-	int block_size;
-	int latency;
+	int block_size; /* Broken */
+	int latency; /* Only if not using dramsim */
 	int num_ports;
 	int dir_size;
 	int dir_assoc;
 
-	/* MC */
-	int channels;
-        int ranks;
-        int banks;
-        int row_size;
-        int t_send_request;
-        int t_acces_bank_hit;
-        int t_acces_bank_miss;
-        int bandwith;
-        int cycles_proc_bus;
-        int queue_per_bank;
-        int enabled_mc;
-        int photonic;
-        int piggybacking;
-
-        float adapt_limit;
-
-        long long adapt_interval;
-        long long threshold;
-        long long size_queue;
-
-        char *net_name;
-        char *net_node_name;
-        char * policy;
-        char * priority;
-        char * coalesce;
-        char *adapt;
-        char *adapt_interval_kind_str;
-
-	enum policy_mc_queue_t policy_type;
-        enum priority_t prio_type;
-        enum policy_coalesce_t coalesce_type;
-        enum interval_kind_t adapt_interval_kind;
-
 	struct mod_t *mod;
 	struct net_t *net;
 	struct net_node_t *net_node;
-
-	char *report_file_name;
-	char *report_interval_kind_str;
-
-	char default_report_file_name[MAX_STRING_SIZE];
-
-	long long report_interval;
-
-	int enable_report;
-	int enable_table;
-	int assoc_table;
-	int rb_per_bank;
-	int rbt_coal;
-	int rbt_per_bank_per_ctx;
 
 	/* Read parameters */
 	str_token(mod_name, sizeof mod_name, section, 1, " ");
@@ -823,229 +781,27 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config,
 	num_ports = config_read_int(config, section, "Ports", 2);
 	dir_size = config_read_int(config, section, "DirectorySize", 1024);
 	dir_assoc = config_read_int(config, section, "DirectoryAssoc", 8);
-	/////////////////////////////////////////////////////////////////////
-	enabled_mc = config_read_int(config, section, "MemoryControllerEnabled", 0);
-	row_size = config_read_int(config, section, "RowSize", 8192); //DDR3
-	ranks = config_read_int(config, section, "Ranks", 1);
-	banks = config_read_int(config, section, "Banks", 8);
-	channels = config_read_int(config, section, "Channels", 1);
-	t_send_request = config_read_int(config, section, "CyclesSendRequest", 1);
-	t_acces_bank_hit = config_read_int(config, section, "CyclesRowBufferHit", 40); /* DDR3@800MHz && CPU@3GHz */
-	t_acces_bank_miss = config_read_int(config, section, "CyclesRowBufferMiss", 120); /* DDR3@800MHz && CPU@3GHz */
-	bandwith = config_read_int(config, section, "Bandwith", 64);
-	cycles_proc_bus = config_read_int(config, section, "CyclesProcByCyclesBus", 4); /* DDR3@800MHz && CPU@3GHz */
-	piggybacking = config_read_int(config, section, "Piggybacking", 1);
-	policy = config_read_string(config, section, "PolicyMCQueues", "PrefetchNormalQueue");
-	coalesce = config_read_string(config, section, "Coalesce", "Disabled");
-	priority = config_read_string(config, section, "PriorityMCQueues", "Threshold-Normal-Prefetch");
-	threshold = config_read_llint(config, section, "Threshold", 100000000000);
-	size_queue = config_read_llint(config, section, "SizeQueue", 100000000000);
-	queue_per_bank = config_read_llint(config, section, "QueuePerBank", 0);
-	photonic = config_read_llint(config, section, "PhotonicNet", 0);
-	adapt = config_read_string(config, section, "Adaptative", "Disabled");
-	adapt_limit = config_read_double(config, section, "AdaptativeLimit", 0.5);
-	adapt_interval = config_read_llint(config, section, "AdaptativeInterval", 500000);
-	adapt_interval_kind_str = config_read_string(config, section, "AdaptativeIntervalKind", "Cycles");
-	enable_table = config_read_int(config, section, "EnableRowBufferTable", 0);
-	assoc_table = config_read_int(config, section, "AssociativityRowBufferTable", 2);
-	rbt_per_bank_per_ctx = config_read_int(config, section, "EnableRBTableBuffersPerBankPerCore", 0);
-	rbt_coal = config_read_int(config, section, "EnableCoalesceRowBufferTable", 0);
-	rb_per_bank = config_read_int(config, section, "RowBufferPerBank", 1);
-        /////////////////////////////////////////////////////////////////////
-
-	/* Enables for this mem controller interval reporting statistics */
-	snprintf(default_report_file_name, MAX_STRING_SIZE, "%s.interval.report", mod_name);
-	enable_report = config_read_bool(config, section, "EnableReport", 0);
-	report_interval = config_read_llint(config, section, "ReportInterval", 50000);
-	report_interval_kind_str = config_read_string(config, section, "ReportIntervalKind", "cycles");
-	report_file_name = config_read_string(config, section, "ReportFile", default_report_file_name);
-
-
+	dram_system_name = config_read_string(config, section, "DRAMSystem", "");
 
 	/* Check parameters */
 	if (block_size < 1 || (block_size & (block_size - 1)))
 		fatal("%s: %s: block size must be power of two.\n%s",
-			mem_config_file_name, mod_name, mem_err_config_note);
+				mem_config_file_name, mod_name, mem_err_config_note);
 	if (latency < 1)
 		fatal("%s: %s: invalid value for variable 'Latency'.\n%s",
-			mem_config_file_name, mod_name, mem_err_config_note);
+				mem_config_file_name, mod_name, mem_err_config_note);
 	if (num_ports < 1)
 		fatal("%s: %s: invalid value for variable 'NumPorts'.\n%s",
-			mem_config_file_name, mod_name, mem_err_config_note);
+				mem_config_file_name, mod_name, mem_err_config_note);
 	if (dir_size < 1 || (dir_size & (dir_size - 1)))
 		fatal("%s: %s: directory size must be a power of two.\n%s",
-			mem_config_file_name, mod_name, mem_err_config_note);
+				mem_config_file_name, mod_name, mem_err_config_note);
 	if (dir_assoc < 1 || (dir_assoc & (dir_assoc - 1)))
 		fatal("%s: %s: directory associativity must be a power of "
-			"two.\n%s", mem_config_file_name, mod_name,
-			mem_err_config_note);
+				"two.\n%s", mem_config_file_name, mod_name, mem_err_config_note);
 	if (dir_assoc > dir_size)
 		fatal("%s: %s: invalid directory associativity.\n%s",
-			mem_config_file_name, mod_name, mem_err_config_note);
-
-	adapt_interval_kind = str_map_string_case(&interval_kind_map, adapt_interval_kind_str);
-        if(!adapt_interval_kind)
-                fatal("%s: mm %s: invalid adaptative interval kind. "
-                        "Valid values are {Cycles Instructions}.\n%s",
-                        mem_config_file_name, mod_name, mem_err_config_note);
-
-
-        if(strcmp(adapt, "Disabled")!=0 && strcmp(adapt, "Enabled")!=0)
-                fatal("%s: mm %s: %s: invalid value for variable 'Adaptative'. "
-                        "Valid values are {Disabled Enabled}.\n%s",
-                        mem_config_file_name, mod_name, adapt, mem_err_config_note);
-
-        if (adapt_interval<0)
-                fatal("%s: %s: invalid value for variable 'Interval'.\n%s",
-                        mem_config_file_name, mod_name, mem_err_config_note);
-        if (adapt_limit<0 || adapt_limit>1)
-                fatal("%s: %s: invalid value for variable 'AdaptativeLimit'.\n%s",
-                        mem_config_file_name, mod_name, mem_err_config_note);
-
-	if (ranks < 1 || (ranks & (ranks - 1)))
-                fatal("%s: %s: ranks must be power of two.\n%s",
-                        mem_config_file_name, mod_name, mem_err_config_note);
-        if (banks < 1 || (banks & (banks - 1)))
-                fatal("%s: %s: banks must be power of two.\n%s",
-                        mem_config_file_name, mod_name, mem_err_config_note);
-        if (row_size < 1 || (row_size & (row_size - 1)))
-                fatal("%s: %s: row size must be power of two.\n%s",
-                        mem_config_file_name, mod_name, mem_err_config_note);
-        if (channels < 1 || (channels & (channels - 1)))
-                fatal("%s: %s: channels size must be power of two.\n%s",
-                        mem_config_file_name, mod_name, mem_err_config_note);
-        if (t_send_request < 1 )
-                fatal("%s: %s: invalid value for variable 'CyclesSendRequest'.\n%s",
-                        mem_config_file_name, mod_name, mem_err_config_note);
-        if (t_acces_bank_hit < 1 )
-                fatal("%s: %s: invalid value for variable 'CyclesRowBufferHit'.\n%s",
-                        mem_config_file_name, mod_name, mem_err_config_note);
-        if (t_acces_bank_miss < 1 )
-                fatal("%s: %s: invalid value for variable 'CyclesRowBufferMiss'.\n%s",
-                        mem_config_file_name, mod_name, mem_err_config_note);
-        if (bandwith < 1 || (bandwith & (bandwith - 1)))
-                fatal("%s: %s: bandwith must be power of two.\n%s",
-                        mem_config_file_name, mod_name, mem_err_config_note);
-        if (cycles_proc_bus < 0)
-                fatal("%s: %s:invalid value for variable 'CyclesProcByCyclesBus'.\n%s",
-                        mem_config_file_name, mod_name, mem_err_config_note);
-        if (threshold < 0)
-                fatal("%s: %s:invalid value for variable 'Threshold'.\n%s",
-                        mem_config_file_name, mod_name, mem_err_config_note);
-        if (strcmp(policy, "OneQueue") == 0)
-                policy_type = policy_one_queue_FCFS;
-        else if (strcmp(policy, "PrefetchNormalQueue") == 0)
-                policy_type = policy_prefetch_normal_queues;
-        else
-                fatal("%s: %s:invalid value for variable 'PolicyMCQueues'.\n%s",
-                        mem_config_file_name, mod_name, mem_err_config_note);
-	if(photonic<0 || photonic>1)
-		fatal("%s: %s:invalid value for variable 'PhotonicNet'.\n%s",
-			mem_config_file_name, mod_name, mem_err_config_note);
-
-	if(strcmp(coalesce, "Disabled") == 0)
-	{
-		coalesce_type = policy_coalesce_disabled;
-	}
-	else if(strcmp(coalesce, "Coalesce") == 0)
-	{
-		coalesce_type = policy_coalesce;
-		if(!queue_per_bank)
-		{
-			warning(" Coalesced option is just compatible with a queue for each bank\n");
-			queue_per_bank=1;
-		}
-	}
-	else if(strcmp(coalesce, "CoalesceUsefulBlocks") == 0)
-	{
-		coalesce_type = policy_coalesce_useful_blocks;
-		if(!queue_per_bank)
-		{
-			warning(" Coalesced option is just compatible with a queue for each bank\n");
-			queue_per_bank=1;
-		}
-
-	}
-	else if(strcmp(coalesce, "CoalesceDelayedRequest") == 0)
-	{
-		coalesce_type = policy_coalesce_delayed_request;
-		if(!queue_per_bank)
-		{
-			warning(" Coalesced option is just compatible with a queue for each bank\n");
-			queue_per_bank=1;
-		}
-	}
-	else
-		fatal("%s: %s: invalid value for variable 'Coalesce'.\n%s",
-			mem_config_file_name, mod_name, mem_err_config_note);
-
-	if (size_queue <= 0)
-		fatal("%s: %s:invalid value for variable 'SizeQueue'.\n%s",
-			mem_config_file_name, mod_name, mem_err_config_note);
-	if (strcmp(priority, "Threshold-Normal-Prefetch") == 0) // normalRBH-normal-prefRBH-pref
-		prio_type = prio_threshold_normal_pref;
-	else if (strcmp(priority, "Threshold-RowBufferHit-FCFS") == 0)//normalRBH-prefRBH-normal-pref
-		prio_type = prio_threshold_RowBufHit_FCFS;
-	else if (strcmp(priority, "Threshold-Normal-PrefetchHit-PrefetchGroup") == 0)
-		prio_type = prio_threshold_normal_prefHit_prefGroup;
-	else if (strcmp(priority, "Threshold-Normal-PrefetchHit-PrefetchGroupCoalesce") == 0)
-		prio_type = prio_threshold_normal_prefHit_prefGroupCoalesce;
-	else if (strcmp(priority, "Threshold-RowBufferHit-Normal-PrefetchHit-PrefetchGroup") == 0)
-		prio_type = prio_threshold_RowBufHit_normal_prefHit_prefGroup;
-	else if (strcmp(priority, "Threshold-RowBufferHit-Normal-PrefetchHit-PrefetchGroupCoalesce") == 0)
-		prio_type = prio_threshold_RowBufHit_normal_prefHit_prefGroupCoalesce;
-	else if (strcmp(priority, "Threshold-RowBufferHit-PrefetchHit-Normal-PrefetchGroup") == 0)
-		prio_type = prio_threshold_RowBufHit_prefHit_normal_prefGroup;
-	else if (strcmp(priority, "Threshold-RowBufferHit-PrefetchHit-Normal-PrefetchGroupCoalesce") == 0)
-		prio_type = prio_threshold_RowBufHit_prefHit_normal_prefGroupCoalesce;
-	else if (strcmp(priority, "Threshold-Prefetch-Normal") == 0)
-		prio_type = prio_threshold_pref_normal;
-	else if (strcmp(priority, "Threshold-PrefetchHit-Normal-PrefetchGroup") == 0)
-		prio_type = prio_threshold_prefHit_normal_prefGroup;
-	else if (strcmp(priority, "Threshold-PrefetchHit-Normal-PrefetchGroupCoalesce") == 0)
-		prio_type = prio_threshold_prefHit_normal_prefGroupCoalesce;
-	else if (strcmp(priority, "Threshold-PrefetchRBH-NormalRBH-Normal-Prefetch") == 0)
-		prio_type = prio_threshold_prefRBH_normalRBH_normal_pref;
-	else if (strcmp(priority, "Threshold-PrefetchHitRBH-NormalRBH-Normal-Prefetch-PrefetchGroup") == 0)
-		prio_type = prio_threshold_prefHitRBH_normalRBH_normal_prefHit_prefGroup;
-	else if (strcmp(priority, "Threshold-PrefetchHitRBH-NormalRBH-Normal-Prefetch-PrefetchGroupCoalesce") == 0)
-		prio_type = prio_threshold_prefHitRBH_normalRBH_normal_prefHit_prefGroupCoalesce;
-	else if (strcmp(priority, "Dynamic") == 0)
-		prio_type = prio_dynamic;
-	else if (strcmp(priority, "Threshold-FCFS-Normal-Prefetch") == 0)
-		prio_type = prio_FCFS_normal_pref;
-	else
-		fatal("%s: %s: invalid value for variable 'PriorityMCQueues'.\n%s",
-			mem_config_file_name, mod_name, mem_err_config_note);
-
-	if (queue_per_bank < 0 || queue_per_bank > 1)
-		fatal("%s: %s: invalid value for variable 'QueuePerBank'.\n%s",
-			mem_config_file_name, mod_name, mem_err_config_note);
-	if (enabled_mc < 0 || enabled_mc > 1)
-		fatal("%s: %s: invalid value for variable 'MemoryControllerEnabled'.\n%s",
-			mem_config_file_name, mod_name, mem_err_config_note);
-	if (piggybacking < 0 || piggybacking > 1)
-		fatal("%s: %s: invalid value for variable 'Piggybacking'.\n%s",
-			mem_config_file_name, mod_name, mem_err_config_note);
-	if (enable_table < 0 || enable_table > 1)
-		fatal("%s: %s: invalid value for variable 'EnableRowBufferTable'.\n%s",
-			mem_config_file_name, mod_name, mem_err_config_note);
-	if (assoc_table < 1)
-		fatal("%s: %s: invalid value for variable 'AssociativityRowBufferTable'.\n%s",
-			mem_config_file_name, mod_name, mem_err_config_note);
-
-	if(enable_table&& coalesce_type != policy_coalesce_disabled) // PPPPP ESTA RESTRICCIO MES AVANT LA LLEVARE
-		fatal("Coalesce can not be enabled with row buffer table enabled\n");
-	if (rbt_coal < 0 || rbt_coal > 1)
-		fatal("%s: %s: invalid value for variable 'EnableCoalesceRowBufferTable'.\n%s",
-			mem_config_file_name, mod_name, mem_err_config_note);
-	 if (rb_per_bank < 1 )
-                fatal("%s: %s: invalid value for variable 'RowBufferPerBank'.\n%s",
-                        mem_config_file_name, mod_name, mem_err_config_note);
-	if (rbt_per_bank_per_ctx < 0 || rbt_per_bank_per_ctx > 1)
-		fatal("%s: %s: invalid value for variable 'EnableRBTableBuffersPerBankPerCore'.\n%s",
-			mem_config_file_name, mod_name, mem_err_config_note);
-
+				mem_config_file_name, mod_name, mem_err_config_note);
 
 	/* Create module */
 	mod = mod_create(mod_name, mod_kind_main_memory, num_ports,
@@ -1060,60 +816,18 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config,
 	net_name = config_read_string(config, section, "HighNetwork", "");
 	net_node_name = config_read_string(config, section, "HighNetworkNode", "");
 	mem_config_insert_module_in_network(config, mod, net_name,
-		net_node_name, &net, &net_node);
+			net_node_name, &net, &net_node);
 	mod->high_net = net;
 	mod->high_net_node = net_node;
 
 	/* Create cache and directory */
 	mod->cache = cache_create(mod->name, dir_size / dir_assoc, 0, 0, block_size,
-		dir_assoc, cache_policy_lru);
+			dir_assoc, cache_policy_lru);
 
-	 /* Create main memory */
-	mod->regs_rank = regs_rank_create(ranks, banks, t_acces_bank_hit, t_acces_bank_miss, rb_per_bank );
-	mod->num_regs_rank = ranks;
+	/* Connect to specified main mem system */
+	mod->dram_system = hash_table_get(mem_system->dram_systems, dram_system_name);
 
-	/* Create memory controller */
-	mod->mem_controller = mem_controller_create();
-	mem_controller_init_main_memory(mod->mem_controller, channels, ranks, banks,
-	t_send_request, row_size, block_size, cycles_proc_bus, policy_type, prio_type,
-	size_queue, threshold, queue_per_bank, coalesce_type, mod->regs_rank, bandwith);
-
-	/*Create row buffer table*/
-	if(!rbt_per_bank_per_ctx)
-		mem_controller_row_buffer_table_create(mod->mem_controller, enable_table, assoc_table, rbt_coal, rbt_per_bank_per_ctx, ranks, banks, block_size);
-	else
-		mem_controller_row_buffer_table_per_ctx_create(mod->mem_controller, enable_table, assoc_table, rbt_coal, rbt_per_bank_per_ctx, ranks, banks,block_size);
-
-
-
-	mod->mem_controller->photonic_net = photonic;
-	mod->mem_controller->piggybacking=piggybacking;
-	if(strcmp(adapt, "Disabled") == 0)
-		mod->mem_controller->adaptative=0;
-	else
-	{
-		mod->mem_controller->adaptative=1;
-		mod->mem_controller->adapt_interval_kind=adapt_interval_kind;
-		mod->mem_controller->adapt_interval=adapt_interval;
-		mod->mem_controller->adapt_percent=adapt_limit;
-	}
-	mod->mem_controller->enabled = enabled_mc;
-	mod->mem_controller->report_interval = report_interval;
-	if(enable_report)
-	{
-		mod->mem_controller->report_enabled = enable_report;
-		mod->mem_controller->report_file = file_open_for_write(report_file_name);
-		if (!mod->mem_controller->report_file)
-			fatal("%s: cannot open mem controller report file", report_file_name);
-
-		mod->mem_controller->report_interval_kind = str_map_string_case(&interval_kind_map, report_interval_kind_str);
-		if(!mod->mem_controller->report_interval_kind || mod->mem_controller->report_interval_kind==interval_kind_instructions )
-			fatal("%s: mem controller %s: invalid value for variable "
-				"'ReportMCIntervalKind'.\n%s", mem_config_file_name,
-				mod->name, mem_err_config_note);
-	}
-
-	linked_list_add(mem_system->mem_controllers, mod->mem_controller);
+	list_add(mem_system->mm_mod_list, mod);
 
 	/* Return */
 	return mod;
@@ -1251,6 +965,62 @@ invalid_format:
 }
 
 
+static void mem_config_read_dram_systems(struct config_t *config)
+{
+	struct dram_system_handler_t *handler;
+	struct dram_system_t *dram_system;
+
+	char *section;
+	char *device_config_str; /* Path to INI file */
+	char *system_config_str; /* Path to INI file */
+	char *report_file_str;
+
+	char dram_system_name[MAX_STRING_SIZE];
+
+	int megabytes; /* Total size */
+
+	/* Create main memory systems */
+	mem_debug("Creating main memory systems:\n");
+	for (section = config_section_first(config); section;
+		section = config_section_next(config))
+	{
+		/* Section for a main memory system */
+		if (strncasecmp(section, "DRAMSystem ", 11))
+			continue;
+
+		/* Read config parameters */
+		str_token(dram_system_name, sizeof dram_system_name, section, 1, " ");
+		device_config_str = config_read_string(config, section, "DeviceDescription", "ini/DDR2_micron_16M_8b_x8_sg3E.ini");
+		system_config_str = config_read_string(config, section, "SystemDescription", "system.ini");
+		report_file_str = config_read_string(config, section, "ReportFile", "dramstats");
+		megabytes = config_read_int(config, section, "MB", 4096);
+
+		/* Create a handler to the underlying dramsim c++ objects */
+    	handler = dram_system_create(device_config_str, system_config_str, megabytes, report_file_str);
+
+		/* Create a wrapper to store multi2sim related data and dramsim handler */
+		dram_system = xcalloc(1, sizeof(struct dram_system_t));
+		dram_system->name = xstrdup(dram_system_name);
+		dram_system->handler = handler;
+    	dram_system->pending_reads = linked_list_create();
+
+		/* Configure dramsim using the handler */
+		dram_system_set_cpu_freq(handler, (long long) arch_x86->frequency * 1000000); /* Freq must be in Hz */
+		dram_system_register_payloaded_callbacks(handler, dram_system, main_memory_read_callback, main_memory_write_callback, main_memory_power_callback);
+
+		/* Add dram system to hash table */
+		hash_table_insert(mem_system->dram_systems, dram_system_name, dram_system);
+		mem_debug("\t%s\n", dram_system_name);
+
+		/* Schedule an event to notify dramsim that a cycle has passed */
+		main_memory_tic_scheduler(dram_system);
+	}
+
+	/* Debug */
+	mem_debug("\n");
+}
+
+
 static void mem_config_read_modules(struct config_t *config)
 {
 	struct mod_t *mod;
@@ -1324,7 +1094,6 @@ static void mem_config_read_modules(struct config_t *config)
 
 	}
 
-
 	/* Debug */
 	mem_debug("\n");
 
@@ -1382,6 +1151,7 @@ static void mem_config_check_route_to_main_memory(struct mod_t *mod,
 		mem_config_check_route_to_main_memory(low_mod, block_size, level + 1);
 	}
 }
+
 
 static void mem_config_read_low_modules(struct config_t *config)
 {
@@ -1958,11 +1728,10 @@ static void mem_config_fill_lists(int core, int thread, struct mod_t *mod)
 }
 
 
-
-
 /*
  * Public Functions
  */
+
 
 void mem_config_read(void)
 {
@@ -1977,15 +1746,18 @@ void mem_config_read(void)
 		arch_for_each(mem_config_default, config);
 	else
 		config_load(config);
+
 	/* Read general variables */
 	mem_config_read_general(config);
 
 	/* Read networks */
 	mem_config_read_networks(config);
 
+	/* Read main memory systems */
+	mem_config_read_dram_systems(config);
+
 	/* Read modules */
 	mem_config_read_modules(config);
-
 
 	/* Read low level caches */
 	mem_config_read_low_modules(config);

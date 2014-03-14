@@ -171,8 +171,10 @@ struct mod_t
 	int num_req_input_buffer;
 
 	/* Mem controller associated to mm */
-	struct mem_controller_t *mem_controller;
+	struct mem_controller_t *mem_controller; /* DEPRECATED */
 
+	/* Dramsim */
+	struct dram_system_t *dram_system;
 
 	/* Module level starting from entry points */
 	int level;
