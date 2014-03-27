@@ -1086,21 +1086,26 @@ void main_memory_power_callback(double a, double b, double c, double d)
 void main_memory_read_callback(void *payload, unsigned int id, uint64_t address, uint64_t clock_cycle)
 {
 	int found = 0;
+	struct mod_stack_t *stack;
 	struct dram_system_t *dram_system = (struct dram_system_t *) payload;
 
-	/* printf("[Callback] %s read complete: %d 0x%lx cycle=%lu\n", dram_system->name, id, address, clock_cycle); */
-
-	LINKED_LIST_FOR_EACH(dram_system->pending_reads)
+	/* You cannnot use LINKED_LIST_FOR_EACH if you plan to remove elements */
+	linked_list_head(dram_system->pending_reads);
+	while(!linked_list_is_end(dram_system->pending_reads))
 	{
-		struct mod_stack_t *stack = linked_list_get(dram_system->pending_reads);
+		stack = linked_list_get(dram_system->pending_reads);
 		if (stack->addr == address)
 		{
+			mem_debug("  %lld %lld 0x%x %s dram access completed\n", esim_time, stack->id, stack->tag, stack->target_mod->dram_system->name);
 			stack->main_memory_accessed = 1;
 			esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST_UPDOWN_LATENCY, stack, 0);
 			linked_list_remove(dram_system->pending_reads);
 			found++;
 		}
+		else
+			linked_list_next(dram_system->pending_reads);
 	}
+
 	assert(found == 1);
 }
 
@@ -1133,7 +1138,7 @@ void main_memory_tic_handler(int event, void *data)
 
 	/* If simulation has ended and dram system has no more petitions, no more
 	 * events to schedule. */
-	if (esim_finish && !linked_list_count(ds->pending_reads))
+	if (esim_finish && !linked_list_count(ds->pending_reads) && !esim_event_count())
 		return;
 
 	dram_system_update(ds->handler);

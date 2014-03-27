@@ -3654,6 +3654,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			}
 
 			/* Access main memory system */
+			mem_debug("  %lld %lld 0x%x %s dram access enqueued\n", esim_time, stack->id, stack->tag, stack->target_mod->dram_system->name);
 			linked_list_add(ds->pending_reads, stack);
 			dram_system_add_read_trans(ds->handler, stack->addr);
 
@@ -4501,6 +4502,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			}
 
 			/* Access main memory system */
+			mem_debug("  %lld %lld 0x%x %s dram access enqueued\n", esim_time, stack->id, stack->tag, stack->target_mod->dram_system->name);
 			linked_list_add(ds->pending_reads, stack);
 			dram_system_add_read_trans(ds->handler, stack->addr);
 
