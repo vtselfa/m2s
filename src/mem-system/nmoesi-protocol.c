@@ -2664,7 +2664,6 @@ void mod_handler_nmoesi_evict(int event, void *data)
 
 	struct mod_t *mod = stack->mod;
 	struct mod_t *target_mod = stack->target_mod;
-//	struct mem_controller_t * mem_controller;
 
 	struct dir_t *dir;
 	struct dir_entry_t *dir_entry;
@@ -2763,14 +2762,13 @@ void mod_handler_nmoesi_evict(int event, void *data)
 			msg_size = 8 + mod->block_size;
 			stack->reply = reply_ack_data;
 		}
+
 		/* If state is E/S, just an ack needs to be sent */
 		else
 		{
 			msg_size = 8;
 			stack->reply = reply_ack;
 		}
-
-
 
 		/* Send message */
 		stack->msg = net_try_send_ev(mod->low_net, mod->low_net_node,
@@ -2787,26 +2785,6 @@ void mod_handler_nmoesi_evict(int event, void *data)
 
 		/* Receive message */
 		net_receive(target_mod->high_net, target_mod->high_net_node, stack->msg);
-
-		/*If directory queue is busy , reply */
-		/*if(target_mod->kind == mod_kind_main_memory && stack->request_dir == mod_request_up_down && mem_controller->enabled)
-		{
-
-			assert(target_mod->num_req_input_buffer <= target_mod->num_ports);
-			if(target_mod->num_req_input_buffer >=target_mod->num_ports)
-			{
-				stack->err=1;
-				ret->err = 1;
-				ret->retry |= 1 << target_mod->level;
-				mod_stack_set_reply(ret, reply_ack_error);
-				stack->reply_size = 8;
-				esim_schedule_event(EV_MOD_NMOESI_EVICT_REPLY, stack, 0);
-				return;
-			}else{
-				target_mod->num_req_input_buffer++;
-				//mem_debug( " %lld num req input %d\n", stack->id, target_mod->num_req_input_buffer );
-			}
-		}*/
 
 		/* Find and lock */
 		if (stack->state == cache_block_noncoherent)
@@ -2856,7 +2834,30 @@ void mod_handler_nmoesi_evict(int event, void *data)
 		else if (stack->reply == reply_ack_data)
 		{
 			if(target_mod->kind == mod_kind_main_memory)
-				main_mem_trace("0x%x WRITE %lld\n", stack->tag, esim_cycle());
+			{
+				struct dram_system_t *ds = target_mod->dram_system;
+
+				assert(ds);
+
+				/* Retry if memory controller cannot accept transaction */
+				if (!dram_system_will_accept_trans(ds->handler, stack->addr))
+				{
+					stack->err = 1;
+					ret->err = 1;
+					ret->retry |= 1 << target_mod->level;
+
+					dir = target_mod->dir;
+					dir_entry_unlock(dir, stack->set, stack->way);
+
+					mem_debug("    %lld 0x%x %s mc queue full, retrying write...\n", stack->id, stack->tag, target_mod->name);
+
+					esim_schedule_event(EV_MOD_NMOESI_EVICT_REPLY, stack, 0);
+					return;
+				}
+
+				/* Access main memory system */
+				dram_system_add_write_trans(ds->handler, stack->addr);
+			}
 
 			if (stack->state == cache_block_exclusive)
 			{
@@ -2906,14 +2907,14 @@ void mod_handler_nmoesi_evict(int event, void *data)
 		dir = target_mod->dir;
 		dir_entry_unlock(dir, stack->set, stack->way);
 
-		esim_schedule_event(EV_MOD_NMOESI_EVICT_REPLY, stack, target_mod->latency);
+		/* If the access is to a dram system then return inmediately, because the transaction is already
+		 * inserted in the memory controller and will be processed in background */
+		esim_schedule_event(EV_MOD_NMOESI_EVICT_REPLY, stack, target_mod->dram_system ? 0 : target_mod->latency);
 		return;
 	}
 
 	if (event == EV_MOD_NMOESI_EVICT_PROCESS_NONCOHERENT)
 	{
-		//mem_controller= target_mod->mem_controller;
-
 		mem_debug("  %lld %lld 0x%x %s evict process noncoherent\n", esim_time, stack->id,
 			stack->tag, target_mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:evict_process_noncoherent\"\n",
