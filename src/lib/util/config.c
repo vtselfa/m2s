@@ -53,7 +53,7 @@ struct config_t
 {
 	/* Text file name containing configuration */
 	char *file_name;
-	
+
 	/* Hash table containing present elements
  	 * The values for sections are (void *) 1, while the values for variables are the
 	 * actual value represented for that variable in the config file. */
@@ -63,6 +63,14 @@ struct config_t
 	 * The keys are strings "<section>\n<variable>".
 	 * The values are SECTION_VARIABLE_ALLOWED/SECTION_VARIABLE_MANDATORY */
 	struct hash_table_t *allowed_items;
+
+
+	/* Flag to enable or disable interpolation, disabled by default.
+	 * ${foo} will be replaced by value of variable 'foo' in the same section.
+	 * If there is not, it will be replaced by value of variable 'foo' in 'DEFAULT' section.
+	 * If neither exists, it is keept untouched.
+	 */
+	 int interpolation;
 };
 
 
@@ -203,7 +211,7 @@ static int config_insert_var(struct config_t *config, char *section, char *var, 
 struct config_t *config_create(char *filename)
 {
 	struct config_t *config;
-	
+
 	/* Initialize */
 	config = xcalloc(1, sizeof(struct config_t));
 	config->file_name = xstrdup(filename);
@@ -251,6 +259,20 @@ char *config_get_file_name(struct config_t *config)
 }
 
 
+/* Get interpolation flag */
+int config_get_interpolation(struct config_t *config)
+{
+	return config->interpolation;
+}
+
+
+/* Set interpolation flag */
+void config_set_interpolation(struct config_t *config, int state)
+{
+	config->interpolation = state;
+}
+
+
 void config_load(struct config_t *config)
 {
 	FILE *f;
@@ -266,12 +288,12 @@ void config_load(struct config_t *config)
 	int line_num;
 	int length;
 	int err;
-	
+
 	/* Try to open file for reading */
 	f = fopen(config->file_name, "rt");
 	if (!f)
 		fatal("%s: cannot open configuration file", config->file_name);
-	
+
 	/* Read lines */
 	section[0] = '\0';
 	line_num = 0;
@@ -289,7 +311,7 @@ void config_load(struct config_t *config)
 		/* Comment or blank line */
 		if (!line_trim[0] || line_trim[0] == ';' || line_trim[0] == '#')
 			continue;
-		
+
 		/* New "[ <section> ]" entry */
 		length = strlen(line_trim);
 		if (line_trim[0] == '[' && line_trim[length - 1] == ']')
@@ -313,7 +335,7 @@ void config_load(struct config_t *config)
 		if (!section[0])
 			fatal("%s: line %d: section name expected.\n%s",
 				config->file_name, line_num, config_err_format);
-		
+
 		/* New "<var> = <value>" entry. */
 		err = get_var_value_from_item(line_trim, var, sizeof var, value, sizeof value);
 		if (err)
@@ -326,7 +348,7 @@ void config_load(struct config_t *config)
 			fatal("%s: line %d: duplicated variable '%s'.\n%s",
 				config->file_name, line_num, var, config_err_format);
 	}
-	
+
 	/* Close file */
 	fclose(f);
 }
@@ -338,12 +360,12 @@ void config_save(struct config_t *config)
 	char *section;
 	char *item, *value;
 	FILE *f;
-	
+
 	/* Try to open file for writing */
 	f = fopen(config->file_name, "wt");
 	if (!f)
 		fatal("%s: cannot save configuration file", config->file_name);
-	
+
 	/* Create a list with all sections first */
 	section_list = linked_list_create();
 	for (item = hash_table_find_first(config->items, (void **) &value); item;
@@ -376,7 +398,7 @@ void config_save(struct config_t *config)
 
 	/* Free section list */
 	linked_list_free(section_list);
-	
+
 	/* close file */
 	fclose(f);
 }
@@ -471,7 +493,7 @@ void config_write_string(struct config_t *config, char *section, char *var, char
 		hash_table_insert(config->allowed_items, section, ITEM_ALLOWED);
 	if (!hash_table_get(config->allowed_items, item))
 		hash_table_insert(config->allowed_items, item, ITEM_ALLOWED);
-	
+
 	/* Write value */
 	config_insert_section(config, section);
 	config_insert_var(config, section, var, value);
@@ -532,7 +554,12 @@ void config_write_ptr(struct config_t *config, char *section, char *var, void *v
 char *config_read_string(struct config_t *config, char *section, char *var, char *def)
 {
 	char item[MAX_LONG_STRING_SIZE];
+	char buffer[MAX_LONG_STRING_SIZE];
 	char *value;
+	int ini = 0;
+	int fin = 0;
+	int done = 0;
+	int b = 0;
 
 	/* Add section and variable to the set of allowed items, as long as
 	 * it is not added already as a mandatory item. */
@@ -541,10 +568,56 @@ char *config_read_string(struct config_t *config, char *section, char *var, char
 		hash_table_insert(config->allowed_items, section, ITEM_ALLOWED);
 	if (!hash_table_get(config->allowed_items, item))
 		hash_table_insert(config->allowed_items, item, ITEM_ALLOWED);
-	
+
 	/* Read value */
 	value = hash_table_get(config->items, item);
-	return value ? value : def;
+
+	if (!config->interpolation || !value)
+		return value ? value : def;
+
+	/* Interpolation */
+	memset(buffer, 0, MAX_LONG_STRING_SIZE);
+	for (char *c = value; *c && b < MAX_LONG_STRING_SIZE - 1; c++)
+	{
+		if (*c == '$' && *(c + 1) == '{')
+		{
+			/* Search end delimiter */
+			for (fin = ini; *c && *c != '}'; c++, fin++);
+
+			/* Found */
+			if (*c)
+			{
+				char tmp[MAX_LONG_STRING_SIZE];
+				char *replacement;
+
+				ini += 2; /* Skip '${' */
+				snprintf(tmp, fin - ini + 1, "%s", &value[ini]);
+
+				/* Search for a replacement */
+				if(strcmp(tmp, var) != 0) /* Avoid infinite recursion */
+					replacement = config_read_string(config, section, tmp, NULL);
+				if (!replacement && config_section_exists(config, "DEFAULT"))
+					replacement = config_read_string(config, "DEFAULT", tmp, NULL);
+				if (replacement)
+					b += snprintf(&buffer[b], MAX_LONG_STRING_SIZE - strlen(buffer) - 1, "%s", replacement);
+			}
+			ini = fin;
+			done |= 1;
+			continue;
+		}
+		buffer[b++] = *c;
+		ini++;
+	}
+
+	/* Interpolation done */
+	if (done)
+	{
+		free(value);
+		value = xstrdup(buffer);
+		hash_table_set(config->items, item, value);
+	}
+
+	return value;
 }
 
 
@@ -581,7 +654,7 @@ long long config_read_llint(struct config_t *config, char *section, char *var, l
 	result = config_read_string(config, section, var, NULL);
 	if (!result)
 		return def;
-	
+
 	/* Convert */
 	value = str_to_llint(result, &err);
 	if (err)
@@ -606,7 +679,7 @@ int config_read_bool(struct config_t *config, char *section, char *var, int def)
 	if (!strcasecmp(result, "t") || !strcasecmp(result, "True")
 		|| !strcasecmp(result, "On"))
 		return 1;
-	
+
 	/* False */
 	if (!strcasecmp(result, "f") || !strcasecmp(result, "False")
 		|| !strcasecmp(result, "Off"))
@@ -656,12 +729,12 @@ int config_read_enum(struct config_t *config, char *section, char *var, int def,
 	result = config_read_string(config, section, var, NULL);
 	if (!result)
 		return def;
-	
+
 	/* Translate */
 	for (i = 0; i < map_count; i++)
 		if (!strcasecmp(map[i], result))
 			return i;
-	
+
 	/* No match found with map */
 	fprintf(stderr, "%s: section '[ %s ]': variable '%s': invalid value ('%s')\n",
 		config->file_name, section, var, result);
@@ -760,7 +833,7 @@ void config_check(struct config_t *config)
 	for (item = hash_table_find_first(config->allowed_items, &property);
 		item; item = hash_table_find_next(config->allowed_items, &property))
 	{
-		
+
 		/* If this is an allowed (not mandatory) item, continue */
 		if (property == ITEM_ALLOWED)
 			continue;
@@ -775,7 +848,7 @@ void config_check(struct config_t *config)
 			fatal("%s: section [ %s ]: missing mandatory variable '%s'",
 				config->file_name, section, var);
 	}
-	
+
 	/* Go through all present sections/keys and check they are present in the
 	 * set of allowed/mandatory items. */
 	for (item = hash_table_find_first(config->items, NULL);
@@ -810,7 +883,7 @@ void config_section_check(struct config_t *config, char *section_ref)
 	for (item = hash_table_find_first(config->allowed_items, &property);
 		item; item = hash_table_find_next(config->allowed_items, &property))
 	{
-		
+
 		/* If this is an allowed (not mandatory) item, continue */
 		if (property == ITEM_ALLOWED)
 			continue;
@@ -826,7 +899,7 @@ void config_section_check(struct config_t *config, char *section_ref)
 			fatal("%s: section [ %s ]: missing mandatory variable '%s'",
 				config->file_name, section, var);
 	}
-	
+
 	/* Go through all present sections/keys and check they are present in the
 	 * set of allowed/mandatory items. */
 	for (item = hash_table_find_first(config->items, NULL);

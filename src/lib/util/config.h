@@ -29,6 +29,10 @@ void config_free(struct config_t *config);
 /* Get the file name */
 char *config_get_file_name(struct config_t *config);
 
+/* Get/set interpolation flag */
+int config_get_interpolation(struct config_t *config);
+void config_set_interpolation(struct config_t *config, int state);
+
 /* Load/save configuration */
 void config_load(struct config_t *config);
 void config_save(struct config_t *config);

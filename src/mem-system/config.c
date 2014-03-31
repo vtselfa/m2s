@@ -1742,6 +1742,8 @@ void mem_config_read(void)
 	/* Load memory system configuration file. If no file name has been given
 	 * by the user, create a default configuration for each architecture. */
 	config = config_create(mem_config_file_name);
+	config_set_interpolation(config, 1);
+
 	if (!*mem_config_file_name)
 		arch_for_each(mem_config_default, config);
 	else
