@@ -588,7 +588,7 @@ char *config_read_string(struct config_t *config, char *section, char *var, char
 			if (*c)
 			{
 				char tmp[MAX_LONG_STRING_SIZE];
-				char *replacement;
+				char *replacement = NULL;
 
 				ini += 2; /* Skip '${' */
 				snprintf(tmp, fin - ini + 1, "%s", &value[ini]);
@@ -857,7 +857,7 @@ void config_check(struct config_t *config)
 		/* Check if it is allowed */
 		get_section_var_from_item(item, section, sizeof section,
 			var, sizeof var);
-		if (item_is_allowed(config, section, var))
+		if (item_is_allowed(config, section, var) || strcmp(section, "DEFAULT") == 0) /* DEFAULT section is not checked */
 			continue;
 
 		/* It is not, error */

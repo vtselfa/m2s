@@ -15,7 +15,10 @@
 *.Po
 Makefile
 Makefile.in
-config.*
+config.log
+config.status
+config.sub
+config.guess
 autom4te.cache/*
 TAGS
 tags
@@ -42,7 +45,7 @@ install-sh
 missing
 .deps/
 bin/
-/lib/
+lib/
 /m4/
 compile
 libtool
