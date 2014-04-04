@@ -639,12 +639,12 @@ void x86_loader_free(struct x86_loader_t *ld)
 	str_free(ld->stdin_file);
 	str_free(ld->stdout_file);
 
-	
+
 	if(ld->mc_accesses_per_bank!=NULL)
 		free(ld->mc_accesses_per_bank);
 	if(ld->row_buffer_hits_per_bank!=NULL)
 		free(ld->row_buffer_hits_per_bank);
-	
+
 
 	free(ld);
 }
@@ -655,7 +655,7 @@ void x86_loader_report_dump(struct x86_loader_t *ctx, FILE *f)
 	if (!f)
 		return;
 
-	
+
 	fprintf(f, "[MAIN-MEMORY]\n");
 	fprintf(f, "TotalTimeGoComeL2 = %f\n",ctx->mc_accesses ? (double) (ctx->t_wait+ ctx->t_acces+ctx->t_transfer+ctx->t_inside_net)/ctx->mc_accesses:0.0);
 	fprintf(f, "TotalTime = %f\n",ctx->mc_accesses ? (double) (ctx->t_wait+ ctx->t_acces+ctx->t_transfer)/ctx->mc_accesses:0.0);
@@ -672,7 +672,7 @@ void x86_loader_report_dump(struct x86_loader_t *ctx, FILE *f)
 	fprintf(f,"\n\n");
 
 
-	
+
 
 
 	for (int i=0; i<ctx->num_banks;i++)
@@ -680,12 +680,12 @@ void x86_loader_report_dump(struct x86_loader_t *ctx, FILE *f)
 		fprintf(f, "[Bank-%d]\n",i);
 		fprintf(f, "PercentRowBufferHit = %f\n",ctx->mc_accesses_per_bank[i]?(double) ctx->row_buffer_hits_per_bank[i]/ctx->mc_accesses_per_bank[i]:0.0 );
 		fprintf(f,"TotalAccessesMC = %lld\n", ctx->mc_accesses_per_bank[i]);
-	
+
 
 	}
 
 
-	
+
 	fprintf(f, "\n\n");
 }
 
@@ -829,7 +829,7 @@ void x86_loader_load_from_ctx_config(struct config_t *config, char *section)
 			"ReportFile", default_report_file_name);
 	ld->ipc_report_interval = config_read_llint(config, section,
 			"ReportInterval", 50000);
-	if (enable_report)
+	if (enable_report && arch_x86->sim_kind == arch_sim_kind_detailed)
 	{
 		ld->ipc_report_file = file_open_for_write(ipc_report_file_name);
 		if (!ld->ipc_report_file)

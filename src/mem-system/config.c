@@ -1793,10 +1793,13 @@ void mem_config_read(void)
 	/* Compute cache levels relative to the CPU/GPU entry points */
 	mem_config_calculate_mod_levels();
 
-	X86_CORE_FOR_EACH X86_THREAD_FOR_EACH
+	if (arch_x86->sim_kind == arch_sim_kind_detailed)
 	{
-		mem_config_fill_lists(core, thread, X86_THREAD.data_mod);
-		mem_config_fill_lists(core, thread, X86_THREAD.inst_mod);
+		X86_CORE_FOR_EACH X86_THREAD_FOR_EACH
+		{
+			mem_config_fill_lists(core, thread, X86_THREAD.data_mod);
+			mem_config_fill_lists(core, thread, X86_THREAD.inst_mod);
+		}
 	}
 
 	/* Dump configuration to trace file */
