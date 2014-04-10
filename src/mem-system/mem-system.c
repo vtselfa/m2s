@@ -1141,7 +1141,7 @@ void main_memory_tic_handler(int event, void *data)
 	if (esim_finish && !linked_list_count(ds->pending_reads) && !esim_event_count())
 		return;
 
-	dram_system_update(ds->handler);
+	dram_system_dram_tick(ds->handler);
 	esim_schedule_event(event, ds, 1);
 }
 
