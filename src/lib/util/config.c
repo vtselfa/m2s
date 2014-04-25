@@ -865,7 +865,7 @@ void config_check(struct config_t *config)
 			fatal("%s: invalid section [ %s ]",
 				config->file_name, section);
 		else
-			fatal("%s: section [ %s ]: invalid variable '%s'",
+			warning("%s: section [ %s ]: invalid variable '%s'",
 				config->file_name, section, var);
 	}
 }
