@@ -2833,7 +2833,8 @@ void mod_handler_nmoesi_evict(int event, void *data)
 		}
 		else if (stack->reply == reply_ack_data)
 		{
-			if(target_mod->kind == mod_kind_main_memory)
+			if(target_mod->kind == mod_kind_main_memory &&
+					target_mod->dram_system)
 			{
 				struct dram_system_t *ds = target_mod->dram_system;
 
@@ -3631,6 +3632,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 
 		/* If another module has not given the block, access main memory */
 		if (target_mod->kind == mod_kind_main_memory &&
+			target_mod->dram_system &&
 			stack->request_dir == mod_request_up_down &&
 			!stack->main_memory_accessed &&
 			stack->reply != reply_ack_data_sent_to_peer)
@@ -4478,6 +4480,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 		/* If another module has not given the block,
 		access main memory */
 		if (target_mod->kind == mod_kind_main_memory &&
+				target_mod->dram_system &&
 				stack->request_dir == mod_request_up_down &&
 				!stack->main_memory_accessed &&
 				stack->reply != reply_ack_data_sent_to_peer)
