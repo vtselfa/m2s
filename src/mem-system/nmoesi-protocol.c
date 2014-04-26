@@ -2908,9 +2908,9 @@ void mod_handler_nmoesi_evict(int event, void *data)
 		dir = target_mod->dir;
 		dir_entry_unlock(dir, stack->set, stack->way);
 
-		/* If the access is to a dram system then return inmediately, because the transaction is already
-		 * inserted in the memory controller and will be processed in background */
-		esim_schedule_event(EV_MOD_NMOESI_EVICT_REPLY, stack, target_mod->dram_system ? 0 : target_mod->latency);
+		/* If the access is to main memory then return inmediately, because the transaction is already
+		 * inserted and will be processed in background if using a memory controller or ignored if using a fixed latency main memory */
+		esim_schedule_event(EV_MOD_NMOESI_EVICT_REPLY, stack, target_mod->kind == mod_kind_main_memory ? 0 : target_mod->latency);
 		return;
 	}
 
