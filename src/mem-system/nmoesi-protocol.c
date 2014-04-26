@@ -2841,7 +2841,7 @@ void mod_handler_nmoesi_evict(int event, void *data)
 				assert(ds);
 
 				/* Retry if memory controller cannot accept transaction */
-				if (!dram_system_will_accept_trans(ds->handler, stack->addr))
+				if (!dram_system_will_accept_trans(ds->handler, stack->tag))
 				{
 					stack->err = 1;
 					ret->err = 1;
@@ -2857,7 +2857,7 @@ void mod_handler_nmoesi_evict(int event, void *data)
 				}
 
 				/* Access main memory system */
-				dram_system_add_write_trans(ds->handler, stack->addr);
+				dram_system_add_write_trans(ds->handler, stack->tag);
 			}
 
 			if (stack->state == cache_block_exclusive)
