@@ -479,10 +479,6 @@ void mem_system_done(void)
 	/* Dump report */
 	mem_system_dump_report();
 
-	/* Dump mem controller report*/
-
-	mem_controller_dump_report();
-
 	/* Free memory system */
 	mem_system_free(mem_system);
 }
