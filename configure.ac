@@ -709,6 +709,7 @@ AC_SUBST([PKGDATADIR])
 debug=false
 #CFLAGS="-msse2 -O3 -std=gnu99 -DNDEBUG"
 CFLAGS="-msse2 -Wall -O3 -std=gnu99"
+CXXFLAGS="-msse2 -Wall -O3"
 AC_ARG_ENABLE(debug,
 [  --enable-debug    Turn on debugging],
 [
@@ -727,6 +728,7 @@ AC_ARG_ENABLE(debug,
 				[ AC_MSG_RESULT([no]) ]
 			)
 		CFLAGS="$saved_flags"
+		CXXFLAGS="-msse2 -Wall -Werror -g -O0"
 		;;
 	no)
 		;;
