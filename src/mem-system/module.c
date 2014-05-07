@@ -21,11 +21,13 @@
 #include <arch/x86/timing/cpu.h>
 #include <arch/x86/emu/context.h>
 #include <arch/x86/emu/emu.h>
+#include <dramsim/bindings-c.h>
 #include <lib/esim/esim.h>
 #include <lib/mhandle/mhandle.h>
 #include <lib/util/debug.h>
 #include <lib/util/file.h>
 #include <lib/util/linked-list.h>
+#include <lib/util/list.h>
 #include <lib/util/line-writer.h>
 #include <lib/util/misc.h>
 #include <lib/util/string.h>
@@ -105,7 +107,6 @@ struct mod_t *mod_create(char *name, enum mod_kind_t kind, int num_ports,
 	/* Lists */
 	mod->low_mod_list = linked_list_create();
 	mod->high_mod_list = linked_list_create();
-	mod->threads = linked_list_create();
 
 	/* Block size */
 	mod->block_size = block_size;
@@ -114,7 +115,12 @@ struct mod_t *mod_create(char *name, enum mod_kind_t kind, int num_ports,
 
 	mod->client_info_repos = repos_create(sizeof(struct mod_client_info_t), mod->name);
 
+	mod->reachable_threads = xcalloc((long long) x86_cpu_num_cores * (long long) x86_cpu_num_threads, sizeof(char));
+	mod->reachable_mm_modules = list_create();
+
 	mod->start_queue_full = -1;
+
+	mod->mc_id = -1; /* By default */
 
 	return mod;
 }
@@ -125,13 +131,8 @@ void mod_free(struct mod_t *mod)
 	linked_list_free(mod->low_mod_list);
 	linked_list_free(mod->high_mod_list);
 
-	/* Free the queue containing the threads that can access this module */
-	LINKED_LIST_FOR_EACH(mod->threads)
-	{
-		struct core_thread_tuple_t *tuple = linked_list_get(mod->threads);
-		free(tuple);
-	}
-	linked_list_free(mod->threads);
+	free(mod->reachable_threads);
+	list_free(mod->reachable_mm_modules);
 
 	if (mod->cache)
 		cache_free(mod->cache);
@@ -898,7 +899,6 @@ void mod_adapt_pref_handler(int event, void *data)
 	struct mod_adapt_pref_stack_t *stack = data;
 	struct mod_t *mod = stack->mod;
 	struct cache_t *cache = mod->cache;
-	struct core_thread_tuple_t *tuple;
 
 	/* If simulation has ended, no more
 	 * events to schedule. */
@@ -932,54 +932,44 @@ void mod_adapt_pref_handler(int event, void *data)
 	double accuracy_int = completed_prefetches_int ? (double) useful_prefetches_int / completed_prefetches_int : 0.0;
 	accuracy_int = accuracy_int > 1 ? 1 : accuracy_int; /* May be slightly greather than 1 due bad timing with cycles */
 
-	//double BWC_int;
-	//double BWN_int;
-	double BWNO_int; /* Bandwidth Needed By Others */
-	double BWTics_int = x86_cpu->BWTics - stack->last_BWTics; /* Number of samples taken */
+	double BWNO_int = 0; /* Bandwidth Needed By Others */
 
 	/* ROB % stalled cicles due a memory instruction */
 	long long cycles_stalled = 0;
 	long long cycles_stalled_int;
-	long long BWC = 0;
-	long long BWN = 0;
-	long long BWNO = 0;
+	long long uinst_count = 0;
 	{
 		int cores = 0;
-		int *cores_presence_vector = xcalloc(x86_cpu_num_cores, sizeof(int));
-		LINKED_LIST_FOR_EACH(mod->threads)
+		for (int core = 0; core < x86_cpu_num_cores; core++)
 		{
-			tuple = (struct core_thread_tuple_t *) linked_list_get(mod->threads);
-			if(!cores_presence_vector[tuple->core])
+			/* Reachable cores */
+			if (mod->reachable_threads[core * x86_cpu_num_threads])
 			{
-				cycles_stalled += x86_cpu->core[tuple->core].dispatch_stall_cycles_rob_mem;
-				BWC += x86_cpu->core[tuple->core].BWC;
-				BWN += x86_cpu->core[tuple->core].BWN;
-
-				cores_presence_vector[tuple->core] = 1;
+				uinst_count += X86_CORE.num_committed_uinst;
+				cycles_stalled += x86_cpu->core[core].dispatch_stall_cycles_rob_mem;
 				cores++;
+			}
+
+			/* Non reachable cores */
+			else
+			{
+				int i;
+				LIST_FOR_EACH(mod->reachable_mm_modules, i)
+				{
+					struct mod_t *mm_mod = list_get(mod->reachable_mm_modules, i);
+					BWNO_int += dram_system_get_bwn(mm_mod->dram_system->handler, mm_mod->mc_id, core);
+				}
 			}
 		}
 		cycles_stalled /= cores;
 		cycles_stalled_int = cycles_stalled - stack->last_cycles_stalled;
-		BWC /= cores; /* Ignore lost precision due integuer division */
-		BWN /= cores; /* Ignore lost precision due integuer division */
-
-		for (int core = 0; core < x86_cpu->num_cores; core++)
-			if (!cores_presence_vector[core])
-				BWNO += x86_cpu->core[core].BWN;
-
-		free(cores_presence_vector);
 	}
 
 	double ratio_cycles_stalled = esim_cycle() - stack->last_cycle > 0 ? (double)
 		cycles_stalled_int / (esim_cycle() - stack->last_cycle) : 0.0;
 
-	//BWC_int = BWTics_int ? (double) (BWC - stack->last_BWC) / BWTics_int : 0.0;
-	//BWN_int = BWTics_int ? (double) (BWN - stack->last_BWN) / BWTics_int : 0.0;
-	BWNO_int = BWTics_int ? (double) (BWNO - stack->last_BWNO) / BWTics_int : 0.0;
-
 	/* Mean IPC for all the contexts accessing this module */
-	double ipc_int = (double) (stack->inst_count - stack->last_inst_count) /
+	double ipc_int = (double) (uinst_count - stack->last_uinst_count) /
 		(esim_cycle() - stack->last_cycle);
 
 	/* Strides detected */
@@ -1263,12 +1253,8 @@ void mod_adapt_pref_handler(int event, void *data)
 	stack->last_no_retry_hits = mod->no_retry_hits;
 	stack->last_misses_int = misses_int;
 	stack->last_strides_detected = cache->prefetch.stride_detector.strides_detected;
-	stack->last_inst_count = stack->inst_count;
+	stack->last_uinst_count = uinst_count;
 	stack->last_ipc_int = ipc_int;
-	stack->last_BWC = BWC;
-	stack->last_BWN = BWN;
-	stack->last_BWNO = BWNO;
-	stack->last_BWTics = x86_cpu->BWTics;
 
 	/* Schedule new event */
 	assert(mod->cache->prefetch.adapt_interval);
@@ -1386,19 +1372,15 @@ void mod_report_handler(int event, void *data)
 	if (esim_finish)
 		return;
 
-	/* Don't write statistics if number of instructions has been reached */
-	int limit = 1;
-	LINKED_LIST_FOR_EACH(mod->threads)
-	{
-		struct core_thread_tuple_t *tuple = (struct core_thread_tuple_t *) linked_list_get(mod->threads);
-		int core = tuple->core;
-		int thread = tuple->thread;
-
-		if (!x86_emu_min_inst_per_ctx || (X86_THREAD.ctx && X86_THREAD.ctx->inst_count < x86_emu_min_inst_per_ctx))
-			limit = 0;
-	}
-	if (limit)
-		return;
+	/* Iterate all reachable threads */
+	/* Stop reporting stats for this module if all threads accessing it have reached its minimum of executed instructions */
+	for (int core = 0; core < x86_cpu_num_cores; core++)
+		for (int thread = 0; thread < x86_cpu_num_threads; thread++)
+			if (mod->reachable_threads[core * x86_cpu_num_threads + thread]) /* Can this thread access the module? */
+				if (!x86_emu_min_inst_per_ctx || (X86_THREAD.ctx && X86_THREAD.ctx->inst_count < x86_emu_min_inst_per_ctx)) /* Reached limit? */
+					goto minimum_not_reached;
+	return;
+	minimum_not_reached:;
 
 	/* Prefetch accuracy */
 	long long completed_prefetches_int = mod->completed_prefetches -
@@ -1432,65 +1414,45 @@ void mod_report_handler(int event, void *data)
 		(double) effective_useful_prefetches_int / completed_prefetches_int : 0.0;
 	effective_prefetch_accuracy_int = effective_prefetch_accuracy_int > 1 ? 1 : effective_prefetch_accuracy_int; /* May be slightly greather than 1 due bad timing with cycles */
 
-	double BWC_int;
-	double BWN_int;
-	double BWNO_int; /* Bandwidth Needed By Others */
-
-	long long BWC = 0;
-	long long BWN = 0;
-	long long BWNO = 0;
-
+	double BWNO_int = 0; /* Bandwidth Needed By Others */
+	long long uinst_count = 0;
 	long long cycles_stalled = 0;
-	long long inst_count = 0;
-
 	double pct_rob_stalled_int; /* ROB % stalled cicles due a memory instruction */
 	{
-		int core;
 		int cores = 0;
-		int *cores_presence_vector = xcalloc(x86_cpu_num_cores, sizeof(int));
-
 		long long cycles_int = esim_cycle() - stack->last_cycle;
 		long long cycles_stalled_int;
 
-		double BWTics_int = x86_cpu->BWTics - stack->last_BWTics; /* Number of samples taken */
-
-		struct core_thread_tuple_t *tuple;
-
-		LINKED_LIST_FOR_EACH(mod->threads)
+		for (int core = 0; core < x86_cpu_num_cores; core++)
 		{
-			tuple = (struct core_thread_tuple_t *) linked_list_get(mod->threads);
-			if(!cores_presence_vector[tuple->core])
+			/* Reachable cores */
+			if (mod->reachable_threads[core * x86_cpu_num_threads])
 			{
-				core = tuple->core;
-				inst_count += X86_CORE.num_committed_uinst;
-				cycles_stalled += x86_cpu->core[tuple->core].dispatch_stall_cycles_rob_mem;
-				BWC += x86_cpu->core[tuple->core].BWC;
-				BWN += x86_cpu->core[tuple->core].BWN;
-
-				cores_presence_vector[tuple->core] = 1;
+				uinst_count += X86_CORE.num_committed_uinst;
+				cycles_stalled += x86_cpu->core[core].dispatch_stall_cycles_rob_mem;
 				cores++;
 			}
+
+			/* Non reachable cores */
+			else
+			{
+				int i;
+				LIST_FOR_EACH(mod->reachable_mm_modules, i)
+				{
+					struct mod_t *mm_mod = list_get(mod->reachable_mm_modules, i);
+					BWNO_int += dram_system_get_bwn(mm_mod->dram_system->handler, mm_mod->mc_id, core);
+				}
+			}
 		}
+
 		cycles_stalled /= cores;
 		cycles_stalled_int = cycles_stalled - stack->last_cycles_stalled;
 		pct_rob_stalled_int = (esim_cycle() - stack->last_cycle) ? (double)
 				100 * cycles_stalled_int / cycles_int : 0.0;
-
-		BWC /= cores; /* Ignore lost precision due integuer division */
-		BWN /= cores; /* Ignore lost precision due integuer division */
-		for (core = 0; core < x86_cpu->num_cores; core++)
-			if (!cores_presence_vector[core])
-				BWNO += x86_cpu->core[core].BWN;
-
-		BWC_int = BWTics_int ? (double) (BWC - stack->last_BWC) / BWTics_int : 0.0;
-		BWN_int = BWTics_int ? (double) (BWN - stack->last_BWN) / BWTics_int : 0.0;
-		BWNO_int = BWTics_int ? (double) (BWNO - stack->last_BWNO) / BWTics_int : 0.0;
-
-		free(cores_presence_vector);
 	}
 
 	/* MPKI */
-	double mpki_int = (double) misses_int / ((inst_count - stack->inst_count) / 1000.0);
+	double mpki_int = (double) misses_int / ((uinst_count - stack->uinst_count) / 1000.0);
 
 	/* Pseudocoverage */
 	double pseudocoverage_int = (misses_int + useful_prefetches_int) ?
@@ -1501,7 +1463,7 @@ void mod_report_handler(int event, void *data)
 
 	/* Dump stats */
 	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", esim_cycle());
-	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", inst_count);
+	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", uinst_count);
 	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", completed_prefetches_int);
 	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", mod->completed_prefetches);
 	line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", prefetch_accuracy_int);
@@ -1514,8 +1476,6 @@ void mod_report_handler(int event, void *data)
 	line_writer_add_column(lw, 9, line_writer_align_right, "%u", mod->cache->pref_enabled && mod->accesses ? mod->cache->prefetch.pol_num_slots : 0);
 	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", detected_strides_int);
 	line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", pct_rob_stalled_int);
-	line_writer_add_column(lw, 6, line_writer_align_right, "%.2f", BWC_int);
-	line_writer_add_column(lw, 6, line_writer_align_right, "%.2f", BWN_int);
 	line_writer_add_column(lw, 6, line_writer_align_right, "%.2f", BWNO_int);
 	line_writer_add_column(lw, 9, line_writer_align_right, "%u", mod->cache->prefetch.flags);
 
@@ -1524,7 +1484,7 @@ void mod_report_handler(int event, void *data)
 
 	/* Update counters */
 	stack->last_cycle = esim_cycle();
-	stack->inst_count = inst_count;
+	stack->uinst_count = uinst_count;
 	stack->delayed_hits = mod->delayed_hits;
 	stack->delayed_hit_cycles = mod->delayed_hit_cycles;
 	stack->useful_prefetches = mod->useful_prefetches;
@@ -1536,10 +1496,6 @@ void mod_report_handler(int event, void *data)
 	stack->misses_int = misses_int;
 	stack->strides_detected = mod->cache->prefetch.stride_detector.strides_detected;
 	stack->last_cycles_stalled = cycles_stalled;
-	stack->last_BWC = BWC;
-	stack->last_BWN = BWN;
-	stack->last_BWNO = BWNO;
-	stack->last_BWTics = x86_cpu->BWTics;
 
 	/* Schedule new event */
 	assert(mod->report_interval);

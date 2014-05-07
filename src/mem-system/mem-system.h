@@ -53,6 +53,7 @@ struct dram_system_t
 	struct dram_system_handler_t *handler; /* Handler for dramsim */
 	int dram_domain_index;
 	struct linked_list_t *pending_reads; /* We only track pending read requests because writes are enqueue-and-forget */
+	int num_mcs; /* Number of memory controllers in this dram system */
 };
 
 

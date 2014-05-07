@@ -3328,7 +3328,7 @@ void mem_controller_bandwidth_control_stats_handler(int event, void *data)
 			for(int rb = 0; rb < regs_rank[r].regs_bank[b].row_buffer_per_bank; rb++)
 			{
 				core = regs_rank[r].regs_bank[b].row_buffers[rb].current_core;
-				x86_cpu->core[core].BWC++;
+				/* x86_cpu->core[core].BWC++; */
 			}
 		}
 	}
@@ -3357,7 +3357,7 @@ void mem_controller_bandwidth_control_stats_handler(int event, void *data)
 			{
 				/* printf("%d ", bitmap[i]); */
 				if (bitmap[i] == 1)
-					x86_cpu->core[i].BWN++;
+					/* x86_cpu->core[i].BWN++; */
 				bitmap[i] = 0; /* Reset bitmap */
 			}
 			/* printf("\n "); */

@@ -29,18 +29,12 @@
 extern int EV_MOD_ADAPT_PREF;
 extern int EV_MOD_REPORT;
 
-struct core_thread_tuple_t
-{
-	int core;
-	int thread;
-};
-
 struct mod_report_stack_t
 {
 	struct mod_t *mod;
 	struct line_writer_t *line_writer;
 	long long last_cycle;
-	long long inst_count;
+	long long uinst_count;
 	long long delayed_hits;
 	long long delayed_hit_cycles;
 	long long useful_prefetches;
@@ -52,10 +46,6 @@ struct mod_report_stack_t
 	long long misses_int;
 	long long strides_detected;
 	long long last_cycles_stalled;
-	long long last_BWC;
-	long long last_BWN;
-	long long last_BWNO;
-	long long last_BWTics;
 };
 
 
@@ -129,8 +119,7 @@ enum mod_range_kind_t
 struct mod_adapt_pref_stack_t
 {
 	struct mod_t *mod;
-	long long inst_count;
-	long long last_inst_count;
+	long long last_uinst_count;
 	long long last_cycle;
 	long long last_useful_prefetches;
 	long long last_completed_prefetches;
@@ -163,8 +152,6 @@ struct mod_t
 	int dir_latency;
 	int mshr_size;
 
-	struct linked_list_t *threads; /* List of (core, thread) tuples that can access this module */
-
 	/* Main memory module */
 	struct reg_rank_t *regs_rank; // ranks which this channels connects with
 	int num_regs_rank;
@@ -174,6 +161,7 @@ struct mod_t
 	struct mem_controller_t *mem_controller; /* DEPRECATED */
 
 	/* Dramsim */
+	int mc_id; /* If dramsim enabled, in main memory modules this field stores the id of the memory controller attached */
 	struct dram_system_t *dram_system;
 
 	/* Module level starting from entry points */
@@ -275,8 +263,8 @@ struct mod_t
 	 * memory hierarchy, the field is used to check this restriction. */
 	struct arch_t *arch;
 
-	/* For constructing a list with all the modules with adaptative prefetch */
-	int visited;
+	char *reachable_threads; /* Vector of booleans with cores x threads_per_core size. Indicates the threads that can reach this module. */
+	struct list_t *reachable_mm_modules; /* List of main memory modules that can be reached from this module */
 
 	/* Stack for activate/deactivate prefetch at intervals */
 	struct mod_adapt_pref_stack_t *adapt_pref_stack;

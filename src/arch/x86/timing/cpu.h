@@ -189,13 +189,6 @@ struct x86_thread_t
 	struct mod_t *data_mod;  /* Entry for data */
 	struct mod_t *inst_mod;  /* Entry for instructions */
 
-	/* List of modules with adaptative prefetch reachables from this thread
-	 * which status must be updated at a fixed instruction interval */
-	struct linked_list_t *adapt_pref_modules;
-
-	/* The same, but for modules that report statistics at a fixed interval */
-	struct linked_list_t *stats_reporting_modules;
-
 	/* Cycle in which last micro-instruction committed */
 	long long last_commit_cycle;
 
@@ -359,10 +352,6 @@ struct x86_core_t
 	long long reg_file_xmm_full;
 	long long reg_file_xmm_reads;
 	long long reg_file_xmm_writes;
-
-	/* Badwidth control stats */
-	long long BWC; /* Raw value. Must be divided by BWTics */
-	long long BWN; /* Raw value. Must be divided by BWTics */
 };
 
 

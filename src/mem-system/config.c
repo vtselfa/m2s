@@ -826,6 +826,7 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config,
 
 	/* Connect to specified main mem system */
 	mod->dram_system = hash_table_get(mem_system->dram_systems, dram_system_name);
+	mod->mc_id = mod->dram_system->num_mcs++; /* Asign an ID and increment the number of memory controllers in the dram system */
 
 	list_add(mem_system->mm_mod_list, mod);
 
@@ -1691,40 +1692,77 @@ static void mem_config_read_commands(struct config_t *config)
 }
 
 
-/* Constructs for a given core thread pair a list with all the reachable mods with adaptative prefetch. It also constructs in each module a list of (core, thread) tuples from wich it's reachable. */
-static void mem_config_fill_lists(int core, int thread, struct mod_t *mod)
+/* Set in each module the main memory modules it can access */
+static void mem_config_main_memory_reachability()
 {
-	struct mod_t *low_mod;
-	struct core_thread_tuple_t *tuple;
+	int i;
+	struct list_t *stack = list_create();
 
-	if(mod->visited)
-		return;
-	mod->visited = 1;
-
-	/* Add (core, thread) to the mod's list */
-	tuple = xcalloc(1, sizeof(struct core_thread_tuple_t));
-	tuple->core = core;
-	tuple->thread = thread;
-	linked_list_add(mod->threads, tuple);
-
-	/* Add mod to the list of mods with adapt pref enabled */
-	if (mod->cache->prefetch.adapt_policy)
+	/* Complete dram_system reachability for main memory modules */
+	LIST_FOR_EACH(mem_system->mm_mod_list, i)
 	{
-		assert(mod->cache->prefetch.type);
-		linked_list_add(X86_THREAD.adapt_pref_modules, mod);
+		struct mod_t *mod = list_get(mem_system->mm_mod_list, i);
+		assert(mod->dram_system);
+		assert(mod->kind == mod_kind_main_memory);
+		assert(!list_count(mod->reachable_mm_modules));
+		list_add(mod->reachable_mm_modules, mod);
+		list_push(stack, mod);
 	}
 
-	/* Add to the list of modules reporting statistics at fixed intervals */
-	if (mod->report_enabled)
-		linked_list_add(X86_THREAD.stats_reporting_modules, mod);
-
-	/* Explore lower modules */
-	for (linked_list_head(mod->low_mod_list); !linked_list_is_end(mod->low_mod_list);
-		linked_list_next(mod->low_mod_list))
+	/* Process pending modules */
+	while (list_count(stack))
 	{
-		low_mod = linked_list_get(mod->low_mod_list);
-		mem_config_fill_lists(core, thread, low_mod);
+		struct mod_t *mod = list_pop(stack);
+		assert(list_count(mod->reachable_mm_modules));
+		LINKED_LIST_FOR_EACH(mod->high_mod_list)
+		{
+			struct mod_t *high_mod = linked_list_get(mod->high_mod_list);
+			LIST_FOR_EACH(mod->reachable_mm_modules, i)
+			{
+				struct mod_t *mm_mod = list_get(mod->reachable_mm_modules, i);
+				if (list_index_of(high_mod->reachable_mm_modules, mm_mod) == -1) /* If not found */
+					list_add(high_mod->reachable_mm_modules, mm_mod);
+			}
+			list_push(stack, high_mod);
+		}
 	}
+	list_free(stack);
+}
+
+
+/* Set in each module the threads that can access it */
+static void mem_config_thread_reachability()
+{
+	struct list_t *stack = list_create();
+
+	for (int core = 0; core < x86_cpu_num_cores; core++)
+		for (int thread = 0; thread < x86_cpu_num_threads; thread++)
+		{
+			X86_THREAD.data_mod->reachable_threads[core * x86_cpu_num_threads + thread] = 1;
+			X86_THREAD.inst_mod->reachable_threads[core * x86_cpu_num_threads + thread] = 1;
+			list_push(stack, X86_THREAD.data_mod);
+			list_push(stack, X86_THREAD.inst_mod);
+		}
+
+	/* Process pending modules */
+	while (list_count(stack))
+	{
+		struct mod_t *mod = list_pop(stack);
+		LINKED_LIST_FOR_EACH(mod->low_mod_list)
+		{
+			struct mod_t *low_mod = linked_list_get(mod->low_mod_list);
+			int or = 0; /* For assertions only */
+			for (int i = 0; i < x86_cpu_num_cores * x86_cpu_num_threads; i++)
+			{
+				or |= mod->reachable_threads[i];
+				low_mod->reachable_threads[i] |= mod->reachable_threads[i];
+			}
+			assert(or); /* At least is reachable by one thread */
+
+			list_push(stack, low_mod);
+		}
+	}
+	list_free(stack);
 }
 
 
@@ -1735,9 +1773,9 @@ static void mem_config_fill_lists(int core, int thread, struct mod_t *mod)
 
 void mem_config_read(void)
 {
+	char *key;
+	struct dram_system_t *ds;
 	struct config_t *config;
-	int core;
-	int thread;
 
 	/* Load memory system configuration file. If no file name has been given
 	 * by the user, create a default configuration for each architecture. */
@@ -1793,16 +1831,17 @@ void mem_config_read(void)
 	/* Compute cache levels relative to the CPU/GPU entry points */
 	mem_config_calculate_mod_levels();
 
-	if (arch_x86->sim_kind == arch_sim_kind_detailed)
-	{
-		X86_CORE_FOR_EACH X86_THREAD_FOR_EACH
-		{
-			mem_config_fill_lists(core, thread, X86_THREAD.data_mod);
-			mem_config_fill_lists(core, thread, X86_THREAD.inst_mod);
-		}
-	}
+	/* Compute wich threads can access a given memory module */
+	mem_config_thread_reachability();
+
+	/* Compute wich dram systems are accessible from a given memory module */
+	mem_config_main_memory_reachability();
 
 	/* Dump configuration to trace file */
 	mem_config_trace();
+
+	/* Assertions */
+	HASH_TABLE_FOR_EACH(mem_system->dram_systems, key, ds)
+		assert(dram_system_get_num_mcs(ds->handler) == ds->num_mcs);
 }
 
