@@ -708,7 +708,7 @@ AC_SUBST([PKGDATADIR])
 
 debug=false
 #CFLAGS="-msse2 -O3 -std=gnu99 -DNDEBUG"
-CFLAGS="-msse2 -Wall -O3 -std=gnu99"
+CFLAGS="-msse2 -Wall -O3 -std=gnu99 -D_FILE_OFFSET_BITS=64"
 CXXFLAGS="-msse2 -Wall -O3"
 AC_ARG_ENABLE(debug,
 [  --enable-debug    Turn on debugging],
@@ -719,7 +719,7 @@ AC_ARG_ENABLE(debug,
 		
 		# Add flag '-Wno-error=deprecated-declarations' only if it is supported.
 		# This flag prevents warnings caused by newer GTK versions that would cause with -Werror
-		saved_flags="-msse2 -Wall -Werror -DMHANDLE -g -O0 -std=gnu99"
+		saved_flags="-msse2 -Wall -Werror -DMHANDLE -D_FILE_OFFSET_BITS=64 -g -O0 -std=gnu99"
 		CFLAGS="-Wno-error=deprecated-declarations"
 		AC_MSG_CHECKING([whether CC supports -Wno-error=deprecated-declarations])
 		AC_COMPILE_IFELSE([AC_LANG_PROGRAM([])],
