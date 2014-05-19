@@ -20,6 +20,7 @@
 #include <assert.h>
 
 #include <arch/common/arch.h>
+#include <arch/x86/emu/checkpoint.h>
 #include <arch/x86/emu/context.h>
 #include <arch/x86/emu/emu.h>
 #include <lib/esim/esim.h>
@@ -34,6 +35,7 @@
 #include <lib/util/string.h>
 #include <lib/util/timer.h>
 #include <mem-system/memory.h>
+#include <mem-system/module.h>
 #include <mem-system/prefetch-history.h>
 
 #include "bpred.h"
@@ -288,6 +290,8 @@ int x86_cpu_num_cores = 1;
 int x86_cpu_num_threads = 1;
 
 long long x86_cpu_fast_forward_count;
+long long x86_cpu_warm_up_count;
+char *x86_save_checkpoint_after_warm_up_file_name;
 
 int x86_cpu_context_quantum;
 int x86_cpu_thread_quantum;
@@ -897,7 +901,7 @@ void x86_cpu_init(void)
 
 
 /* Finalization */
-void x86_cpu_done()
+void x86_cpu_done(void)
 {
 	int core;
 
@@ -1002,8 +1006,8 @@ void x86_cpu_dump_summary(FILE *f)
 	double branch_acc;
 
 	/* Calculate statistics */
-	inst_per_cycle = arch_x86->cycle ? (double) x86_cpu->num_committed_inst / arch_x86->cycle : 0.0;
-	uinst_per_cycle = arch_x86->cycle ? (double) x86_cpu->num_committed_uinst / arch_x86->cycle : 0.0;
+	inst_per_cycle = arch_x86->cycle ? (double) x86_cpu->num_committed_inst / (arch_x86->cycle - arch_x86->last_reset_cycle) : 0.0;
+	uinst_per_cycle = arch_x86->cycle ? (double) x86_cpu->num_committed_uinst / (arch_x86->cycle - arch_x86->last_reset_cycle) : 0.0;
 	branch_acc = x86_cpu->num_branch_uinst ? (double) (x86_cpu->num_branch_uinst - x86_cpu->num_mispred_branch_uinst) / x86_cpu->num_branch_uinst : 0.0;
 
 	/* Print statistics */
@@ -1030,7 +1034,7 @@ void x86_cpu_dump_summary(FILE *f)
 }
 
 
-void x86_cpu_update_occupancy_stats()
+void x86_cpu_update_occupancy_stats(void)
 {
 	int core, thread;
 
@@ -1103,7 +1107,7 @@ void x86_cpu_uop_trace_list_empty(void)
 }
 
 
-void x86_cpu_run_stages()
+void x86_cpu_run_stages(void)
 {
 	/* Context scheduler */
 	x86_cpu_schedule();
@@ -1172,6 +1176,23 @@ int x86_cpu_run(void)
 				break;
 		if(!ctx)
 			esim_finish = esim_finish_x86_min_inst_per_ctx;
+	}
+
+	/* Reset stats if minimum number of instructions has been exceeded by all contexts */
+	if(x86_cpu_warm_up_count && !arch_x86->last_reset_cycle)
+	{
+		struct x86_ctx_t *ctx;
+		for (ctx = x86_emu->running_list_head; ctx; ctx = ctx->running_list_next)
+			if(ctx->inst_count < x86_cpu_warm_up_count)
+				break;
+		if(!ctx)
+		{
+			x86_cpu_reset_stats();
+			if (x86_emu_min_inst_per_ctx)
+				x86_emu_min_inst_per_ctx -= x86_cpu_warm_up_count;
+			if (x86_save_checkpoint_after_warm_up_file_name)
+				x86_checkpoint_save(x86_save_checkpoint_after_warm_up_file_name);
+		}
 	}
 
 	/* Stop if any previous reason met */
@@ -1277,3 +1298,201 @@ void x86_cpu_core_report_handler(int event, void *data)
 	assert(X86_CORE.report_interval);
 	esim_schedule_event(event, stack, X86_CORE.report_interval);
 }
+
+
+void x86_thread_reset_stats(int core, int thread)
+{
+	int i;
+
+	X86_THREAD.num_fetched_uinst = 0;
+	for (i = 0; i < x86_uinst_opcode_count; i++)
+	{
+		X86_THREAD.num_dispatched_uinst_array[i] = 0;
+		X86_THREAD.num_issued_uinst_array[i] = 0;
+		X86_THREAD.num_committed_uinst_array[i] = 0;
+	}
+	X86_THREAD.num_committed_uinst = 0;
+	X86_THREAD.num_squashed_uinst = 0;
+	X86_THREAD.num_branch_uinst = 0;
+	X86_THREAD.num_mispred_branch_uinst = 0;
+
+	X86_THREAD.rob_occupancy = 0;
+	X86_THREAD.rob_full = 0;
+	X86_THREAD.rob_reads = 0;
+	X86_THREAD.rob_writes = 0;
+
+	X86_THREAD.iq_occupancy = 0;
+	X86_THREAD.iq_full = 0;
+	X86_THREAD.iq_reads = 0;
+	X86_THREAD.iq_writes = 0;
+	X86_THREAD.iq_wakeup_accesses = 0;
+
+	X86_THREAD.lsq_occupancy = 0;
+	X86_THREAD.lsq_full = 0;
+	X86_THREAD.lsq_reads = 0;
+	X86_THREAD.lsq_writes = 0;
+	X86_THREAD.lsq_wakeup_accesses = 0;
+
+	X86_THREAD.reg_file_int_occupancy = 0;
+	X86_THREAD.reg_file_int_full = 0;
+	X86_THREAD.reg_file_int_reads = 0;
+	X86_THREAD.reg_file_int_writes = 0;
+
+	X86_THREAD.reg_file_fp_occupancy = 0;
+	X86_THREAD.reg_file_fp_full = 0;
+	X86_THREAD.reg_file_fp_reads = 0;
+	X86_THREAD.reg_file_fp_writes = 0;
+
+	X86_THREAD.reg_file_xmm_occupancy = 0;
+	X86_THREAD.reg_file_xmm_full = 0;
+	X86_THREAD.reg_file_xmm_reads = 0;
+	X86_THREAD.reg_file_xmm_writes = 0;
+
+	X86_THREAD.rat_int_reads = 0;
+	X86_THREAD.rat_int_writes = 0;
+	X86_THREAD.rat_fp_reads = 0;
+	X86_THREAD.rat_fp_writes = 0;
+	X86_THREAD.rat_xmm_reads = 0;
+	X86_THREAD.rat_xmm_writes = 0;
+
+	X86_THREAD.btb_reads = 0;
+	X86_THREAD.btb_writes = 0;
+
+	/* Up down recursive reset of memory module stats */
+	mod_recursive_reset_stats(X86_THREAD.inst_mod);
+	mod_recursive_reset_stats(X86_THREAD.data_mod);
+}
+
+
+void x86_cpu_core_report_stack_reset_stats(struct x86_cpu_core_report_stack_t *stack)
+{
+	int i;
+	int size;
+	int core = stack->core;
+	struct line_writer_t *lw = stack->line_writer;
+	FILE *f = X86_CORE.report_file;
+
+	stack->last_cycle = esim_cycle();
+	stack->dispatch_stall_cycles_rob_mem = 0;
+	stack->dispatch_stall_cycles_rob_load = 0;
+
+	/* Erase report file */
+	fseeko(f, 0, SEEK_SET);
+
+	/* Print header */
+	fprintf(f, "%s\nRESETED\n", help_x86_cpu_core_report);
+
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "cycle");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "\%-rob-stall-due-mem-inst");
+
+	size = line_writer_write(lw, f);
+	line_writer_clear(lw);
+
+	for (i = 0; i < size - 1; i++)
+		fprintf(f, "-");
+	fprintf(f, "\n");
+}
+
+
+void x86_core_reset_stats(int core)
+{
+	int i;
+
+	for (i = 0; i < x86_dispatch_stall_max; i++)
+		X86_CORE.dispatch_stall[i] = 0;
+	X86_CORE.dispatch_stall_cycles_rob = 0;
+	X86_CORE.dispatch_stall_cycles_rob_mem = 0;
+	X86_CORE.dispatch_stall_cycles_rob_load = 0;
+	X86_CORE.dispatch_stall_cycles_iq = 0;
+	X86_CORE.dispatch_stall_cycles_lsq = 0;
+	X86_CORE.dispatch_stall_cycles_uop_queue = 0;
+	X86_CORE.dispatch_stall_cycles_rename = 0;
+	X86_CORE.last_dispatch_stall_cycles_rob_mem = 0;
+	X86_CORE.last_dispatch_stall_cycles_rob_load = 0;
+	for (i = 0; i < x86_uinst_opcode_count; i++)
+	{
+		X86_CORE.num_dispatched_uinst_array[i] = 0;
+		X86_CORE.num_issued_uinst_array[i] = 0;
+		X86_CORE.num_committed_uinst_array[i] = 0;
+	}
+	X86_CORE.num_committed_uinst = 0;
+	X86_CORE.num_squashed_uinst = 0;
+	X86_CORE.num_branch_uinst = 0;
+	X86_CORE.num_mispred_branch_uinst = 0;
+
+	X86_CORE.rob_occupancy = 0;
+	X86_CORE.rob_full = 0;
+	X86_CORE.rob_reads = 0;
+	X86_CORE.rob_writes = 0;
+
+	X86_CORE.iq_occupancy = 0;
+	X86_CORE.iq_full = 0;
+	X86_CORE.iq_reads = 0;
+	X86_CORE.iq_writes = 0;
+	X86_CORE.iq_wakeup_accesses = 0;
+
+	X86_CORE.lsq_occupancy = 0;
+	X86_CORE.lsq_full = 0;
+	X86_CORE.lsq_reads = 0;
+	X86_CORE.lsq_writes = 0;
+	X86_CORE.lsq_wakeup_accesses = 0;
+
+	X86_CORE.reg_file_int_occupancy = 0;
+	X86_CORE.reg_file_int_full = 0;
+	X86_CORE.reg_file_int_reads = 0;
+	X86_CORE.reg_file_int_writes = 0;
+
+	X86_CORE.reg_file_fp_occupancy = 0;
+	X86_CORE.reg_file_fp_full = 0;
+	X86_CORE.reg_file_fp_reads = 0;
+	X86_CORE.reg_file_fp_writes = 0;
+
+	X86_CORE.reg_file_xmm_occupancy = 0;
+	X86_CORE.reg_file_xmm_full = 0;
+	X86_CORE.reg_file_xmm_reads = 0;
+	X86_CORE.reg_file_xmm_writes = 0;
+
+	/* Reset stack */
+	if (X86_CORE.report_stack)
+		x86_cpu_core_report_stack_reset_stats(X86_CORE.report_stack);
+}
+
+
+void x86_cpu_reset_stats(void)
+{
+	int i;
+	int core;
+	int thread;
+
+	/* TODO: Integrate with other archs */
+	/* TODO: Reset network stats when all archs are reseted */
+	/* TODO: Reset dramsim stats? */
+
+	/* Reset cores, threads and associated modules */
+	X86_CORE_FOR_EACH
+	{
+		X86_THREAD_FOR_EACH
+			x86_thread_reset_stats(core, thread);
+		x86_core_reset_stats(core);
+	}
+
+	x86_cpu->num_fetched_uinst = 0;
+	for (i = 0; i < x86_uinst_opcode_count; i++)
+	{
+		x86_cpu->num_dispatched_uinst_array[i] = 0;
+		x86_cpu->num_issued_uinst_array[i] = 0;
+		x86_cpu->num_committed_uinst_array[i] = 0;
+	}
+	x86_cpu->num_committed_uinst = 0; /* Committed micro-instructions */
+	x86_cpu->num_committed_inst = 0; /* Committed x86 instructions */
+	x86_cpu->num_squashed_uinst = 0;
+	x86_cpu->num_branch_uinst = 0;
+	x86_cpu->num_mispred_branch_uinst = 0;
+
+	/* Reset x86 ctxs stats */
+	x86_ctx_all_reset_stats();
+
+	/* Register last reset */
+	arch_x86->last_reset_cycle = arch_x86->cycle;
+}
+

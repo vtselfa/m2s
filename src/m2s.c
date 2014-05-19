@@ -862,6 +862,26 @@ static void m2s_read_command_line(int *argc_ptr, char **argv)
 			continue;
 		}
 
+		/* Minimum number of instructions per context to warm-up caches and predictors. After the warm up, the stats taken are reset. */
+		if (!strcmp(argv[argi], "--x86-warm-up"))
+		{
+			m2s_need_argument(argc, argv, argi);
+			x86_cpu_warm_up_count = str_to_llint(argv[argi + 1], &err);
+			if (err)
+				fatal("option %s, value '%s': %s", argv[argi],
+						argv[argi + 1], str_error(err));
+			argi++;
+			continue;
+		}
+
+		/* File name to save checkpoint after warm-up */
+		if (!strcmp(argv[argi], "--x86-save-checkpoint-after-warm-up"))
+		{
+			m2s_need_argument(argc, argv, argi);
+			x86_save_checkpoint_after_warm_up_file_name = argv[++argi];
+			continue;
+		}
+
 
 		/*
 		 * Evergreen GPU Options

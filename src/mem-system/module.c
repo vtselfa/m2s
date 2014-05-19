@@ -1494,3 +1494,177 @@ void mod_report_handler(int event, void *data)
 	assert(mod->report_interval);
 	esim_schedule_event(event, stack, mod->report_interval);
 }
+
+
+void mod_report_stack_reset_stats(struct mod_report_stack_t *stack)
+{
+	int i;
+	int size;
+	struct line_writer_t *lw = stack->line_writer;
+	FILE *f = stack->mod->report_file;
+
+	stack->last_cycle = esim_cycle();
+	stack->uinst_count = 0;
+	stack->delayed_hits = 0;
+	stack->delayed_hit_cycles = 0;
+	stack->useful_prefetches = 0;
+	stack->completed_prefetches = 0;
+	stack->no_retry_accesses = 0;
+	stack->no_retry_hits = 0;
+	stack->no_retry_stream_hits = 0;
+	stack->effective_useful_prefetches = 0;
+	stack->misses_int = 0;
+	stack->strides_detected = 0;
+	stack->last_cycles_stalled = 0;
+
+	/* Erase report file */
+	fseeko(f, 0, SEEK_SET);
+
+	/* Print header */
+	fprintf(f, "%s\nRESETED\n", help_mod_report);
+
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "cycle");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "inst");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "completed-prefetches-int");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "completed-prefetches-glob");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "prefetch-accuracy-int");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "delayed-hits-int");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "delayed-hit-avg-lost-cycles-int");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "misses-int");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "stream-hits-int");
+	line_writer_add_column(lw, 8, line_writer_align_right, "%s", "mpki-int");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "pseudocoverage-int");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "prefetch-active-int");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "strides-detected-int");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "pct-rob-stalled-int");
+	line_writer_add_column(lw, 6, line_writer_align_right, "%s", "bwc-int");
+	line_writer_add_column(lw, 6, line_writer_align_right, "%s", "bwn-int");
+	line_writer_add_column(lw, 6, line_writer_align_right, "%s", "bwno-int");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "flags");
+
+	size = line_writer_write(lw, f);
+	line_writer_clear(lw);
+
+	for (i = 0; i < size - 1; i++)
+		fprintf(f, "-");
+	fprintf(f, "\n");
+}
+
+
+void mod_adapt_pref_stack_reset_stats(struct mod_adapt_pref_stack_t *stack)
+{
+	stack->last_uinst_count = 0;
+	stack->last_cycle = esim_cycle();
+	stack->last_useful_prefetches = 0;
+	stack->last_completed_prefetches = 0;
+	stack->last_no_retry_accesses = 0;
+	stack->last_no_retry_hits = 0;
+	stack->last_cycles_stalled = 0;
+	stack->last_misses_int = 0;
+	stack->last_strides_detected = 0;
+	stack->last_delayed_hits = 0;
+	stack->last_cycle_pref_disabled = 0;
+	stack->last_ipc_int = 0;
+}
+
+
+void mod_reset_stats(struct mod_t *mod)
+{
+	mod->accesses = 0;
+	mod->hits = 0;
+
+	mod->reads = 0;
+	mod->effective_reads = 0;
+	mod->effective_read_hits = 0;
+	mod->writes = 0;
+	mod->effective_writes = 0;
+	mod->effective_write_hits = 0;
+	mod->nc_writes = 0;
+	mod->effective_nc_writes = 0;
+	mod->effective_nc_write_hits = 0;
+	mod->prefetches = 0;
+	mod->evictions = 0;
+
+	mod->blocking_reads = 0;
+	mod->non_blocking_reads = 0;
+	mod->read_hits = 0;
+	mod->blocking_writes = 0;
+	mod->non_blocking_writes = 0;
+	mod->write_hits = 0;
+	mod->blocking_nc_writes = 0;
+	mod->non_blocking_nc_writes = 0;
+	mod->nc_write_hits = 0;
+
+	mod->read_retries = 0;
+	mod->write_retries = 0;
+	mod->nc_write_retries = 0;
+
+	mod->no_retry_accesses = 0;
+	mod->no_retry_hits = 0;
+	mod->no_retry_reads = 0;
+	mod->no_retry_read_hits = 0;
+	mod->no_retry_writes = 0;
+	mod->no_retry_write_hits = 0;
+	mod->no_retry_nc_writes = 0;
+	mod->no_retry_nc_write_hits = 0;
+	mod->no_retry_stream_hits = 0;
+
+	/* Prefetch */
+	mod->programmed_prefetches = 0;
+	mod->completed_prefetches = 0;
+	mod->canceled_prefetches = 0;
+	mod->canceled_prefetches_end_stream = 0;
+	mod->canceled_prefetches_coalesce = 0;
+	mod->canceled_prefetches_cache_hit = 0;
+	mod->canceled_prefetches_stream_hit = 0;
+	mod->canceled_prefetches_retry = 0;
+	mod->useful_prefetches = 0;
+	mod->effective_useful_prefetches = 0; /* Useful prefetches with less delay hit cicles than 1/3 of the delay of accesing MM */
+
+	mod->prefetch_retries = 0;
+
+	mod->stream_hits = 0;
+	mod->delayed_hits = 0; /* Hit on a block being brougth by a prefetch */
+	mod->delayed_hit_cycles = 0; /* Cicles lost due delayed hits */
+	mod->delayed_hits_cycles_counted = 0; /* Number of delayed hits whose lost cycles has been counted */
+
+	mod->single_prefetches = 0; /* Prefetches on hit */
+	mod->group_prefetches = 0; /* Number of GROUPS */
+	mod->canceled_prefetch_groups = 0;
+
+	mod->up_down_hits = 0;
+	mod->up_down_head_hits = 0;
+	mod->down_up_read_hits = 0;
+	mod->down_up_write_hits = 0;
+
+	mod->fast_resumed_accesses = 0;
+	mod->write_buffer_read_hits = 0;
+	mod->write_buffer_write_hits = 0;
+	mod->write_buffer_prefetch_hits = 0;
+
+	mod->stream_evictions = 0;
+
+	/* Silent replacement */
+	mod->down_up_read_misses = 0;
+	mod->down_up_write_misses = 0;
+	mod->block_already_here = 0;
+
+	/* Reset stacks */
+	if (mod->report_stack)
+		mod_report_stack_reset_stats(mod->report_stack);
+	if (mod->adapt_pref_stack)
+		mod_adapt_pref_stack_reset_stats(mod->adapt_pref_stack);
+}
+
+
+/* Up-down recursive reset of module stats */
+void mod_recursive_reset_stats(struct mod_t *mod)
+{
+	mod_reset_stats(mod);
+	LINKED_LIST_FOR_EACH(mod->low_mod_list)
+	{
+		struct mod_t *low_mod = linked_list_get(mod->low_mod_list);
+		mod_recursive_reset_stats(low_mod);
+	}
+}
+

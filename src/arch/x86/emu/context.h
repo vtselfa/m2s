@@ -255,5 +255,6 @@ void x86_ctx_gen_proc_cpuinfo(struct x86_ctx_t *ctx, char *path, int size);
 void x86_ctx_ipc_report_schedule(struct x86_ctx_t *ctx);
 void x86_ctx_ipc_report_handler(int event, void *data);
 
+void x86_ctx_all_reset_stats(void); /* Resets the stats of all the x86 ctxs */
 
 #endif
