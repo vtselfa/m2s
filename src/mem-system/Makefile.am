@@ -23,9 +23,6 @@ libmemsystem_a_SOURCES = \
 	memory.c \
 	memory.h \
 	\
-	mem-controller.c \
-	mem-controller.h \
-	\
 	mmu.c \
 	mmu.h \
 	\
@@ -48,19 +45,7 @@ libmemsystem_a_SOURCES = \
 	prefetcher.h \
 	\
 	stream-prefetcher.c \
-	stream-prefetcher.h \
-	\
-	mem-controller.c\
-	mem-controller.h\
-	\
-	rank.c\
-	rank.h\
-	\
-	bank.h\
-	bank.c\
-	\
-	channel.c\
-	channel.h
+	stream-prefetcher.h
 
 INCLUDES = @M2S_INCLUDES@
 

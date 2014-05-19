@@ -38,17 +38,13 @@
 #include <network/node.h>
 #include <network/routing-table.h>
 
-#include "bank.h"
 #include "cache.h"
-#include "channel.h"
 #include "command.h"
 #include "directory.h"
-#include "mem-controller.h"
 #include "mem-system.h"
 #include "mmu.h"
 #include "module.h"
 #include "prefetcher.h"
-#include "rank.h"
 
 
 /*

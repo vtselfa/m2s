@@ -37,12 +37,6 @@ struct mem_system_t
  	/* Main memory modules */
 	struct list_t *mm_mod_list;
 
-	/* List of Memory Controllers */
-	struct linked_list_t *mem_controllers;
-
-	/* Piggybacking */
-	struct linked_list_t *pref_into_normal;
-
 	/* Main memory systems */
 	struct hash_table_t *dram_systems;
 };

@@ -392,9 +392,6 @@ struct x86_cpu_t
 	/* For dumping */
 	long long last_committed;
 	long long last_dump;
-
-	/* For bandwidth control */
-	long long BWTics;
 };
 
 

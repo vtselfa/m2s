@@ -131,11 +131,6 @@ struct mod_adapt_pref_stack_t
 	long long last_delayed_hits;
 	long long last_cycle_pref_disabled;
 	double last_ipc_int;
-	long long last_BWC;
-	long long last_BWN;
-	long long last_BWNO;
-	long long last_BWTics;
-	long long *level_stats; /* Number of times the prefetcher has been in every level */
 };
 
 #define MOD_ACCESS_HASH_TABLE_SIZE  17
@@ -278,9 +273,6 @@ struct mod_t
 
 	/* Statistics */
 
-	long long cycles_queue_full;
-	long long start_queue_full;
-
 
 	long long accesses;
 	long long hits;
@@ -344,7 +336,6 @@ struct mod_t
 	long long group_prefetches; /* Number of GROUPS */
 	long long canceled_prefetch_groups;
 
-
 	long long up_down_hits;
 	long long up_down_head_hits;
 	long long down_up_read_hits;
@@ -362,7 +353,6 @@ struct mod_t
 	long long down_up_write_misses;
 	long long block_already_here;
 
-	long long faults_mem_without_pref;
 };
 
 struct mod_t *mod_create(char *name, enum mod_kind_t kind, int num_ports,

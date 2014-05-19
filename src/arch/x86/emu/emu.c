@@ -97,9 +97,6 @@ void x86_emu_init(void)
 	{
 		/* Event for context IPC reports */
 		EV_X86_CTX_IPC_REPORT = esim_register_event_with_name(x86_ctx_ipc_report_handler, arch_x86->domain_index, "x86_ctx_ipc_report");
-
-		/* Event for context mc reports */
-		EV_X86_CTX_MC_REPORT = esim_register_event_with_name(x86_ctx_mc_report_handler, arch_x86->domain_index, "x86_ctx_mc_report");
 	}
 
 	/* Initialize */

@@ -28,7 +28,6 @@
 #include <lib/util/debug.h>
 #include <lib/util/linked-list.h>
 #include <mem-system/cache.h>
-#include <mem-system/mem-controller.h>
 #include <mem-system/mem-system.h>
 #include <mem-system/module.h>
 

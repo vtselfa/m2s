@@ -44,10 +44,6 @@ struct x86_loader_t
 	FILE *ipc_report_file;
 	long long ipc_report_interval;
 
-	/* Misc report (for detailed simulation) */
-	FILE *misc_report_file;
-	int misc_report_interval;
-
 	/* MC (memory controller) report (for detailed simulation) */
 	FILE *mc_report_file;
 	int mc_report_interval;

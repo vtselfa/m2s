@@ -34,7 +34,6 @@
 #include <lib/util/repos.h>
 
 #include "cache.h"
-#include "channel.h"
 #include "directory.h"
 #include "local-mem-protocol.h"
 #include "mem-system.h"
@@ -118,8 +117,6 @@ struct mod_t *mod_create(char *name, enum mod_kind_t kind, int num_ports,
 	mod->reachable_threads = xcalloc((long long) x86_cpu_num_cores * (long long) x86_cpu_num_threads, sizeof(char));
 	mod->reachable_mm_modules = list_create();
 
-	mod->start_queue_full = -1;
-
 	mod->mc_id = -1; /* By default */
 
 	return mod;
@@ -138,10 +135,6 @@ void mod_free(struct mod_t *mod)
 		cache_free(mod->cache);
 	if (mod->dir)
 		dir_free(mod->dir);
-
-	/* Main Memory module */
-	if(mod->regs_rank)
-		reg_rank_free(mod->regs_rank, mod->num_regs_rank);
 
 	free(mod->ports);
 	repos_free(mod->client_info_repos);

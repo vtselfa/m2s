@@ -162,9 +162,5 @@ void mod_handler_pref(int event, void *data);
 void mod_handler_nmoesi_invalidate_slot(int event, void *data);
 void mod_handler_nmoesi_pref_find_and_lock(int event, void *data);
 
-/* Main Memory */
-void mod_handler_nmoesi_request_main_memory(int event, void *data);
-void mod_handler_nmoesi_find_and_lock_mem_controller(int event, void *data);
-
 #endif
 

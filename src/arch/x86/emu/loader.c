@@ -32,7 +32,6 @@
 #include <lib/util/misc.h>
 #include <lib/util/string.h>
 #include <mem-system/memory.h>
-#include <mem-system/mem-controller.h>
 #include "context.h"
 #include "emu.h"
 #include "file-desc.h"
@@ -757,7 +756,6 @@ void x86_loader_load_from_ctx_config(struct config_t *config, char *section)
 	int enable_report;
 
 	char *ipc_report_file_name;
-	char *mc_report_file_name;
 	char *report_file_name;
 	char *interval_kind_str;
 
@@ -839,22 +837,6 @@ void x86_loader_load_from_ctx_config(struct config_t *config, char *section)
 			fatal("%s: invalid value for 'ReportInterval'",
 					config_file_name);
 		x86_ctx_ipc_report_schedule(ctx);
-	}
-
-	/* MC stats report file*/
-	mc_report_file_name = config_read_string(config, section,"MCReport", "");
-	ld->mc_report_interval = config_read_int(config, section,
-			"MCReportInterval", ld->ipc_report_interval); /* By default, same as IPC */
-	if (*mc_report_file_name)
-	{
-		ld->mc_report_file = file_open_for_write(mc_report_file_name);
-		if (!ld->mc_report_file)
-			fatal("%s: cannot open mc report file",
-					mc_report_file_name);
-		if (ld->mc_report_interval < 1)
-			fatal("%s: invalid value for 'MCReportInterval'",
-					config_file_name);
-		x86_ctx_mc_report_schedule(ctx);
 	}
 
 	/* Global report file */
