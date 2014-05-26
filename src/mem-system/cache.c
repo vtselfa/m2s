@@ -163,8 +163,6 @@ struct cache_t *cache_create(char *name, unsigned int num_sets, int num_streams,
 	cache->prefetch.max_num_streams = num_streams;
 	cache->prefetch.max_num_slots = num_slots;
 
-	cache->prefetch.pol_num_slots = num_slots; /* Number of slots to use, determined by a pref policy. Uses all by default. It must be less than max_num_slots. */
-
 	/* Derived fields */
 	assert(!(num_sets & (num_sets - 1)));
 	assert(!(block_size & (block_size - 1)));
@@ -295,8 +293,8 @@ void cache_free(struct cache_t *cache)
 	{
 		sb = &cache->prefetch.streams[stream];
 		if (sb->pending_prefetches)
-			fprintf(stderr, "WARNING: %d pending prefetches in cache %s stream %d since cycle %lld\n",
-				sb->pending_prefetches, cache->name, sb->stream, sb->cycle);
+			fprintf(stderr, "WARNING: %d pending prefetches in cache %s stream %d since %lld\n",
+				sb->pending_prefetches, cache->name, sb->stream, sb->time);
 		//assert(!cache->prefetch.streams[stream].pending_prefetches);
 		free(cache->prefetch.streams[stream].blocks);
 	}
@@ -412,10 +410,10 @@ void cache_get_block(struct cache_t *cache, int set, int way, int *tag_ptr, int 
 struct stream_block_t * cache_get_pref_block(struct cache_t *cache,
 	int pref_stream, int pref_slot)
 {
+	struct stream_buffer_t *sb;
 	assert(pref_stream >= 0 && pref_stream < cache->prefetch.max_num_streams);
-	struct stream_buffer_t *sb = &cache->prefetch.streams[pref_stream];
 	assert(pref_slot >= 0 && pref_slot < cache->prefetch.max_num_slots);
-	assert(pref_slot >= 0 && pref_slot < sb->eff_num_slots);
+	sb = &cache->prefetch.streams[pref_stream];
 	return &sb->blocks[pref_slot];
 }
 
@@ -423,13 +421,12 @@ struct stream_block_t * cache_get_pref_block(struct cache_t *cache,
 void cache_get_pref_block_data(struct cache_t *cache, int pref_stream,
 	int pref_slot, int *tag_ptr, int *state_ptr)
 {
+	struct stream_buffer_t *sb;
 	assert(pref_stream >= 0 && pref_stream < cache->prefetch.max_num_streams);
-	struct stream_buffer_t *sb = &cache->prefetch.streams[pref_stream];
 	assert(pref_slot >= 0 && pref_slot < cache->prefetch.max_num_slots);
-	assert(pref_slot >= 0 && pref_slot < sb->eff_num_slots);
-
-	PTR_ASSIGN(tag_ptr, cache->prefetch.streams[pref_stream].blocks[pref_slot].tag);
-	PTR_ASSIGN(state_ptr, cache->prefetch.streams[pref_stream].blocks[pref_slot].state);
+	sb = &cache->prefetch.streams[pref_stream];
+	PTR_ASSIGN(tag_ptr, sb->blocks[pref_slot].tag);
+	PTR_ASSIGN(state_ptr, sb->blocks[pref_slot].state);
 }
 
 

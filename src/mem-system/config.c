@@ -540,9 +540,10 @@ static struct mod_t *mem_config_read_cache(struct config_t *config,
 	int prefetcher_lookup_depth;
 
 	/* Czone Streams prefetcher */
-	int prefetcher_num_streams;
-	int prefetcher_num_slots;
-	int prefetcher_distance;
+	int prefetcher_num_streams; /* Number of prefetch streams per cache */
+	int prefetcher_aggr; /* Aggressivity of the prefetcher */
+	int prefetcher_aggr_ini;
+	int prefetcher_distance; /* Max prefetched blocks at any time. If using stream buffers, max depth of the stream buffer. */
 	int prefetcher_czone_bits;
 	int prefetcher_stream_tag_bits;
 
@@ -592,10 +593,12 @@ static struct mod_t *mem_config_read_cache(struct config_t *config,
 		"PrefetcherLookupDepth", 2);
 	prefetcher_num_streams = config_read_int(config, buf,
 		"PrefetcherStreams", 4);
-	prefetcher_num_slots = config_read_int(config, buf,
-		"PrefetcherSlots", 4);
+	prefetcher_aggr = config_read_int(config, buf,
+		"PrefetcherAggressivity", 4);
+	prefetcher_aggr_ini = config_read_int(config, buf,
+		"PrefetcherInitialAggressivity", 4);
 	prefetcher_distance = config_read_int(config, buf,
-		"PrefetcherDistance", 0);
+		"PrefetcherDistance", 16);
 	prefetcher_czone_bits = config_read_int(config, buf,
 		"PrefetcherCZoneBits", 13);
 	prefetcher_stream_tag_bits = config_read_int(config, buf,
@@ -650,11 +653,15 @@ static struct mod_t *mem_config_read_cache(struct config_t *config,
 				fatal("%s: cache %s: invalid value for variable 'PrefetcherStreams'.\n%s",
 					mem_config_file_name, mod_name, mem_err_config_note);
 
-			if (prefetcher_num_slots < 1)
-				fatal("%s: cache %s: invalid value for variable 'PrefetcherSlots'.\n%s",
+			if (prefetcher_aggr < 1)
+				fatal("%s: cache %s: invalid value for variable 'PrefetcherAggressivity'.\n%s",
 					mem_config_file_name, mod_name, mem_err_config_note);
 
-			if (prefetcher_distance < 0)
+			if (prefetcher_aggr_ini < 1)
+				fatal("%s: cache %s: invalid value for variable 'PrefetcherInitialAggressivity'.\n%s",
+					mem_config_file_name, mod_name, mem_err_config_note);
+
+			if (prefetcher_distance < 1)
 				fatal("%s: cache %s: invalid value for variable 'PrefetcherDistance'.\n%s",
 					mem_config_file_name, mod_name, mem_err_config_note);
 		}
@@ -711,7 +718,7 @@ static struct mod_t *mem_config_read_cache(struct config_t *config,
 	mod->low_net_node = net_node;
 
 	/* Create cache */
-	mod->cache = cache_create(mod->name, num_sets, prefetcher_num_streams, prefetcher_num_slots, block_size, assoc,
+	mod->cache = cache_create(mod->name, num_sets, prefetcher_num_streams, prefetcher_distance, block_size, assoc,
 		policy);
 
 	/* Fill in prefetcher parameters */
@@ -719,7 +726,8 @@ static struct mod_t *mem_config_read_cache(struct config_t *config,
 	if (enable_prefetcher)
 	{
 		mod->cache->prefetch.type = prefetcher_type;
-		mod->cache->prefetch.distance = prefetcher_distance;
+		mod->cache->prefetch.aggr = prefetcher_aggr;
+		mod->cache->prefetch.aggr_ini = prefetcher_aggr_ini;
 		mod->cache->prefetch.adapt_policy = prefetcher_adp_policy;
 		mod->cache->prefetch.adapt_interval = prefetcher_adp_interval;
 		mod->cache->prefetch.adapt_interval_kind = prefetcher_adp_interval_kind;

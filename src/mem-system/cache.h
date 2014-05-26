@@ -123,8 +123,7 @@ struct stream_buffer_t
 	struct stream_block_t *blocks;
 
 	int pending_prefetches; /* Remaining prefetches of a prefetch group */
-	long long cycle; /* Cycle last prefetch was asigned to this stream. For debug. */
-	int eff_num_slots; /* Effective number of slots in this stream. May be different from the value set by the policy at cache_t because it's updated when the stream is replaced. */
+	long long time; /* When was last prefetch asigned to this stream. For debug. */
 	int count;
 	int head;
 	int tail;
@@ -153,7 +152,8 @@ struct cache_t
 		enum prefetcher_type_t type; 	/* Type of prefetcher */
 		unsigned int max_num_streams; 	/* Max number of stream buffers */
 		unsigned int max_num_slots; 	/* Max number of blocks per stream */
-		unsigned int pol_num_slots; 	/* Number of slots to use determined by a prefetch policy */
+		unsigned int aggr; 	/* Number of blocks to request per prefetch when there is a prefetch hit */
+		unsigned int aggr_ini; 	/* Number of blocks to requests when a new stream is allocated */
 
 		unsigned int stream_tag_bits; 	/* For obtaining stream_tag */
 		unsigned int stream_tag_mask; 	/* For obtaining stream_tag */
@@ -161,7 +161,7 @@ struct cache_t
 		unsigned int czone_bits; 		/* For obtaining czone */
 		unsigned int czone_mask; 		/* For obtaining czone */
 
-		unsigned int distance;
+		unsigned int distance; /* Max number of blocks of one single stream prefetched at any time */
 
 		struct stream_buffer_t *streams;
 		struct stream_buffer_t *stream_head;

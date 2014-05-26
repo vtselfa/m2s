@@ -181,299 +181,181 @@ int must_enqueue_prefetch(struct mod_stack_t *stack)
 }
 
 
-void enqueue_prefetch_group(int ctx_pid, int core, int thread, struct mod_t *mod, unsigned int base_addr, int stride)
+void stream_buffer_enqueue_prefetches(
+		struct mod_t *mod, struct mod_client_info_t *client_info,
+		int stream, int num_prefetches)
 {
 	struct cache_t *cache = mod->cache;
 	struct stream_buffer_t *sb;
-	struct mod_client_info_t *client_info;
-	unsigned int mmu_page_tag;
 	unsigned int prev_address;
-	int num_prefetches;
-	int stream, slot;
-	int dead = 0; /* Address over/underflow or mem page changed */
-	int eos = 0; /* End of stream */
+	int max_num_slots;
+	int max_num_streams;
 	int i;
 
+	sb = &cache->prefetch.streams[stream];
+
+	max_num_slots = cache->prefetch.max_num_slots;
+	max_num_streams = cache->prefetch.max_num_streams;
+
+	/* Assertions */
+	assert(sb->stride);
+	assert(num_prefetches < max_num_slots);
+	assert(stream >= 0 && stream < max_num_streams);
+	assert(!sb->dead);
+	assert(sb->next_address % cache->block_size == 0);
+
+	/* Set time */
+	sb->time = esim_time;
+
+	/* Debug */
+	mem_debug("    Enqueued %d prefetches at addr=0x%x to stream=%d with stride=0x%x\n", num_prefetches, sb->next_address, stream, sb->stride);
+	mem_debug("    head = %d tail = %d\n", sb->head, sb->tail);
+
+	/* Insert prefetches */
+	for (i = 0; i < num_prefetches; i++)
+	{
+		/* Reached maximum prefetching distance */
+		if (sb->pending_prefetches == max_num_slots)
+			break;
+
+		client_info = mod_client_info_clone(mod, client_info);
+		client_info->stream = stream;
+		client_info->slot = sb->tail;
+
+		mod_access(mod, mod_access_prefetch, sb->next_address, NULL, NULL, NULL, client_info);
+
+		sb->tail = (sb->tail + 1) % max_num_slots; //TAIL
+		sb->pending_prefetches++;
+
+		prev_address = sb->next_address;
+		sb->next_address += sb->stride;
+
+		/* End of page */
+		if((prev_address & ~mmu_page_mask) != (sb->next_address & ~mmu_page_mask))
+		{
+			sb->dead = 1;
+			break;
+		}
+
+		/* Underflow */
+		if(sb->stride < 0 && sb->next_address > prev_address)
+		{
+			sb->dead = 1;
+			break;
+		}
+
+		/* Overflow */
+		if(sb->stride > 0 && sb->next_address < prev_address)
+		{
+			sb->dead = 1;
+			break;
+		}
+
+		/* End of stream */
+		if (sb->stream_transcient_tag != (sb->next_address & cache->prefetch.stream_tag_mask))
+			break;
+	}
+}
+
+
+void enqueue_prefetch_on_miss(struct mod_t *mod, struct mod_client_info_t *client_info, unsigned int miss_addr, int stride)
+{
+	struct cache_t *cache = mod->cache;
+	struct stream_buffer_t *sb;
+	unsigned int stream_tag;
+	unsigned int base_addr;
+	int stream;
+
+	assert(stride);
+
+	base_addr = miss_addr + stride;
+	stream_tag = base_addr & cache->prefetch.stream_tag_mask;
+
 	/* If there is a stream with the same tag, replace it. If not, replace the last recently used one. */
-	stream = cache_find_stream(cache, base_addr & cache->prefetch.stream_tag_mask);
+	stream = cache_find_stream(cache, stream_tag);
 	if (stream == -1) /* Stream tag not found */
 		stream = cache_select_stream(cache);
 	sb = &cache->prefetch.streams[stream];
 
-	prev_address = base_addr - stride;
-	mmu_page_tag = prev_address & ~mmu_page_mask;
+	/* Underflow */
+	if (stride < 0 && base_addr > miss_addr) return;
 
-	/* Assertions */
-	assert(stride); /* Valid stride */
-	assert(mmu_page_tag == (base_addr & ~mmu_page_mask)); /* No end of page */
-	assert(stride > 0 || (prev_address + stride) < prev_address); /* No underflow */
-	assert(stride < 0 || (prev_address + stride) > prev_address); /* No overflow */
+	/* Overflow */
+	if (stride > 0 && base_addr < miss_addr) return;
 
-	/* Not enqueue prefetch if there are pending prefetches... */
-	if (sb->pending_prefetches)
+	/* End of page */
+	if ((miss_addr & ~mmu_page_mask) != (base_addr & ~mmu_page_mask)) return;
+
+	/* Pending prefetches */
+	if (sb->pending_prefetches) return;
+
+	/* Locked blocks */
+	for (int slot = 0; slot < cache->prefetch.max_num_slots; slot++)
 	{
-		mem_debug("    Canceled prefetch group at addr=0x%x to stream=%d with stride=0x%x(%d)\n", base_addr, stream, stride, stride);
-		mod->canceled_prefetch_groups++;
-		return;
-	}
-
-	/*... or blocks locked */
-	for (slot = 0; slot < sb->eff_num_slots; slot++)
-	{
-		struct dir_lock_t *dir_lock = dir_pref_lock_get(mod->dir, sb->stream, slot);
+		struct dir_lock_t *dir_lock = dir_pref_lock_get(mod->dir, stream, slot);
 		if (dir_lock->lock)
 		{
-			mem_debug("    Canceled prefetch group at addr=0x%x to stream=%d with stride=0x%x(%d)\n", base_addr, stream, stride, stride);
-			mod->canceled_prefetch_groups++;
+			printf("Ouch!\n");
 			return;
 		}
 	}
 
-	num_prefetches = cache->prefetch.pol_num_slots; /* Number of prefetches to issue. Determined by prefetch policy. */
+	/* Invalidate all blocks in the stream */
+	for (int i = 0; i < cache->prefetch.max_num_slots; i++)
+	{
+		sb->blocks[i].tag = block_invalid_tag;
+		sb->blocks[i].transient_tag = block_invalid_tag;
+		sb->blocks[i].state = cache_block_invalid;
+	}
 
-	/* Set stream's transcient tag to indicate the block is being brought */
-	sb->stream_transcient_tag = base_addr & cache->prefetch.stream_tag_mask;
-
-	/* Set stream's new stride */
-	sb->stride = stride;
-
-	/* Set the number of usable slots according to the prefetch policy */
-	sb->eff_num_slots = cache->prefetch.pol_num_slots;
-
-	/* Set the number of pending prefetches for this stream */
-	sb->pending_prefetches = num_prefetches;
-
-	/* Reset head */
-	sb->head = 0; //HEAD
-
-	/* Reset tail */
-	sb->tail = num_prefetches % sb->eff_num_slots; //TAIL
-
-	/* Debug */
-	mem_debug("    Enqueued prefetch group at addr=0x%x to stream=%d with stride=0x%x(%d) and eff_num_slots=%d\n", base_addr, stream, stride, stride, sb->eff_num_slots);
-
-	sb->cycle = esim_cycle();
-
-	/* Insert prefetches */
+	sb->head = 0;
+	sb->tail = 0;
 	sb->next_address = base_addr;
-	for (i = 0; i < num_prefetches; i++)
-	{
-		unsigned int prefetch_addr = sb->next_address;
-		enum mod_access_kind_t access_kind;
-		int invalidate = 0;
+	sb->stream_transcient_tag = stream_tag;
+	sb->dead = 0;
+	sb->stride = stride;
+	sb->stream_tag = block_invalid_tag;
 
-		if(dead || eos)
-		{
-			prefetch_addr = sb->stream_transcient_tag;
-			invalidate = 1;
-		}
-		else
-		{
-			prev_address = sb->next_address;
-			sb->next_address += stride;
-
-			/* End of page */
-			if(mmu_page_tag != (sb->next_address & ~mmu_page_mask))
-				dead = 1;
-
-			/* Underflow */
-			else if(stride < 0 && (prev_address + stride) > prev_address)
-				dead = 1;
-
-			/* Overflow */
-			else if(stride > 0 && (prev_address + stride) < prev_address)
-				dead = 1;
-
-			/* End of stream */
-			else if (sb->stream_transcient_tag != (sb->next_address & cache->prefetch.stream_tag_mask))
-				eos = 1;
-		}
-
-		client_info = mod_client_info_create(mod);
-		client_info->core = core;
-		client_info->thread = thread;
-		client_info->ctx_pid = ctx_pid;
-		client_info->stream = stream;
-		client_info->slot = (sb->head + i) % sb->eff_num_slots;
-		client_info->stream_request_kind = stream_request_grouped;
-
-		if (invalidate)
-		{
-			mod->canceled_prefetches++;
-			mod->canceled_prefetches_end_stream++;
-			access_kind = mod_access_invalidate_slot;
-		}
-		else
-			access_kind = mod_access_prefetch;
-
-		mod_access(mod, access_kind, prefetch_addr, NULL, NULL, NULL, client_info);
-	}
-
-	/* Invalidate blocks outside effective stream size that are not locked.
-	 * Locked blocks may be a problem, although. Stacks owning locks may break some assertions. */
-	for (slot = sb->eff_num_slots; slot < cache->prefetch.max_num_slots; slot++)
-	{
-		struct dir_lock_t *dir_lock = dir_pref_lock_get(mod->dir, stream, slot);
-		assert(!dir_lock->lock);
-		if (!dir_lock->lock)
-			cache_set_pref_block(cache, stream, slot, block_invalid_tag, cache_block_invalid);
-	}
-
-	/* Statistics */
-	mod->group_prefetches++;
-
-	/* Set dead flag */
-	sb->dead = dead;
+	stream_buffer_enqueue_prefetches(mod, client_info, stream, cache->prefetch.aggr_ini);
 }
 
 
-void enqueue_prefetch_on_miss(struct mod_stack_t *stack)
+void enqueue_prefetch_on_hit(struct mod_t *mod, struct mod_client_info_t *client_info, int stream, int slot)
 {
-	struct mod_t *mod;
-	int distance; /* Blocks of the stream to skip to enhance prefetch timeliness */
-
-	assert(stack->stride);
-
-	/* L1 prefetch */
-	if (!stack->target_mod)
-		mod = stack->mod;
-
-	/* Deeper than L1 prefetch */
-	else
-		mod = stack->target_mod;
-
-	distance = mod->cache->prefetch.distance;
-
-	/* Underflow */
-	if(stack->stride < 0 && (stack->addr + stack->stride * (distance + 1)) > stack->addr) return;
-
-	/* Overflow */
-	if(stack->stride > 0 && (stack->addr + stack->stride * (distance + 1)) < stack->addr) return;
-
-	/* End of page */
-	if((stack->addr & ~mmu_page_mask) != ((stack->addr + stack->stride * (distance + 1)) & ~mmu_page_mask)) return;
-
-	enqueue_prefetch_group(stack->client_info->ctx_pid, stack->client_info->core, stack->client_info->thread, mod, stack->addr + stack->stride, stack->stride);
-
-	return;
-}
-
-
-void enqueue_prefetch_on_hit(struct mod_stack_t *stack)
-{
-	struct mod_t *mod;
 	struct cache_t *cache;
 	struct stream_buffer_t *sb;
-	struct mod_client_info_t *client_info;
 	unsigned int prev_address;
 	unsigned int mmu_page_tag;
 
-	/* L1 prefetch */
-	if (!stack->target_mod)
-		mod = stack->mod;
-
-	/* Deeper than L1 prefetch */
-	else
-		mod = stack->target_mod;
-
 	cache = mod->cache;
 
-	assert(stack->pref_stream >= 0 && stack->pref_stream < cache->prefetch.max_num_streams);
-	assert(stack->pref_slot >= 0 && stack->pref_slot < cache->prefetch.max_num_slots);
+	/* Assure that the stream and the slot are correct */
+	assert(stream >= 0 && stream < cache->prefetch.max_num_streams);
+	assert(slot >= 0 && slot < cache->prefetch.max_num_slots);
 
-	sb = &cache->prefetch.streams[stack->pref_stream];
-
-	/* Next address of this stream is out of page, over/underflowed or has a different stream tag */
-	if (sb->dead)
-		return;
-
+	sb = &cache->prefetch.streams[stream];
 	prev_address = sb->next_address - sb->stride;
 	mmu_page_tag = prev_address & ~mmu_page_mask;
 
-	/* Assertions */
-	assert(sb->stride); /* Valid stride */
+	/* No more prefetching in this stream */
+	if (sb->dead)
+		return;
+
+	/* Test for invalid states */
+	assert(sb->stride); /* Invalid stride */
 	assert(mmu_page_tag == (sb->next_address & ~mmu_page_mask)); /* End of page */
 	assert(sb->stride > 0 || (prev_address + sb->stride) < prev_address); /* Underflow */
 	assert(sb->stride < 0 || (prev_address + sb->stride) > prev_address); /* Overflow */
 
-	/* Enqueue a new prefetch group if next_address is not in the stream anymore */
+	/* Allocate a new stream if next_address is not in the stream anymore */
 	if (sb->stream_transcient_tag != (sb->next_address & cache->prefetch.stream_tag_mask))
 	{
 		sb->dead = 1; /* Only do this the first time */
-		enqueue_prefetch_group(stack->client_info->ctx_pid, stack->client_info->core, stack->client_info->thread, mod, sb->next_address, sb->stride);
+		enqueue_prefetch_on_miss(mod, client_info, sb->next_address - sb->stride, sb->stride);
 		return;
 	}
 
-	/* Statistics */
-	mod->single_prefetches++;
-
-	mem_debug("    Enqueued single prefetch at addr=0x%x to stream=%d with stride=0x%x(%d)\n", sb->next_address, sb->stream, sb->stride, sb->stride);
-	client_info = mod_client_info_create(mod);
-	client_info->core = stack->client_info->core;
-	client_info->thread = stack->client_info->thread;
-	client_info->ctx_pid = stack->client_info->ctx_pid;
-	client_info->stream = sb->stream;
-	client_info->slot = sb->tail;
-		client_info->stream_request_kind = stream_request_single;
-	mod_access(mod, mod_access_prefetch, sb->next_address, NULL, NULL, NULL, client_info);
-
-	/* Update tail */
-	sb->tail = (sb->tail + 1) % sb->eff_num_slots; //TAIL
-
-	/* Add a pending prefetch */
-	sb->pending_prefetches++;
-	sb->cycle = esim_cycle();
-
-	/* Increment next address */
-	prev_address = sb->next_address;
-	sb->next_address = sb->next_address + sb->stride;
-
-	/* End of page */
-	if(mmu_page_tag != (sb->next_address & ~mmu_page_mask))
-		sb->dead = 1;
-
-	/* Underflow */
-	else if(sb->stride < 0 && (prev_address + sb->stride) > prev_address)
-		sb->dead = 1;
-
-	/* Overflow */
-	else if(sb->stride > 0 && (prev_address + sb->stride) < prev_address)
-		sb->dead = 1;
-}
-
-
-void enqueue_prefetch_obl(struct mod_stack_t *stack)
-{
-/* 	struct mod_t *mod; */
-/* 	struct x86_uop_t *uop; */
-/*  */
-/* 	#<{(| L1 prefetch |)}># */
-/* 	if (!stack->target_mod) */
-/* 		mod = stack->mod; */
-/*  */
-/* 	#<{(| Deeper than L1 prefetch |)}># */
-/* 	else */
-/* 		mod = stack->target_mod; */
-/*  */
-/* 	uop = x86_uop_create(); */
-/* 	uop->uinst = x86_uinst_create(); */
-/* 	uop->uinst->opcode = x86_uinst_prefetch; */
-/* 	if (mod->cache->pref_enabled == prefetch_policy_obl_stride) */
-/* 		uop->phy_addr = stack->addr + stack->stride; */
-/* 	else */
-/* 		uop->phy_addr = stack->addr + mod->block_size; */
-/* 	uop->core = stack->client_info->core; */
-/* 	uop->thread = stack->client_info->thread; */
-/* 	uop->flags = X86_UINST_MEM; */
-/* 	uop->pref.mod = mod; */
-/*  */
-/* 	if (mod->level == 1) */
-/* 		x86_pq_insert(uop); */
-/* 	else */
-/* 	{ */
-/* 		linked_list_out(mod->pq); */
-/* 		linked_list_insert(mod->pq, uop); */
-/* 	} */
+	stream_buffer_enqueue_prefetches(mod, client_info, stream, cache->prefetch.aggr);
 }
 
 
@@ -704,7 +586,6 @@ void mod_handler_pref(int event, void *data)
 		sb = &cache->prefetch.streams[stack->pref_stream];
 		assert(stack->pref_stream >= 0 && stack->pref_stream < cache->prefetch.max_num_streams);
 		assert(stack->pref_slot >= 0 && stack->pref_slot < cache->prefetch.max_num_slots);
-		assert(stack->pref_slot >= 0 && stack->pref_slot < sb->eff_num_slots);
 		assert(sb->pending_prefetches > 0);
 		if (sb->pending_prefetches == 1)
 		{
@@ -855,13 +736,13 @@ void mod_handler_nmoesi_load(int event, void *data)
 				{
 					/* Prefetch only one block */
 					if (stack->stream_head_hit)
-						enqueue_prefetch_on_hit(stack);
-					}
+						enqueue_prefetch_on_hit(mod, stack->client_info, stack->pref_stream, stack->pref_slot);
+				}
 				/* Fill all the stream buffer if a stride is detected */
 				else
 				{
 					if (stack->stride)
-						enqueue_prefetch_on_miss(stack);
+						enqueue_prefetch_on_miss(mod, stack->client_info, stack->addr, stack->stride);
 				}
 			}
 		}
@@ -1059,7 +940,7 @@ void mod_handler_nmoesi_load(int event, void *data)
 			if(stack->stream_hit && stack->stream_head_hit)
 			{
 				struct stream_buffer_t *sb = &cache->prefetch.streams[stack->pref_stream];
-				sb->head = (stack->pref_slot + 1) % sb->eff_num_slots; //HEAD
+				sb->head = (stack->pref_slot + 1) % cache->prefetch.max_num_slots; //HEAD
 			}
 
 			/* Return event queue element into event queue */
@@ -1198,13 +1079,13 @@ void mod_handler_nmoesi_store(int event, void *data)
 				{
 					/* Prefetch only one block */
 					if (stack->stream_head_hit)
-						enqueue_prefetch_on_hit(stack);
-					}
+						enqueue_prefetch_on_hit(mod, stack->client_info, stack->pref_stream, stack->pref_slot);
+				}
 				/* Fill all the stream buffer if a stride is detected */
 				else
 				{
 					if (stack->stride)
-						enqueue_prefetch_on_miss(stack);
+						enqueue_prefetch_on_miss(mod, stack->client_info, stack->addr, stack->stride);
 				}
 			}
 		}
@@ -1728,7 +1609,6 @@ void mod_handler_nmoesi_pref_find_and_lock(int event, void *data)
 		assert(stack->pref_stream >= 0 && stack->pref_stream < cache->prefetch.max_num_streams);
 		assert(stack->pref_slot >= 0 && stack->pref_slot < cache->prefetch.max_num_slots);
 		sb = &cache->prefetch.streams[stack->pref_stream];
-		assert(stack->pref_slot >= 0 && stack->pref_slot < sb->eff_num_slots);
 
 		/* Lock prefetch entry */
 		dir_lock = dir_pref_lock_get(mod->dir, stack->pref_stream, stack->pref_slot);
@@ -2347,7 +2227,7 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 			stack->stream_hit = 1;
 			if (result == 1) /* {0 miss, 1 head hit, 2 middle stream hit} */
 				stack->stream_head_hit = 1;
-			mem_debug("    %lld 0x%x %s stream_hit=%d stream=%d slot=%d in head=%d up_down=%d eff_num_slots=%d pending_prefetches=%d\n", stack->id, stack->tag, mod->name, stack->stream_hit, stack->pref_stream, stack->pref_slot, stack->stream_head_hit, stack->request_dir == mod_request_up_down, sb->eff_num_slots, sb->pending_prefetches);
+			mem_debug("    %lld 0x%x %s stream_hit=%d stream=%d slot=%d in head=%d up_down=%d pending_prefetches=%d\n", stack->id, stack->tag, mod->name, stack->stream_hit, stack->pref_stream, stack->pref_slot, stack->stream_head_hit, stack->request_dir == mod_request_up_down, sb->pending_prefetches);
 
 			/* Print debug info */
 			int i, slot, count;
@@ -2357,8 +2237,6 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 				slot = i % cache->prefetch.max_num_slots;
 				block = &cache->prefetch.streams[sb->stream].blocks[slot];
 				dir_lock = dir_pref_lock_get(mod->dir, sb->stream, slot);
-				if (i == 0 || i == sb->eff_num_slots)
-					mem_debug("\t\t-----\n");
 				mem_debug("\t\t{slot=%d, tag=0x%x, transient_tag=0x%x, state=%s, locked=%d}\n", slot, block->tag, block->transient_tag, str_map_value(&cache_block_state_map, block->state), dir_lock->lock);
 			}
 
@@ -2496,8 +2374,6 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 
 				sb = &cache->prefetch.streams[stack->pref_stream];
 
-				assert(stack->pref_slot >= 0 && stack->pref_slot < sb->eff_num_slots);
-
 				/* Stack that will write block from prefetch buffer to cache */
 				background_stack = mod_stack_create(stack->id, ret->mod, stack->addr, ESIM_EV_NONE,
 					NULL, stack->prefetch);
@@ -2548,7 +2424,7 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 
 				/* Update head */
 				if (stack->stream_head_hit)
-					sb->head = (sb->head + 1) % sb->eff_num_slots; //HEAD
+					sb->head = (sb->head + 1) % cache->prefetch.max_num_slots; //HEAD
 
 				/* Unlock stream entry */
 				dir_pref_entry_unlock(mod->dir, stack->pref_stream, stack->pref_slot);
@@ -3044,7 +2920,7 @@ void mod_handler_nmoesi_invalidate_slot(int event, void *data)
 		stack->pref_stream = stack->client_info->stream;
 		stack->pref_slot = stack->client_info->slot;
 		assert(stack->pref_stream >= 0 && stack->pref_stream < cache->prefetch.max_num_streams);
-		assert(stack->pref_slot >= 0 && stack->pref_slot < cache->prefetch.streams[stack->pref_stream].eff_num_slots);
+		assert(stack->pref_slot >= 0 && stack->pref_slot < cache->prefetch.max_num_slots);
 
 		/* Next event */
 		esim_schedule_event(EV_MOD_NMOESI_INVALIDATE_SLOT_LOCK, stack, 0);
@@ -3271,13 +3147,13 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 				{
 					/* Prefetch only one block */
 					if (stack->stream_head_hit)
-						enqueue_prefetch_on_hit(stack);
+						enqueue_prefetch_on_hit(target_mod, stack->client_info, stack->pref_stream, stack->pref_slot);
 				}
 				/* Fill all the stream buffer if a stride is detected */
 				else
 				{
 					if (stack->stride)
-						enqueue_prefetch_on_miss(stack);
+						enqueue_prefetch_on_miss(target_mod, stack->client_info, stack->addr, stack->stride);
 				}
 			}
 		}
@@ -3529,15 +3405,15 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 		else if (stack->stream_hit)
 		{
 			struct stream_block_t *block = cache_get_pref_block(target_mod->cache, stack->pref_stream, stack->pref_slot);
+			struct stream_buffer_t *sb = &target_mod->cache->prefetch.streams[stack->pref_stream];
 			assert(stack->tag == block->tag);
 			cache_set_block(target_mod->cache, stack->set, stack->way, block->tag, block->state);
 			stack->state = block->state;
 			block->state = cache_block_invalid;
 			block->tag = -1;
-			struct stream_buffer_t *sb = &target_mod->cache->prefetch.streams[stack->pref_stream];
 			sb->count--; //COUNT
 			if (stack->stream_head_hit)
-				sb->head = (sb->head + 1) % sb->eff_num_slots; //HEAD
+				sb->head = (sb->head + 1) % target_mod->cache->prefetch.max_num_slots; //HEAD
 			/* Statistics */
 			target_mod->useful_prefetches++;
 			if(stack->stream_retried_cycle)
@@ -4241,13 +4117,13 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 				{
 					/* Prefetch only one block */
 					if (stack->stream_head_hit)
-						enqueue_prefetch_on_hit(stack);
+						enqueue_prefetch_on_hit(target_mod, stack->client_info, stack->pref_stream, stack->pref_slot);
 				}
 				/* Fill all the stream buffer if a stride is detected */
 				else
 				{
 					if (stack->stride)
-						enqueue_prefetch_on_miss(stack);
+						enqueue_prefetch_on_miss(target_mod, stack->client_info, stack->addr, stack->stride);
 				}
 			}
 		}
@@ -4561,7 +4437,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			struct stream_buffer_t *sb = &target_mod->cache->prefetch.streams[stack->pref_stream];
 			sb->count--; //COUNT
 			if (stack->stream_head_hit)
-				sb->head = (sb->head + 1) % sb->eff_num_slots; //HEAD
+				sb->head = (sb->head + 1) % target_mod->cache->prefetch.max_num_slots; //HEAD
 			dir_pref_entry_unlock(target_mod->dir, stack->pref_stream, stack->pref_slot);
 
 			/* Statistics */
@@ -4705,7 +4581,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			dir_pref_entry_unlock(target_mod->dir, stack->pref_stream, stack->pref_slot);
 			/* If we remove head, we must increment it */
 			if (stack->pref_slot == sb->head)
-				sb->head = (stack->pref_slot + 1) % sb->eff_num_slots; //HEAD
+				sb->head = (stack->pref_slot + 1) % target_mod->cache->prefetch.max_num_slots; //HEAD
 		}
 		else if(stack->state) /* Sols fem això si no ha hagut un down_up miss degut als streams */
 		{

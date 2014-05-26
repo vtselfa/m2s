@@ -280,11 +280,9 @@ int mod_find_block_in_stream(struct mod_t *mod, unsigned int addr, int stream)
 	int tag = addr & ~cache->block_mask;
 	int i, slot, count;
 
-	assert(sb->eff_num_slots);
-
-	count = sb->head + sb->eff_num_slots;
+	count = sb->head + cache->prefetch.max_num_slots;
 	for(i = sb->head; i < count; i++){
-		slot = i % sb->eff_num_slots;
+		slot = i % cache->prefetch.max_num_slots;
 		block = cache_get_pref_block(cache, sb->stream, slot);
 		if(block->tag == tag && block->state)
 			return slot;
@@ -377,10 +375,10 @@ int mod_find_pref_block(struct mod_t *mod, unsigned int addr, int *pref_stream_p
 		/*if(!sb->stream_tag == stream_tag)
 			continue;*/
 
-		count = sb->head + sb->eff_num_slots;
+		count = sb->head + cache->prefetch.max_num_slots;
 		for(i = sb->head; i < count; i++)
 		{
-			slot = i % sb->eff_num_slots;
+			slot = i % cache->prefetch.max_num_slots;
 			blk = cache_get_pref_block(cache, stream, slot);
 
 			/* Increment any invalid unlocked head */
@@ -389,7 +387,7 @@ int mod_find_pref_block(struct mod_t *mod, unsigned int addr, int *pref_stream_p
 				dir_lock = dir_pref_lock_get(mod->dir, stream, slot);
 				if(!dir_lock->lock)
 				{
-					sb->head = (sb->head + 1) % sb->eff_num_slots;
+					sb->head = (sb->head + 1) % cache->prefetch.max_num_slots;
 					continue;
 				}
 			}
@@ -997,7 +995,7 @@ void mod_adapt_pref_handler(int event, void *data)
 				if (accuracy_int < averylow)
 				{
 					/* Reduce aggr. and disable */
-					cache->prefetch.pol_num_slots = cache->prefetch.max_num_slots / 2;
+					cache->prefetch.aggr = 2;
 					cache->pref_enabled = 0;
 
 					/* Good coverage and others don't require lots of BW */
@@ -1009,7 +1007,7 @@ void mod_adapt_pref_handler(int event, void *data)
 				if (accuracy_int < alow)
 				{
 					/* Reduce aggr. */
-					cache->prefetch.pol_num_slots = cache->prefetch.max_num_slots / 2;
+					cache->prefetch.aggr = 2;
 
 					/* Bad coverage and others need bw */
 					if (pseudocoverage_int < pseudocoverage_th && BWNO_int > BWNO_th)
@@ -1021,7 +1019,7 @@ void mod_adapt_pref_handler(int event, void *data)
 				{
 					/* Others need bandwidth */
 					if (BWNO_int > BWNO_th)
-						cache->prefetch.pol_num_slots = cache->prefetch.max_num_slots / 2; /* Reduce aggr. */
+						cache->prefetch.aggr = 2; /* Reduce aggr. */
 				}
 
 				/* High accuracy */
@@ -1029,7 +1027,7 @@ void mod_adapt_pref_handler(int event, void *data)
 				{
 					/* Others need bandwidth */
 					if (BWNO_int > BWNO_th)
-						cache->prefetch.pol_num_slots = cache->prefetch.max_num_slots / 2;
+						cache->prefetch.aggr = 2;
 
 					/* Others don't need a lot of bw */
 					else
@@ -1037,7 +1035,7 @@ void mod_adapt_pref_handler(int event, void *data)
 						/* Bad coverage */
 						if (pseudocoverage_int < pseudocoverage_th)
 						{
-							cache->prefetch.pol_num_slots = cache->prefetch.max_num_slots;
+							cache->prefetch.aggr = 4;
 						}
 					}
 				}
@@ -1064,7 +1062,7 @@ void mod_adapt_pref_handler(int event, void *data)
 				assert(lateness_int >= 0 && lateness_int <= 1);
 
 				/* Level 1 */
-				if (mod->cache->prefetch.pol_num_slots == a1)
+				if (mod->cache->prefetch.aggr == a1)
 				{
 					/* Low accuracy */
 					if (accuracy_int < alow)
@@ -1075,7 +1073,7 @@ void mod_adapt_pref_handler(int event, void *data)
 					{
 						/* Late */
 						if (lateness_int > tlateness)
-							mod->cache->prefetch.pol_num_slots = a2; /* Increment to increase timeliness */
+							mod->cache->prefetch.aggr = a2; /* Increment to increase timeliness */
 					}
 
 					/* High accuracy */
@@ -1083,7 +1081,7 @@ void mod_adapt_pref_handler(int event, void *data)
 					{
 						/* Late */
 						if (lateness_int > tlateness)
-							mod->cache->prefetch.pol_num_slots = a2; /* Increment to increase timeliness */
+							mod->cache->prefetch.aggr = a2; /* Increment to increase timeliness */
 					}
 
 					/* Global Bandwidth Control */
@@ -1092,14 +1090,14 @@ void mod_adapt_pref_handler(int event, void *data)
 				}
 
 				/* Level 2 */
-				else if (mod->cache->prefetch.pol_num_slots == a2)
+				else if (mod->cache->prefetch.aggr == a2)
 				{
 					/* Low accuracy */
 					if (accuracy_int < alow)
 					{
 						/* Late */
 						if (lateness_int > tlateness)
-							mod->cache->prefetch.pol_num_slots = a1; /* Bad and late prefetches -> decrement */
+							mod->cache->prefetch.aggr = a1; /* Bad and late prefetches -> decrement */
 					}
 
 					/* Medium accuracy */
@@ -1107,7 +1105,7 @@ void mod_adapt_pref_handler(int event, void *data)
 					{
 						/* Late */
 						if (lateness_int > tlateness)
-							mod->cache->prefetch.pol_num_slots = a3; /* Increment to increase timeliness */
+							mod->cache->prefetch.aggr = a3; /* Increment to increase timeliness */
 					}
 
 					/* High accuracy */
@@ -1115,7 +1113,7 @@ void mod_adapt_pref_handler(int event, void *data)
 					{
 						/* Late */
 						if (lateness_int > tlateness) /* Increment to increase timeliness */
-							mod->cache->prefetch.pol_num_slots = a3;
+							mod->cache->prefetch.aggr = a3;
 					}
 
 					/* Global Bandwidth Control */
@@ -1124,22 +1122,22 @@ void mod_adapt_pref_handler(int event, void *data)
 						if (accuracy_int < acc_th)
 						{
 							if (BWNO_int > BWNO_th)
-								mod->cache->prefetch.pol_num_slots = a1; /* Enforce throttle down */
-							else if(mod->cache->prefetch.pol_num_slots > a2)
-								mod->cache->prefetch.pol_num_slots = a2; /* Only allow throttle down */
+								mod->cache->prefetch.aggr = a1; /* Enforce throttle down */
+							else if(mod->cache->prefetch.aggr > a2)
+								mod->cache->prefetch.aggr = a2; /* Only allow throttle down */
 						}
 					}
 				}
 
 				/* Level 3 */
-				else if (mod->cache->prefetch.pol_num_slots == a3)
+				else if (mod->cache->prefetch.aggr == a3)
 				{
 					/* Low accuracy */
 					if (accuracy_int < alow)
 					{
 						/* Late */
 						if (lateness_int > tlateness)
-							mod->cache->prefetch.pol_num_slots = a2; /* Bad and late prefetches -> decrement */
+							mod->cache->prefetch.aggr = a2; /* Bad and late prefetches -> decrement */
 					}
 
 					/* Medium accuracy */
@@ -1156,9 +1154,9 @@ void mod_adapt_pref_handler(int event, void *data)
 						if (accuracy_int < acc_th)
 						{
 							if (BWNO_int > BWNO_th)
-								mod->cache->prefetch.pol_num_slots = a2; /* Enforce throttle down */
-							else if(mod->cache->prefetch.pol_num_slots > a3)
-								mod->cache->prefetch.pol_num_slots = a3; /* Only allow throttle down */
+								mod->cache->prefetch.aggr = a2; /* Enforce throttle down */
+							else if(mod->cache->prefetch.aggr > a3)
+								mod->cache->prefetch.aggr = a3; /* Only allow throttle down */
 						}
 					}
 				}
@@ -1466,7 +1464,7 @@ void mod_report_handler(int event, void *data)
 	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", stream_hits_int);
 	line_writer_add_column(lw, 8, line_writer_align_right, "%.2f", mpki_int);
 	line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", pseudocoverage_int);
-	line_writer_add_column(lw, 9, line_writer_align_right, "%u", mod->cache->pref_enabled && mod->accesses ? mod->cache->prefetch.pol_num_slots : 0);
+	line_writer_add_column(lw, 9, line_writer_align_right, "%u", mod->cache->pref_enabled && mod->accesses ? mod->cache->prefetch.aggr : 0);
 	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", detected_strides_int);
 	line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", pct_rob_stalled_int);
 	line_writer_add_column(lw, 6, line_writer_align_right, "%.2f", BWNO_int);
