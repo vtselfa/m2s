@@ -22,7 +22,9 @@
 #include <unistd.h>
 
 #include <arch/common/arch.h>
+#include <arch/x86/timing/cpu.h>
 #include <lib/mhandle/mhandle.h>
+#include <lib/util/bit-map.h>
 #include <lib/util/config.h>
 #include <lib/util/debug.h>
 #include <lib/util/elf-format.h>
@@ -761,6 +763,8 @@ void x86_loader_load_from_ctx_config(struct config_t *config, char *section)
 
 	char *config_file_name;
 
+	char *thread_affinity;
+
 	/* Get configuration file name for errors */
 	config_file_name = config_get_file_name(config);
 
@@ -807,11 +811,29 @@ void x86_loader_load_from_ctx_config(struct config_t *config, char *section)
 	out = config_read_string(config, section, "Stdout", "");
 	ld->stdout_file = str_set(NULL, out);
 
-	/* TODO: Core affinity
-	ctx->core_affinity = config_read_int(config, section, "CoreAffinity", -1);
-	if(ctx->core_affinity < -1 || ctx->core_affinity > x86_cpu_num_cores)
-		fatal("%s: invalid value for 'CoreAffinity'", config_file_name);
-	*/
+	/* Modify default Thread affinity mask */
+	thread_affinity = config_read_string(config, section, "ThreadAffinity", "");
+	if(*thread_affinity)
+	{
+		int num_nodes = x86_cpu_num_cores * x86_cpu_num_threads;
+		if (strlen(thread_affinity) != num_nodes)
+			warning("%s: wrong ThreadAffinity (%s) lenght, is %zu and must be %d, ignoring it",
+					__FUNCTION__, thread_affinity, strlen(thread_affinity), num_nodes);
+		else
+		{
+			int i;
+			for (i = 0; i < num_nodes; i++)
+			{
+				if (thread_affinity[i] == '1')
+					bit_map_set(ctx->affinity, i, 1, 1);
+				else if (thread_affinity[i] == '0')
+					bit_map_set(ctx->affinity, i, 1, 0);
+				else
+					fatal("%s: invalid ThreadAffinity (%s) value (%c)",
+							__FUNCTION__, thread_affinity, thread_affinity[i]);
+			}
+		}
+	}
 
 	/* Interval kind (instructions or cycles) */
 	interval_kind_str = config_read_string(config, section, "IntervalKind", "cycles");

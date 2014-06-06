@@ -173,9 +173,6 @@ struct x86_ctx_t
 	/* Thread affinity mask */
 	struct bit_map_t *affinity;
 
-	/* Core affinity */
-	int core_affinity;
-
 	/* Report stacks */
 	struct x86_ctx_report_stack_t *ipc_report_stack;
 
