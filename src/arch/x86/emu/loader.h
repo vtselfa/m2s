@@ -44,15 +44,8 @@ struct x86_loader_t
 	FILE *ipc_report_file;
 	long long ipc_report_interval;
 
-	/* MC (memory controller) report (for detailed simulation) */
-	FILE *mc_report_file;
-	int mc_report_interval;
-
 	/* Tells if interval is in cycles or in instructions */
 	enum interval_kind_t interval_kind;
-
-	/*Fairness*/
-	long long max_cycles_wait_MC; //threshold (cycles) to avoid fairness.
 
 	/* Stack */
 	unsigned int stack_base;
@@ -74,22 +67,6 @@ struct x86_loader_t
 	/* Random bytes */
 	unsigned int at_random_addr;
 	unsigned int at_random_addr_holder;
-
-	/* Statistics */
-	FILE *report_file;
-	long long mc_accesses;
-	long long normal_mc_accesses;
-	long long pref_mc_accesses;
-	long long row_buffer_hits;
-	long long t_wait;
-	long long t_acces;
-	long long t_transfer;
-	long long t_inside_net;
-
-	long long *row_buffer_hits_per_bank;
-	long long *mc_accesses_per_bank;
-	int num_banks;
-	int num_ranks;
 };
 
 
@@ -115,8 +92,6 @@ void x86_loader_load_exe(struct x86_ctx_t *ctx, char *exe);
 
 void x86_loader_load_from_ctx_config(struct config_t *config, char *section);
 void x86_loader_load_from_command_line(int argc, char **argv);
-
-void x86_loader_report_dump(struct x86_loader_t *ctx, FILE *f);
 
 
 #endif

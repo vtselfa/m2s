@@ -628,10 +628,6 @@ void x86_loader_free(struct x86_loader_t *ld)
 
 	/* IPC report file */
 	file_close(ld->ipc_report_file);
-	file_close(ld->mc_report_file);
-
-	x86_loader_report_dump(ld, ld->report_file);
-	file_close(ld->report_file);
 
 	/* Free loader */
 	str_free(ld->interp);
@@ -640,55 +636,9 @@ void x86_loader_free(struct x86_loader_t *ld)
 	str_free(ld->stdin_file);
 	str_free(ld->stdout_file);
 
-
-	if(ld->mc_accesses_per_bank!=NULL)
-		free(ld->mc_accesses_per_bank);
-	if(ld->row_buffer_hits_per_bank!=NULL)
-		free(ld->row_buffer_hits_per_bank);
-
-
 	free(ld);
 }
 
-
-void x86_loader_report_dump(struct x86_loader_t *ctx, FILE *f)
-{
-	if (!f)
-		return;
-
-
-	fprintf(f, "[MAIN-MEMORY]\n");
-	fprintf(f, "TotalTimeGoComeL2 = %f\n",ctx->mc_accesses ? (double) (ctx->t_wait+ ctx->t_acces+ctx->t_transfer+ctx->t_inside_net)/ctx->mc_accesses:0.0);
-	fprintf(f, "TotalTime = %f\n",ctx->mc_accesses ? (double) (ctx->t_wait+ ctx->t_acces+ctx->t_transfer)/ctx->mc_accesses:0.0);
-	fprintf(f, "AvgTimeWaitMCQueue = %f\n",ctx->mc_accesses ? (double)ctx->t_wait/ctx->mc_accesses:0.0);
-	fprintf(f, "AvgTimeAccesMM = %f\n",ctx->mc_accesses ? (double) ctx->t_acces/ctx->mc_accesses :0.0);
-	fprintf(f, "AvgTimeTransferFromMM = %f\n",ctx->mc_accesses?(double)ctx->t_transfer/ctx->mc_accesses:0.0 );
-	fprintf(f, "AvgTimeInsideNet = %f\n",ctx->mc_accesses?(double) ctx->t_inside_net/ctx->mc_accesses:0.0 );
-	fprintf(f,"TotalAccessesMC = %lld\n", ctx->mc_accesses);
-	fprintf(f,"TotalNormalAccessesMC = %lld\n", ctx->normal_mc_accesses);
-	fprintf(f,"TotalPrefetchAccessesMC = %lld\n", ctx->pref_mc_accesses);
-	fprintf(f, "PercentRowBufferHit = %f\n",ctx->mc_accesses?(double) ctx->row_buffer_hits/ctx->mc_accesses:0.0 );
-	fprintf(f, "NumTotalBanks = %d\n",ctx->num_banks);
-	fprintf(f, "NumRanks = %d\n",ctx->num_ranks);
-	fprintf(f,"\n\n");
-
-
-
-
-
-	for (int i=0; i<ctx->num_banks;i++)
-	{
-		fprintf(f, "[Bank-%d]\n",i);
-		fprintf(f, "PercentRowBufferHit = %f\n",ctx->mc_accesses_per_bank[i]?(double) ctx->row_buffer_hits_per_bank[i]/ctx->mc_accesses_per_bank[i]:0.0 );
-		fprintf(f,"TotalAccessesMC = %lld\n", ctx->mc_accesses_per_bank[i]);
-
-
-	}
-
-
-
-	fprintf(f, "\n\n");
-}
 
 struct x86_loader_t *x86_loader_link(struct x86_loader_t *ld)
 {
@@ -758,7 +708,6 @@ void x86_loader_load_from_ctx_config(struct config_t *config, char *section)
 	int enable_report;
 
 	char *ipc_report_file_name;
-	char *report_file_name;
 	char *interval_kind_str;
 
 	char *config_file_name;
@@ -860,21 +809,6 @@ void x86_loader_load_from_ctx_config(struct config_t *config, char *section)
 					config_file_name);
 		x86_ctx_ipc_report_schedule(ctx);
 	}
-
-	/* Global report file */
-	report_file_name = config_read_string(config, section,"GlobalReport", "");
-
-	if (*report_file_name)
-	{
-		ld->report_file = file_open_for_write(report_file_name);
-		if (!ld->report_file)
-			fatal("%s: cannot open global report file",
-					report_file_name);
-	}
-
-	/* Fairness */
-	ld->max_cycles_wait_MC = config_read_llint(config, section,
-			"MaxWaitInMC",100000000000 ); /* By default, same as default MC */
 
 	/* Load executable */
 	x86_loader_load_exe(ctx, exe);
