@@ -820,9 +820,10 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config,
 	mod->cache = cache_create(mod->name, dir_size / dir_assoc, 0, 0, block_size,
 			dir_assoc, cache_policy_lru);
 
-	/* Connect to specified main mem system */
+	/* Connect to specified main mem system, if any */
 	mod->dram_system = hash_table_get(mem_system->dram_systems, dram_system_name);
-	mod->mc_id = mod->dram_system->num_mcs++; /* Asign an ID and increment the number of memory controllers in the dram system */
+	if (mod->dram_system)
+		mod->mc_id = mod->dram_system->num_mcs++; /* Asign an ID and increment the number of memory controllers in the dram system */
 
 	list_add(mem_system->mm_mod_list, mod);
 
