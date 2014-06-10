@@ -798,7 +798,7 @@ void x86_loader_load_from_ctx_config(struct config_t *config, char *section)
 			"ReportFile", default_report_file_name);
 	ld->ipc_report_interval = config_read_llint(config, section,
 			"ReportInterval", 50000);
-	if (enable_report && arch_x86->sim_kind == arch_sim_kind_detailed)
+	if (enable_report)
 	{
 		ld->ipc_report_file = file_open_for_write(ipc_report_file_name);
 		if (!ld->ipc_report_file)

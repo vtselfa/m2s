@@ -117,6 +117,7 @@ struct arch_t
 
 	/* Counters */
 	long long cycle;
+	long long last_reset_cycle; /* Cycle when last stats reset has been performed */
 	long long inst_count;
 };
 

@@ -906,8 +906,7 @@ void x86_ctx_ipc_report_schedule(struct x86_ctx_t *ctx)
 	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "inst-int");
 	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "ipc-glob");
 	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "ipc-int");
-	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "mm-read-accesses");
-	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "mm-write-accesses");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "mm-accesses");
 	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "mm-pref-accesses");
 
 	size = line_writer_write(lw, f);
@@ -982,3 +981,63 @@ void x86_ctx_ipc_report_handler(int event, void *data)
 		esim_schedule_event(event, stack, ctx->loader->ipc_report_interval);
 }
 
+
+void x86_ctx_report_stack_reset_stats(struct x86_ctx_report_stack_t *stack)
+{
+	int i;
+	int size;
+	struct line_writer_t *lw = stack->lw;
+	FILE *f = x86_ctx_get(stack->pid)->loader->ipc_report_file;
+
+	stack->inst_count = 0;
+	stack->last_cycle = esim_cycle();
+	stack->mm_read_accesses = 0;
+	stack->mm_write_accesses = 0;
+	stack->mm_pref_accesses = 0;
+
+	/* Erase report file */
+	fseeko(f, 0, SEEK_SET);
+
+	/* Print header */
+	fprintf(f, "%s\nRESETED\n", help_x86_ctx_ipc_report);
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "cycle");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "inst");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "inst-int");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "ipc-glob");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "ipc-int");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "mm-read-accesses");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "mm-write-accesses");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "mm-pref-accesses");
+
+	size = line_writer_write(lw, f);
+	line_writer_clear(lw);
+
+	for (i = 0; i < size - 1; i++)
+		fprintf(f, "-");
+	fprintf(f, "\n");
+}
+
+
+void x86_ctx_reset_stats(struct x86_ctx_t *ctx)
+{
+	ctx->inst_count = 0;
+	ctx->mm_read_accesses = 0;
+	ctx->mm_write_accesses = 0;
+	ctx->mm_pref_accesses = 0;
+
+	/* Reset report stack */
+	if (ctx->ipc_report_stack)
+		x86_ctx_report_stack_reset_stats(ctx->ipc_report_stack);
+}
+
+
+void x86_ctx_all_reset_stats(void)
+{
+	struct x86_ctx_t *ctx;
+	ctx = x86_emu->context_list_head;
+	while (ctx)
+	{
+		x86_ctx_reset_stats(ctx);
+		ctx = ctx->context_list_next;
+	}
+}

@@ -352,7 +352,6 @@ struct mod_t
 	long long down_up_read_misses;
 	long long down_up_write_misses;
 	long long block_already_here;
-
 };
 
 struct mod_t *mod_create(char *name, enum mod_kind_t kind, int num_ports,
@@ -401,6 +400,10 @@ void mod_coalesce(struct mod_t *mod, struct mod_stack_t *master_stack,
 struct mod_client_info_t *mod_client_info_create(struct mod_t *mod);
 struct mod_client_info_t *mod_client_info_clone(struct mod_t *mod, struct mod_client_info_t *original);
 void mod_client_info_free(struct mod_t *mod, struct mod_client_info_t *client_info);
+
+/* Up down reset of stats across memory hierarchy */
+void mod_recursive_reset_stats(struct mod_t *mod);
+void mod_reset_stats(struct mod_t *mod);
 
 /* Prefetch */
 int mod_find_pref_block(struct mod_t *mod, unsigned int addr, int *pref_stream_ptr, int* pref_slot_ptr);

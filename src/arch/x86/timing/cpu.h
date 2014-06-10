@@ -104,6 +104,10 @@ extern int x86_cpu_commit_width;
 /* Number of instructions to fast forward */
 extern long long x86_cpu_fast_forward_count;
 
+/* Minimum number of instructions to execute per context to warm up caches and predictors. The statistics taken are reset after the warmup. */
+extern long long x86_cpu_warm_up_count;
+extern char *x86_save_checkpoint_after_warm_up_file_name;
+
 /* Trace */
 #define x86_tracing() trace_status(x86_trace_category)
 #define x86_trace(...) trace(x86_trace_category, __VA_ARGS__)
@@ -412,6 +416,8 @@ void x86_cpu_done(void);
 
 void x86_cpu_dump(FILE *f);
 void x86_cpu_dump_summary(FILE *f);
+
+void x86_cpu_reset_stats(void);
 
 void x86_cpu_update_occupancy_stats(void);
 
