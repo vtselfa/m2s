@@ -20,8 +20,6 @@
 #ifndef ARCH_X86_EMU_LOADER_H
 #define ARCH_X86_EMU_LOADER_H
 
-#include <mem-system/cache.h>
-
 /* Forward type declarations */
 struct config_t;
 
@@ -39,13 +37,6 @@ struct x86_loader_t
 	char *cwd;  /* Current working directory */
 	char *stdin_file;  /* File name for stdin */
 	char *stdout_file;  /* File name for stdout */
-
-	/* IPC report (for detailed simulation) */
-	FILE *ipc_report_file;
-	long long ipc_report_interval;
-
-	/* Tells if interval is in cycles or in instructions */
-	enum interval_kind_t interval_kind;
 
 	/* Stack */
 	unsigned int stack_base;

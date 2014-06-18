@@ -173,8 +173,9 @@ struct x86_ctx_t
 	/* Thread affinity mask */
 	struct bit_map_t *affinity;
 
-	/* Report stacks */
-	struct x86_ctx_report_stack_t *ipc_report_stack;
+	/* Interval stats reporting (for detailed simulation) */
+	FILE *interval_report_file;
+	struct x86_ctx_report_stack_t *interval_report_stack;
 
 	/* Number of non-speculate micro-instructions.
 	 * Updated by the architectural simulator at the commit stage. */
@@ -249,8 +250,8 @@ void x86_ctx_exit_robust_list(struct x86_ctx_t *ctx);
 void x86_ctx_gen_proc_self_maps(struct x86_ctx_t *ctx, char *path, int size);
 void x86_ctx_gen_proc_cpuinfo(struct x86_ctx_t *ctx, char *path, int size);
 
-void x86_ctx_ipc_report_schedule(struct x86_ctx_t *ctx);
-void x86_ctx_ipc_report_handler(int event, void *data);
+void x86_ctx_interval_report_schedule(struct x86_ctx_t *ctx);
+void x86_ctx_interval_report_handler(int event, void *data);
 
 void x86_ctx_all_reset_stats(void); /* Resets the stats of all the x86 ctxs */
 

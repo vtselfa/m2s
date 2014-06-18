@@ -30,6 +30,7 @@
 #include <lib/util/line-writer.h>
 #include <lib/util/linked-list.h>
 #include <lib/util/misc.h>
+#include <lib/util/stats.h>
 #include <lib/util/string.h>
 #include <lib/util/timer.h>
 
@@ -146,6 +147,8 @@ static struct x86_ctx_t *ctx_do_create()
 struct x86_ctx_t *x86_ctx_create(void)
 {
 	struct x86_ctx_t *ctx;
+	char interval_report_file_name[MAX_PATH_SIZE];
+	int ret;
 
 	ctx = ctx_do_create();
 
@@ -161,13 +164,24 @@ struct x86_ctx_t *x86_ctx_create(void)
 	ctx->signal_handler_table = x86_signal_handler_table_create();
 	ctx->file_desc_table = x86_file_desc_table_create();
 
+	/* Interval reporting of stats */
+	ret = snprintf(interval_report_file_name, MAX_PATH_SIZE, "%s/%d.interval.report", ctx_interval_reports_dir, ctx->pid);
+	if (ret < 0 || ret >= MAX_PATH_SIZE)
+		fatal("warning: function %s: string too long %s", __FUNCTION__, interval_report_file_name);
+
+	ctx->interval_report_file = file_open_for_write(interval_report_file_name);
+	if (!ctx->interval_report_file)
+		fatal("%s: cannot open interval report file", interval_report_file_name);
+
+	x86_ctx_interval_report_schedule(ctx);
+
 	return ctx;
 }
 
 
 struct x86_ctx_t *x86_ctx_clone(struct x86_ctx_t *ctx)
 {
-        struct x86_ctx_t *new;
+	struct x86_ctx_t *new;
 
 	new = ctx_do_create();
 
@@ -274,11 +288,14 @@ void x86_ctx_free(struct x86_ctx_t *ctx)
 	x86_ctx_debug("#%lld ctx %d freed\n", arch_x86->cycle, ctx->pid);
 
 	/* Free stats reporting stacks */
-	if(ctx->ipc_report_stack)
+	if(ctx->interval_report_stack)
 	{
-		line_writer_free(ctx->ipc_report_stack->lw);
-		free(ctx->ipc_report_stack);
+		line_writer_free(ctx->interval_report_stack->lw);
+		free(ctx->interval_report_stack);
 	}
+
+	/* Interval report file */
+	file_close(ctx->interval_report_file);
 
 	/* Free context */
 	free(ctx);
@@ -882,19 +899,18 @@ void x86_ctx_gen_proc_cpuinfo(struct x86_ctx_t *ctx, char *path, int size)
  * IPC report
  */
 
-void x86_ctx_ipc_report_schedule(struct x86_ctx_t *ctx)
+void x86_ctx_interval_report_schedule(struct x86_ctx_t *ctx)
 {
 	struct x86_ctx_report_stack_t *stack;
 	struct line_writer_t *lw;
-	FILE *f = ctx->loader->ipc_report_file;
+	FILE *f = ctx->interval_report_file;
 	int size, i;
 
 	/* Create new stack */
 	stack = xcalloc(1, sizeof(struct x86_ctx_report_stack_t));
 
 	/* Initialize */
-	assert(ctx->loader->ipc_report_file);
-	assert(ctx->loader->ipc_report_interval > 0);
+	assert(ctx->interval_report_file);
 	stack->pid = ctx->pid;
 
 	/* Print header */
@@ -906,7 +922,8 @@ void x86_ctx_ipc_report_schedule(struct x86_ctx_t *ctx)
 	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "inst-int");
 	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "ipc-glob");
 	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "ipc-int");
-	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "mm-accesses");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "mm-read-accesses");
+	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "mm-write-accesses");
 	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "mm-pref-accesses");
 
 	size = line_writer_write(lw, f);
@@ -916,16 +933,15 @@ void x86_ctx_ipc_report_schedule(struct x86_ctx_t *ctx)
 		fprintf(f, "-");
 	fprintf(f, "\n");
 
-	ctx->ipc_report_stack = stack;
+	ctx->interval_report_stack = stack;
 	stack->lw = lw;
 
 	/* Schedule first event */
-	if(ctx->loader->interval_kind == interval_kind_cycles)
-		esim_schedule_event(EV_X86_CTX_IPC_REPORT, stack, ctx->loader->ipc_report_interval);
+	esim_schedule_event(EV_X86_CTX_IPC_REPORT, stack, epoch_length);
 }
 
 
-void x86_ctx_ipc_report_handler(int event, void *data)
+void x86_ctx_interval_report_handler(int event, void *data)
 {
 	struct x86_ctx_report_stack_t *stack = data;
 	struct line_writer_t *lw = stack->lw;
@@ -949,7 +965,7 @@ void x86_ctx_ipc_report_handler(int event, void *data)
 		return;
 
 	inst_count = ctx->inst_count - stack->inst_count;
-	ipc_global = arch_x86->cycle ? (double) ctx->inst_count / arch_x86->cycle : 0.0;
+	ipc_global = arch_x86->cycle - arch_x86->last_reset_cycle ? (double) ctx->inst_count / (arch_x86->cycle - arch_x86->last_reset_cycle) : 0.0;
 	ipc_interval = (double) inst_count / (arch_x86->cycle - stack->last_cycle);
 	mm_read_accesses = ctx->mm_read_accesses - stack->mm_read_accesses;
 	mm_write_accesses = ctx->mm_write_accesses - stack->mm_write_accesses;
@@ -965,10 +981,10 @@ void x86_ctx_ipc_report_handler(int event, void *data)
 	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", mm_write_accesses);
 	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", mm_pref_accesses);
 
-	line_writer_write(lw, ctx->loader->ipc_report_file);
+	line_writer_write(lw, ctx->interval_report_file);
 	line_writer_clear(lw);
 
-	fflush(ctx->loader->ipc_report_file);
+	fflush(ctx->interval_report_file);
 
 	stack->inst_count = ctx->inst_count;
 	stack->last_cycle = arch_x86->cycle;
@@ -977,8 +993,7 @@ void x86_ctx_ipc_report_handler(int event, void *data)
 	stack->mm_pref_accesses = ctx->mm_pref_accesses;
 
 	/* Schedule new event */
-	if(ctx->loader->interval_kind == interval_kind_cycles)
-		esim_schedule_event(event, stack, ctx->loader->ipc_report_interval);
+	esim_schedule_event(event, stack, epoch_length);
 }
 
 
@@ -987,7 +1002,7 @@ void x86_ctx_report_stack_reset_stats(struct x86_ctx_report_stack_t *stack)
 	int i;
 	int size;
 	struct line_writer_t *lw = stack->lw;
-	FILE *f = x86_ctx_get(stack->pid)->loader->ipc_report_file;
+	FILE *f = x86_ctx_get(stack->pid)->interval_report_file;
 
 	stack->inst_count = 0;
 	stack->last_cycle = esim_cycle();
@@ -1026,8 +1041,8 @@ void x86_ctx_reset_stats(struct x86_ctx_t *ctx)
 	ctx->mm_pref_accesses = 0;
 
 	/* Reset report stack */
-	if (ctx->ipc_report_stack)
-		x86_ctx_report_stack_reset_stats(ctx->ipc_report_stack);
+	if (ctx->interval_report_stack)
+		x86_ctx_report_stack_reset_stats(ctx->interval_report_stack);
 }
 
 

@@ -626,9 +626,6 @@ void x86_loader_free(struct x86_loader_t *ld)
 		str_free(linked_list_get(ld->env));
 	linked_list_free(ld->env);
 
-	/* IPC report file */
-	file_close(ld->ipc_report_file);
-
 	/* Free loader */
 	str_free(ld->interp);
 	str_free(ld->exe);
@@ -695,7 +692,6 @@ void x86_loader_load_from_ctx_config(struct config_t *config, char *section)
 	struct x86_loader_t *ld;
 
 	char buf[MAX_STRING_SIZE];
-	char default_report_file_name[MAX_STRING_SIZE];
 
 	char *exe;
 	char *cwd;
@@ -704,11 +700,6 @@ void x86_loader_load_from_ctx_config(struct config_t *config, char *section)
 
 	char *in;
 	char *out;
-
-	int enable_report;
-
-	char *ipc_report_file_name;
-	char *interval_kind_str;
 
 	char *config_file_name;
 
@@ -782,32 +773,6 @@ void x86_loader_load_from_ctx_config(struct config_t *config, char *section)
 							__FUNCTION__, thread_affinity, thread_affinity[i]);
 			}
 		}
-	}
-
-	/* Interval kind (instructions or cycles) */
-	interval_kind_str = config_read_string(config, section, "IntervalKind", "cycles");
-	ctx->loader->interval_kind = str_map_string_case(&interval_kind_map, interval_kind_str);
-	if(!ctx->loader->interval_kind)
-		fatal("%s: invalid value for 'IntervalKind'", config_file_name);
-
-	/* Interval report */
-	snprintf(default_report_file_name, MAX_STRING_SIZE, "ctx%d.interval.report", ctx->pid);
-	enable_report = config_read_bool(config, section,
-			"EnableReport", 0);
-	ipc_report_file_name = config_read_string(config, section,
-			"ReportFile", default_report_file_name);
-	ld->ipc_report_interval = config_read_llint(config, section,
-			"ReportInterval", 50000);
-	if (enable_report)
-	{
-		ld->ipc_report_file = file_open_for_write(ipc_report_file_name);
-		if (!ld->ipc_report_file)
-			fatal("%s: cannot open interval report file",
-					ipc_report_file_name);
-		if (ld->ipc_report_interval < 1)
-			fatal("%s: invalid value for 'ReportInterval'",
-					config_file_name);
-		x86_ctx_ipc_report_schedule(ctx);
 	}
 
 	/* Load executable */

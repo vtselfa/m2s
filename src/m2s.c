@@ -18,6 +18,8 @@
  */
 
 #include <signal.h>
+#include <stdlib.h>
+#include <errno.h>
 
 #include <arch/arm/emu/context.h>
 #include <arch/arm/emu/isa.h>
@@ -70,11 +72,13 @@
 #include <lib/util/debug.h>
 #include <lib/util/file.h>
 #include <lib/util/misc.h>
+#include <lib/util/stats.h>
 #include <lib/util/string.h>
 #include <mem-system/config.h>
 #include <mem-system/mem-system.h>
 #include <mem-system/mmu.h>
 #include <network/net-system.h>
+#include <sys/stat.h>
 #include <sys/time.h>
 #include <visual/common/visual.h>
 
@@ -648,6 +652,21 @@ static void m2s_read_command_line(int *argc_ptr, char **argv)
 			continue;
 		}
 
+		/* Results directory */
+		if (!strcmp(argv[argi], "--reports-dir"))
+		{
+			m2s_need_argument(argc, argv, argi);
+			reports_dir = argv[++argi];
+			continue;
+		}
+
+		/* Report stats every N cycles */
+		if (!strcmp(argv[argi], "--epoch-length"))
+		{
+			m2s_need_argument(argc, argv, argi);
+			epoch_length = atoll(argv[++argi]);
+			continue;
+		}
 
 		/*
 		 * x86 CPU Options
@@ -1873,6 +1892,43 @@ static void m2s_loop(void)
 }
 
 
+void m2s_create_report_dirs(void)
+{
+	int ret;
+	mode_t urwx_grx = S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IWGRP;
+
+	/* Names */
+	ret = snprintf(interval_reports_dir, MAX_PATH_SIZE, "%s/interval_reports/", reports_dir);
+	if (ret < 0 || ret >= MAX_PATH_SIZE)
+		fatal("%s: string too long", reports_dir);
+
+	ret = snprintf(global_reports_dir, MAX_PATH_SIZE, "%s/global_reports/", reports_dir);
+	if (ret < 0 || ret >= MAX_PATH_SIZE)
+		fatal("%s: string too long", reports_dir);
+
+	ret = snprintf(ctx_interval_reports_dir, MAX_PATH_SIZE, "%s/ctx/", interval_reports_dir);
+	if (ret < 0 || ret >= MAX_PATH_SIZE)
+		fatal("%s: string too long", interval_reports_dir);
+
+	/* Creation */
+	ret = mkdir(reports_dir, urwx_grx);
+	if (ret && errno != EEXIST)
+		warning("cannot create dir %s", reports_dir);
+
+	ret = mkdir(interval_reports_dir, urwx_grx);
+	if (ret && errno != EEXIST)
+		warning("cannot create dir %s", interval_reports_dir);
+
+	ret = mkdir(ctx_interval_reports_dir, urwx_grx);
+	if (ret && errno != EEXIST)
+		warning("cannot create dir %s", ctx_interval_reports_dir);
+
+	ret = mkdir(global_reports_dir, urwx_grx);
+	if (ret && errno != EEXIST)
+		warning("cannot create dir %s", global_reports_dir);
+}
+
+
 int main(int argc, char **argv)
 {
 	/* Global initialization and welcome message */
@@ -1880,6 +1936,9 @@ int main(int argc, char **argv)
 
 	/* Read command line */
 	m2s_read_command_line(&argc, argv);
+
+	/* Create directories for results */
+	m2s_create_report_dirs();
 
 	/* x86 disassembler tool */
 	if (*x86_disasm_file_name)
