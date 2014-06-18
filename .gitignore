@@ -45,7 +45,6 @@ install-sh
 missing
 .deps/
 bin/
-lib/
 /m4/
 compile
 libtool
