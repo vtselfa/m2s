@@ -203,8 +203,7 @@ long long mod_access(struct mod_t *mod, enum mod_access_kind_t access_kind,
 		else if (access_kind == mod_access_prefetch)
 		{
 			assert(mod->cache->prefetch.type);
-			/* Prefetches go to external buffers */
-			if(mod->cache->prefetch.type == prefetcher_type_czone_streams)
+			if (prefetcher_uses_stream_buffers(mod->cache->prefetch.type))
 				event = EV_MOD_PREF;
 
 			/* Prefetches go to cache */
@@ -213,7 +212,7 @@ long long mod_access(struct mod_t *mod, enum mod_access_kind_t access_kind,
 		}
 		else if (access_kind == mod_access_invalidate_slot)
 		{
-			assert(mod->cache->prefetch.type == prefetcher_type_czone_streams);
+			assert(prefetcher_uses_stream_buffers(mod->cache->prefetch.type));
 			event = EV_MOD_NMOESI_INVALIDATE_SLOT;
 		}
 		else

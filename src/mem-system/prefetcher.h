@@ -21,10 +21,10 @@
 #define MEM_SYSTEM_PREFETCHER_H
 
 
-/* 
+/*
  * This file implements a global history buffer
  * based prefetcher. Refer to the 2005 paper by
- * Nesbit and Smith. 
+ * Nesbit and Smith.
  */
 
 extern struct str_map_t prefetcher_type_map;
@@ -32,9 +32,11 @@ extern struct str_map_t prefetcher_type_map;
 enum prefetcher_type_t
 {
 	prefetcher_type_invalid = 0,
-	prefetcher_type_ghb_pc_cs,
-	prefetcher_type_ghb_pc_dc,
-	prefetcher_type_czone_streams,
+	prefetcher_type_pc_cs,
+	prefetcher_type_pc_dc,
+	prefetcher_type_pc_cs_sb,
+	prefetcher_type_cz_cs_sb,
+	prefetcher_type_cz_cs,
 };
 
 /* Doesn't really make sense to have a big lookup depth */
@@ -81,14 +83,27 @@ struct prefetcher_t
 	int ghb_head;
 };
 
+
+struct mod_client_info_t;
 struct mod_stack_t;
 struct mod_t;
 
-struct prefetcher_t *prefetcher_create(int prefetcher_ghb_size, int prefetcher_it_size,
-				       int prefetcher_lookup_depth, enum prefetcher_type_t type);
+
+struct prefetcher_t *prefetcher_create(int prefetcher_ghb_size, int prefetcher_it_size, int prefetcher_lookup_depth, enum prefetcher_type_t type);
 void prefetcher_free(struct prefetcher_t *pref);
 
 void prefetcher_access_miss(struct mod_stack_t *stack, struct mod_t *mod);
-void prefetcher_access_hit(struct mod_stack_t *stack, struct mod_t *mod);
+void prefetcher_access_cache_hit(struct mod_stack_t *stack, struct mod_t *mod);
+void prefetcher_access_stream_buffer_hit(struct mod_stack_t *stack, struct mod_t *mod);
+
+int valid_prefetch_addr(unsigned int pref_addr, int stride);
+int prefetcher_uses_stream_buffers(enum prefetcher_type_t type);
+int prefetcher_uses_pc_indexed_ghb(enum prefetcher_type_t type);
+int prefetcher_uses_czone_indexed_ghb(enum prefetcher_type_t type);
+
+int must_enqueue_prefetch(struct mod_stack_t *stack);
+void stream_buffer_enqueue_prefetches(struct mod_t *mod, struct mod_client_info_t *client_info, int stream, int num_prefetches);
+void stream_buffer_allocate_stream_prefetch(struct mod_t *mod, struct mod_client_info_t *client_info, unsigned int miss_addr, int stride);
+void stream_buffer_stream_prefetch(struct mod_t *mod, struct mod_client_info_t *client_info, int stream, int slot);
 
 #endif

@@ -584,7 +584,7 @@ static struct mod_t *mem_config_read_cache(struct config_t *config,
 	enable_prefetcher = config_read_bool(config, buf,
 		"EnablePrefetcher", 0);
 	prefetcher_type_str = config_read_string(config, buf,
-		"PrefetcherType", "CZone_Streams");
+		"PrefetcherType", "cz_cs_sb");
 	prefetcher_ghb_size = config_read_int(config, buf,
 		"PrefetcherGHBSize", 256);
 	prefetcher_it_size = config_read_int(config, buf,
@@ -647,7 +647,8 @@ static struct mod_t *mem_config_read_cache(struct config_t *config,
 		prefetcher_type = str_map_string_case_err_msg(&prefetcher_type_map, prefetcher_type_str,
 			"%s: cache %s: Invalid prefetcher type", mem_config_file_name, mod_name);
 
-		if (prefetcher_type == prefetcher_type_czone_streams)
+		/* Prefetchers with Stream Buffers */
+		if (prefetcher_uses_stream_buffers(prefetcher_type))
 		{
 			if (prefetcher_num_streams < 1)
 				fatal("%s: cache %s: invalid value for variable 'PrefetcherStreams'.\n%s",
@@ -665,7 +666,9 @@ static struct mod_t *mem_config_read_cache(struct config_t *config,
 				fatal("%s: cache %s: invalid value for variable 'PrefetcherDistance'.\n%s",
 					mem_config_file_name, mod_name, mem_err_config_note);
 		}
-		else
+
+		/* Prefetchers with a GHB */
+		if (prefetcher_uses_pc_indexed_ghb(prefetcher_type) || prefetcher_uses_czone_indexed_ghb(prefetcher_type))
 		{
 			if (prefetcher_ghb_size < 1 ||
 				prefetcher_it_size < 1 ||
@@ -747,9 +750,11 @@ static struct mod_t *mem_config_read_cache(struct config_t *config,
 		mod->cache->prefetch.thresholds.ipc = config_read_double(config, buf, "IPCThreshold", 0.9);
 		mod->cache->prefetch.thresholds.ratio_cycles_stalled = config_read_double(config, buf, "RatioCyclesStalledThreshold", 0.6);
 
-		if (prefetcher_type == prefetcher_type_ghb_pc_cs || prefetcher_type == prefetcher_type_ghb_pc_dc)
+		if (prefetcher_uses_pc_indexed_ghb(prefetcher_type) || prefetcher_uses_czone_indexed_ghb(prefetcher_type))
+		{
 			mod->cache->prefetcher = prefetcher_create(prefetcher_ghb_size,
 				prefetcher_it_size, prefetcher_lookup_depth, prefetcher_type);
+		}
 	}
 
 	/* Return */

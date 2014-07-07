@@ -163,201 +163,6 @@ int EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER_ACTION;
 int EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER_FINISH;
 
 
-/* AUXILIARY FUNCTIONS */
-
-int must_enqueue_prefetch(struct mod_stack_t *stack)
-{
-	struct mod_t *target_mod;
-	/* L1 prefetch */
-	if (!stack->target_mod)
-		return stack->mod->cache->pref_enabled && !stack->background;
-	/* Deeper than L1 prefetch */
-	target_mod = stack->target_mod;
-	return target_mod->cache->pref_enabled && //El prefetch està habilitat
-		!stack->prefetch && //No estem en una cadena de prefetch
-		!stack->background && //La stack fast resumed ja haurà encuat el prefetch, si calia
-		target_mod->kind == mod_kind_cache && //És una cache
-		stack->request_dir == mod_request_up_down; //Petició up down
-}
-
-
-void stream_buffer_enqueue_prefetches(
-		struct mod_t *mod, struct mod_client_info_t *client_info,
-		int stream, int num_prefetches)
-{
-	struct cache_t *cache = mod->cache;
-	struct stream_buffer_t *sb;
-	unsigned int prev_address;
-	int max_num_slots;
-	int max_num_streams;
-	int i;
-
-	sb = &cache->prefetch.streams[stream];
-
-	max_num_slots = cache->prefetch.max_num_slots;
-	max_num_streams = cache->prefetch.max_num_streams;
-
-	/* Assertions */
-	assert(sb->stride);
-	assert(num_prefetches < max_num_slots);
-	assert(stream >= 0 && stream < max_num_streams);
-	assert(!sb->dead);
-	assert(sb->next_address % cache->block_size == 0);
-
-	/* Set time */
-	sb->time = esim_time;
-
-	/* Debug */
-	mem_debug("    Enqueued %d prefetches at addr=0x%x to stream=%d with stride=0x%x\n", num_prefetches, sb->next_address, stream, sb->stride);
-	mem_debug("    head = %d tail = %d\n", sb->head, sb->tail);
-
-	/* Insert prefetches */
-	for (i = 0; i < num_prefetches; i++)
-	{
-		/* Reached maximum prefetching distance */
-		if (sb->pending_prefetches == max_num_slots)
-			break;
-
-		client_info = mod_client_info_clone(mod, client_info);
-		client_info->stream = stream;
-		client_info->slot = sb->tail;
-
-		mod_access(mod, mod_access_prefetch, sb->next_address, NULL, NULL, NULL, client_info);
-
-		sb->tail = (sb->tail + 1) % max_num_slots; //TAIL
-		sb->pending_prefetches++;
-
-		prev_address = sb->next_address;
-		sb->next_address += sb->stride;
-
-		/* End of page */
-		if((prev_address & ~mmu_page_mask) != (sb->next_address & ~mmu_page_mask))
-		{
-			sb->dead = 1;
-			break;
-		}
-
-		/* Underflow */
-		if(sb->stride < 0 && sb->next_address > prev_address)
-		{
-			sb->dead = 1;
-			break;
-		}
-
-		/* Overflow */
-		if(sb->stride > 0 && sb->next_address < prev_address)
-		{
-			sb->dead = 1;
-			break;
-		}
-
-		/* End of stream */
-		if (sb->stream_transcient_tag != (sb->next_address & cache->prefetch.stream_tag_mask))
-			break;
-	}
-}
-
-
-void enqueue_prefetch_on_miss(struct mod_t *mod, struct mod_client_info_t *client_info, unsigned int miss_addr, int stride)
-{
-	struct cache_t *cache = mod->cache;
-	struct stream_buffer_t *sb;
-	unsigned int stream_tag;
-	unsigned int base_addr;
-	int stream;
-
-	assert(stride);
-
-	base_addr = miss_addr + stride;
-	stream_tag = base_addr & cache->prefetch.stream_tag_mask;
-
-	/* If there is a stream with the same tag, replace it. If not, replace the last recently used one. */
-	stream = cache_find_stream(cache, stream_tag);
-	if (stream == -1) /* Stream tag not found */
-		stream = cache_select_stream(cache);
-	sb = &cache->prefetch.streams[stream];
-
-	/* Underflow */
-	if (stride < 0 && base_addr > miss_addr) return;
-
-	/* Overflow */
-	if (stride > 0 && base_addr < miss_addr) return;
-
-	/* End of page */
-	if ((miss_addr & ~mmu_page_mask) != (base_addr & ~mmu_page_mask)) return;
-
-	/* Pending prefetches */
-	if (sb->pending_prefetches) return;
-
-	/* Locked blocks */
-	for (int slot = 0; slot < cache->prefetch.max_num_slots; slot++)
-	{
-		struct dir_lock_t *dir_lock = dir_pref_lock_get(mod->dir, stream, slot);
-		if (dir_lock->lock)
-		{
-			printf("Ouch!\n");
-			return;
-		}
-	}
-
-	/* Invalidate all blocks in the stream */
-	for (int i = 0; i < cache->prefetch.max_num_slots; i++)
-	{
-		sb->blocks[i].tag = block_invalid_tag;
-		sb->blocks[i].transient_tag = block_invalid_tag;
-		sb->blocks[i].state = cache_block_invalid;
-	}
-
-	sb->head = 0;
-	sb->tail = 0;
-	sb->next_address = base_addr;
-	sb->stream_transcient_tag = stream_tag;
-	sb->dead = 0;
-	sb->stride = stride;
-	sb->stream_tag = block_invalid_tag;
-
-	stream_buffer_enqueue_prefetches(mod, client_info, stream, cache->prefetch.aggr_ini);
-}
-
-
-void enqueue_prefetch_on_hit(struct mod_t *mod, struct mod_client_info_t *client_info, int stream, int slot)
-{
-	struct cache_t *cache;
-	struct stream_buffer_t *sb;
-	unsigned int prev_address;
-	unsigned int mmu_page_tag;
-
-	cache = mod->cache;
-
-	/* Assure that the stream and the slot are correct */
-	assert(stream >= 0 && stream < cache->prefetch.max_num_streams);
-	assert(slot >= 0 && slot < cache->prefetch.max_num_slots);
-
-	sb = &cache->prefetch.streams[stream];
-	prev_address = sb->next_address - sb->stride;
-	mmu_page_tag = prev_address & ~mmu_page_mask;
-
-	/* No more prefetching in this stream */
-	if (sb->dead)
-		return;
-
-	/* Test for invalid states */
-	assert(sb->stride); /* Invalid stride */
-	assert(mmu_page_tag == (sb->next_address & ~mmu_page_mask)); /* End of page */
-	assert(sb->stride > 0 || (prev_address + sb->stride) < prev_address); /* Underflow */
-	assert(sb->stride < 0 || (prev_address + sb->stride) > prev_address); /* Overflow */
-
-	/* Allocate a new stream if next_address is not in the stream anymore */
-	if (sb->stream_transcient_tag != (sb->next_address & cache->prefetch.stream_tag_mask))
-	{
-		sb->dead = 1; /* Only do this the first time */
-		enqueue_prefetch_on_miss(mod, client_info, sb->next_address - sb->stride, sb->stride);
-		return;
-	}
-
-	stream_buffer_enqueue_prefetches(mod, client_info, stream, cache->prefetch.aggr);
-}
-
 
 /* NMOESI Protocol */
 
@@ -642,7 +447,7 @@ void mod_handler_nmoesi_load(int event, void *data)
 				mod->delayed_hits++;
 				/* Prefetch stream stacks leave block in prefetch buffer, not in cache, so first load to coalesce must bring block from stream to cache.
 				 * Next stacks must coalesce with the load, not with the prefetch. This is done in mod_coalesce(...). */
-				if(cache->prefetch.type == prefetcher_type_czone_streams)
+				if (prefetcher_uses_stream_buffers(mod->cache->prefetch.type))
 				{
 					mod_stack_wait_in_stack(stack, master_stack, EV_MOD_NMOESI_LOAD_LOCK);
 					return;
@@ -730,19 +535,17 @@ void mod_handler_nmoesi_load(int event, void *data)
 		if (must_enqueue_prefetch(stack))
 		{
 			/* Enqueue STREAM prefetch */
-			if (cache->prefetch.type == prefetcher_type_czone_streams)
+			if (prefetcher_uses_stream_buffers(mod->cache->prefetch.type))
 			{
 				if (stack->stream_hit)
 				{
-					/* Prefetch only one block */
 					if (stack->stream_head_hit)
-						enqueue_prefetch_on_hit(mod, stack->client_info, stack->pref_stream, stack->pref_slot);
+						stream_buffer_stream_prefetch(mod, stack->client_info, stack->pref_stream, stack->pref_slot);
 				}
-				/* Fill all the stream buffer if a stride is detected */
 				else
 				{
 					if (stack->stride)
-						enqueue_prefetch_on_miss(mod, stack->client_info, stack->addr, stack->stride);
+						stream_buffer_allocate_stream_prefetch(mod, stack->client_info, stack->addr, stack->stride);
 				}
 			}
 		}
@@ -762,7 +565,7 @@ void mod_handler_nmoesi_load(int event, void *data)
 			/* The prefetcher may have prefetched this earlier and hence
 			 * this is a hit now. Let the prefetcher know of this hit
 			 * since without the prefetcher, this may have been a miss. */
-			prefetcher_access_hit(stack, mod);
+			prefetcher_access_cache_hit(stack, mod);
 			return;
 		}
 
@@ -1073,19 +876,19 @@ void mod_handler_nmoesi_store(int event, void *data)
 		if (must_enqueue_prefetch(stack))
 		{
 			/* Enqueue STREAM prefetch */
-			if (cache->prefetch.type == prefetcher_type_czone_streams)
+			if (prefetcher_uses_stream_buffers(mod->cache->prefetch.type))
 			{
 				if (stack->stream_hit)
 				{
 					/* Prefetch only one block */
 					if (stack->stream_head_hit)
-						enqueue_prefetch_on_hit(mod, stack->client_info, stack->pref_stream, stack->pref_slot);
+						stream_buffer_stream_prefetch(mod, stack->client_info, stack->pref_stream, stack->pref_slot);
 				}
 				/* Fill all the stream buffer if a stride is detected */
 				else
 				{
 					if (stack->stride)
-						enqueue_prefetch_on_miss(mod, stack->client_info, stack->addr, stack->stride);
+						stream_buffer_allocate_stream_prefetch(mod, stack->client_info, stack->addr, stack->stride);
 				}
 			}
 		}
@@ -1135,7 +938,7 @@ void mod_handler_nmoesi_store(int event, void *data)
 			/* The prefetcher may have prefetched this earlier and hence
 			 * this is a hit now. Let the prefetcher know of this hit
 			 * since without the prefetcher, this may have been a miss. */
-			prefetcher_access_hit(stack, mod);
+			prefetcher_access_cache_hit(stack, mod);
 
 			return;
 		}
@@ -2194,14 +1997,10 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 			cache_access_block(mod->cache, stack->set, stack->way);
 		}
 
-
-
 		/* Access latency */
-		if (!stack->hit && !stack->background && cache->prefetch.type == prefetcher_type_czone_streams)
-		{
-			assert(!(mod->kind==mod_kind_main_memory && stack->request_dir == mod_request_up_down)); // P
-			esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK_PREF_STREAM, stack, 0);
-		}else
+		if (!stack->hit && !stack->background && prefetcher_uses_stream_buffers(cache->prefetch.type))
+			esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK_PREF_STREAM, stack, 0); /* TODO: Zero? */
+		else
 			esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK_ACTION, stack, mod->dir_latency); /* Access latency */
 		return;
 	}
@@ -3141,19 +2940,17 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			struct cache_t *target_cache = stack->target_mod->cache;
 
 			/* Enqueue STREAM prefetch */
-			if (target_cache->prefetch.type == prefetcher_type_czone_streams)
+			if (prefetcher_uses_stream_buffers(target_cache->prefetch.type))
 			{
 				if (stack->stream_hit)
 				{
-					/* Prefetch only one block */
 					if (stack->stream_head_hit)
-						enqueue_prefetch_on_hit(target_mod, stack->client_info, stack->pref_stream, stack->pref_slot);
+						stream_buffer_stream_prefetch(target_mod, stack->client_info, stack->pref_stream, stack->pref_slot);
 				}
-				/* Fill all the stream buffer if a stride is detected */
 				else
 				{
 					if (stack->stride)
-						enqueue_prefetch_on_miss(target_mod, stack->client_info, stack->addr, stack->stride);
+						stream_buffer_allocate_stream_prefetch(target_mod, stack->client_info, stack->addr, stack->stride);
 				}
 			}
 		}
@@ -3307,7 +3104,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			 * this is a hit now. Let the prefetcher know of this hit
 			 * since without the prefetcher, this may have been a miss.
 			 * TODO: I'm not sure how relavant this is here for all states. */
-			prefetcher_access_hit(stack, target_mod);
+			prefetcher_access_cache_hit(stack, target_mod);
 		}
 		else
 		{
@@ -4111,19 +3908,19 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			struct cache_t *target_cache = stack->target_mod->cache;
 
 			/* Enqueue STREAM prefetch */
-			if (target_cache->prefetch.type == prefetcher_type_czone_streams)
+			if (prefetcher_uses_stream_buffers(target_cache->prefetch.type))
 			{
 				if (stack->stream_hit)
 				{
 					/* Prefetch only one block */
 					if (stack->stream_head_hit)
-						enqueue_prefetch_on_hit(target_mod, stack->client_info, stack->pref_stream, stack->pref_slot);
+						stream_buffer_stream_prefetch(target_mod, stack->client_info, stack->pref_stream, stack->pref_slot);
 				}
 				/* Fill all the stream buffer if a stride is detected */
 				else
 				{
 					if (stack->stride)
-						enqueue_prefetch_on_miss(target_mod, stack->client_info, stack->addr, stack->stride);
+						stream_buffer_allocate_stream_prefetch(target_mod, stack->client_info, stack->addr, stack->stride);
 				}
 			}
 		}
@@ -4283,7 +4080,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			 * this is a hit now. Let the prefetcher know of this hit
 			 * since without the prefetcher, this may been a miss.
 			 * TODO: I'm not sure how relavant this is here for all states. */
-			prefetcher_access_hit(stack, target_mod);
+			prefetcher_access_cache_hit(stack, target_mod);
 		}
 
 		return;
