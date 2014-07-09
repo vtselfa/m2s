@@ -369,8 +369,8 @@ int mod_can_access(struct mod_t *mod, unsigned int addr);
 int mod_find_block(struct mod_t *mod, unsigned int addr, int *set_ptr, int *way_ptr,
 	int *tag_ptr, int *state_ptr);
 
-void mod_block_set_prefetched(struct mod_t *mod, unsigned int addr, int val);
-int mod_block_get_prefetched(struct mod_t *mod, unsigned int addr);
+void mod_set_prefetched_bit(struct mod_t *mod, unsigned int addr, int val);
+int mod_get_prefetched_bit(struct mod_t *mod, unsigned int addr);
 
 void mod_lock_port(struct mod_t *mod, struct mod_stack_t *stack, int event);
 void mod_unlock_port(struct mod_t *mod, struct mod_port_t *port,

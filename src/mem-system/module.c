@@ -424,7 +424,7 @@ hit:
 }
 
 
-void mod_block_set_prefetched(struct mod_t *mod, unsigned int addr, int val)
+void mod_set_prefetched_bit(struct mod_t *mod, unsigned int addr, int val)
 {
 	int set, way;
 
@@ -436,7 +436,7 @@ void mod_block_set_prefetched(struct mod_t *mod, unsigned int addr, int val)
 }
 
 
-int mod_block_get_prefetched(struct mod_t *mod, unsigned int addr)
+int mod_get_prefetched_bit(struct mod_t *mod, unsigned int addr)
 {
 	int set, way;
 

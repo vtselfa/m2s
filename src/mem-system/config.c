@@ -667,27 +667,21 @@ static struct mod_t *mem_config_read_cache(struct config_t *config,
 					mem_config_file_name, mod_name, mem_err_config_note);
 		}
 
-		/* Prefetchers with a GHB */
-		if (prefetcher_uses_pc_indexed_ghb(prefetcher_type) || prefetcher_uses_czone_indexed_ghb(prefetcher_type))
-		{
-			if (prefetcher_ghb_size < 1 ||
+		/* GHB */
+		if (prefetcher_ghb_size < 1 ||
 				prefetcher_it_size < 1 ||
-		    	prefetcher_lookup_depth < 2 ||
-		    	prefetcher_lookup_depth > PREFETCHER_LOOKUP_DEPTH_MAX)
-			{
-				fatal("%s: cache %s: invalid prefetcher configuration.\n%s",
-					mem_config_file_name, mod_name, mem_err_config_note);
-			}
-		}
+				prefetcher_lookup_depth < 2 ||
+				prefetcher_lookup_depth > PREFETCHER_LOOKUP_DEPTH_MAX)
+			fatal("%s: cache %s: invalid prefetcher configuration.\n%s", mem_config_file_name, mod_name, mem_err_config_note);
 
 		/* Apdaptative prefetch policy */
 		prefetcher_adp_policy = str_map_string_case_err_msg(&adapt_pref_policy_map, prefetcher_adp_policy_str,
-			"%s: cache %s: Invalid adaptative prefetch policy", mem_config_file_name, mod_name);
+				"%s: cache %s: Invalid adaptative prefetch policy", mem_config_file_name, mod_name);
 		if (prefetcher_adp_policy)
 		{
 			/* Interval kind (instructions or cycles) */
 			prefetcher_adp_interval_kind = str_map_string_case_err_msg(&interval_kind_map, prefetcher_adp_interval_kind_str,
-				"%s: cache %s: Invalid interval kind", mem_config_file_name, mod_name);
+					"%s: cache %s: Invalid interval kind", mem_config_file_name, mod_name);
 		}
 	}
 
@@ -750,11 +744,8 @@ static struct mod_t *mem_config_read_cache(struct config_t *config,
 		mod->cache->prefetch.thresholds.ipc = config_read_double(config, buf, "IPCThreshold", 0.9);
 		mod->cache->prefetch.thresholds.ratio_cycles_stalled = config_read_double(config, buf, "RatioCyclesStalledThreshold", 0.6);
 
-		if (prefetcher_uses_pc_indexed_ghb(prefetcher_type) || prefetcher_uses_czone_indexed_ghb(prefetcher_type))
-		{
-			mod->cache->prefetcher = prefetcher_create(prefetcher_ghb_size,
+		mod->cache->prefetcher = prefetcher_create(prefetcher_ghb_size,
 				prefetcher_it_size, prefetcher_lookup_depth, prefetcher_type);
-		}
 	}
 
 	/* Return */
