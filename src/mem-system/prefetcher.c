@@ -22,6 +22,7 @@
 #include <lib/esim/esim.h> /* esim_cycle() */
 #include <lib/mhandle/mhandle.h>
 #include <lib/util/debug.h>
+#include <lib/util/misc.h>
 #include <lib/util/string.h>
 
 #include "directory.h"
@@ -31,6 +32,13 @@
 #include "cache.h"
 #include "mod-stack.h"
 
+int valid_prefetch_addr(struct mod_t *mod, unsigned int pref_addr, int stride);
+int can_prefetch(struct mod_stack_t *stack);
+void stream_buffer_enqueue_prefetches(struct mod_t *mod, struct mod_client_info_t *client_info, int stream, int num_prefetches);
+void stream_buffer_allocate_stream(struct mod_t *mod, struct mod_client_info_t *client_info, unsigned int miss_addr, int stride);
+void stream_buffer_prefetch_in_stream(struct mod_t *mod, struct mod_client_info_t *client_info, int stream, int slot);
+int get_it_index_tag(struct prefetcher_t *pref, struct mod_stack_t *stack, int *it_index, unsigned *tag);
+int prefetcher_ghb_cs_find_stride(struct prefetcher_t *pref, int it_index);
 
 /* If a new type is added don't forget to update functions
  * prefetcher_uses_pc_indexed_ghb and pretcher_uses_pc_indexed_ghb */
@@ -93,24 +101,28 @@ void prefetcher_free(struct prefetcher_t *pref)
 }
 
 
-static void get_it_index_tag(struct prefetcher_t *pref, struct mod_stack_t *stack,
+int get_it_index_tag(struct prefetcher_t *pref, struct mod_stack_t *stack,
 			     int *it_index, unsigned *tag)
 {
 	struct mod_t *mod = stack->target_mod ? stack->target_mod : stack->mod;
 	struct cache_t *cache = mod->cache;
+	*it_index = -1;
 
 	/* CZONE */
 	if (prefetcher_uses_czone_indexed_ghb(pref->type))
 	{
-		*it_index = (stack->addr >> cache->prefetch.czone_bits) % pref->it_size;
-		*tag = stack->addr & cache->prefetch.stream_tag_mask;
+		PTR_ASSIGN(it_index, (stack->addr >> cache->prefetch.czone_bits) % pref->it_size);
+		PTR_ASSIGN(tag, stack->addr & cache->prefetch.stream_tag_mask);
 	}
 
 	/* PC */
 	else if (prefetcher_uses_pc_indexed_ghb(pref->type))
 	{
-		*it_index = stack->client_info->prefetcher_eip % pref->it_size;
-		*tag = stack->client_info->prefetcher_eip;
+		/* No PC information */
+		if (stack->client_info->prefetcher_eip == -1)
+			return 0;
+		PTR_ASSIGN(it_index, stack->client_info->prefetcher_eip % pref->it_size);
+		PTR_ASSIGN(tag, stack->client_info->prefetcher_eip);
 	}
 
 	/* ERROR */
@@ -118,11 +130,13 @@ static void get_it_index_tag(struct prefetcher_t *pref, struct mod_stack_t *stac
 	{
 		fatal("%s: Invalid prefetcher type", __FUNCTION__);
 	}
+
+	return 1;
 }
 
 
 /* Returns it_index >= 0 if any valid update is made, negative otherwise. */
-static int prefetcher_update_tables(struct mod_stack_t *stack, struct mod_t *target_mod)
+int prefetcher_update_tables(struct mod_stack_t *stack, struct mod_t *target_mod)
 {
 	struct prefetcher_t *pref = target_mod->cache->prefetcher;
 	int ghb_index;
@@ -132,10 +146,8 @@ static int prefetcher_update_tables(struct mod_stack_t *stack, struct mod_t *tar
 
 	assert(pref);
 
-	/* Get the index table index */
-	get_it_index_tag(pref, stack, &it_index, &it_tag);
-
-	if (it_index < 0)
+	/* Get the index table index and test if is valid */
+	if(!get_it_index_tag(pref, stack, &it_index, &it_tag))
 		return -1;
 
 	assert(it_index < pref->it_size);
@@ -236,8 +248,6 @@ static void prefetcher_do_prefetch(struct mod_t *mod, struct mod_stack_t *stack,
 	struct mod_client_info_t *client_info;
 	int set1, tag1, set2, tag2;
 
-	assert(prefetch_addr > 0);
-
 	/* Predicted prefetch_addr can go horribly wrong
 	 * sometimes. Since prefetches aren't supposed to
 	 * cause any kind of faults/exceptions, return. */
@@ -268,6 +278,7 @@ static void prefetcher_do_prefetch(struct mod_t *mod, struct mod_stack_t *stack,
 	client_info = mod_client_info_create(mod);
 	client_info->core = stack->client_info->core;
 	client_info->thread = stack->client_info->thread;
+	client_info->ctx_pid = stack->client_info->ctx_pid;
 	mod_access(mod, mod_access_prefetch, prefetch_addr, NULL, NULL, NULL, client_info);
 }
 
@@ -278,70 +289,27 @@ static void prefetcher_do_prefetch(struct mod_t *mod, struct mod_stack_t *stack,
  * constant stride accesses. Based on this, prefetching is done. */
 static void prefetcher_ghb_cs(struct mod_t *mod, struct mod_stack_t *stack, int it_index)
 {
-	struct prefetcher_t *pref;
-	int chain, stride, i;
-	unsigned int prev_addr, cur_addr, prefetch_addr = 0;
+	int stride;
 
 	assert(mod->kind == mod_kind_cache && mod->cache != NULL);
 
-	pref = mod->cache->prefetcher;
-	chain = pref->index_table[it_index].ptr;
+	stride = prefetcher_ghb_cs_find_stride(mod->cache->prefetcher, it_index);
 
-	if (!stack->stream_hit)
-	{
-		/* The lookup depth must be at least 2 - which essentially means
-		 * two strides have been seen so far, prefetch for the next.
-		 * It doesn't really help to prefetch on a lookup of depth 1.
-		 * It is too low an accuracy and leads to lot of illegal and
-		 * redundant prefetches. Hence keeping the minimum at 2. */
-		assert(pref->lookup_depth >= 2);
+	if (!stride)
+		return;
 
-		/* The table should've been updated before calling this function. */
-		assert(pref->ghb[chain].addr == stack->addr);
-
-		/* If there's only one element in this linked list, nothing to do. */
-		if (pref->ghb[chain].next == -1)
-			return;
-
-		prev_addr = pref->ghb[chain].addr;
-		chain = pref->ghb[chain].next;
-		cur_addr = pref->ghb[chain].addr;
-		stride = prev_addr - cur_addr;
-
-		for (i = 2; i <= pref->lookup_depth; i++)
-		{
-			prev_addr = cur_addr;
-			chain = pref->ghb[chain].next;
-
-			/* The linked list (history) is smaller than the lookup depth */
-			if (chain == -1)
-				break;
-
-			cur_addr = pref->ghb[chain].addr;
-
-			/* The stride changed, can't prefetch */
-			if (stride != prev_addr - cur_addr)
-				break;
-
-			/* If this is the last iteration (we've seen as much history as
-			 * the lookup depth specified), then do a prefetch. */
-			if (i == pref->lookup_depth)
-				prefetch_addr = stack->addr + stride;
-		}
-
-		if (!prefetch_addr || !stride)
-			return;
-
-		stack->stride = stride;
-	}
-
-	switch(pref->type)
+	switch(mod->cache->prefetcher->type)
 	{
 		case prefetcher_type_pc_cs:
 		case prefetcher_type_cz_cs:
 		{
-			for(int i = 0; i < mod->cache->prefetch.aggr; i++)
-				prefetcher_do_prefetch(mod, stack, prefetch_addr + i * stride);
+			for(int i = 1; i <= mod->cache->prefetch.aggr; i++)
+			{
+				unsigned int pref_addr = stack->addr + i * stride;
+				if (!valid_prefetch_addr(mod, pref_addr, stride))
+					return;
+				prefetcher_do_prefetch(mod, stack, stack->addr + i * stride);
+			}
 			break;
 		}
 
@@ -349,9 +317,9 @@ static void prefetcher_ghb_cs(struct mod_t *mod, struct mod_stack_t *stack, int 
 		case prefetcher_type_cz_cs_sb:
 		{
 			if (stack->stream_hit)
-				stream_buffer_stream_prefetch(mod, stack->client_info, stack->pref_stream, stack->pref_slot);
-			else
-				stream_buffer_allocate_stream_prefetch(mod, stack->client_info, prefetch_addr, stride);
+				stream_buffer_prefetch_in_stream(mod, stack->client_info, stack->pref_stream, stack->pref_slot);
+			else if(stack->stride)
+				stream_buffer_allocate_stream(mod, stack->client_info, stack->addr, stack->stride);
 			break;
 		}
 
@@ -361,6 +329,53 @@ static void prefetcher_ghb_cs(struct mod_t *mod, struct mod_stack_t *stack, int 
 			break;
 		}
 	}
+}
+
+
+int prefetcher_ghb_cs_find_stride(struct prefetcher_t *pref, int it_index)
+{
+	int stride;
+	int chain;
+	unsigned int prev_addr;
+	unsigned int cur_addr;
+
+	chain = pref->index_table[it_index].ptr;
+
+	/* The lookup depth must be at least 2 - which essentially means
+	 * two strides have been seen so far, prefetch for the next.
+	 * It doesn't really help to prefetch on a lookup of depth 1.
+	 * It is too low an accuracy and leads to lot of illegal and
+	 * redundant prefetches. Hence keeping the minimum at 2. */
+	assert(pref->lookup_depth >= 2);
+
+	/* If there's only one element in this linked list, nothing to do. */
+	if (pref->ghb[chain].next == -1)
+		return 0;
+
+	prev_addr = pref->ghb[chain].addr;
+	chain = pref->ghb[chain].next;
+	cur_addr = pref->ghb[chain].addr;
+	stride = prev_addr - cur_addr;
+
+	for (int i = 2; i <= pref->lookup_depth; i++)
+	{
+		prev_addr = cur_addr;
+		chain = pref->ghb[chain].next;
+
+		/* The linked list (history) is smaller than the lookup depth */
+		if (chain == -1)
+			goto no_stride;
+
+		cur_addr = pref->ghb[chain].addr;
+
+		/* The stride changed, can't prefetch */
+		if (stride != prev_addr - cur_addr)
+			goto no_stride;
+	}
+	return stride;
+
+no_stride:
+	return 0;
 }
 
 
@@ -454,31 +469,26 @@ static void prefetcher_ghb_dc(struct mod_t *mod, struct mod_stack_t *stack, int 
 }
 
 
-void prefetcher_access_miss(struct mod_stack_t *stack, struct mod_t *target_mod)
+void prefetcher_access_cache_miss(struct mod_stack_t *stack, struct mod_t *target_mod)
 {
 	int it_index;
 
-	if (target_mod->kind != mod_kind_cache ||
-			!target_mod->cache->prefetcher ||
-			stack->prefetch ||
-			stack->request_dir == mod_request_down_up ||
-			stack->background)
+	if (!can_prefetch(stack))
 		return;
 
-	it_index = prefetcher_update_tables(stack, target_mod);
+	assert(!stack->stream_hit);
 
-	if (it_index < 0)
+	/* Get the index table index and test if is valid */
+	if(!get_it_index_tag(target_mod->cache->prefetcher, stack, &it_index, NULL))
 		return;
 
 	switch(target_mod->cache->prefetcher->type)
 	{
 		case prefetcher_type_cz_cs:
-		case prefetcher_type_cz_cs_sb:
 		case prefetcher_type_pc_cs:
-		case prefetcher_type_pc_cs_sb:
 		{
 			/* Perform ghb based CS prefetching
-			* (Program Counter/Czone based index, Constant Stride, with or without buffers) */
+			* (Program Counter/Czone based index, Constant Stride) */
 			prefetcher_ghb_cs(target_mod, stack, it_index);
 			break;
 		}
@@ -504,53 +514,43 @@ void prefetcher_access_cache_hit(struct mod_stack_t *stack, struct mod_t *target
 {
 	int it_index;
 
-	if (target_mod->kind != mod_kind_cache || !target_mod->cache->prefetcher)
+	assert(!stack->stream_hit);
+
+	if (!can_prefetch(stack))
 		return;
 
-	/* Prefetch hit */
-	if (mod_get_prefetched_bit(target_mod, stack->addr) || stack->stream_hit)
+	/* Get the index table index and test if is valid */
+	if(!get_it_index_tag(target_mod->cache->prefetcher, stack, &it_index, NULL))
+		return;
+
+	/* Enqueue prefetch */
+	switch(target_mod->cache->prefetcher->type)
 	{
-		assert(!mod_get_prefetched_bit(target_mod, stack->addr) != !stack->stream_hit); /* XOR */
-
-		/* This block was prefetched. Now it has a real access. For the purposes
-		 * of the prefetcher heuristic, this is still a miss. Hence, update
-		 * the prefetcher tables. */
-		it_index = prefetcher_update_tables(stack, target_mod);
-
-		/* Clear the prefetched flag since we have a real access now */
-		mem_debug ("  addr 0x%x %s : clearing \"prefetched\" flag\n",
-			   stack->addr, target_mod->name);
-		mod_set_prefetched_bit(target_mod, stack->addr, 0);
-
-		if (it_index < 0)
-			return;
-
-		switch(target_mod->cache->prefetcher->type)
+		case prefetcher_type_cz_cs:
+		case prefetcher_type_pc_cs:
 		{
-			case prefetcher_type_cz_cs:
-			case prefetcher_type_cz_cs_sb:
-			case prefetcher_type_pc_cs:
-			case prefetcher_type_pc_cs_sb:
-			{
-				/* Perform ghb based {PC,CZ}/CS prefetching */
-				prefetcher_ghb_cs(target_mod, stack, it_index);
-				break;
-			}
-
-			case prefetcher_type_pc_dc:
-			{
-				/* Perform ghb based PC/DC prefetching
-				* (Program Counter based index, Delta Correlation) */
-				prefetcher_ghb_dc(target_mod, stack, it_index);
-				break;
-			}
-
-			default:
-				fatal("%s: Invalid prefetcher type", __FUNCTION__);
-				break;
+			/* Perform ghb based {PC,CZ}/CS prefetching */
+			prefetcher_ghb_cs(target_mod, stack, it_index);
+			break;
 		}
 
-		/* Statistics */
+		case prefetcher_type_pc_dc:
+		{
+			/* Perform ghb based PC/DC prefetching
+			* (Program Counter based index, Delta Correlation) */
+			prefetcher_ghb_dc(target_mod, stack, it_index);
+			break;
+		}
+
+		default:
+			fatal("%s: Invalid prefetcher type", __FUNCTION__);
+			break;
+	}
+
+	/* Prefetch hit */
+	if (mod_get_prefetched_bit(target_mod, stack->addr))
+	{
+		mod_set_prefetched_bit(target_mod, stack->addr, 0); /* Clear prefetched bit */
 		target_mod->useful_prefetches++;
 	}
 }
@@ -596,30 +596,27 @@ int prefetcher_uses_czone_indexed_ghb(enum prefetcher_type_t type)
 }
 
 
-int valid_prefetch_addr(unsigned int pref_addr, int stride)
+int valid_prefetch_addr(struct mod_t *mod, unsigned int pref_addr, int stride)
 {
 	unsigned int prev_addr = pref_addr - stride;
 	unsigned int mmu_page_tag = pref_addr & ~mmu_page_mask;
 
 	return (mmu_page_tag == (prev_addr & ~mmu_page_mask)) && /* No page boundary crossed */
 		!(stride > 0 && pref_addr < prev_addr) && /* No overflow */
-		!(stride < 0 && pref_addr > prev_addr); /* No underflow */
+		!(stride < 0 && pref_addr > prev_addr) && /* No underflow */
+		mod_serves_address(mod, pref_addr); /* The address is served by the module */
 }
 
 
-int must_enqueue_prefetch(struct mod_stack_t *stack)
+int can_prefetch(struct mod_stack_t *stack)
 {
-	struct mod_t *target_mod;
-	/* L1 prefetch */
-	if (!stack->target_mod)
-		return stack->mod->cache->pref_enabled && !stack->background;
-	/* Deeper than L1 prefetch */
-	target_mod = stack->target_mod;
-	return target_mod->cache->pref_enabled && //El prefetch està habilitat
-		!stack->prefetch && //No estem en una cadena de prefetch
-		!stack->background && //La stack fast resumed ja haurà encuat el prefetch, si calia
-		target_mod->kind == mod_kind_cache && //És una cache
-		stack->request_dir == mod_request_up_down; //Petició up down
+	struct mod_t *mod = stack->target_mod ? stack->target_mod : stack->mod;
+
+	return mod->cache->pref_enabled && /* Prefetch is enabled */
+		!stack->prefetch && /* A prefetch cannot trigger more prefetches */
+		!stack->background && /* Background stacks can't enqueue prefetches */
+		mod->kind == mod_kind_cache && /* Only enqueue prefetches in cache modules */
+		stack->request_dir == mod_request_up_down; /* Only a up-down request can trigger a prefetch */
 }
 
 
@@ -700,7 +697,7 @@ void stream_buffer_enqueue_prefetches(
 }
 
 
-void stream_buffer_allocate_stream_prefetch(struct mod_t *mod, struct mod_client_info_t *client_info, unsigned int miss_addr, int stride)
+void stream_buffer_allocate_stream(struct mod_t *mod, struct mod_client_info_t *client_info, unsigned int miss_addr, int stride)
 {
 	struct cache_t *cache = mod->cache;
 	struct stream_buffer_t *sb;
@@ -719,17 +716,13 @@ void stream_buffer_allocate_stream_prefetch(struct mod_t *mod, struct mod_client
 		stream = cache_select_stream(cache);
 	sb = &cache->prefetch.streams[stream];
 
-	/* Underflow */
-	if (stride < 0 && base_addr > miss_addr) return;
-
-	/* Overflow */
-	if (stride > 0 && base_addr < miss_addr) return;
-
-	/* End of page */
-	if ((miss_addr & ~mmu_page_mask) != (base_addr & ~mmu_page_mask)) return;
+	/* Invalid prefetch address */
+	if (!valid_prefetch_addr(mod, base_addr, stride))
+		return;
 
 	/* Pending prefetches */
-	if (sb->pending_prefetches) return;
+	if (sb->pending_prefetches)
+		return;
 
 	/* Locked blocks */
 	for (int slot = 0; slot < cache->prefetch.max_num_slots; slot++)
@@ -762,7 +755,7 @@ void stream_buffer_allocate_stream_prefetch(struct mod_t *mod, struct mod_client
 }
 
 
-void stream_buffer_stream_prefetch(struct mod_t *mod, struct mod_client_info_t *client_info, int stream, int slot)
+void stream_buffer_prefetch_in_stream(struct mod_t *mod, struct mod_client_info_t *client_info, int stream, int slot)
 {
 	struct cache_t *cache;
 	struct stream_buffer_t *sb;
@@ -793,9 +786,48 @@ void stream_buffer_stream_prefetch(struct mod_t *mod, struct mod_client_info_t *
 	if (sb->stream_transcient_tag != (sb->next_address & cache->prefetch.stream_tag_mask))
 	{
 		sb->dead = 1; /* Only do this the first time */
-		stream_buffer_allocate_stream_prefetch(mod, client_info, sb->next_address - sb->stride, sb->stride);
+		stream_buffer_allocate_stream(mod, client_info, sb->next_address - sb->stride, sb->stride);
 		return;
 	}
 
 	stream_buffer_enqueue_prefetches(mod, client_info, stream, cache->prefetch.aggr);
 }
+
+
+void prefetcher_stream_buffer_hit(struct mod_stack_t *stack)
+{
+	struct mod_t *mod;
+	assert(stack->stream_hit);
+
+	if (!can_prefetch(stack))
+		return;
+
+	mod = stack->target_mod ? stack->target_mod : stack->mod;
+
+	if (stack->stream_head_hit)
+		stream_buffer_prefetch_in_stream(mod, stack->client_info, stack->pref_stream, stack->pref_slot);
+}
+
+
+void prefetcher_stream_buffer_miss(struct mod_stack_t *stack)
+{
+	int it_index;
+	int stride;
+	struct mod_t *mod;
+
+	assert(!stack->stream_hit);
+
+	if (!can_prefetch(stack))
+		return;
+
+	mod = stack->target_mod ? stack->target_mod : stack->mod;
+
+	/* Get the index table index and test if is valid */
+	if(!get_it_index_tag(mod->cache->prefetcher, stack, &it_index, NULL))
+		return;
+
+	stride = prefetcher_ghb_cs_find_stride(mod->cache->prefetcher, it_index);
+	if (stride)
+		stream_buffer_allocate_stream(mod, stack->client_info, stack->addr, stride);
+}
+

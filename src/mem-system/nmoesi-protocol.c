@@ -532,23 +532,23 @@ void mod_handler_nmoesi_load(int event, void *data)
 		}
 
 		/* Enqueue prefetches */
-		if (must_enqueue_prefetch(stack))
-		{
-			/* Enqueue STREAM prefetch */
-			if (prefetcher_uses_stream_buffers(mod->cache->prefetch.type))
-			{
-				if (stack->stream_hit)
-				{
-					if (stack->stream_head_hit)
-						stream_buffer_stream_prefetch(mod, stack->client_info, stack->pref_stream, stack->pref_slot);
-				}
-				else
-				{
-					if (stack->stride)
-						stream_buffer_allocate_stream_prefetch(mod, stack->client_info, stack->addr, stack->stride);
-				}
-			}
-		}
+		/* if (can_enqueue_prefetch(stack)) */
+		/* { */
+		/* 	#<{(| Enqueue STREAM prefetch |)}># */
+		/* 	if (prefetcher_uses_stream_buffers(mod->cache->prefetch.type)) */
+		/* 	{ */
+		/* 		if (stack->stream_hit) */
+		/* 		{ */
+		/* 			if (stack->stream_head_hit) */
+		/* 				stream_buffer_prefetch_in_stream(mod, stack->client_info, stack->pref_stream, stack->pref_slot); */
+		/* 		} */
+		/* 		else */
+		/* 		{ */
+		/* 			if (stack->stride) */
+		/* 				stream_buffer_allocate_stream(mod, stack->client_info, stack->addr, stack->stride); */
+		/* 		} */
+		/* 	} */
+		/* } */
 
 		/* Fast resumed or hit in write buffer */
 		if (stack->wb_hit || stack->fast_resume)
@@ -595,7 +595,7 @@ void mod_handler_nmoesi_load(int event, void *data)
 		esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST, new_stack, 0);
 
 		/* The prefetcher may be interested in this miss */
-		prefetcher_access_miss(stack, mod);
+		prefetcher_access_cache_miss(stack, mod);
 
 		return;
 	}
@@ -873,25 +873,25 @@ void mod_handler_nmoesi_store(int event, void *data)
 		}
 
 		/* Enqueue prefetches */
-		if (must_enqueue_prefetch(stack))
-		{
-			/* Enqueue STREAM prefetch */
-			if (prefetcher_uses_stream_buffers(mod->cache->prefetch.type))
-			{
-				if (stack->stream_hit)
-				{
-					/* Prefetch only one block */
-					if (stack->stream_head_hit)
-						stream_buffer_stream_prefetch(mod, stack->client_info, stack->pref_stream, stack->pref_slot);
-				}
-				/* Fill all the stream buffer if a stride is detected */
-				else
-				{
-					if (stack->stride)
-						stream_buffer_allocate_stream_prefetch(mod, stack->client_info, stack->addr, stack->stride);
-				}
-			}
-		}
+		/* if (can_enqueue_prefetch(stack)) */
+		/* { */
+		/* 	#<{(| Enqueue STREAM prefetch |)}># */
+		/* 	if (prefetcher_uses_stream_buffers(mod->cache->prefetch.type)) */
+		/* 	{ */
+		/* 		if (stack->stream_hit) */
+		/* 		{ */
+		/* 			#<{(| Prefetch only one block |)}># */
+		/* 			if (stack->stream_head_hit) */
+		/* 				stream_buffer_prefetch_in_stream(mod, stack->client_info, stack->pref_stream, stack->pref_slot); */
+		/* 		} */
+		/* 		#<{(| Fill all the stream buffer if a stride is detected |)}># */
+		/* 		else */
+		/* 		{ */
+		/* 			if (stack->stride) */
+		/* 				stream_buffer_allocate_stream(mod, stack->client_info, stack->addr, stack->stride); */
+		/* 		} */
+		/* 	} */
+		/* } */
 
 		/* Fast resumed stack */
 		if (stack->fast_resume)
@@ -956,7 +956,7 @@ void mod_handler_nmoesi_store(int event, void *data)
 		new_stack->access_kind = mod_access_store; //PPP
 
 		/* The prefetcher may be interested in this miss */
-		prefetcher_access_miss(stack, mod);
+		prefetcher_access_cache_miss(stack, mod);
 
 		return;
 	}
@@ -2240,7 +2240,6 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 					EV_MOD_NMOESI_FIND_AND_LOCK_FINISH, stack, stack->prefetch);
 				new_stack->set = stack->set;
 				new_stack->way = stack->way;
-//				assert(!(mod->kind==mod_kind_main_memory && stack->request_dir == mod_request_up_down)); // It shouldn't happen because we want avoid evictions in mm directory
 				esim_schedule_event(EV_MOD_NMOESI_EVICT, new_stack, 0);
 				return;
 			}
@@ -2519,7 +2518,6 @@ void mod_handler_nmoesi_evict(int event, void *data)
 				dram_system_add_write_trans(ds->handler, stack->tag, stack->client_info->core, stack->client_info->thread);
 
 				/* Ctx main memory stats */
-				assert(!stack->prefetch);
 				ctx->mm_write_accesses++;
 			}
 
@@ -2829,6 +2827,8 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 	struct mod_t *mod = stack->mod;
 	struct mod_t *target_mod = stack->target_mod;
 
+	struct cache_t *target_cache = target_mod->cache;
+
 	struct dir_t *dir;
 	struct dir_entry_t *dir_entry;
 
@@ -2893,6 +2893,12 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			target_mod->kind != mod_kind_main_memory &&
 			target_mod->cache->prefetch.type)
 		{
+			/* Add access to stride detector and record if there is a stride */
+			if (!stack->prefetch && !(stack->retry & (1 << target_mod->level)))
+			{
+				stack->stride = cache_detect_stride(target_mod->cache, stack->addr);
+				prefetcher_update_tables(stack, target_mod);
+			}
 			/* Record access */
 			mod_access_start(target_mod, stack, mod_access_read_request);
 		}
@@ -3074,12 +3080,6 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 				esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST, new_stack, 0);
 			}
 			esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST_UPDOWN_FINISH, stack, 0);
-
-			/* The prefetcher may have prefetched this earlier and hence
-			 * this is a hit now. Let the prefetcher know of this hit
-			 * since without the prefetcher, this may have been a miss.
-			 * TODO: I'm not sure how relavant this is here for all states. */
-			prefetcher_access_cache_hit(stack, target_mod);
 		}
 		else
 		{
@@ -3095,11 +3095,26 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			new_stack->stream_retried_cycle = stack->stream_retried_cycle;
 			new_stack->request_dir = mod_request_up_down;
 			esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST, new_stack, 0);
-
-			/* The prefetcher may be interested in this miss */
-			prefetcher_access_miss(stack, target_mod);
-
 		}
+
+		/* Stream buffers prefetching */
+		if (prefetcher_uses_stream_buffers(target_cache->prefetcher ? target_cache->prefetcher->type : prefetcher_type_invalid))
+		{
+			if (stack->stream_hit)
+				prefetcher_stream_buffer_hit(stack);
+			else
+				prefetcher_stream_buffer_miss(stack);
+		}
+
+		/* Cache prefetching */
+		else
+		{
+			if (stack->state)
+				prefetcher_access_cache_hit(stack, target_mod);
+			else
+				prefetcher_access_cache_miss(stack, target_mod); /* TODO: I'm not sure how relavant this is here for all states */
+		}
+
 		return;
 	}
 
@@ -3766,6 +3781,8 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 	struct mod_t *mod = stack->mod;
 	struct mod_t *target_mod = stack->target_mod;
 
+	struct cache_t *target_cache = target_mod->cache;
+
 	struct dir_t *dir;
 	struct dir_entry_t *dir_entry;
 
@@ -3837,6 +3854,13 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			target_mod->kind != mod_kind_main_memory &&
 			target_mod->cache->prefetch.type)
 		{
+			/* Add access to stride detector and record if there is a stride */
+			if (!(stack->retry & (1 << target_mod->level)))
+			{
+				stack->stride = cache_detect_stride(target_mod->cache, stack->addr);
+				prefetcher_update_tables(stack, target_mod);
+			}
+
 			/* Record access */
 			mod_access_start(target_mod, stack, mod_access_write_request);
 		}
@@ -4016,19 +4040,22 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			fatal("Invalid cache block state: %d\n", stack->state);
 		}
 
-		/* We may want to prefetch in cache... */
-		if (stack->state == cache_block_invalid)
+		/* Stream buffer prefetching */
+		if (prefetcher_uses_stream_buffers(target_cache->prefetcher ? target_cache->prefetcher->type : prefetcher_type_invalid))
 		{
-				/* The prefetcher may be interested in this miss */
-				prefetcher_access_miss(stack, target_mod);
+			if (stack->stream_hit)
+				prefetcher_stream_buffer_hit(stack);
+			else
+				prefetcher_stream_buffer_miss(stack); /* TODO: I'm not sure how relavant this is here for all states */
 		}
+
+		/* Cache prefetching */
 		else
 		{
-			/* The prefetcher may have prefetched this earlier and hence
-			 * this is a hit now. Let the prefetcher know of this hit
-			 * since without the prefetcher, this may been a miss.
-			 * TODO: I'm not sure how relavant this is here for all states. */
-			prefetcher_access_cache_hit(stack, target_mod);
+			if (stack->state)
+				prefetcher_access_cache_hit(stack, target_mod);
+			else
+				prefetcher_access_cache_miss(stack, target_mod);
 		}
 
 		return;

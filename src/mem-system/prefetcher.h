@@ -92,18 +92,16 @@ struct mod_t;
 struct prefetcher_t *prefetcher_create(int prefetcher_ghb_size, int prefetcher_it_size, int prefetcher_lookup_depth, enum prefetcher_type_t type);
 void prefetcher_free(struct prefetcher_t *pref);
 
-void prefetcher_access_miss(struct mod_stack_t *stack, struct mod_t *mod);
-void prefetcher_access_cache_hit(struct mod_stack_t *stack, struct mod_t *mod);
-void prefetcher_access_stream_buffer_hit(struct mod_stack_t *stack, struct mod_t *mod);
+int prefetcher_update_tables(struct mod_stack_t *stack, struct mod_t *target_mod);
 
-int valid_prefetch_addr(unsigned int pref_addr, int stride);
+void prefetcher_access_cache_miss(struct mod_stack_t *stack, struct mod_t *mod);
+void prefetcher_access_cache_hit(struct mod_stack_t *stack, struct mod_t *mod);
+
+void prefetcher_stream_buffer_hit(struct mod_stack_t *stack);
+void prefetcher_stream_buffer_miss(struct mod_stack_t *stack);
+
 int prefetcher_uses_stream_buffers(enum prefetcher_type_t type);
 int prefetcher_uses_pc_indexed_ghb(enum prefetcher_type_t type);
 int prefetcher_uses_czone_indexed_ghb(enum prefetcher_type_t type);
-
-int must_enqueue_prefetch(struct mod_stack_t *stack);
-void stream_buffer_enqueue_prefetches(struct mod_t *mod, struct mod_client_info_t *client_info, int stream, int num_prefetches);
-void stream_buffer_allocate_stream_prefetch(struct mod_t *mod, struct mod_client_info_t *client_info, unsigned int miss_addr, int stride);
-void stream_buffer_stream_prefetch(struct mod_t *mod, struct mod_client_info_t *client_info, int stream, int slot);
 
 #endif
