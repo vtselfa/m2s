@@ -92,10 +92,10 @@ struct mod_t;
 struct prefetcher_t *prefetcher_create(int prefetcher_ghb_size, int prefetcher_it_size, int prefetcher_lookup_depth, enum prefetcher_type_t type);
 void prefetcher_free(struct prefetcher_t *pref);
 
-int prefetcher_update_tables(struct mod_stack_t *stack, struct mod_t *target_mod);
+int prefetcher_update_tables(struct mod_stack_t *stack);
 
-void prefetcher_access_cache_miss(struct mod_stack_t *stack, struct mod_t *mod);
-void prefetcher_access_cache_hit(struct mod_stack_t *stack, struct mod_t *mod);
+void prefetcher_cache_miss(struct mod_stack_t *stack, struct mod_t *mod);
+void prefetcher_cache_hit(struct mod_stack_t *stack, struct mod_t *mod);
 
 void prefetcher_stream_buffer_hit(struct mod_stack_t *stack);
 void prefetcher_stream_buffer_miss(struct mod_stack_t *stack);
