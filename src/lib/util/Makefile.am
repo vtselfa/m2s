@@ -8,6 +8,9 @@ libutil_a_SOURCES = \
 	bit-map.c \
 	bit-map.h \
 	\
+	bloom.c \
+	bloom.h \
+	\
 	buffer.c \
 	buffer.h \
 	\
