@@ -22,6 +22,7 @@
 #include <lib/esim/esim.h> /* esim_cycle() */
 #include <lib/mhandle/mhandle.h>
 #include <lib/util/debug.h>
+#include <lib/util/bloom.h>
 #include <lib/util/misc.h>
 #include <lib/util/string.h>
 
@@ -96,6 +97,7 @@ void prefetcher_free(struct prefetcher_t *pref)
 	{
 		free(pref->ghb);
 		free(pref->index_table);
+		bloom_free(pref->pollution_filter);
 		free(pref);
 	}
 }

@@ -80,6 +80,8 @@ struct prefetcher_t
 	struct prefetcher_ghb_t *ghb;
 	struct prefetcher_it_t *index_table;
 
+	struct bloom_t *pollution_filter;
+
 	int ghb_head;
 };
 

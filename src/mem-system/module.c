@@ -24,14 +24,15 @@
 #include <dramsim/bindings-c.h>
 #include <lib/esim/esim.h>
 #include <lib/mhandle/mhandle.h>
+#include <lib/util/bloom.h>
 #include <lib/util/debug.h>
 #include <lib/util/file.h>
 #include <lib/util/linked-list.h>
 #include <lib/util/list.h>
 #include <lib/util/line-writer.h>
 #include <lib/util/misc.h>
-#include <lib/util/string.h>
 #include <lib/util/repos.h>
+#include <lib/util/string.h>
 
 #include "cache.h"
 #include "directory.h"
@@ -873,27 +874,97 @@ void mod_adapt_pref_schedule(struct mod_t *mod)
 	/* Create new stack */
 	stack = xcalloc(1, sizeof(struct mod_adapt_pref_stack_t));
 	stack->mod = mod;
+	stack->backoff = 50000;
 	mod->adapt_pref_stack = stack;
 
-	if (cache->prefetch.adapt_interval_kind == interval_kind_cycles)
-	{
-		/* Schedule first event */
-		assert(mod->cache->prefetch.adapt_interval);
-		esim_schedule_event(EV_MOD_ADAPT_PREF, stack, mod->cache->prefetch.adapt_interval);
-	}
+	/* Schedule first event */
+	assert(mod->cache->prefetch.adapt_interval);
+	esim_schedule_event(EV_MOD_ADAPT_PREF, stack, cache->prefetch.adapt_interval_kind == interval_kind_cycles ?
+			mod->cache->prefetch.adapt_interval : stack->backoff);
 }
 
 
+/* This function will be called at fixed size intervals of cycles, instructions or
+ * evictions to tune prefetch aggressivity. If the interval is in cycles, this function will be called only when nedded.
+ * If the interval is in instructions or evictions, this function is called every N cycles (N heuristically computed) and only
+ * does something if the requisites of intr/evictions are fulfilled. */
 void mod_adapt_pref_handler(int event, void *data)
 {
 	struct mod_adapt_pref_stack_t *stack = data;
 	struct mod_t *mod = stack->mod;
 	struct cache_t *cache = mod->cache;
 
+	long long uinsts = 0;
+	long long uinsts_int;
+	long long evictions_int;
+	long long cycles_int = esim_cycle() - stack->last_cycle;
+
+	double ipc_int;
+
 	/* If simulation has ended, no more
 	 * events to schedule. */
 	if (esim_finish)
 		return;
+
+	/* Uinsts executed in this interval by the threads accessing this module */
+	for (int core = 0; core < x86_cpu_num_cores; core++)
+		if (mod->reachable_threads[core * x86_cpu_num_threads])
+			uinsts += X86_CORE.num_committed_uinst;
+	uinsts_int = uinsts - stack->last_uinsts;
+
+	/* Mean IPC for all the threads accessing this module */
+	ipc_int = (double) uinsts_int / cycles_int;
+
+	/* Evictions in this interval */
+	evictions_int = mod->evictions - stack->last_evictions;
+
+	/* Find out if an interval has finished */
+	switch(cache->prefetch.adapt_interval_kind)
+	{
+		case interval_kind_cycles:
+			/* We can be sure the interval has finished */
+			break;
+
+		case interval_kind_instructions:
+		{
+			/* Try to predict when the next interval will begin */
+			stack->backoff = ipc_int ? 0.75 * (cache->prefetch.adapt_interval - uinsts_int) / ipc_int : 10000;
+			stack->backoff = MAX(stack->backoff, 100);
+			stack->backoff = MIN(stack->backoff, 75000);
+			/* Interval has not finished yet */
+			if (uinsts_int < cache->prefetch.adapt_interval)
+				goto schedule_next_event;
+			/* Interval has finished */
+			else
+				bloom_clear(cache->prefetcher->pollution_filter);
+			if (uinsts_int < cache->prefetch.adapt_interval)
+				goto schedule_next_event;
+			break;
+		}
+
+		case interval_kind_evictions:
+		{
+			/* Try to predict when the next interval will begin */
+			if (mod->evictions)
+			{
+				double evictions_per_cycle = (double) evictions_int / cycles_int;
+				stack->backoff =  evictions_per_cycle ? 0.75 * (cache->prefetch.adapt_interval - evictions_int) / evictions_per_cycle : 10000;
+				stack->backoff = MAX(stack->backoff, 100);
+				stack->backoff = MIN(stack->backoff, 75000);
+			}
+			/* Interval has not finished yet */
+			if (evictions_int < cache->prefetch.adapt_interval)
+				goto schedule_next_event;
+			/* Interval has finished */
+			else
+				bloom_clear(cache->prefetcher->pollution_filter);
+			break;
+		}
+
+		case interval_kind_invalid:
+			fatal("%s: Invalid interval kind", __FUNCTION__);
+			break;
+	}
 
 	/* Completed prefetches */
 	long long completed_prefetches_int = mod->completed_prefetches -
@@ -927,20 +998,18 @@ void mod_adapt_pref_handler(int event, void *data)
 	/* ROB % stalled cicles due a memory instruction */
 	long long cycles_stalled = 0;
 	long long cycles_stalled_int;
-	long long uinst_count = 0;
 	{
 		int cores = 0;
 		for (int core = 0; core < x86_cpu_num_cores; core++)
 		{
-			/* Reachable cores */
+			/* Reachable threads */
 			if (mod->reachable_threads[core * x86_cpu_num_threads])
 			{
-				uinst_count += X86_CORE.num_committed_uinst;
 				cycles_stalled += x86_cpu->core[core].dispatch_stall_cycles_rob_mem;
 				cores++;
 			}
 
-			/* Non reachable cores */
+			/* Non reachable threads */
 			else
 			{
 				int i;
@@ -957,10 +1026,6 @@ void mod_adapt_pref_handler(int event, void *data)
 
 	double ratio_cycles_stalled = esim_cycle() - stack->last_cycle > 0 ? (double)
 		cycles_stalled_int / (esim_cycle() - stack->last_cycle) : 0.0;
-
-	/* Mean IPC for all the contexts accessing this module */
-	double ipc_int = (double) (uinst_count - stack->last_uinst_count) /
-		(esim_cycle() - stack->last_cycle);
 
 	/* Strides detected */
 	long long strides_detected_int = cache->prefetch.stride_detector.strides_detected -
@@ -1243,12 +1308,16 @@ void mod_adapt_pref_handler(int event, void *data)
 	stack->last_no_retry_hits = mod->no_retry_hits;
 	stack->last_misses_int = misses_int;
 	stack->last_strides_detected = cache->prefetch.stride_detector.strides_detected;
-	stack->last_uinst_count = uinst_count;
+	stack->last_uinsts = uinsts;
 	stack->last_ipc_int = ipc_int;
+	stack->last_evictions = mod->evictions;
 
-	/* Schedule new event */
+schedule_next_event:
 	assert(mod->cache->prefetch.adapt_interval);
-	esim_schedule_event(event, stack, mod->cache->prefetch.adapt_interval);
+	assert(mod->cache->prefetch.adapt_interval_kind);
+	esim_schedule_event(event, stack,
+			cache->prefetch.adapt_interval_kind == interval_kind_cycles ?
+			cache->prefetch.adapt_interval : stack->backoff);
 }
 
 
@@ -1550,7 +1619,7 @@ void mod_report_stack_reset_stats(struct mod_report_stack_t *stack)
 
 void mod_adapt_pref_stack_reset_stats(struct mod_adapt_pref_stack_t *stack)
 {
-	stack->last_uinst_count = 0;
+	stack->last_uinsts = 0;
 	stack->last_cycle = esim_cycle();
 	stack->last_useful_prefetches = 0;
 	stack->last_completed_prefetches = 0;

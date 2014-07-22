@@ -26,6 +26,7 @@
 #include <lib/esim/esim.h>
 #include <lib/esim/trace.h>
 #include <lib/mhandle/mhandle.h>
+#include <lib/util/bloom.h>
 #include <lib/util/debug.h>
 #include <lib/util/file.h>
 #include <lib/util/hash-table.h>
@@ -554,6 +555,11 @@ static struct mod_t *mem_config_read_cache(struct config_t *config,
 	enum interval_kind_t prefetcher_adp_interval_kind;
 	long long prefetcher_adp_interval;
 
+	/* Pollution filter */
+	int pol_filter_bits;
+	int pol_filter_capacity;
+	double pol_filter_false_pos_prob;
+
 	char *net_name;
 	char *net_node_name;
 
@@ -603,12 +609,18 @@ static struct mod_t *mem_config_read_cache(struct config_t *config,
 		"PrefetcherCZoneBits", 13);
 	prefetcher_stream_tag_bits = config_read_int(config, buf,
 		"PrefetcherStreamTagBits", sizeof(int) * 8 - prefetcher_czone_bits);
+
 	prefetcher_adp_policy_str = config_read_string(config, buf,
-		"PrefetcherAdpPolicy", "none");
+		"AdaptivePrefPolicy", "none");
 	prefetcher_adp_interval = config_read_llint(config, buf,
-		"PrefetcherAdpInterval", 50000);
+		"AdaptivePrefInterval", 50000);
 	prefetcher_adp_interval_kind_str = config_read_string(config, buf,
-		"PrefetcherAdpIntervalKind", "cycles");
+		"AdaptivePrefIntervalKind", "cycles");
+
+	/* Pollution filter */
+	pol_filter_bits = config_read_int(config, buf, "PollFilterBits", 0);
+	pol_filter_capacity = config_read_int(config, buf, "PollFilterCapacity", 1024);
+	pol_filter_false_pos_prob = config_read_double(config, buf, "PollFilterMaxFalsePosProb", 0.05); /* Max false positive probability */
 
 	/* Checks */
 	policy = str_map_string_case(&cache_policy_map, policy_str);
@@ -677,6 +689,7 @@ static struct mod_t *mem_config_read_cache(struct config_t *config,
 		/* Apdaptative prefetch policy */
 		prefetcher_adp_policy = str_map_string_case_err_msg(&adapt_pref_policy_map, prefetcher_adp_policy_str,
 				"%s: cache %s: Invalid adaptative prefetch policy", mem_config_file_name, mod_name);
+
 		if (prefetcher_adp_policy)
 		{
 			/* Interval kind (instructions or cycles) */
@@ -746,6 +759,10 @@ static struct mod_t *mem_config_read_cache(struct config_t *config,
 
 		mod->cache->prefetcher = prefetcher_create(prefetcher_ghb_size,
 				prefetcher_it_size, prefetcher_lookup_depth, prefetcher_type);
+
+		/* Pollution filter */
+		if (!prefetcher_uses_stream_buffers(prefetcher_type))
+			mod->cache->prefetcher->pollution_filter = bloom_create(pol_filter_bits, pol_filter_capacity, pol_filter_false_pos_prob);
 	}
 
 	/* Return */

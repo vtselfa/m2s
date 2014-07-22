@@ -119,7 +119,8 @@ enum mod_range_kind_t
 struct mod_adapt_pref_stack_t
 {
 	struct mod_t *mod;
-	long long last_uinst_count;
+	long long last_uinsts;
+	long long last_evictions;
 	long long last_cycle;
 	long long last_useful_prefetches;
 	long long last_completed_prefetches;
@@ -131,6 +132,7 @@ struct mod_adapt_pref_stack_t
 	long long last_delayed_hits;
 	long long last_cycle_pref_disabled;
 	double last_ipc_int;
+	long long backoff;
 };
 
 #define MOD_ACCESS_HASH_TABLE_SIZE  17
@@ -324,6 +326,7 @@ struct mod_t
 	long long canceled_prefetches_retry;
 	long long useful_prefetches;
 	long long effective_useful_prefetches; /* Useful prefetches with less delay hit cicles than 1/3 of the delay of accesing MM */
+	long long pollution;
 
 	long long prefetch_retries;
 

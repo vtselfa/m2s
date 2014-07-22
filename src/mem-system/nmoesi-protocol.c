@@ -26,6 +26,7 @@
 #include <lib/esim/esim.h>
 #include <lib/esim/trace.h>
 #include <lib/mhandle/mhandle.h>
+#include <lib/util/bloom.h>
 #include <lib/util/debug.h>
 #include <lib/util/linked-list.h>
 #include <lib/util/list.h>
@@ -1981,7 +1982,8 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 				return;
 			}
 
-			/* This stack has been retried because the block it was looking for was locked in the stream and now has found the block in cache. Delayed hit statistics must be updated. */
+			/* This stack has been retried because the block it was looking for was locked in the
+			 * stream and now has found the block in cache. Delayed hit statistics must be updated. */
 			if(stack->hit && stack->stream_retried)
 			{
 				assert(stack->stream_retried_cycle);
@@ -1989,6 +1991,11 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 				mod->delayed_hits_cycles_counted++;
 				ret->stream_retried = 0;
 			}
+
+			/* If this is an on demand request, search the block in the pollution filter to find out if it
+			 * has been previously evicted by a prefetch request */
+			if (!stack->prefetch && cache->prefetcher && cache->prefetcher->pollution_filter && BLOOM_FIND(cache->prefetcher->pollution_filter, stack->tag))
+				mod->pollution++;
 
 			/* Cache entry is locked. Record the transient tag so that a subsequent lookup
 			* detects that the block is being brought.
@@ -2668,6 +2675,8 @@ void mod_handler_nmoesi_evict(int event, void *data)
 
 	if (event == EV_MOD_NMOESI_EVICT_REPLY_RECEIVE)
 	{
+		struct cache_t *cache = mod->cache;
+
 		mem_debug("  %lld %lld 0x%x %s evict reply receive\n", esim_time, stack->id,
 			stack->tag, mod->name);
 		mem_trace("mem.access name=\"A-%lld\" state=\"%s:evict_reply_receive\"\n",
@@ -2678,9 +2687,21 @@ void mod_handler_nmoesi_evict(int event, void *data)
 
 		/* Invalidate block if there was no error. */
 		if (!stack->err)
+		{
+			/* If a prefetch to cache evicts a block that was requested by the core,
+			 * add it to the bloom filter so pollution caused by the prefetcher can be estimated */
+			if (stack->prefetch && /* It's a prefetch */
+					!prefetcher_uses_stream_buffers(cache->prefetcher->type) && /* Prefetches go to cache */
+					!mod_get_prefetched_bit(mod, stack->src_tag)) /* Evicted block is not an unused prefetched block */
+			{
+				double false_pos_prob = BLOOM_ADD(cache->prefetcher->pollution_filter, stack->src_tag);
+				if (false_pos_prob)
+					warning("%lld Module %s pollution filter full, false positive probability is %f", esim_time, mod->name, false_pos_prob);
+			}
+
 			cache_set_block(mod->cache, stack->src_set, stack->src_way,
 				0, cache_block_invalid);
-
+		}
 		assert(!dir_entry_group_shared_or_owned(mod->dir, stack->src_set, stack->src_way));
 		esim_schedule_event(EV_MOD_NMOESI_EVICT_FINISH, stack, 0);
 		return;
