@@ -1536,6 +1536,8 @@ void mod_report_handler(int event, void *data)
 	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", detected_strides_int);
 	line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", pct_rob_stalled_int);
 	line_writer_add_column(lw, 6, line_writer_align_right, "%.2f", BWNO_int);
+	line_writer_add_column(lw, 6, line_writer_align_right, "%.2f", -1);
+	line_writer_add_column(lw, 6, line_writer_align_right, "%.2f", -1);
 	line_writer_add_column(lw, 9, line_writer_align_right, "%u", mod->cache->prefetch.flags);
 
 	line_writer_write(lw, mod->report_file);
