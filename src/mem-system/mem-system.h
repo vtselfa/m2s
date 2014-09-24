@@ -106,4 +106,7 @@ struct main_mem_system_t *mms;
 void main_memory_tic_scheduler(struct dram_system_t *ds);
 void main_memory_tic_handler(int event, void *data);
 
+void mem_system_interval_report_init(void);
+void mem_system_interval_report(void);
+
 #endif

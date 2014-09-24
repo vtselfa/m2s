@@ -141,6 +141,18 @@ enum x86_dispatch_stall_t
 };
 
 
+struct x86_thread_report_stack_t
+{
+	int core;
+	int thread;
+	long long last_cycle;
+	long long dispatch_stall_cycles_rob_mem;
+	long long dispatch_stall_cycles_rob_load;
+	long long num_committed_uinst;
+	FILE *report_file;
+};
+
+
 /* Thread */
 struct x86_thread_t
 {
@@ -202,6 +214,7 @@ struct x86_thread_t
 	long long num_issued_uinst_array[x86_uinst_opcode_count];
 	long long num_committed_uinst_array[x86_uinst_opcode_count];
 	long long num_committed_uinst;
+	long long num_committed_inst; /* Committed x86 instructions */
 	long long num_squashed_uinst;
 	long long num_branch_uinst;
 	long long num_mispred_branch_uinst;
@@ -211,6 +224,9 @@ struct x86_thread_t
 	long long rob_full;
 	long long rob_reads;
 	long long rob_writes;
+	long long dispatch_stall_cycles_rob; /* Cicles with the ROB stalled */
+	long long dispatch_stall_cycles_rob_mem; /* Cicles with the ROB stalled due to a memory instruction */
+	long long dispatch_stall_cycles_rob_load; /* Cicles with the ROB stalled due to a load instruction */
 
 	long long iq_occupancy;
 	long long iq_full;
@@ -248,19 +264,9 @@ struct x86_thread_t
 
 	long long btb_reads;
 	long long btb_writes;
-};
 
-
-/* Interval report */
-extern int EV_X86_CPU_CORE_REPORT;
-
-struct x86_cpu_core_report_stack_t
-{
-	int core;
-	long long last_cycle;
-	long long dispatch_stall_cycles_rob_mem;
-	long long dispatch_stall_cycles_rob_load;
-	struct line_writer_t *line_writer;
+	/* Interval reports */
+	struct x86_thread_report_stack_t *report_stack;
 };
 
 
@@ -299,12 +305,6 @@ struct x86_core_t
 	int issue_current;
 	int commit_current;
 
-	/* Interval reports */
-	int report_enabled;
-	FILE *report_file;
-	long long report_interval;
-	struct x86_cpu_core_report_stack_t *report_stack;
-
 	/* Stats */
 	long long dispatch_stall[x86_dispatch_stall_max];
 	long long dispatch_stall_cycles_rob;
@@ -320,6 +320,7 @@ struct x86_core_t
 	long long num_issued_uinst_array[x86_uinst_opcode_count];
 	long long num_committed_uinst_array[x86_uinst_opcode_count];
 	long long num_committed_uinst;
+	long long num_committed_inst; /* Committed x86 instructions */
 	long long num_squashed_uinst;
 	long long num_branch_uinst;
 	long long num_mispred_branch_uinst;
@@ -408,8 +409,8 @@ struct x86_cpu_t
 
 void x86_cpu_read_config(void);
 
-void x86_cpu_core_report_handler(int event, void *data);
-void x86_cpu_core_report_schedule(int core);
+void x86_cpu_interval_report_init();
+void x86_cpu_interval_report();
 
 void x86_cpu_init(void);
 void x86_cpu_done(void);

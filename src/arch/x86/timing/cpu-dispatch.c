@@ -43,16 +43,26 @@ static enum x86_dispatch_stall_t x86_cpu_can_dispatch_thread(int core, int threa
 	if (!uop)
 		return !X86_THREAD.ctx || !x86_ctx_get_state(X86_THREAD.ctx, x86_ctx_running) ?
 			x86_dispatch_stall_ctx : x86_dispatch_stall_uop_queue;
-	
+
 	/* If iq/lq/sq/rob full, done */
 	if (!x86_rob_can_enqueue(uop))
 	{
 		struct x86_uop_t *head = x86_rob_head(core, thread);
 		if(head->flags & X86_UINST_MEM)
+		{
 			X86_CORE.dispatch_stall_cycles_rob_mem++;
+			X86_THREAD.dispatch_stall_cycles_rob_mem++;
+			X86_THREAD.ctx->dispatch_stall_cycles_rob_mem++;
+		}
 		if(head->uinst->opcode == x86_uinst_load)
+		{
 			X86_CORE.dispatch_stall_cycles_rob_load++;
+			X86_THREAD.dispatch_stall_cycles_rob_load++;
+			X86_THREAD.ctx->dispatch_stall_cycles_rob_load++;
+		}
 		X86_CORE.dispatch_stall_cycles_rob++;
+		X86_THREAD.dispatch_stall_cycles_rob++;
+		X86_THREAD.ctx->dispatch_stall_cycles_rob++;
 		return x86_dispatch_stall_rob;
 	}
 	if (!(uop->flags & X86_UINST_MEM) && !x86_iq_can_insert(uop))

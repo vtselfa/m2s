@@ -32,6 +32,7 @@
 #include <lib/util/line-writer.h>
 #include <lib/util/linked-list.h>
 #include <lib/util/misc.h>
+#include <lib/util/stats.h>
 #include <lib/util/string.h>
 #include <lib/util/timer.h>
 #include <mem-system/memory.h>
@@ -249,28 +250,6 @@ char *x86_config_help =
 	"      For the two-level adaptive predictor, level 2 size.\n"
 	"  TwoLevel.HistorySize = <size> (Default = 8)\n"
 	"      For the two-level adaptive predictor, level 2 history size.\n"
-	"\n";
-
-
-static char *help_x86_cpu_core_report =
-	"The cpu report file shows some relevant statistics related to\n"
-	"prefetch at specific intervals.\n"
-	"The following fields are shown in each record:\n"
-	"\n"
-	"  <cycle>\n"
-	"      Current simulation cycle. The increment between this value and the value\n"
-	"      shown in the next record is the interval specified in the context\n"
-	"      configuration file.\n"
-	"\n"
-	"  <inst>\n"
-	"      Current simulation instruction. The increment between thi value and the\n"
-	"      value shown in the next record is in the column inst-int.\n"
-	"\n"
-	"  <inst-int>\n"
-	"      Number of non-speculative instructions executed in the current interval.\n"
-	"\n"
-	"  <%_stalled_due_mem_inst>\n"
-	"      Percent of stalled cycles due to a memory instruction, which stops the ROB\n"
 	"\n";
 
 
@@ -700,15 +679,6 @@ static void x86_cpu_core_done(int core)
 {
 	free(X86_CORE.thread);
 	prefetch_history_free(X86_CORE.prefetch_history);
-
-	/* Interval report */
-	if(X86_CORE.report_enabled)
-	{
-		assert(X86_CORE.report_stack);
-		line_writer_free(X86_CORE.report_stack->line_writer);
-		free(X86_CORE.report_stack);
-		file_close(X86_CORE.report_file);
-	}
 }
 
 
@@ -764,32 +734,6 @@ void x86_cpu_read_config(void)
 	x86_cpu = xcalloc(1, sizeof(struct x86_cpu_t));
 	x86_cpu->core = xcalloc(x86_cpu_num_cores, sizeof(struct x86_core_t));
 	x86_cpu->num_cores = x86_cpu_num_cores;
-
-	/* Section '[ Core N ]' */
-	for (int core = 0; core < x86_cpu_num_cores; core++)
-	{
-		long long report_interval; /* In cycles */
-		char *report_file_name;
-		char tmp[MAX_STRING_SIZE];
-		char default_report_file_name[MAX_STRING_SIZE];
-
-		snprintf(tmp, MAX_STRING_SIZE, "Core %d", core);
-		section = tmp;
-
-		/* Interval reporting statistics */
-		snprintf(default_report_file_name, MAX_STRING_SIZE, "core%d.interval.report", core);
-		X86_CORE.report_enabled = config_read_bool(config, section, "EnableReport", 0);
-		report_interval = config_read_llint(config, section, "ReportInterval", 50000);
-		report_file_name = config_read_string(config, section, "ReportFile", default_report_file_name);
-		if(X86_CORE.report_enabled)
-		{
-			X86_CORE.report_file = file_open_for_write(report_file_name);
-			if (!X86_CORE.report_file)
-				fatal("%s: cannot open core report file", report_file_name);
-			X86_CORE.report_interval = report_interval;
-		}
-	}
-
 
 	/* Section '[ Pipeline ]' */
 
@@ -871,15 +815,9 @@ void x86_cpu_init(void)
 	/* Initialize */
 	x86_cpu->uop_trace_list = linked_list_create();
 
-	/* Register event for cpu core reports */
-	EV_X86_CPU_CORE_REPORT = esim_register_event_with_name(x86_cpu_core_report_handler, arch_x86->domain_index, "x86_cpu_core_report");
-
 	/* Initialize cores */
 	X86_CORE_FOR_EACH
-	{
 		x86_cpu_core_init(core);
-		if (X86_CORE.report_enabled) x86_cpu_core_report_schedule(core);
-	}
 
 	/* Components of an x86 CPU */
 	x86_reg_file_init();
@@ -904,6 +842,7 @@ void x86_cpu_init(void)
 void x86_cpu_done(void)
 {
 	int core;
+	int thread;
 
 	/* Dump CPU report */
 	x86_cpu_dump_report();
@@ -926,8 +865,15 @@ void x86_cpu_done(void)
 
 	/* Free processor */
 	X86_CORE_FOR_EACH
+	{
+		X86_THREAD_FOR_EACH
+		{
+			if (X86_THREAD.report_stack)
+				file_close(X86_THREAD.report_stack->report_file);
+			free(X86_THREAD.report_stack);
+		}
 		x86_cpu_core_done(core);
-
+	}
 	free(x86_cpu->core);
 	free(x86_cpu);
 }
@@ -1217,86 +1163,20 @@ int x86_cpu_run(void)
 }
 
 
-
-/*
- * CPU interval report
- */
-
-void x86_cpu_core_report_schedule(int core)
+void x86_thread_report_stack_reset_stats(struct x86_thread_report_stack_t *stack)
 {
-	assert(X86_CORE.report_file);
-	assert(X86_CORE.report_interval > 0);
-
-	struct x86_cpu_core_report_stack_t *stack;
-	struct line_writer_t *lw;
-	FILE *f = X86_CORE.report_file;
-	int size;
-	int i;
-
-	/* Create new stack */
-	stack = xcalloc(1, sizeof(struct x86_cpu_core_report_stack_t));
-
-	/* Initialize */
-	stack->core = core;
-
-	/* Print header */
-	fprintf(f, "%s", help_x86_cpu_core_report);
-
-	lw = line_writer_create(" "); /* Line writer with space as separator between columns */
-	lw->heuristic_size_enabled = 1;
-
-	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "cycle");
-	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "\%-rob-stall-due-mem-inst");
-
-	size = line_writer_write(lw, f);
-	line_writer_clear(lw);
-
-	for (i = 0; i < size - 1; i++)
-		fprintf(f, "-");
-	fprintf(f, "\n");
-
-	X86_CORE.report_stack = stack;
-	stack->line_writer = lw;
-
-	/* Schedule first event */
-	esim_schedule_event(EV_X86_CPU_CORE_REPORT, stack, X86_CORE.report_interval);
-}
-
-
-void x86_cpu_core_report_handler(int event, void *data)
-{
-	struct x86_cpu_core_report_stack_t *stack = data;
-	struct line_writer_t *lw = stack->line_writer;
-	double percentage_cycles_stalled,percentage_cycles_stalled_load;
-	int core = stack->core;
-
-	if (esim_finish)
+	if (!stack)
 		return;
 
-	percentage_cycles_stalled = esim_cycle() - stack->last_cycle > 0 ? (double)
-		100 * (X86_CORE.dispatch_stall_cycles_rob_mem - stack->dispatch_stall_cycles_rob_mem) /
-		(esim_cycle() - stack->last_cycle) : 0.0;
-
-	percentage_cycles_stalled_load = esim_cycle() - stack->last_cycle > 0 ? (double)
-		100 * (X86_CORE.dispatch_stall_cycles_rob_load - stack->dispatch_stall_cycles_rob_load) /
-		(esim_cycle() - stack->last_cycle) : 0.0;
-
-	line_writer_add_column(lw, 9, line_writer_align_right, "%lld", esim_cycle());
-	line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", percentage_cycles_stalled);
-	line_writer_add_column(lw, 9, line_writer_align_right, "%.3f", percentage_cycles_stalled_load);
-
-	line_writer_write(lw, X86_CORE.report_file);
-	line_writer_clear(lw);
-
-
-	/* Update intermediate results */
-	stack->last_cycle = esim_cycle();
-	stack->dispatch_stall_cycles_rob_mem = X86_CORE.dispatch_stall_cycles_rob_mem;
-	stack->dispatch_stall_cycles_rob_load = X86_CORE.dispatch_stall_cycles_rob_load;
-
-	/* Schedule new event */
-	assert(X86_CORE.report_interval);
-	esim_schedule_event(event, stack, X86_CORE.report_interval);
+	/* stack->last_cycle = esim_cycle(); */
+	/* stack->dispatch_stall_cycles_rob_mem = 0; */
+	/* stack->dispatch_stall_cycles_rob_load = 0; */
+    /*  */
+	/* #<{(| Erase report file |)}># */
+	/* fseeko(f, 0, SEEK_SET); */
+    /*  */
+	/* Print header */
+	/* TODO */
 }
 
 
@@ -1361,36 +1241,9 @@ void x86_thread_reset_stats(int core, int thread)
 	/* Up down recursive reset of memory module stats */
 	mod_recursive_reset_stats(X86_THREAD.inst_mod);
 	mod_recursive_reset_stats(X86_THREAD.data_mod);
-}
 
-
-void x86_cpu_core_report_stack_reset_stats(struct x86_cpu_core_report_stack_t *stack)
-{
-	int i;
-	int size;
-	int core = stack->core;
-	struct line_writer_t *lw = stack->line_writer;
-	FILE *f = X86_CORE.report_file;
-
-	stack->last_cycle = esim_cycle();
-	stack->dispatch_stall_cycles_rob_mem = 0;
-	stack->dispatch_stall_cycles_rob_load = 0;
-
-	/* Erase report file */
-	fseeko(f, 0, SEEK_SET);
-
-	/* Print header */
-	fprintf(f, "%s\nRESETED\n", help_x86_cpu_core_report);
-
-	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "cycle");
-	line_writer_add_column(lw, 9, line_writer_align_right, "%s", "\%-rob-stall-due-mem-inst");
-
-	size = line_writer_write(lw, f);
-	line_writer_clear(lw);
-
-	for (i = 0; i < size - 1; i++)
-		fprintf(f, "-");
-	fprintf(f, "\n");
+	/* Reset stack */
+	x86_thread_report_stack_reset_stats(X86_THREAD.report_stack);
 }
 
 
@@ -1451,10 +1304,6 @@ void x86_core_reset_stats(int core)
 	X86_CORE.reg_file_xmm_full = 0;
 	X86_CORE.reg_file_xmm_reads = 0;
 	X86_CORE.reg_file_xmm_writes = 0;
-
-	/* Reset stack */
-	if (X86_CORE.report_stack)
-		x86_cpu_core_report_stack_reset_stats(X86_CORE.report_stack);
 }
 
 
@@ -1496,3 +1345,99 @@ void x86_cpu_reset_stats(void)
 	arch_x86->last_reset_cycle = arch_x86->cycle;
 }
 
+
+void x86_thread_interval_report_init(int core, int thread)
+{
+	struct x86_thread_report_stack_t *stack;
+	char interval_report_file_name[MAX_PATH_SIZE];
+	int ret;
+
+	/* Create new stack */
+	stack = xcalloc(1, sizeof(struct x86_thread_report_stack_t));
+
+	/* Interval reporting of stats */
+	ret = snprintf(interval_report_file_name, MAX_PATH_SIZE, "%s/c%dt%d.intrep.csv", x86_thread_interval_reports_dir, core, thread);
+	if (ret < 0 || ret >= MAX_PATH_SIZE)
+		fatal("warning: function %s: string too long %s", __FUNCTION__, interval_report_file_name);
+
+	stack->report_file = file_open_for_write(interval_report_file_name);
+	if (!stack->report_file)
+		fatal("%s: cannot open interval report file", interval_report_file_name);
+
+	stack->core = core;
+	stack->thread = thread;
+
+	X86_THREAD.report_stack = stack;
+
+	fprintf(stack->report_file, "%s", "esim-time");                                        /* Global simulation time */
+	fprintf(stack->report_file, ",c%dt%d-%s", core, thread, "inst");                       /* Instructions */
+	fprintf(stack->report_file, ",c%dt%d-%s", core, thread, "uinst");                      /* Microinstructions */
+	fprintf(stack->report_file, ",c%dt%d-%s", core, thread, "ipc-int");                    /* Microinstructions per cycle in the interval */
+	fprintf(stack->report_file, ",c%dt%d-%s", core, thread, "ipc-glob");                   /* Global microinstructions per cycle */
+	fprintf(stack->report_file, ",c%dt%d-%s", core, thread, "pct-cycles-stalled");         /* Percentage of cycles with the ROB full */
+	fprintf(stack->report_file, ",c%dt%d-%s", core, thread, "pct-cycles-stalled-load");    /* Percentage of cycles with the ROB full with a load in the head */
+	fprintf(stack->report_file, "\n");
+	fflush(stack->report_file);
+}
+
+
+void x86_thread_interval_report(int core, int thread)
+{
+	struct x86_thread_report_stack_t *stack = X86_THREAD.report_stack;
+	long long cycles_int = arch_x86->cycle - stack->last_cycle;
+	long long num_committed_uinst_int;
+	double pct_cycles_stalled;
+	double pct_cycles_stalled_load;
+	double ipc_int;
+	double ipc_glob;
+
+	pct_cycles_stalled = cycles_int > 0 ?
+			(double) 100 * (X86_THREAD.dispatch_stall_cycles_rob_mem - stack->dispatch_stall_cycles_rob_mem) / cycles_int :
+			0.0;
+
+	pct_cycles_stalled_load = cycles_int > 0 ?
+			(double) 100 * (X86_THREAD.dispatch_stall_cycles_rob_load - stack->dispatch_stall_cycles_rob_load) / cycles_int :
+			0.0;
+
+	num_committed_uinst_int = X86_THREAD.num_committed_uinst - stack->num_committed_uinst;
+	ipc_glob = arch_x86->cycle - arch_x86->last_reset_cycle ? (double) X86_THREAD.num_committed_uinst / (arch_x86->cycle - arch_x86->last_reset_cycle) : 0.0;
+	ipc_int = (double) num_committed_uinst_int / cycles_int;
+
+	fprintf(stack->report_file, "%lld", esim_time);
+	fprintf(stack->report_file, ",%lld", X86_THREAD.num_committed_inst);
+	fprintf(stack->report_file, ",%lld", X86_THREAD.num_committed_uinst);
+	fprintf(stack->report_file, ",%.3f", ipc_int);
+	fprintf(stack->report_file, ",%.3f", ipc_glob);
+	fprintf(stack->report_file, ",%.3f", pct_cycles_stalled);
+	fprintf(stack->report_file, ",%.3f", pct_cycles_stalled_load);
+	fprintf(stack->report_file, "\n");
+	fflush(stack->report_file);
+
+	/* Update intermediate results */
+	stack->last_cycle = arch_x86->cycle;
+	stack->dispatch_stall_cycles_rob_mem = X86_THREAD.dispatch_stall_cycles_rob_mem;
+	stack->dispatch_stall_cycles_rob_load = X86_THREAD.dispatch_stall_cycles_rob_load;
+	stack->num_committed_uinst = X86_THREAD.num_committed_uinst;
+}
+
+
+void x86_cpu_interval_report_init()
+{
+	int core;
+	int thread;
+
+	X86_CORE_FOR_EACH
+		X86_THREAD_FOR_EACH
+			x86_thread_interval_report_init(core, thread);
+}
+
+
+void x86_cpu_interval_report()
+{
+	int core;
+	int thread;
+
+	X86_CORE_FOR_EACH
+		X86_THREAD_FOR_EACH
+			x86_thread_interval_report(core, thread);
+}

@@ -105,6 +105,7 @@ void x86_emu_dump_summary(FILE *f);
 void x86_emu_process_events(void);
 void x86_emu_process_events_schedule(void);
 
+void x86_emu_interval_report();
 
 #endif
 

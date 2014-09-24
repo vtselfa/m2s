@@ -46,6 +46,7 @@ struct mod_report_stack_t
 	long long misses_int;
 	long long strides_detected;
 	long long last_cycles_stalled;
+	FILE *report_file;
 };
 
 
@@ -269,12 +270,8 @@ struct mod_t
 	/* Reporting statistics at intervals */
 	int report_enabled;
 	struct mod_report_stack_t *report_stack;
-	long long report_interval;
-	enum interval_kind_t report_interval_kind;
-	FILE *report_file;
 
 	/* Statistics */
-
 
 	long long accesses;
 	long long hits;
@@ -415,8 +412,7 @@ int mod_find_block_in_stream(struct mod_t *mod, unsigned int addr, int stream);
 void mod_adapt_pref_schedule(struct mod_t *mod);
 void mod_adapt_pref_handler(int event, void *data);
 
-void mod_report_schedule(struct mod_t *mod);
-void mod_report_handler(int event, void *data);
+void mod_interval_report_init(struct mod_t *mod);
+void mod_interval_report(struct mod_t *mod);
 
 #endif
-

@@ -131,11 +131,16 @@ static void x86_cpu_commit_thread(int core, int thread, int quant)
 		X86_CORE.num_committed_uinst++;
 		x86_cpu->num_committed_uinst_array[uop->uinst->opcode]++;
 		x86_cpu->num_committed_uinst++;
-		ctx->inst_count++;
+		ctx->uinst_count++;
 		if (uop->trace_cache)
 			X86_THREAD.trace_cache->num_committed_uinst++;
 		if (!uop->mop_index)
+		{
+			ctx->inst_count++;
 			x86_cpu->num_committed_inst++;
+			X86_CORE.num_committed_inst++;
+			X86_THREAD.num_committed_inst++;
+		}
 		if (uop->flags & X86_UINST_CTRL)
 		{
 			X86_THREAD.num_branch_uinst++;

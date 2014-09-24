@@ -1046,16 +1046,10 @@ static void mem_config_read_modules(struct config_t *config)
 
 	char *section;
 	char *mod_type;
-	char *report_file_name;
-	char *report_interval_kind_str;
 
 	char buf[MAX_STRING_SIZE];
 	char mod_name[MAX_STRING_SIZE];
-	char default_report_file_name[MAX_STRING_SIZE];
 
-	long long report_interval;
-
-	int enable_report;
 	int i;
 
 	/* Create modules */
@@ -1082,27 +1076,6 @@ static void mem_config_read_modules(struct config_t *config)
 			fatal("%s: %s: invalid or missing value for 'Type'.\n%s",
 				mem_config_file_name, mod_name,
 				mem_err_config_note);
-
-
-		/* Enables for this module interval reporting statistics */
-		snprintf(default_report_file_name, MAX_STRING_SIZE, "%s.interval.report", mod->name);
-		enable_report = config_read_bool(config, section, "EnableReport", 0);
-		report_interval = config_read_llint(config, section, "ReportInterval", 50000);
-		report_interval_kind_str = config_read_string(config, section, "ReportIntervalKind", "cycles");
-		report_file_name = config_read_string(config, section, "ReportFile", default_report_file_name);
-		if(enable_report)
-		{
-			mod->report_enabled = enable_report;
-			mod->report_file = file_open_for_write(report_file_name);
-			if (!mod->report_file)
-				fatal("%s: cannot open mod report file", report_file_name);
-			mod->report_interval = report_interval;
-			mod->report_interval_kind = str_map_string_case(&interval_kind_map, report_interval_kind_str);
-			if(!mod->report_interval_kind)
-				fatal("%s: module %s: invalid value for variable "
-					"'ReportIntervalKind'.\n%s", mem_config_file_name,
-					mod->name, mem_err_config_note);
-		}
 
 		/* Read module address range */
 		mem_config_read_module_address_range(config, mod, section);

@@ -365,9 +365,6 @@ void mem_system_init(void)
 	EV_MOD_NMOESI_INVALIDATE_SLOT_FINISH = esim_register_event_with_name(mod_handler_nmoesi_invalidate_slot,
 			mem_domain_index, "mod_nmoesi_invalidate_slot_finish");
 
-	/* Event for interval reports */
-	EV_MOD_REPORT = esim_register_event_with_name(mod_report_handler, mem_domain_index, "mod_report");
-
 	/* Event for adaptative prefetch */
 	EV_MOD_ADAPT_PREF = esim_register_event_with_name(mod_adapt_pref_handler, mem_domain_index, "mod_adapt_pref");
 
@@ -377,10 +374,6 @@ void mem_system_init(void)
 
 		if (mod->kind != mod_kind_cache)
 			continue;
-
-		/* Schedule interval reporting */
-		if (mod->report_enabled)
-			mod_report_schedule(mod);
 
 		/* Shedule adaptative prefetch */
 		if (mod->cache->prefetch.adapt_policy)
@@ -695,3 +688,23 @@ void main_memory_tic_handler(int event, void *data)
 	esim_schedule_event(event, ds, 1);
 }
 
+
+void mem_system_interval_report_init(void)
+{
+	for (int i = 0; i < list_count(mem_system->mod_list); i++)
+	{
+		struct mod_t *mod = list_get(mem_system->mod_list, i);
+		mod_interval_report_init(mod);
+	}
+}
+
+
+void mem_system_interval_report(void)
+{
+	/* Report for each cache */
+	for (int i = 0; i < list_count(mem_system->mod_list); i++)
+	{
+		struct mod_t *mod = list_get(mem_system->mod_list, i);
+		mod_interval_report(mod);
+	}
+}

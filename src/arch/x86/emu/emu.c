@@ -93,12 +93,6 @@ void x86_emu_init(void)
 	x86_sys_init();
 	x86_isa_init();
 
-	if (arch_x86->sim_kind == arch_sim_kind_detailed)
-	{
-		/* Event for context IPC reports */
-		EV_X86_CTX_IPC_REPORT = esim_register_event_with_name(x86_ctx_interval_report_handler, arch_x86->domain_index, "x86_ctx_ipc_report");
-	}
-
 	/* Initialize */
 	x86_emu->current_pid = 100;  /* Initial assigned pid */
 
@@ -770,4 +764,16 @@ int x86_emu_run(void)
 
 	/* Still running */
 	return TRUE;
+}
+
+
+void x86_emu_interval_report()
+{
+	struct x86_ctx_t *ctx;
+	ctx = x86_emu->context_list_head;
+	while (ctx)
+	{
+		x86_ctx_interval_report(ctx);
+		ctx = ctx->context_list_next;
+	}
 }

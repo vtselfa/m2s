@@ -1898,34 +1898,63 @@ void m2s_create_report_dirs(void)
 	mode_t urwx_grx = S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IWGRP;
 
 	/* Names */
-	ret = snprintf(interval_reports_dir, MAX_PATH_SIZE, "%s/interval_reports/", reports_dir);
-	if (ret < 0 || ret >= MAX_PATH_SIZE)
-		fatal("%s: string too long", reports_dir);
 
+	/* Global reports */
 	ret = snprintf(global_reports_dir, MAX_PATH_SIZE, "%s/global_reports/", reports_dir);
 	if (ret < 0 || ret >= MAX_PATH_SIZE)
 		fatal("%s: string too long", reports_dir);
 
-	ret = snprintf(ctx_interval_reports_dir, MAX_PATH_SIZE, "%s/ctx/", interval_reports_dir);
+	/* Interval reports */
+	ret = snprintf(interval_reports_dir, MAX_PATH_SIZE, "%s/interval_reports/", reports_dir);
+	if (ret < 0 || ret >= MAX_PATH_SIZE)
+		fatal("%s: string too long", reports_dir);
+
+	/* Int. rep. x86_ctx */
+	ret = snprintf(x86_ctx_interval_reports_dir, MAX_PATH_SIZE, "%s/x86_ctx/", interval_reports_dir);
+	if (ret < 0 || ret >= MAX_PATH_SIZE)
+		fatal("%s: string too long", interval_reports_dir);
+
+	/* Int. rep. mod */
+	ret = snprintf(mod_interval_reports_dir, MAX_PATH_SIZE, "%s/mod/", interval_reports_dir);
+	if (ret < 0 || ret >= MAX_PATH_SIZE)
+		fatal("%s: string too long", interval_reports_dir);
+
+	/* Int. rep. x86_thread */
+	ret = snprintf(x86_thread_interval_reports_dir, MAX_PATH_SIZE, "%s/x86_thread/", interval_reports_dir);
 	if (ret < 0 || ret >= MAX_PATH_SIZE)
 		fatal("%s: string too long", interval_reports_dir);
 
 	/* Creation */
+
+	/* Reports */
 	ret = mkdir(reports_dir, urwx_grx);
 	if (ret && errno != EEXIST)
 		warning("cannot create dir %s", reports_dir);
 
+	/* Global reports */
+	ret = mkdir(global_reports_dir, urwx_grx);
+	if (ret && errno != EEXIST)
+		warning("cannot create dir %s", global_reports_dir);
+
+	/* Interval reports */
 	ret = mkdir(interval_reports_dir, urwx_grx);
 	if (ret && errno != EEXIST)
 		warning("cannot create dir %s", interval_reports_dir);
 
-	ret = mkdir(ctx_interval_reports_dir, urwx_grx);
+	/* Int. rep. x86_ctx */
+	ret = mkdir(x86_ctx_interval_reports_dir, urwx_grx);
 	if (ret && errno != EEXIST)
-		warning("cannot create dir %s", ctx_interval_reports_dir);
+		warning("cannot create dir %s", x86_ctx_interval_reports_dir);
 
-	ret = mkdir(global_reports_dir, urwx_grx);
+	/* Int. rep. mod */
+	ret = mkdir(mod_interval_reports_dir, urwx_grx);
 	if (ret && errno != EEXIST)
-		warning("cannot create dir %s", global_reports_dir);
+		warning("cannot create dir %s", mod_interval_reports_dir);
+
+	/* Int. rep. x86_thread */
+	ret = mkdir(x86_thread_interval_reports_dir, urwx_grx);
+	if (ret && errno != EEXIST)
+		warning("cannot create dir %s", x86_thread_interval_reports_dir);
 }
 
 
@@ -2109,6 +2138,9 @@ int main(int argc, char **argv)
 
 	/* Load programs */
 	m2s_load_programs(argc, argv);
+
+	/* Interval stats reporting */
+	m2s_interval_report_schedule();
 
 	/* Multi2Sim Central Simulation Loop */
 	m2s_loop();

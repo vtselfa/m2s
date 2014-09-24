@@ -42,12 +42,14 @@ typedef void (*x86_ctx_wakeup_callback_func_t)(struct x86_ctx_t *ctx, void *data
 struct x86_ctx_report_stack_t
 {
 	int pid;
-	long long inst_count;
+	long long uinst_count;
 	long long last_cycle;
 	long long mm_read_accesses;
 	long long mm_write_accesses;
 	long long mm_pref_accesses;
-	struct line_writer_t *lw;
+	long long dispatch_stall_cycles_rob_load;
+	long long dispatch_stall_cycles_rob_mem;
+	FILE *report_file;
 };
 
 struct x86_ctx_t
@@ -174,10 +176,13 @@ struct x86_ctx_t
 	struct bit_map_t *affinity;
 
 	/* Interval stats reporting (for detailed simulation) */
-	FILE *interval_report_file;
-	struct x86_ctx_report_stack_t *interval_report_stack;
+	struct x86_ctx_report_stack_t *report_stack;
 
 	/* Number of non-speculate micro-instructions.
+	 * Updated by the architectural simulator at the commit stage. */
+	long long uinst_count;
+
+	/* Number of non-speculate instructions.
 	 * Updated by the architectural simulator at the commit stage. */
 	long long inst_count;
 
@@ -185,6 +190,9 @@ struct x86_ctx_t
 	long long mm_read_accesses;
 	long long mm_write_accesses;
 	long long mm_pref_accesses; /* Included in mm_read_accesses */
+	long long dispatch_stall_cycles_rob; /* Cicles with the ROB stalled this ctx has suffered */
+	long long dispatch_stall_cycles_rob_mem; /* Cicles with the ROB stalled due to a memory instruction this ctx has suffered */
+	long long dispatch_stall_cycles_rob_load; /* Cicles with the ROB stalled due to a load instruction this ctx has suffered */
 };
 
 enum x86_ctx_state_t
@@ -250,8 +258,8 @@ void x86_ctx_exit_robust_list(struct x86_ctx_t *ctx);
 void x86_ctx_gen_proc_self_maps(struct x86_ctx_t *ctx, char *path, int size);
 void x86_ctx_gen_proc_cpuinfo(struct x86_ctx_t *ctx, char *path, int size);
 
-void x86_ctx_interval_report_schedule(struct x86_ctx_t *ctx);
-void x86_ctx_interval_report_handler(int event, void *data);
+void x86_ctx_interval_report_init(struct x86_ctx_t *ctx);
+void x86_ctx_interval_report(struct x86_ctx_t *ctx);
 
 void x86_ctx_all_reset_stats(void); /* Resets the stats of all the x86 ctxs */
 
