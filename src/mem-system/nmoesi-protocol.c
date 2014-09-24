@@ -1552,7 +1552,7 @@ void mod_handler_nmoesi_prefetch(int event, void *data)
 		{
 			/* Doesn't make sense to prefetch as the block is already being fetched */
 			mem_debug("  %lld %lld 0x%x %s useless prefetch - already being fetched\n",
-				  esim_time, stack->id, stack->addr, mod->name);
+					esim_time, stack->id, stack->addr, mod->name);
 
 			mod->canceled_prefetches++;
 			mod->canceled_prefetches_coalesce++;
@@ -1634,7 +1634,7 @@ void mod_handler_nmoesi_prefetch(int event, void *data)
 		{
 			/* Block already in cache */
 			mem_debug("  %lld %lld 0x%x %s useless prefetch - cache hit\n",
-				  esim_time, stack->id, stack->addr, mod->name);
+					esim_time, stack->id, stack->addr, mod->name);
 
 			/* Statistics */
 			mod->canceled_prefetches++;
@@ -1956,7 +1956,7 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 		if (stack->hit || stack->request_dir == mod_request_up_down )
 		{
 			/* If directory entry is locked and the call to FIND_AND_LOCK is not
-		 	* blocking, release port and return error. */
+			 * blocking, release port and return error. */
 			dir_lock = dir_lock_get(mod->dir, stack->set, stack->way);
 			if (dir_lock->lock && !stack->blocking)
 			{
@@ -3052,7 +3052,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			}
 
 			/* TODO If there is only sharers, should one of them
-			 *      send the data to mod instead of having target_mod do it? */
+			 * send the data to mod instead of having target_mod do it? */
 
 			/* Send read request to owners other than mod for all sub-blocks. */
 			for (z = 0; z < dir->zsize; z++)

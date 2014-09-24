@@ -38,7 +38,7 @@ struct x86_emu_t
 	/* Counter of times that a context has been suspended in a
 	 * futex. Used for FIFO wakeups. */
 	long long futex_sleep_count;
-	
+
 	/* Flag set to force a call to the scheduler 'x86_cpu_schedule()' in the
 	 * beginning of next cycle. This flag is set any time a context changes its
 	 * state in any bit other than 'spec_mode'. It can be set anywhere in the

@@ -93,10 +93,8 @@ void mem_system_done(void);
 
 void mem_system_dump_report(void);
 
-
 struct mod_t *mem_system_get_mod(char *mod_name);
 struct net_t *mem_system_get_net(char *net_name);
-
 
 void main_memory_power_callback(double a, double b, double c, double d);
 void main_memory_read_callback(void *payload, unsigned int id, uint64_t address, uint64_t clock_cycle);
