@@ -21,13 +21,14 @@ long long epoch_length; /* Number of cycles in esim_frequency for the stats repo
 
 char *reports_dir = "./";
 
-char interval_reports_dir[MAX_STRING_SIZE];
+char interval_reports_dir[MAX_PATH_SIZE];
 
-char mod_interval_reports_dir[MAX_STRING_SIZE];
-char x86_ctx_interval_reports_dir[MAX_STRING_SIZE];
-char x86_thread_interval_reports_dir[MAX_STRING_SIZE];
+char mod_interval_reports_dir[MAX_PATH_SIZE];
+char dram_interval_reports_dir[MAX_PATH_SIZE];
+char x86_ctx_interval_reports_dir[MAX_PATH_SIZE];
+char x86_thread_interval_reports_dir[MAX_PATH_SIZE];
 
-char global_reports_dir[MAX_STRING_SIZE];
+char global_reports_dir[MAX_PATH_SIZE];
 
 
 /*

@@ -18,8 +18,6 @@
  */
 
 #include <signal.h>
-#include <stdlib.h>
-#include <errno.h>
 
 #include <arch/arm/emu/context.h>
 #include <arch/arm/emu/isa.h>
@@ -78,7 +76,6 @@
 #include <mem-system/mem-system.h>
 #include <mem-system/mmu.h>
 #include <network/net-system.h>
-#include <sys/stat.h>
 #include <sys/time.h>
 #include <visual/common/visual.h>
 
@@ -1894,67 +1891,26 @@ static void m2s_loop(void)
 
 void m2s_create_report_dirs(void)
 {
-	int ret;
-	mode_t urwx_grx = S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IWGRP;
-
-	/* Names */
+	/* Reports dir */
+	filesystem_dir_create("", reports_dir);
 
 	/* Global reports */
-	ret = snprintf(global_reports_dir, MAX_PATH_SIZE, "%s/global_reports/", reports_dir);
-	if (ret < 0 || ret >= MAX_PATH_SIZE)
-		fatal("%s: string too long", reports_dir);
+	filesystem_dir_create_and_store(global_reports_dir, MAX_PATH_SIZE, reports_dir, "global_reports");
 
 	/* Interval reports */
-	ret = snprintf(interval_reports_dir, MAX_PATH_SIZE, "%s/interval_reports/", reports_dir);
-	if (ret < 0 || ret >= MAX_PATH_SIZE)
-		fatal("%s: string too long", reports_dir);
+	filesystem_dir_create_and_store(interval_reports_dir, MAX_PATH_SIZE, reports_dir, "interval_reports");
 
 	/* Int. rep. x86_ctx */
-	ret = snprintf(x86_ctx_interval_reports_dir, MAX_PATH_SIZE, "%s/x86_ctx/", interval_reports_dir);
-	if (ret < 0 || ret >= MAX_PATH_SIZE)
-		fatal("%s: string too long", interval_reports_dir);
+	filesystem_dir_create_and_store(x86_ctx_interval_reports_dir, MAX_PATH_SIZE, interval_reports_dir, "x86_ctx");
 
 	/* Int. rep. mod */
-	ret = snprintf(mod_interval_reports_dir, MAX_PATH_SIZE, "%s/mod/", interval_reports_dir);
-	if (ret < 0 || ret >= MAX_PATH_SIZE)
-		fatal("%s: string too long", interval_reports_dir);
+	filesystem_dir_create_and_store(mod_interval_reports_dir, MAX_PATH_SIZE, interval_reports_dir, "mod");
+
+	/* Int. rep. dram */
+	filesystem_dir_create_and_store(dram_interval_reports_dir, MAX_PATH_SIZE, interval_reports_dir, "dram");
 
 	/* Int. rep. x86_thread */
-	ret = snprintf(x86_thread_interval_reports_dir, MAX_PATH_SIZE, "%s/x86_thread/", interval_reports_dir);
-	if (ret < 0 || ret >= MAX_PATH_SIZE)
-		fatal("%s: string too long", interval_reports_dir);
-
-	/* Creation */
-
-	/* Reports */
-	ret = mkdir(reports_dir, urwx_grx);
-	if (ret && errno != EEXIST)
-		warning("cannot create dir %s", reports_dir);
-
-	/* Global reports */
-	ret = mkdir(global_reports_dir, urwx_grx);
-	if (ret && errno != EEXIST)
-		warning("cannot create dir %s", global_reports_dir);
-
-	/* Interval reports */
-	ret = mkdir(interval_reports_dir, urwx_grx);
-	if (ret && errno != EEXIST)
-		warning("cannot create dir %s", interval_reports_dir);
-
-	/* Int. rep. x86_ctx */
-	ret = mkdir(x86_ctx_interval_reports_dir, urwx_grx);
-	if (ret && errno != EEXIST)
-		warning("cannot create dir %s", x86_ctx_interval_reports_dir);
-
-	/* Int. rep. mod */
-	ret = mkdir(mod_interval_reports_dir, urwx_grx);
-	if (ret && errno != EEXIST)
-		warning("cannot create dir %s", mod_interval_reports_dir);
-
-	/* Int. rep. x86_thread */
-	ret = mkdir(x86_thread_interval_reports_dir, urwx_grx);
-	if (ret && errno != EEXIST)
-		warning("cannot create dir %s", x86_thread_interval_reports_dir);
+	filesystem_dir_create_and_store(x86_thread_interval_reports_dir, MAX_PATH_SIZE, interval_reports_dir, "x86_thread");
 }
 
 

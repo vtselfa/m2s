@@ -15,13 +15,14 @@ extern long long epoch_length;
 
 extern char *reports_dir;
 
-extern char interval_reports_dir[MAX_STRING_SIZE];
+extern char interval_reports_dir[MAX_PATH_SIZE];
 
-extern char mod_interval_reports_dir[MAX_STRING_SIZE];
-extern char x86_ctx_interval_reports_dir[MAX_STRING_SIZE];
-extern char x86_thread_interval_reports_dir[MAX_STRING_SIZE];
+extern char mod_interval_reports_dir[MAX_PATH_SIZE];
+extern char dram_interval_reports_dir[MAX_PATH_SIZE];
+extern char x86_ctx_interval_reports_dir[MAX_PATH_SIZE];
+extern char x86_thread_interval_reports_dir[MAX_PATH_SIZE];
 
-extern char global_reports_dir[MAX_STRING_SIZE];
+extern char global_reports_dir[MAX_PATH_SIZE];
 
 
 /*

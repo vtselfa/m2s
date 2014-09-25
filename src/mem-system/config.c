@@ -33,6 +33,7 @@
 #include <lib/util/linked-list.h>
 #include <lib/util/list.h>
 #include <lib/util/misc.h>
+#include <lib/util/stats.h>
 #include <lib/util/string.h>
 #include <network/net-system.h>
 #include <network/network.h>
@@ -995,8 +996,10 @@ static void mem_config_read_dram_systems(struct config_t *config)
 	char *report_file_str;
 
 	char dram_system_name[MAX_STRING_SIZE];
+	char dram_system_intrep_file[MAX_STRING_SIZE];
 
 	int megabytes; /* Total size */
+	int ret;
 
 	/* Create main memory systems */
 	mem_debug("Creating main memory systems:\n");
@@ -1011,7 +1014,12 @@ static void mem_config_read_dram_systems(struct config_t *config)
 		str_token(dram_system_name, sizeof dram_system_name, section, 1, " ");
 		device_config_str = config_read_string(config, section, "DeviceDescription", "ini/DDR2_micron_16M_8b_x8_sg3E.ini");
 		system_config_str = config_read_string(config, section, "SystemDescription", "system.ini");
-		report_file_str = config_read_string(config, section, "ReportFile", "dramstats");
+
+		ret = snprintf(dram_system_intrep_file, MAX_PATH_SIZE, "%s/%s.csv", dram_interval_reports_dir, dram_system_name);
+		if (ret < 0 || ret >= MAX_PATH_SIZE)
+			fatal("%s: string too long", dram_system_intrep_file);
+
+		report_file_str = config_read_string(config, section, "ReportFile", dram_system_intrep_file);
 		megabytes = config_read_int(config, section, "MB", 4096);
 
 		/* Create a handler to the underlying dramsim c++ objects */
