@@ -11,7 +11,7 @@
 
 extern int EV_INTERVAL_REPORT;
 
-extern long long epoch_length;
+extern long long epoch_length; /* In cycles @ esim_frequency */
 
 extern char *reports_dir;
 

@@ -1730,9 +1730,12 @@ static void mem_config_main_memory_reachability()
 
 
 /* Set in each module the threads that can access it */
-static void mem_config_thread_reachability()
+static void mem_config_x86_thread_reachability()
 {
 	struct list_t *stack = list_create();
+
+	if (arch_x86->sim_kind != arch_sim_kind_detailed)
+		return;
 
 	for (int core = 0; core < x86_cpu_num_cores; core++)
 		for (int thread = 0; thread < x86_cpu_num_threads; thread++)
@@ -1831,7 +1834,7 @@ void mem_config_read(void)
 	mem_config_calculate_mod_levels();
 
 	/* Compute wich threads can access a given memory module */
-	mem_config_thread_reachability();
+	mem_config_x86_thread_reachability();
 
 	/* Compute wich dram systems are accessible from a given memory module */
 	mem_config_main_memory_reachability();
