@@ -998,6 +998,8 @@ static void mem_config_read_dram_systems(struct config_t *config)
 	char dram_system_name[MAX_STRING_SIZE];
 	char dram_system_intrep_file[MAX_STRING_SIZE];
 
+	double dram_system_freq;
+
 	int megabytes; /* Total size */
 	int ret;
 
@@ -1023,16 +1025,20 @@ static void mem_config_read_dram_systems(struct config_t *config)
 		megabytes = config_read_int(config, section, "MB", 4096);
 
 		/* Create a handler to the underlying dramsim c++ objects */
-    	handler = dram_system_create(device_config_str, system_config_str, megabytes, report_file_str);
+		handler = dram_system_create(device_config_str, system_config_str, megabytes, report_file_str);
 
 		/* Create a wrapper to store multi2sim related data and dramsim handler */
 		dram_system = xcalloc(1, sizeof(struct dram_system_t));
 		dram_system->name = xstrdup(dram_system_name);
 		dram_system->handler = handler;
-    	dram_system->pending_reads = linked_list_create();
+		dram_system->pending_reads = linked_list_create();
 
 		/* Configure dramsim using the handler */
 		dram_system_set_cpu_freq(handler, (long long) arch_x86->frequency * 1000000); /* Freq must be in Hz */
+		dram_system_freq = dram_system_get_dram_freq(handler) / 1000000; /* Convert freq. to MHz */
+		assert(dram_system_freq);
+
+		dram_system_set_epoch_length(handler, epoch_length * (dram_system_freq / esim_frequency)); /* Epoch length for dram in dram cycles */
 		dram_system_register_payloaded_callbacks(handler, dram_system, main_memory_read_callback, main_memory_write_callback, main_memory_power_callback);
 
 		/* Add dram system to hash table */
