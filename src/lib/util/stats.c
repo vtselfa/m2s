@@ -41,14 +41,12 @@ void m2s_interval_report_handler(int event, void *data)
 	assert(!data);
 	assert(event == EV_INTERVAL_REPORT);
 
-	if (esim_finish)
-		return;
-
 	x86_emu_interval_report();      /* x86 contexts */
 	x86_cpu_interval_report();      /* x86 cores and threads */
 	mem_system_interval_report();   /* Caches */
 
-	esim_schedule_event(EV_INTERVAL_REPORT, NULL, epoch_length);
+	if (!esim_finish)
+		esim_schedule_event(EV_INTERVAL_REPORT, NULL, epoch_length);
 }
 
 
