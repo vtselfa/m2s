@@ -155,6 +155,7 @@ struct mod_stack_t
 	int pref_slot;
 	int stride;
 	long long stream_retried_cycle;
+	long long start_time; /* For computing end-to-end latency */
 
 	int retry;
 

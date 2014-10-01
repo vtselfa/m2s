@@ -18,6 +18,7 @@
  */
 
 #include <assert.h>
+#include <math.h>
 
 #include <arch/common/arch.h>
 #include <arch/x86/timing/cpu.h>
@@ -78,6 +79,11 @@ static struct str_map_t x86_ctx_status_map =
 };
 
 
+/* Forward declarations */
+static void x86_ctx_mapping_report_init(struct x86_ctx_t *ctx);
+
+
+
 static struct x86_ctx_t *ctx_do_create()
 {
 	struct x86_ctx_t *ctx;
@@ -106,7 +112,11 @@ static struct x86_ctx_t *ctx_do_create()
 	for (i = 0; i < num_nodes; i++)
 		bit_map_set(ctx->affinity, i, 1, 1);
 
+	/* Interval reporting */
 	x86_ctx_interval_report_init(ctx);
+
+	/* Mapping reporting */
+	x86_ctx_mapping_report_init(ctx);
 
 	/* Return context */
 	return ctx;
@@ -247,8 +257,18 @@ void x86_ctx_free(struct x86_ctx_t *ctx)
 	if(ctx->report_stack)
 	{
 		file_close(ctx->report_stack->report_file);
+		free(ctx->report_stack->hits_per_level_int);
+		free(ctx->report_stack->stream_hits_per_level_int);
+		free(ctx->report_stack->misses_per_level_int);
+		free(ctx->report_stack->retries_per_level_int);
+		free(ctx->report_stack->prefs_per_level_int);
+		free(ctx->report_stack->useful_prefs_per_level_int);
+		free(ctx->report_stack->aggregate_pref_lat_per_level_int);
 		free(ctx->report_stack);
 	}
+
+	/* Close mapping reports file */
+	file_close(ctx->mapping_report_file);
 
 	/* Free context */
 	free(ctx);
@@ -903,6 +923,13 @@ void x86_ctx_interval_report_init(struct x86_ctx_t *ctx)
 
 	/* Create new stack */
 	stack = xcalloc(1, sizeof(struct x86_ctx_report_stack_t));
+	stack->hits_per_level_int = xcalloc(max_mod_level + 1, sizeof(long long)); /* As there isn't any level 0, position 0 in the array is not used */
+	stack->stream_hits_per_level_int = xcalloc(max_mod_level + 1, sizeof(long long)); /* As there isn't any level 0, position 0 in the array is not used */
+	stack->misses_per_level_int = xcalloc(max_mod_level + 1, sizeof(long long));
+	stack->retries_per_level_int = xcalloc(max_mod_level + 1, sizeof(long long));
+	stack->prefs_per_level_int = xcalloc(max_mod_level + 1, sizeof(long long));
+	stack->useful_prefs_per_level_int = xcalloc(max_mod_level + 1, sizeof(long long));
+	stack->aggregate_pref_lat_per_level_int = xcalloc(max_mod_level + 1, sizeof(long long));
 
 	/* Interval reporting of stats */
 	ret = snprintf(interval_report_file_name, MAX_PATH_SIZE, "%s/pid%d.intrep.csv", x86_ctx_interval_reports_dir, ctx->pid);
@@ -921,13 +948,31 @@ void x86_ctx_interval_report_init(struct x86_ctx_t *ctx)
 	fprintf(stack->report_file, "%s", "esim-time");
 	fprintf(stack->report_file, ",pid%d-%s", ctx->pid, "insts");
 	fprintf(stack->report_file, ",pid%d-%s", ctx->pid, "uinsts");
+	fprintf(stack->report_file, ",pid%d-%s", ctx->pid, "loads-int");
+	fprintf(stack->report_file, ",pid%d-%s", ctx->pid, "stores-int");
+	for (int level = 1; level <= max_mod_level - 1; level++)
+		fprintf(stack->report_file, ",pid%d-l%d-%s", ctx->pid, level, "pref-int");
+	fprintf(stack->report_file, ",pid%d-%s", ctx->pid, "load-avg-lat-int");
+	fprintf(stack->report_file, ",pid%d-%s", ctx->pid, "store-avg-lat-int");
+	for (int level = 1; level <= max_mod_level - 1; level++)
+		fprintf(stack->report_file, ",pid%d-l%d-%s", ctx->pid, level, "pref-avg-lat-int");
 	fprintf(stack->report_file, ",pid%d-%s", ctx->pid, "ipc-glob");
 	fprintf(stack->report_file, ",pid%d-%s", ctx->pid, "ipc-int");
-	fprintf(stack->report_file, ",pid%d-%s", ctx->pid, "mm-read-accesses");
-	fprintf(stack->report_file, ",pid%d-%s", ctx->pid, "mm-write-accesses");
-	fprintf(stack->report_file, ",pid%d-%s", ctx->pid, "mm-pref-accesses");
-	fprintf(stack->report_file, ",pid%d-%s", ctx->pid, "pct-cycles-stalled");
-	fprintf(stack->report_file, ",pid%d-%s", ctx->pid, "pct-cycles-stalled-load");
+	fprintf(stack->report_file, ",pid%d-%s", ctx->pid, "mm-reads-int");
+	fprintf(stack->report_file, ",pid%d-%s", ctx->pid, "mm-prefs-int");
+	fprintf(stack->report_file, ",pid%d-%s", ctx->pid, "mm-writes-int");
+	fprintf(stack->report_file, ",pid%d-%s", ctx->pid, "pct-rob-stall-int");
+	fprintf(stack->report_file, ",pid%d-%s", ctx->pid, "pct-rob-stall-load-int");
+	for (int level = 1; level <= max_mod_level - 1; level++)
+	{
+		fprintf(stack->report_file, ",pid%d-l%d-%s", ctx->pid, level, "hits-int");
+		fprintf(stack->report_file, ",pid%d-l%d-%s", ctx->pid, level, "stream-hits-int");
+		fprintf(stack->report_file, ",pid%d-l%d-%s", ctx->pid, level, "misses-int");
+		fprintf(stack->report_file, ",pid%d-l%d-%s", ctx->pid, level, "retries-int");
+		fprintf(stack->report_file, ",pid%d-l%d-%s", ctx->pid, level, "mpki-int");
+		fprintf(stack->report_file, ",pid%d-l%d-%s", ctx->pid, level, "pref-acc-int");
+		fprintf(stack->report_file, ",pid%d-l%d-%s", ctx->pid, level, "pref-cov-int");
+	}
 	fprintf(stack->report_file, "\n");
 	fflush(stack->report_file);
 }
@@ -965,13 +1010,36 @@ void x86_ctx_interval_report(struct x86_ctx_t *ctx)
 	fprintf(stack->report_file, "%lld", esim_time);
 	fprintf(stack->report_file, ",%lld", ctx->inst_count);
 	fprintf(stack->report_file, ",%lld", ctx->uinst_count);
+	fprintf(stack->report_file, ",%lld", stack->loads_int);
+	fprintf(stack->report_file, ",%lld", stack->stores_int);
+	for (int level = 1; level <= max_mod_level - 1; level++) /* Deepest mod level is main memory, not cache */
+		fprintf(stack->report_file, ",%lld", stack->prefs_per_level_int[level]);
+	fprintf(stack->report_file, ",%.3f", stack->loads_int ? (double) stack->aggregate_load_lat_int / (stack->loads_int * 1000.0) : NAN); /* ns */
+	fprintf(stack->report_file, ",%.3f", stack->stores_int ? (double) stack->aggregate_store_lat_int / (stack->stores_int * 1000.0) : NAN); /* ns */
+	for (int level = 1; level <= max_mod_level - 1; level++)
+		fprintf(stack->report_file, ",%.3f", stack->prefs_per_level_int[level] ? (double) stack->aggregate_pref_lat_per_level_int[level] / (stack->prefs_per_level_int[level] * 1000.0) : NAN); /* ns */
 	fprintf(stack->report_file, ",%.3f", ipc_glob);
 	fprintf(stack->report_file, ",%.3f", ipc_int);
 	fprintf(stack->report_file, ",%lld", mm_read_accesses);
-	fprintf(stack->report_file, ",%lld", mm_write_accesses);
 	fprintf(stack->report_file, ",%lld", mm_pref_accesses);
+	fprintf(stack->report_file, ",%lld", mm_write_accesses);
 	fprintf(stack->report_file, ",%.3f", pct_cycles_stalled);
 	fprintf(stack->report_file, ",%.3f", pct_cycles_stalled_load);
+	for (int level = 1; level <= max_mod_level - 1; level++)
+	{
+		double mpki_int = uinst_count_int ? stack->misses_per_level_int[level] / (uinst_count_int / 1000.0) : 0.0;
+		fprintf(stack->report_file, ",%lld", stack->hits_per_level_int[level]);
+		fprintf(stack->report_file, ",%lld", stack->stream_hits_per_level_int[level]);
+		fprintf(stack->report_file, ",%lld", stack->misses_per_level_int[level]);
+		fprintf(stack->report_file, ",%lld", stack->retries_per_level_int[level]);
+		fprintf(stack->report_file, ",%.3f", mpki_int);
+		fprintf(stack->report_file, ",%.3f", stack->prefs_per_level_int[level] ? /* Pref ACC */
+				(double) stack->useful_prefs_per_level_int[level] / stack->prefs_per_level_int[level] :
+				NAN);
+		fprintf(stack->report_file, ",%.3f", stack->prefs_per_level_int[level] + stack->misses_per_level_int[level] ? /* Pref COV */
+				(double) stack->useful_prefs_per_level_int[level] / (stack->prefs_per_level_int[level] + stack->misses_per_level_int[level]) :
+				NAN);
+	}
 	fprintf(stack->report_file, "\n");
 	fflush(stack->report_file);
 
@@ -982,4 +1050,40 @@ void x86_ctx_interval_report(struct x86_ctx_t *ctx)
 	stack->mm_pref_accesses = ctx->mm_pref_accesses;
 	stack->dispatch_stall_cycles_rob_load = ctx->dispatch_stall_cycles_rob_load;
 	stack->dispatch_stall_cycles_rob_mem = ctx->dispatch_stall_cycles_rob_mem;
+	for (int level = 1; level <= max_mod_level - 1; level++) /* Deepest mod level is main memory, not cache */
+	{
+		stack->hits_per_level_int[level] = 0;
+		stack->stream_hits_per_level_int[level] = 0;
+		stack->misses_per_level_int[level] = 0;
+		stack->retries_per_level_int[level] = 0;
+		stack->prefs_per_level_int[level] = 0;
+		stack->useful_prefs_per_level_int[level] = 0;
+		stack->aggregate_pref_lat_per_level_int[level] = 0;
+	}
+	stack->loads_int = 0;
+	stack->stores_int = 0;
+	stack->aggregate_load_lat_int = 0;
+	stack->aggregate_store_lat_int = 0;
+}
+
+
+static void x86_ctx_mapping_report_init(struct x86_ctx_t *ctx)
+{
+	char report_file_name[MAX_PATH_SIZE];
+	int ret;
+
+	/* Interval reporting of stats */
+	ret = snprintf(report_file_name, MAX_PATH_SIZE, "%s/pid%d.maprep.csv", x86_ctx_mappings_reports_dir, ctx->pid);
+	if (ret < 0 || ret >= MAX_PATH_SIZE)
+		fatal("warning: function %s: string too long %s", __FUNCTION__, report_file_name);
+
+	ctx->mapping_report_file = file_open_for_write(report_file_name);
+	if (!ctx->mapping_report_file)
+		fatal("%s: cannot open interval report file", report_file_name);
+
+	/* Print header */
+	fprintf(ctx->mapping_report_file, "%s", "esim-time");
+	fprintf(ctx->mapping_report_file, ",pid%d-%s", ctx->pid, "allocated-to");
+	fprintf(ctx->mapping_report_file, "\n");
+	fflush(ctx->mapping_report_file);
 }

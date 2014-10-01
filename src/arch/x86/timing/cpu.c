@@ -313,6 +313,9 @@ static char *x86_cpu_err_fast_forward =
 	"\tof fast-forward instructions and retry.\n";
 
 
+static void x86_cpu_thread_mapping_report_init(int core, int thread);
+
+
 /* Dump the CPU configuration */
 static void x86_cpu_config_dump(FILE *f)
 {
@@ -662,6 +665,7 @@ static void x86_cpu_dump_report(void)
 
 static void x86_cpu_thread_init(int core, int thread)
 {
+	x86_cpu_thread_mapping_report_init(core, thread);
 }
 
 
@@ -675,8 +679,21 @@ static void x86_cpu_core_init(int core)
 	X86_CORE.prefetch_history = prefetch_history_create();
 }
 
+
+static void x86_cpu_thread_done(int core, int thread)
+{
+	if (X86_THREAD.report_stack)
+		file_close(X86_THREAD.report_stack->report_file);
+	free(X86_THREAD.report_stack);
+	file_close(X86_THREAD.mapping_report_file);
+}
+
+
 static void x86_cpu_core_done(int core)
 {
+	int thread;
+	X86_THREAD_FOR_EACH
+		x86_cpu_thread_done(core, thread);
 	free(X86_CORE.thread);
 	prefetch_history_free(X86_CORE.prefetch_history);
 }
@@ -842,7 +859,6 @@ void x86_cpu_init(void)
 void x86_cpu_done(void)
 {
 	int core;
-	int thread;
 
 	/* Dump CPU report */
 	x86_cpu_dump_report();
@@ -865,15 +881,7 @@ void x86_cpu_done(void)
 
 	/* Free processor */
 	X86_CORE_FOR_EACH
-	{
-		X86_THREAD_FOR_EACH
-		{
-			if (X86_THREAD.report_stack)
-				file_close(X86_THREAD.report_stack->report_file);
-			free(X86_THREAD.report_stack);
-		}
 		x86_cpu_core_done(core);
-	}
 	free(x86_cpu->core);
 	free(x86_cpu);
 }
@@ -1346,7 +1354,7 @@ void x86_cpu_reset_stats(void)
 }
 
 
-void x86_thread_interval_report_init(int core, int thread)
+static void x86_thread_interval_report_init(int core, int thread)
 {
 	struct x86_thread_report_stack_t *stack;
 	char interval_report_file_name[MAX_PATH_SIZE];
@@ -1374,14 +1382,14 @@ void x86_thread_interval_report_init(int core, int thread)
 	fprintf(stack->report_file, ",c%dt%d-%s", core, thread, "uinst");                      /* Microinstructions */
 	fprintf(stack->report_file, ",c%dt%d-%s", core, thread, "ipc-int");                    /* Microinstructions per cycle in the interval */
 	fprintf(stack->report_file, ",c%dt%d-%s", core, thread, "ipc-glob");                   /* Global microinstructions per cycle */
-	fprintf(stack->report_file, ",c%dt%d-%s", core, thread, "pct-cycles-stalled");         /* Percentage of cycles with the ROB full */
-	fprintf(stack->report_file, ",c%dt%d-%s", core, thread, "pct-cycles-stalled-load");    /* Percentage of cycles with the ROB full with a load in the head */
+	fprintf(stack->report_file, ",c%dt%d-%s", core, thread, "pct-rob-stall-int");          /* Percentage of cycles with the ROB full */
+	fprintf(stack->report_file, ",c%dt%d-%s", core, thread, "pct-rob-stall-load-int");     /* Percentage of cycles with the ROB full with a load in the head */
 	fprintf(stack->report_file, "\n");
 	fflush(stack->report_file);
 }
 
 
-void x86_thread_interval_report(int core, int thread)
+static void x86_cpu_thread_interval_report(int core, int thread)
 {
 	struct x86_thread_report_stack_t *stack = X86_THREAD.report_stack;
 	long long cycles_int = arch_x86->cycle - stack->last_cycle;
@@ -1439,5 +1447,27 @@ void x86_cpu_interval_report()
 
 	X86_CORE_FOR_EACH
 		X86_THREAD_FOR_EACH
-			x86_thread_interval_report(core, thread);
+			x86_cpu_thread_interval_report(core, thread);
+}
+
+
+static void x86_cpu_thread_mapping_report_init(int core, int thread)
+{
+	char report_file_name[MAX_PATH_SIZE];
+	int ret;
+
+	/* Interval reporting of stats */
+	ret = snprintf(report_file_name, MAX_PATH_SIZE, "%s/c%dt%d.maprep.csv", x86_thread_mappings_reports_dir, core, thread);
+	if (ret < 0 || ret >= MAX_PATH_SIZE)
+		fatal("warning: function %s: string too long %s", __FUNCTION__, report_file_name);
+
+	X86_THREAD.mapping_report_file = file_open_for_write(report_file_name);
+	if (!X86_THREAD.mapping_report_file)
+		fatal("%s: cannot open interval report file", report_file_name);
+
+	/* Print header */
+	fprintf(X86_THREAD.mapping_report_file, "%s", "esim-time");
+	fprintf(X86_THREAD.mapping_report_file, ",c%dt%d-%s", core, thread, "allocated");
+	fprintf(X86_THREAD.mapping_report_file, "\n");
+	fflush(X86_THREAD.mapping_report_file);
 }

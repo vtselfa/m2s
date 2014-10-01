@@ -59,6 +59,8 @@ int EV_MOD_ADAPT_PREF;
 
 /* For reporting interval statistics */
 int EV_MOD_REPORT;
+/* Max cache level across all archs */
+int max_mod_level;
 
 
 /*

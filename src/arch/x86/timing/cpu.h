@@ -267,6 +267,9 @@ struct x86_thread_t
 
 	/* Interval reports */
 	struct x86_thread_report_stack_t *report_stack;
+
+	/* Mapping report */
+	FILE *mapping_report_file;
 };
 
 

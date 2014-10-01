@@ -23,6 +23,7 @@
 #include <arch/x86/emu/context.h>
 #include <arch/x86/emu/emu.h>
 #include <arch/x86/emu/regs.h>
+#include <lib/esim/esim.h>
 #include <lib/esim/trace.h>
 #include <lib/util/bit-map.h>
 #include <lib/util/debug.h>
@@ -125,6 +126,16 @@ static void x86_cpu_alloc_context(struct x86_ctx_t *ctx)
 	/* Trace */
 	x86_trace("x86.map_ctx ctx=%d core=%d thread=%d ppid=%d\n",
 		ctx->pid, core, thread, ctx->parent ? ctx->parent->pid : 0);
+
+	/* CSV mapping report from thread and ctx point of view */
+	fprintf(X86_THREAD.mapping_report_file, "%lld", esim_time);
+	fprintf(X86_THREAD.mapping_report_file, ",pid%d", ctx->pid); /* PID this core-thread has mapped */
+	fprintf(X86_THREAD.mapping_report_file, "\n");
+	fflush(X86_THREAD.mapping_report_file);
+	fprintf(ctx->mapping_report_file, "%lld", esim_time);
+	fprintf(ctx->mapping_report_file, ",c%dt%d", ctx->core, ctx->thread); /* Core and thread this context is mapped to */
+	fprintf(ctx->mapping_report_file, "\n");
+	fflush(ctx->mapping_report_file);
 }
 
 
@@ -404,6 +415,16 @@ void x86_cpu_evict_context(int core, int thread)
 	/* Trace */
 	x86_trace("x86.unmap_ctx ctx=%d core=%d thread=%d\n",
 		ctx->pid, core, thread);
+
+	/* CSV mapping report from thread and ctx point of view */
+	fprintf(X86_THREAD.mapping_report_file, "%lld", esim_time);
+	fprintf(X86_THREAD.mapping_report_file, ",-"); /* Empty */
+	fprintf(X86_THREAD.mapping_report_file, "\n");
+	fflush(X86_THREAD.mapping_report_file);
+	fprintf(ctx->mapping_report_file, "%lld", esim_time);
+	fprintf(ctx->mapping_report_file, ",-"); /* Evicted */
+	fprintf(ctx->mapping_report_file, "\n");
+	fflush(ctx->mapping_report_file);
 }
 
 

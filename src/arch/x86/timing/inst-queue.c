@@ -84,6 +84,7 @@ void x86_iq_insert(struct x86_uop_t *uop)
 	int thread = uop->thread;
 	struct linked_list_t *iq = X86_THREAD.iq;
 
+	assert(uop);
 	assert(!uop->in_iq);
 	linked_list_out(iq);
 	linked_list_insert(iq, uop);

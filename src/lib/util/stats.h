@@ -22,6 +22,9 @@ extern char dram_interval_reports_dir[MAX_PATH_SIZE];
 extern char x86_ctx_interval_reports_dir[MAX_PATH_SIZE];
 extern char x86_thread_interval_reports_dir[MAX_PATH_SIZE];
 
+extern char x86_thread_mappings_reports_dir[MAX_PATH_SIZE];
+extern char x86_ctx_mappings_reports_dir[MAX_PATH_SIZE];
+
 extern char global_reports_dir[MAX_PATH_SIZE];
 
 

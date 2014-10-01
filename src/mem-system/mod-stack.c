@@ -59,6 +59,7 @@ struct mod_stack_t *mod_stack_create(long long id, struct mod_t *mod,
 	stack->coal_table_block_max=-1;
 	stack->coal_table_block_min=-1;
 
+	stack->start_time = -1;
 
 	/* Return */
 	return stack;

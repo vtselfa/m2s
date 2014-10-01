@@ -164,6 +164,18 @@ int EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER_ACTION;
 int EV_MOD_NMOESI_FIND_AND_LOCK_MEM_CONTROLLER_FINISH;
 
 
+int should_count_stats(struct mod_stack_t *stack)
+{
+	struct mod_t *mod = stack->target_mod ? stack->target_mod : stack->mod;
+	return stack->request_dir == mod_request_up_down &&
+		mod->kind == mod_kind_cache &&
+		(stack->access_kind == mod_access_load ||
+		stack->access_kind == mod_access_store ||
+		stack->access_kind == mod_access_read_request ||
+		stack->access_kind == mod_access_write_request) &&
+		!stack->background;
+}
+
 
 /* NMOESI Protocol */
 
@@ -174,6 +186,9 @@ void mod_handler_pref(int event, void *data)
 	struct mod_t *mod = stack->mod;
 	struct cache_t *cache = mod->cache;
 	struct stream_buffer_t *sb;
+	struct x86_ctx_t *ctx = x86_ctx_get(stack->client_info->ctx_pid);
+
+	assert(ctx);
 
 	stack->prefetch = mod->level;
 
@@ -187,6 +202,9 @@ void mod_handler_pref(int event, void *data)
 
 		/* Record access */
 		mod_access_start(mod, stack, mod_access_prefetch);
+
+		/* Measure end-to-end latency */
+		stack->start_time = esim_time;
 
 		/* Statistics */
 		mod->programmed_prefetches++;
@@ -355,9 +373,16 @@ void mod_handler_pref(int event, void *data)
 		if (stack->stream_hit)
 			dir_pref_entry_unlock(mod->dir, stack->src_pref_stream, stack->src_pref_slot);
 
-		/* Statitistics */
-		if(!stack->hit)
+		/* Statistics. They are collected here to avoid cancelled prefetches, that go directly to EV_MOD_NMOESI_PREFETCH_FINISH. */
+		if(!stack->hit && !stack->stream_hit)
+		{
 			mod->completed_prefetches++;
+
+			/* Measure end-to-end latency */
+			assert(stack->start_time != -1);
+			ctx->report_stack->aggregate_pref_lat_per_level_int[mod->level] += esim_time - stack->start_time;
+			ctx->report_stack->prefs_per_level_int[mod->level]++;
+		}
 
 		/* Continue */
 		esim_schedule_event(EV_MOD_PREF_FINISH, stack, 0);
@@ -417,6 +442,10 @@ void mod_handler_nmoesi_load(int event, void *data)
 
 	struct mod_t *mod = stack->mod;
 	struct cache_t *cache = mod->cache;
+	struct x86_ctx_t *ctx = x86_ctx_get(stack->client_info->ctx_pid);
+
+	assert(ctx);
+
 
 	if (event == EV_MOD_NMOESI_LOAD)
 	{
@@ -430,6 +459,9 @@ void mod_handler_nmoesi_load(int event, void *data)
 
 		/* Record access */
 		mod_access_start(mod, stack, mod_access_load);
+
+		/* Measure end-to-end latency */
+		stack->start_time = esim_time;
 
 		/* Add access to stride detector and record if there is a stride */
 		if (cache->prefetch.type)
@@ -508,6 +540,7 @@ void mod_handler_nmoesi_load(int event, void *data)
 		new_stack->stream_retried_cycle = stack->stream_retried_cycle;
 		new_stack->background = stack->background;
 		new_stack->request_dir = mod_request_up_down;
+		new_stack->access_kind = mod_access_load;
 		esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK, new_stack, 0);
 		return;
 	}
@@ -751,6 +784,11 @@ void mod_handler_nmoesi_load(int event, void *data)
 			if (stack->event_queue && stack->event_queue_item)
 				linked_list_add(stack->event_queue, stack->event_queue_item);
 
+			/* Measure end-to-end latency */
+			assert(stack->start_time != -1);
+			ctx->report_stack->aggregate_load_lat_int += esim_time - stack->start_time;
+			ctx->report_stack->loads_int++;
+
 			/* Finish access */
 			mod_access_finish(mod, stack);
 		}
@@ -775,6 +813,9 @@ void mod_handler_nmoesi_store(int event, void *data)
 
 	struct mod_t *mod = stack->mod;
 	struct cache_t *cache = mod->cache;
+	struct x86_ctx_t *ctx = x86_ctx_get(stack->client_info->ctx_pid);
+
+	assert(ctx);
 
 
 	if (event == EV_MOD_NMOESI_STORE)
@@ -789,6 +830,9 @@ void mod_handler_nmoesi_store(int event, void *data)
 
 		/* Record access */
 		mod_access_start(mod, stack, mod_access_store);
+
+		/* Measure end-to-end latency */
+		stack->start_time = esim_time;
 
 		/* Add access to stride detector and record if there is a stride */
 		if (mod->cache->prefetch.type)
@@ -844,6 +888,7 @@ void mod_handler_nmoesi_store(int event, void *data)
 		new_stack->stream_retried_cycle = stack->stream_retried_cycle;
 		new_stack->witness_ptr = stack->witness_ptr;
 		new_stack->request_dir = mod_request_up_down;
+		new_stack->access_kind = mod_access_store;
 		esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK, new_stack, 0);
 
 		/* Set witness variable to NULL so that retries from the same
@@ -954,7 +999,6 @@ void mod_handler_nmoesi_store(int event, void *data)
 		new_stack->stream_retried_cycle = stack->stream_retried_cycle;
 		new_stack->request_dir = mod_request_up_down;
 		esim_schedule_event(EV_MOD_NMOESI_WRITE_REQUEST, new_stack, 0);
-		new_stack->access_kind = mod_access_store; //PPP
 
 		/* The prefetcher may be interested in this miss */
 		prefetcher_cache_miss(stack, mod);
@@ -1029,6 +1073,11 @@ void mod_handler_nmoesi_store(int event, void *data)
 		/* Free the mod_client_info object, if any */
 		if (stack->client_info)
 			mod_client_info_free(mod, stack->client_info);
+
+		/* Measure end-to-end latency */
+		assert(stack->start_time != -1);
+		ctx->report_stack->aggregate_store_lat_int += esim_time - stack->start_time;
+		ctx->report_stack->stores_int++;
 
 		/* Finish access */
 		mod_access_finish(mod, stack);
@@ -1528,6 +1577,9 @@ void mod_handler_nmoesi_prefetch(int event, void *data)
 	struct mod_stack_t *new_stack;
 
 	struct mod_t *mod = stack->mod;
+	struct x86_ctx_t *ctx = x86_ctx_get(stack->client_info->ctx_pid);
+
+	assert(ctx);
 
 
 	if (event == EV_MOD_NMOESI_PREFETCH)
@@ -1542,6 +1594,9 @@ void mod_handler_nmoesi_prefetch(int event, void *data)
 
 		/* Record access */
 		mod_access_start(mod, stack, mod_access_prefetch);
+
+		/* Measure end-to-end latency */
+		stack->start_time = esim_time;
 
 		/* Statistics */
 		mod->programmed_prefetches++;
@@ -1704,9 +1759,13 @@ void mod_handler_nmoesi_prefetch(int event, void *data)
 		/* Unlock directory entry */
 		dir_entry_unlock(mod->dir, stack->set, stack->way);
 
-		/* Statistics */
+		/* Statistics. They are collected here to avoid cancelled prefetches, that go directly to EV_MOD_NMOESI_PREFETCH_FINISH. */
 		mod->completed_prefetches++;
-		/* Continue */
+
+		/* Measure end-to-end latency */
+		assert(stack->start_time != -1);
+		ctx->report_stack->aggregate_pref_lat_per_level_int[mod->level] += esim_time - stack->start_time;
+		ctx->report_stack->prefs_per_level_int[mod->level]++;
 
 		esim_schedule_event(EV_MOD_NMOESI_PREFETCH_FINISH, stack, 0);
 		return;
@@ -1751,7 +1810,9 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 	struct mod_stack_t *new_stack;
 	struct mod_t *mod = stack->mod;
 	struct cache_t *cache = mod->cache;
+	struct x86_ctx_t *ctx = x86_ctx_get(stack->client_info->ctx_pid);
 
+	assert(ctx);
 	assert(stack->request_dir);
 
 	if (event == EV_MOD_NMOESI_FIND_AND_LOCK)
@@ -1962,8 +2023,14 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 			{
 				mem_debug("    %lld 0x%x %s block already locked at set=%d, way=%d by A-%lld - aborting\n",
 					stack->id, stack->tag, mod->name, stack->set, stack->way, dir_lock->stack_id);
-				ret->err = 1;
+
 				mod_unlock_port(mod, port, stack);
+
+				/* Interval statistics */
+				if (should_count_stats(stack))
+					ctx->report_stack->retries_per_level_int[mod->level]++;
+
+				ret->err = 1;
 				ret->port_locked = 0;
 				mod_stack_return(stack);
 				return;
@@ -2088,10 +2155,16 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 						ret->stream_retried = 1;
 					}
 				}
-				ret->err = 1;
 				mod_unlock_port(mod, port, stack);
-				ret->port_locked = 0;
+
 				dir_entry_unlock(mod->dir, stack->set, stack->way); /* Unlock cache entry */
+
+				/* Interval statistics */
+				if (should_count_stats(stack))
+					ctx->report_stack->retries_per_level_int[mod->level]++;
+
+				ret->port_locked = 0;
+				ret->err = 1;
 				mod_stack_return(stack);
 				return;
 			}
@@ -2270,16 +2343,34 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 			cache_get_block(mod->cache, stack->set, stack->way, NULL, &stack->state);
 			assert(stack->state);
 			assert(stack->eviction);
+
+			dir_entry_unlock(mod->dir, stack->set, stack->way);
+
+			if (stack->stream_hit)
+				dir_pref_entry_unlock(mod->dir, stack->pref_stream, stack->pref_slot);
+
+			/* Interval statistics */
+			if (should_count_stats(stack))
+				ctx->report_stack->retries_per_level_int[mod->level]++;
+
 			ret->err = 1;
 			ret->background = stack->background;
-			dir_entry_unlock(mod->dir, stack->set, stack->way);
-			if (stack->stream_hit)
-			{
-				assert(!(mod->kind==mod_kind_main_memory && stack->request_dir == mod_request_up_down)); // P
-				dir_pref_entry_unlock(mod->dir, stack->pref_stream, stack->pref_slot);
-			}
 			mod_stack_return(stack);
 			return;
+		}
+
+		/* Interval statistics */
+		if (should_count_stats(stack))
+		{
+			if (stack->hit)
+				ctx->report_stack->hits_per_level_int[mod->level]++;
+			else if (stack->stream_hit)
+				ctx->report_stack->stream_hits_per_level_int[mod->level]++;
+			else
+				ctx->report_stack->misses_per_level_int[mod->level]++;
+
+			if (mod_get_prefetched_bit(mod, stack->tag) || stack->stream_hit)
+				ctx->report_stack->useful_prefs_per_level_int[mod->level]++;
 		}
 
 		/* Eviction */
@@ -2939,7 +3030,8 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 		new_stack->stream_retried = stack->stream_retried;
 		new_stack->stream_retried_cycle = stack->stream_retried_cycle;
 		new_stack->request_dir = stack->request_dir;
-		new_stack->request_type = read_request;
+		new_stack->request_type = read_request; /*?*/
+		new_stack->access_kind = mod_access_read_request;
 			esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK, new_stack, 0);
 		return;
 	}
@@ -3895,6 +3987,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 		new_stack->stream_retried = stack->stream_retried;
 		new_stack->stream_retried_cycle = stack->stream_retried_cycle;
 		new_stack->request_dir = stack->request_dir;
+		new_stack->access_kind = mod_access_write_request;
 		esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK, new_stack, 0);
 		return;
 	}

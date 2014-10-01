@@ -1911,6 +1911,12 @@ void m2s_create_report_dirs(void)
 
 	/* Int. rep. x86_thread */
 	filesystem_dir_create_and_store(x86_thread_interval_reports_dir, MAX_PATH_SIZE, interval_reports_dir, "x86_thread");
+
+	/* Reports when and what is mapped to x86_threads */
+	filesystem_dir_create_and_store(x86_thread_mappings_reports_dir, MAX_PATH_SIZE, interval_reports_dir, "x86_thread_mappings");
+
+	/* Reports when and where x86_ctxs are mapped to */
+	filesystem_dir_create_and_store(x86_ctx_mappings_reports_dir, MAX_PATH_SIZE, interval_reports_dir, "x86_ctx_mappings");
 }
 
 

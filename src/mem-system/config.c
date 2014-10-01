@@ -1546,6 +1546,9 @@ static void mem_config_set_mod_level(struct mod_t *mod, int level)
 	if (mod->level >= level)
 		return;
 
+	/* Set max level */
+	if (level > max_mod_level) max_mod_level = level;
+
 	/* Set level of module and lower modules */
 	mod->level = level;
 	LINKED_LIST_FOR_EACH(mod->low_mod_list)

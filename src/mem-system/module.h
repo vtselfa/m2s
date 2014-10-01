@@ -29,6 +29,9 @@
 extern int EV_MOD_ADAPT_PREF;
 extern int EV_MOD_REPORT;
 
+extern int max_mod_level;
+
+
 struct mod_report_stack_t
 {
 	struct mod_t *mod;
