@@ -620,6 +620,9 @@ struct elf_file_t *elf_file_create_from_path(char *path)
 
 	/* Create ELF file */
 	elf_file = elf_file_create_from_allocated_buffer(buffer, size, path);
+
+	fclose(f);
+
 	return elf_file;
 }
 
