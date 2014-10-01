@@ -51,20 +51,11 @@ enum mod_message_type_t
 	message_clear_owner
 };
 
-/* Request types */
-enum mod_request_type_t
-{
-	none_request = 0,
-	read_request,
-	write_request,
-	eviction_request
-};
-
 /* Stack */
 struct mod_stack_t
 {
 
-	
+
 	long long id;
 	enum mod_access_kind_t access_kind;
 	int *witness_ptr;
@@ -99,7 +90,6 @@ struct mod_stack_t
 	unsigned int bank;
 	unsigned int rank;
 	unsigned int row;
-	enum mod_request_type_t request_type; // (eviction,read request, write request )
 	long long threshold; //cycles that a request can be waiting in the MC queue befaore to be throw to the bank
 	struct linked_list_t * coalesced_stacks; //stacks which caolesce with this in memory controller
 	unsigned int coal_table_block_max; // coalesce in row buffer table
@@ -138,7 +128,7 @@ struct mod_stack_t
 	int coalesced : 1;
 	int port_locked : 1;
 
-	int main_memory_accessed : 1; /* Bit set after up down access to main memory with mem controller enabled */ 
+	int main_memory_accessed : 1; /* Bit set after up down access to main memory with mem controller enabled */
 
 	/* Pref flags */
 	int stream_hit : 1;

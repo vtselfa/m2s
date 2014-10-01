@@ -58,9 +58,6 @@
  */
 
 
-int EV_X86_CPU_CORE_REPORT;
-
-
 /* Help message */
 
 char *x86_config_help =
@@ -699,11 +696,10 @@ static void x86_cpu_core_done(int core)
 }
 
 
-
-
 /*
  * Public Functions
  */
+
 
 /* Version of x86 trace producer.
  * See 'src/visual/x86/cpu.c' for x86 trace consumer. */

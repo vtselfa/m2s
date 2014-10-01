@@ -57,8 +57,6 @@ struct str_map_t mod_access_kind_map =
 /* Event used for updating the state of adaptative prefetch policy */
 int EV_MOD_ADAPT_PREF;
 
-/* For reporting interval statistics */
-int EV_MOD_REPORT;
 /* Max cache level across all archs */
 int max_mod_level;
 

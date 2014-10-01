@@ -178,7 +178,6 @@ struct x86_ctx_t *x86_ctx_clone(struct x86_ctx_t *ctx)
 
 	/* Return new context */
 	return new;
-
 }
 
 
@@ -223,10 +222,6 @@ void x86_ctx_free(struct x86_ctx_t *ctx)
 	 * This removes all references to current freed context. */
 	if (!x86_ctx_get_state(ctx, x86_ctx_finished | x86_ctx_zombie))
 		x86_ctx_finish(ctx, 0);
-
-
-	/*Dump global report*/
-	//x86_ctx_report_dump(ctx, ctx->report_file);
 
 	/* Remove context from finished contexts list. This should
 	 * be the only list the context is in right now. */
@@ -305,9 +300,6 @@ void x86_ctx_dump(struct x86_ctx_t *ctx, FILE *f)
 	/* End */
 	fprintf(f, "\n\n");
 }
-
-
-
 
 
 void x86_ctx_execute(struct x86_ctx_t *ctx)

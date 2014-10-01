@@ -386,7 +386,7 @@ static void elf_file_read_elf_header(struct elf_file_t *elf_file)
 	if (elf_header->e_ident[4] == 2)
 		fatal("%s: not supported architecture.\n%s",
 			elf_file->path, elf_err_64bit);
-	
+
 	/* Check that header size is correct */
 	if (elf_header->e_ehsize != sizeof(Elf32_Ehdr))
 		fatal("%s: invalid ELF header size", elf_file->path);

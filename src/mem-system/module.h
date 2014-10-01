@@ -27,7 +27,6 @@
 #include "stream-prefetcher.h"
 
 extern int EV_MOD_ADAPT_PREF;
-extern int EV_MOD_REPORT;
 
 extern int max_mod_level;
 

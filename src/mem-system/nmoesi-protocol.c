@@ -3030,7 +3030,6 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 		new_stack->stream_retried = stack->stream_retried;
 		new_stack->stream_retried_cycle = stack->stream_retried_cycle;
 		new_stack->request_dir = stack->request_dir;
-		new_stack->request_type = read_request; /*?*/
 		new_stack->access_kind = mod_access_read_request;
 			esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK, new_stack, 0);
 		return;
