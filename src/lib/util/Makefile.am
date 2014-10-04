@@ -32,6 +32,9 @@ libutil_a_SOURCES = \
 	hash-table.c \
 	hash-table.h \
 	\
+	hash-table-gen.c \
+	hash-table-gen.h \
+	\
 	heap.c \
 	heap.h \
 	\
