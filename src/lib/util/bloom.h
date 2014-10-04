@@ -120,4 +120,15 @@ double bloom_add(struct bloom_t *bloom, void *key, int len);
  */
 int bloom_find(struct bloom_t *bloom, void *key, int len);
 
+
+/** Returns the current false positive probability for the bloom filter
+ *
+ * @param bloom
+ *  Pointer to the bloom filter object
+ *
+ * @return
+ *  The probability
+ */
+double get_false_positive_prob(struct bloom_t *bloom);
+
 #endif /* BLOOM_H */

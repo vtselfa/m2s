@@ -110,7 +110,7 @@ inline static
 double false_positive_prob(size_t size_in_bits, size_t num_elements)
 {
 	/* Number of bits per element */
-	double bits_per_elem = size_in_bits / num_elements;
+	double bits_per_elem = (double) size_in_bits / num_elements;
 
 	/* Expected false positive probability with this size and capacity */
 	return exp(-bits_per_elem * pow(log(2), 2));
@@ -120,7 +120,7 @@ double false_positive_prob(size_t size_in_bits, size_t num_elements)
 struct bloom_t *bloom_create(size_t size_in_bits, size_t capacity, double max_false_pos_prob)
 {
 	struct bloom_t *bloom;
-	size_t min_size_in_bits;
+	size_t min_size_in_bits = 0;
 
 	if (size_in_bits && capacity && max_false_pos_prob)
 		min_size_in_bits = required_size_in_bits(capacity, max_false_pos_prob);
@@ -284,4 +284,10 @@ pattern_found:
 	return 1;
 pattern_not_found:
 	return 0;
+}
+
+
+double get_false_positive_prob(struct bloom_t *bloom)
+{
+	return false_positive_prob(bloom->size_in_bits, bloom->num_elements);
 }
