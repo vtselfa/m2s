@@ -862,7 +862,7 @@ void config_check(struct config_t *config)
 
 		/* It is not, error */
 		if (!var[0])
-			fatal("%s: invalid section [ %s ]",
+			warning("%s: invalid section [ %s ]",
 				config->file_name, section);
 		else
 			warning("%s: section [ %s ]: invalid variable '%s'",
