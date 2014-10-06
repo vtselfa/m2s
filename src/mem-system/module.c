@@ -906,15 +906,15 @@ void mod_interval_report_init(struct mod_t *mod)
 
 	fprintf(stack->report_file, "%s", "esim-time");                                            /* Global simulation time */
 	fprintf(stack->report_file, ",%s-%s", mod->name, "pref-int");                              /* Prefetches executed in the interval */
-	fprintf(stack->report_file, ",%s-%s", mod->name, "pref-late-int");                         /* Late prefetches in the interval */
+	fprintf(stack->report_file, ",%s-%s", mod->name, "pref-useful-int");                       /* Prefetches executed in the interval */
 	fprintf(stack->report_file, ",%s-%s", mod->name, "pref-acc-int");                          /* Prefetch acuracy for the interval */
+	fprintf(stack->report_file, ",%s-%s", mod->name, "pref-late-int");                         /* Late prefetches in the interval */
 	fprintf(stack->report_file, ",%s-%s", mod->name, "hits-int");                              /* Cache hits for the interval */
 	fprintf(stack->report_file, ",%s-%s", mod->name, "stream-hits-int");                       /* Hits in stream buffer for the interval */
 	fprintf(stack->report_file, ",%s-%s", mod->name, "misses-int");                            /* Cache misses for the interval */
 	fprintf(stack->report_file, ",%s-%s", mod->name, "pref-cov-int");                          /* Prefetch coverage for the interval */
 	fprintf(stack->report_file, ",%s-%s", mod->name, "delayed-hits-int");                      /* Hits on a block being brought by a prefetch */
 	fprintf(stack->report_file, ",%s-%s", mod->name, "delayed-hit-avg-delay-int");             /* Average cycles waiting for a block that is being brought by a prefetch */
-	fprintf(stack->report_file, ",%s-%s", mod->name, "misses-int");                            /* Cache misses in the interval */
 	fprintf(stack->report_file, "\n");
 	fflush(stack->report_file);
 }
@@ -953,8 +953,9 @@ void mod_interval_report(struct mod_t *mod)
 
 	fprintf(stack->report_file, "%lld", esim_time);
 	fprintf(stack->report_file, ",%lld", completed_prefetches_int);
-	fprintf(stack->report_file, ",%lld", late_prefetches_int);
+	fprintf(stack->report_file, ",%lld", useful_prefetches_int);
 	fprintf(stack->report_file, ",%.3f", prefetch_accuracy_int);
+	fprintf(stack->report_file, ",%lld", late_prefetches_int);
 	fprintf(stack->report_file, ",%lld", hits_int);
 	fprintf(stack->report_file, ",%lld", stream_hits_int);
 	fprintf(stack->report_file, ",%lld", misses_int);
