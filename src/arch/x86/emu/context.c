@@ -992,24 +992,35 @@ void x86_ctx_interval_report(struct x86_ctx_t *ctx)
 
 	pct_cycles_stalled = cycles_int > 0 ?
 			(double) 100 * (ctx->dispatch_stall_cycles_rob_mem - stack->dispatch_stall_cycles_rob_mem) / cycles_int :
-			0.0;
+			NAN;
 
 	pct_cycles_stalled_load = cycles_int > 0 ?
 			(double) 100 * (ctx->dispatch_stall_cycles_rob_load - stack->dispatch_stall_cycles_rob_load) / cycles_int :
-			0.0;
+			NAN;
 
-	/* Dump stats */
+	/*
+	 * Dump stats
+	 */
+
 	fprintf(stack->report_file, "%lld", esim_time);
 	fprintf(stack->report_file, ",%lld", ctx->inst_count);
 	fprintf(stack->report_file, ",%lld", ctx->uinst_count);
 	fprintf(stack->report_file, ",%lld", stack->loads_int);
 	fprintf(stack->report_file, ",%lld", stack->stores_int);
+
+	/* Prefetches issued per level */
 	for (int level = 1; level <= max_mod_level - 1; level++) /* Deepest mod level is main memory, not cache */
 		fprintf(stack->report_file, ",%lld", stack->prefs_per_level_int[level]);
-	fprintf(stack->report_file, ",%.3f", stack->loads_int ? (double) stack->aggregate_load_lat_int / (stack->loads_int * 1000.0) : NAN); /* ns */
-	fprintf(stack->report_file, ",%.3f", stack->stores_int ? (double) stack->aggregate_store_lat_int / (stack->stores_int * 1000.0) : NAN); /* ns */
+
+	/* End-to-end latency in ns */
+	fprintf(stack->report_file, ",%.3f", stack->loads_int ?
+			(double) stack->aggregate_load_lat_int / (stack->loads_int * 1000.0) : NAN); /* Load */
+	fprintf(stack->report_file, ",%.3f", stack->stores_int ?
+			(double) stack->aggregate_store_lat_int / (stack->stores_int * 1000.0) : NAN); /* Store */
 	for (int level = 1; level <= max_mod_level - 1; level++)
-		fprintf(stack->report_file, ",%.3f", stack->prefs_per_level_int[level] ? (double) stack->aggregate_pref_lat_per_level_int[level] / (stack->prefs_per_level_int[level] * 1000.0) : NAN); /* ns */
+		fprintf(stack->report_file, ",%.3f", stack->prefs_per_level_int[level] ?
+				(double) stack->aggregate_pref_lat_per_level_int[level] / (stack->prefs_per_level_int[level] * 1000.0) : NAN); /* Prefetches (per level) */
+
 	fprintf(stack->report_file, ",%.3f", ipc_glob);
 	fprintf(stack->report_file, ",%.3f", ipc_int);
 	fprintf(stack->report_file, ",%lld", mm_read_accesses);
@@ -1017,6 +1028,8 @@ void x86_ctx_interval_report(struct x86_ctx_t *ctx)
 	fprintf(stack->report_file, ",%lld", mm_write_accesses);
 	fprintf(stack->report_file, ",%.3f", pct_cycles_stalled);
 	fprintf(stack->report_file, ",%.3f", pct_cycles_stalled_load);
+
+	/* More stats per cache level */
 	for (int level = 1; level <= max_mod_level - 1; level++)
 	{
 		double mpki_int = uinst_count_int ? stack->misses_per_level_int[level] / (uinst_count_int / 1000.0) : 0.0;
@@ -1026,11 +1039,9 @@ void x86_ctx_interval_report(struct x86_ctx_t *ctx)
 		fprintf(stack->report_file, ",%lld", stack->retries_per_level_int[level]);
 		fprintf(stack->report_file, ",%.3f", mpki_int);
 		fprintf(stack->report_file, ",%.3f", stack->prefs_per_level_int[level] ? /* Pref ACC */
-				(double) stack->useful_prefs_per_level_int[level] / stack->prefs_per_level_int[level] :
-				NAN);
+				(double) stack->useful_prefs_per_level_int[level] / stack->prefs_per_level_int[level] : NAN);
 		fprintf(stack->report_file, ",%.3f", stack->prefs_per_level_int[level] + stack->misses_per_level_int[level] ? /* Pref COV */
-				(double) stack->useful_prefs_per_level_int[level] / (stack->prefs_per_level_int[level] + stack->misses_per_level_int[level]) :
-				NAN);
+				(double) stack->useful_prefs_per_level_int[level] / (stack->prefs_per_level_int[level] + stack->misses_per_level_int[level]) : NAN);
 	}
 	fprintf(stack->report_file, "\n");
 	fflush(stack->report_file);
