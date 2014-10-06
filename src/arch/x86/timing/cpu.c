@@ -1121,8 +1121,8 @@ int x86_cpu_run(void)
 	if(x86_emu_min_inst_per_ctx)
 	{
 		struct x86_ctx_t *ctx;
-		for (ctx = x86_emu->running_list_head; ctx; ctx = ctx->running_list_next)
-			if(ctx->inst_count < x86_emu_min_inst_per_ctx)
+		for (ctx = x86_emu->context_list_head; ctx; ctx = ctx->context_list_next)
+			if (!x86_ctx_get_state(ctx, x86_ctx_finished | x86_ctx_zombie) && ctx->inst_count < x86_emu_min_inst_per_ctx)
 				break;
 		if(!ctx)
 			esim_finish = esim_finish_x86_min_inst_per_ctx;
