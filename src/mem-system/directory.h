@@ -24,8 +24,7 @@
 struct dir_lock_t
 {
 	int lock;
-	long long stack_id;
-	int prefetch_stack : 1; /* Tells if the stack locking is a prefetch. For statistics. */
+	struct mod_stack_t *locking_stack;
 	struct mod_stack_t *lock_queue;
 };
 
@@ -69,7 +68,7 @@ struct dir_t
 	unsigned char data[0];
 };
 
-struct dir_t *dir_create(char *name, int xsize, int ysize, int zsize, int psize, int pref_aggressivity, int num_nodes);
+struct dir_t *dir_create(char *name, int xsize, int ysize, int zsize, int num_nodes);
 void dir_free(struct dir_t *dir);
 
 struct dir_entry_t *dir_entry_get(struct dir_t *dir, int x, int y, int z);
@@ -89,8 +88,10 @@ void dir_entry_unlock(struct dir_t *dir, int x, int y);
 
 
 /* Prefetch */
+void dir_stream_buffers_create(struct dir_t *dir, int max_num_streams, int max_num_slots);
 struct dir_lock_t *dir_pref_lock_get(struct dir_t *dir, int pref_stream, int pref_slot);
 int dir_pref_entry_lock(struct dir_t *dir, int pref_stream, int pref_slot, int event, struct mod_stack_t *stack);
 void dir_pref_entry_unlock(struct dir_t *dir, int pref_stream, int pref_slot);
+
 
 #endif

@@ -35,12 +35,12 @@
 #include <lib/util/stats.h>
 #include <lib/util/string.h>
 
-#include "cache.h"
 #include "directory.h"
 #include "local-mem-protocol.h"
 #include "mem-system.h"
 #include "mod-stack.h"
 #include "nmoesi-protocol.h"
+#include "prefetcher.h"
 
 
 /* String map for access type */
@@ -122,7 +122,8 @@ void mod_free(struct mod_t *mod)
 
 	/* Adaptative prefetch */
 	if (mod->adapt_pref_stack)
-		free(mod->adapt_pref_stack);
+		bloom_free(mod->adapt_pref_stack->pref_dem_pollution_filter);
+	free(mod->adapt_pref_stack);
 
 	/* Interval report */
 	if(mod->report_stack)
@@ -179,8 +180,8 @@ long long mod_access(struct mod_t *mod, enum mod_access_kind_t access_kind,
 		}
 		else if (access_kind == mod_access_prefetch)
 		{
-			assert(mod->cache->prefetch.type);
-			if (prefetcher_uses_stream_buffers(mod->cache->prefetch.type))
+			assert(mod->cache->prefetcher->type);
+			if (prefetcher_uses_stream_buffers(mod->cache->prefetcher))
 				event = EV_MOD_PREF;
 
 			/* Prefetches go to cache */
@@ -189,7 +190,7 @@ long long mod_access(struct mod_t *mod, enum mod_access_kind_t access_kind,
 		}
 		else if (access_kind == mod_access_invalidate_slot)
 		{
-			assert(prefetcher_uses_stream_buffers(mod->cache->prefetch.type));
+			assert(prefetcher_uses_stream_buffers(mod->cache->prefetcher));
 			event = EV_MOD_NMOESI_INVALIDATE_SLOT;
 		}
 		else
@@ -251,14 +252,15 @@ int mod_can_access(struct mod_t *mod, unsigned int addr)
 int mod_find_block_in_stream(struct mod_t *mod, unsigned int addr, int stream)
 {
 	struct cache_t *cache = mod->cache;
-	struct stream_buffer_t *sb = &cache->prefetch.streams[stream];
+	struct prefetcher_t *pref = cache->prefetcher;
+	struct stream_buffer_t *sb = &pref->streams[stream];
 	struct stream_block_t *block;
 	int tag = addr & ~cache->block_mask;
 	int i, slot, count;
 
-	count = sb->head + cache->prefetch.max_num_slots;
+	count = sb->head + pref->max_num_slots;
 	for(i = sb->head; i < count; i++){
-		slot = i % cache->prefetch.max_num_slots;
+		slot = i % pref->max_num_slots;
 		block = cache_get_pref_block(cache, sb->stream, slot);
 		if(block->tag == tag && block->state)
 			return slot;
@@ -329,6 +331,7 @@ int mod_find_block(struct mod_t *mod, unsigned int addr, int *set_ptr,
 int mod_find_pref_block(struct mod_t *mod, unsigned int addr, int *pref_stream_ptr, int *pref_slot_ptr)
 {
 	struct cache_t *cache = mod->cache;
+	struct prefetcher_t *pref = cache->prefetcher;
 	struct stream_block_t *blk;
 	struct dir_lock_t *dir_lock;
 	struct stream_buffer_t *sb = NULL;
@@ -337,24 +340,24 @@ int mod_find_pref_block(struct mod_t *mod, unsigned int addr, int *pref_stream_p
 	 * locked in the corresponding directory */
 	int tag = addr & ~cache->block_mask;
 
-	unsigned int stream_tag = addr & cache->prefetch.stream_tag_mask;
+	unsigned int stream_tag = addr & pref->stream_tag_mask;
 	int stream = -1;
 	int slot = -1;
-	int num_streams = cache->prefetch.max_num_streams;
+	int num_streams = pref->max_num_streams;
 
 	for(stream = 0; stream < num_streams; stream++)
 	{
 		int i, count;
-		sb = &cache->prefetch.streams[stream];
+		sb = &pref->streams[stream];
 
 		/* Block can't be in this stream */
 		/*if(!sb->stream_tag == stream_tag)
 			continue;*/
 
-		count = sb->head + cache->prefetch.max_num_slots;
+		count = sb->head + pref->max_num_slots;
 		for(i = sb->head; i < count; i++)
 		{
-			slot = i % cache->prefetch.max_num_slots;
+			slot = i % pref->max_num_slots;
 			blk = cache_get_pref_block(cache, stream, slot);
 
 			/* Increment any invalid unlocked head */
@@ -363,7 +366,7 @@ int mod_find_pref_block(struct mod_t *mod, unsigned int addr, int *pref_stream_p
 				dir_lock = dir_pref_lock_get(mod->dir, stream, slot);
 				if(!dir_lock->lock)
 				{
-					sb->head = (sb->head + 1) % cache->prefetch.max_num_slots;
+					sb->head = (sb->head + 1) % pref->max_num_slots;
 					continue;
 				}
 			}
@@ -506,8 +509,6 @@ void mod_unlock_port(struct mod_t *mod, struct mod_port_t *port,
 	assert(DOUBLE_LINKED_LIST_MEMBER(mod, port_waiting, stack));
 	DOUBLE_LINKED_LIST_REMOVE(mod, port_waiting, stack);
 	mod_lock_port(mod, stack, event);
-
-
 }
 
 
@@ -716,7 +717,7 @@ struct mod_stack_t *mod_can_coalesce(struct mod_t *mod,enum mod_access_kind_t ac
 	/* En el cas dels prefetch a L2+ no podem usar la id per saber
 	 * si ha arribat o no abans al mòdul, per tant no podem usar
 	 * la funció mod_in_flight_address. Es pot millorar. */
-	if ((!mod->cache->prefetch.type || mod->level == 1) && !mod_in_flight_address(mod, addr, older_than_stack))
+	if ((!mod->cache->prefetcher || mod->level == 1) && !mod_in_flight_address(mod, addr, older_than_stack))
 		return NULL;
 
 	/* Get youngest access older than 'older_than_stack' */
@@ -840,463 +841,6 @@ void mod_coalesce(struct mod_t *mod, struct mod_stack_t *master_stack,
 }
 
 
-void mod_adapt_pref_schedule(struct mod_t *mod)
-{
-	struct mod_adapt_pref_stack_t *stack;
-	struct cache_t *cache = mod->cache;
-
-	assert(mod->cache->prefetch.adapt_policy);
-
-	/* Create new stack */
-	stack = xcalloc(1, sizeof(struct mod_adapt_pref_stack_t));
-	stack->mod = mod;
-	stack->backoff = 50000;
-	mod->adapt_pref_stack = stack;
-
-	/* Schedule first event */
-	assert(mod->cache->prefetch.adapt_interval);
-	esim_schedule_event(EV_MOD_ADAPT_PREF, stack, cache->prefetch.adapt_interval_kind == interval_kind_cycles ?
-			mod->cache->prefetch.adapt_interval : stack->backoff);
-}
-
-
-/* This function will be called at fixed size intervals of cycles, instructions or
- * evictions to tune prefetch aggressivity. If the interval is in cycles, this function will be called only when nedded.
- * If the interval is in instructions or evictions, this function is called every N cycles (N heuristically computed) and only
- * does something if the requisites of intr/evictions are fulfilled. */
-void mod_adapt_pref_handler(int event, void *data)
-{
-	struct mod_adapt_pref_stack_t *stack = data;
-	struct mod_t *mod = stack->mod;
-	struct cache_t *cache = mod->cache;
-
-	long long uinsts = 0;
-	long long uinsts_int;
-	long long evictions_int;
-	long long cycles_int = esim_cycle() - stack->last_cycle;
-
-	double ipc_int;
-
-	/* If simulation has ended, no more
-	 * events to schedule. */
-	if (esim_finish)
-		return;
-
-	/* Uinsts executed in this interval by the threads accessing this module */
-	for (int core = 0; core < x86_cpu_num_cores; core++)
-		if (mod->reachable_threads[core * x86_cpu_num_threads])
-			uinsts += X86_CORE.num_committed_uinst;
-	uinsts_int = uinsts - stack->last_uinsts;
-
-	/* Mean IPC for all the threads accessing this module */
-	ipc_int = (double) uinsts_int / cycles_int;
-
-	/* Evictions in this interval */
-	evictions_int = mod->evictions - stack->last_evictions;
-
-	/* Find out if an interval has finished */
-	switch(cache->prefetch.adapt_interval_kind)
-	{
-		case interval_kind_cycles:
-			/* We can be sure the interval has finished */
-			break;
-
-		case interval_kind_instructions:
-		{
-			/* Try to predict when the next interval will begin */
-			stack->backoff = ipc_int ? 0.75 * (cache->prefetch.adapt_interval - uinsts_int) / ipc_int : 10000;
-			stack->backoff = MAX(stack->backoff, 100);
-			stack->backoff = MIN(stack->backoff, 75000);
-			/* Interval has not finished yet */
-			if (uinsts_int < cache->prefetch.adapt_interval)
-				goto schedule_next_event;
-			/* Interval has finished */
-			else
-				bloom_clear(cache->prefetcher->pollution_filter);
-			if (uinsts_int < cache->prefetch.adapt_interval)
-				goto schedule_next_event;
-			break;
-		}
-
-		case interval_kind_evictions:
-		{
-			/* Try to predict when the next interval will begin */
-			if (mod->evictions)
-			{
-				double evictions_per_cycle = (double) evictions_int / cycles_int;
-				stack->backoff =  evictions_per_cycle ? 0.75 * (cache->prefetch.adapt_interval - evictions_int) / evictions_per_cycle : 10000;
-				stack->backoff = MAX(stack->backoff, 100);
-				stack->backoff = MIN(stack->backoff, 75000);
-			}
-			/* Interval has not finished yet */
-			if (evictions_int < cache->prefetch.adapt_interval)
-				goto schedule_next_event;
-			/* Interval has finished */
-			else
-				bloom_clear(cache->prefetcher->pollution_filter);
-			break;
-		}
-
-		case interval_kind_invalid:
-			fatal("%s: Invalid interval kind", __FUNCTION__);
-			break;
-	}
-
-	/* Completed prefetches */
-	long long completed_prefetches_int = mod->completed_prefetches -
-		stack->last_completed_prefetches;
-
-	/* Useful prefetches */
-	long long useful_prefetches_int = mod->useful_prefetches -
-		stack->last_useful_prefetches;
-
-	/* Delayed prefetch hits */
-	long long delayed_hits_int = mod->delayed_hits - stack->last_delayed_hits;
-
-	/* Lateness */
-	double lateness_int = useful_prefetches_int ? (double) delayed_hits_int / useful_prefetches_int : 0.0;
-	lateness_int = lateness_int > 1 ? 1 : lateness_int; /* May be slightly greather than 1 due bad timing with cycles */
-
-	/* Cache misses */
-	long long accesses_int = mod->no_retry_accesses - stack->last_no_retry_accesses;
-	long long hits_int = mod->no_retry_hits - stack->last_no_retry_hits;
-	long long misses_int = accesses_int - hits_int;
-
-	/* Pseudocoverage */
-	double pseudocoverage_int = (misses_int + useful_prefetches_int) ? (double) useful_prefetches_int / (misses_int + useful_prefetches_int) : 0.0;
-
-	/* Accuracy */
-	double accuracy_int = completed_prefetches_int ? (double) useful_prefetches_int / completed_prefetches_int : 0.0;
-	accuracy_int = accuracy_int > 1 ? 1 : accuracy_int; /* May be slightly greather than 1 due bad timing with cycles */
-
-	double BWNO_int = 0; /* Bandwidth Needed By Others */
-
-	/* ROB % stalled cicles due a memory instruction */
-	long long cycles_stalled = 0;
-	long long cycles_stalled_int;
-	{
-		int cores = 0;
-		for (int core = 0; core < x86_cpu_num_cores; core++)
-		{
-			/* Reachable threads */
-			if (mod->reachable_threads[core * x86_cpu_num_threads])
-			{
-				cycles_stalled += x86_cpu->core[core].dispatch_stall_cycles_rob_mem;
-				cores++;
-			}
-
-			/* Non reachable threads */
-			else
-			{
-				int i;
-				LIST_FOR_EACH(mod->reachable_mm_modules, i)
-				{
-					struct mod_t *mm_mod = list_get(mod->reachable_mm_modules, i);
-					BWNO_int += dram_system_get_bwn(mm_mod->dram_system->handler, mm_mod->mc_id, core);
-				}
-			}
-		}
-		cycles_stalled /= cores;
-		cycles_stalled_int = cycles_stalled - stack->last_cycles_stalled;
-	}
-
-	double ratio_cycles_stalled = esim_cycle() - stack->last_cycle > 0 ? (double)
-		cycles_stalled_int / (esim_cycle() - stack->last_cycle) : 0.0;
-
-	/* Strides detected */
-	long long strides_detected_int = cache->prefetch.stride_detector.strides_detected -
-		stack->last_strides_detected;
-
-	/* Disable prefetch */
-	if(mod->cache->pref_enabled)
-	{
-		switch(mod->cache->prefetch.adapt_policy)
-		{
-			case adapt_pref_policy_none:
-				break;
-
-			case adapt_pref_policy_adp:
-				if (pseudocoverage_int < 0.3)
-					cache->pref_enabled = 0;
-				break;
-
-			case adapt_pref_policy_adp_gbwc:
-			{
-				const double BWNO_th = cache->prefetch.thresholds.bwno;
-
-				const double pseudocoverage_th = cache->prefetch.thresholds.pseudocoverage;
-				const double ahigh = cache->prefetch.thresholds.accuracy_high;
-				const double alow = cache->prefetch.thresholds.accuracy_low;
-				const double averylow = cache->prefetch.thresholds.accuracy_very_low;
-
-				cache->prefetch.flags = 0; /* Stats reporting */
-
-				/* Very low accuracy */
-				if (accuracy_int < averylow)
-				{
-					/* Reduce aggr. and disable */
-					cache->prefetch.aggr = 2;
-					cache->pref_enabled = 0;
-
-					/* Good coverage and others don't require lots of BW */
-					if (pseudocoverage_int > pseudocoverage_th && BWNO_int < BWNO_th)
-						cache->pref_enabled = 1;
-				}
-
-				/* Low accuracy */
-				if (accuracy_int < alow)
-				{
-					/* Reduce aggr. */
-					cache->prefetch.aggr = 2;
-
-					/* Bad coverage and others need bw */
-					if (pseudocoverage_int < pseudocoverage_th && BWNO_int > BWNO_th)
-						cache->pref_enabled = 0;
-				}
-
-				/* Medium accuracy */
-				else if(accuracy_int < ahigh)
-				{
-					/* Others need bandwidth */
-					if (BWNO_int > BWNO_th)
-						cache->prefetch.aggr = 2; /* Reduce aggr. */
-				}
-
-				/* High accuracy */
-				else
-				{
-					/* Others need bandwidth */
-					if (BWNO_int > BWNO_th)
-						cache->prefetch.aggr = 2;
-
-					/* Others don't need a lot of bw */
-					else
-					{
-						/* Bad coverage */
-						if (pseudocoverage_int < pseudocoverage_th)
-						{
-							cache->prefetch.aggr = 4;
-						}
-					}
-				}
-				break;
-			}
-
-			case adapt_pref_policy_fdp:
-			case adapt_pref_policy_fdp_gbwc:
-			{
-				/* FDP */
-				const double ahigh = 0.75;
-				const double alow = 0.40;
-				const double tlateness = 0.05;
-				const int a1 = 1;
-				const int a2 = 2;
-				const int a3 = 4;
-
-				/* GBWC */
-				const double BWNO_th = 2.75;
-				const double acc_th = 0.6;
-
-				assert(mod->cache->prefetch.max_num_slots >= a3);
-				assert(accuracy_int >= 0 && accuracy_int <= 1);
-				assert(lateness_int >= 0 && lateness_int <= 1);
-
-				/* Level 1 */
-				if (mod->cache->prefetch.aggr == a1)
-				{
-					/* Low accuracy */
-					if (accuracy_int < alow)
-					{}
-
-					/* Medium accuracy */
-					else if (accuracy_int < ahigh)
-					{
-						/* Late */
-						if (lateness_int > tlateness)
-							mod->cache->prefetch.aggr = a2; /* Increment to increase timeliness */
-					}
-
-					/* High accuracy */
-					else
-					{
-						/* Late */
-						if (lateness_int > tlateness)
-							mod->cache->prefetch.aggr = a2; /* Increment to increase timeliness */
-					}
-
-					/* Global Bandwidth Control */
-					if (mod->cache->prefetch.adapt_policy == adapt_pref_policy_fdp_gbwc)
-					{}
-				}
-
-				/* Level 2 */
-				else if (mod->cache->prefetch.aggr == a2)
-				{
-					/* Low accuracy */
-					if (accuracy_int < alow)
-					{
-						/* Late */
-						if (lateness_int > tlateness)
-							mod->cache->prefetch.aggr = a1; /* Bad and late prefetches -> decrement */
-					}
-
-					/* Medium accuracy */
-					else if (accuracy_int < ahigh)
-					{
-						/* Late */
-						if (lateness_int > tlateness)
-							mod->cache->prefetch.aggr = a3; /* Increment to increase timeliness */
-					}
-
-					/* High accuracy */
-					else
-					{
-						/* Late */
-						if (lateness_int > tlateness) /* Increment to increase timeliness */
-							mod->cache->prefetch.aggr = a3;
-					}
-
-					/* Global Bandwidth Control */
-					if (mod->cache->prefetch.adapt_policy == adapt_pref_policy_fdp_gbwc)
-					{
-						if (accuracy_int < acc_th)
-						{
-							if (BWNO_int > BWNO_th)
-								mod->cache->prefetch.aggr = a1; /* Enforce throttle down */
-							else if(mod->cache->prefetch.aggr > a2)
-								mod->cache->prefetch.aggr = a2; /* Only allow throttle down */
-						}
-					}
-				}
-
-				/* Level 3 */
-				else if (mod->cache->prefetch.aggr == a3)
-				{
-					/* Low accuracy */
-					if (accuracy_int < alow)
-					{
-						/* Late */
-						if (lateness_int > tlateness)
-							mod->cache->prefetch.aggr = a2; /* Bad and late prefetches -> decrement */
-					}
-
-					/* Medium accuracy */
-					else if (accuracy_int < ahigh)
-					{}
-
-					/* High accuracy */
-					else
-					{}
-
-					/* Global Bandwidth Control */
-					if (mod->cache->prefetch.adapt_policy == adapt_pref_policy_fdp_gbwc)
-					{
-						if (accuracy_int < acc_th)
-						{
-							if (BWNO_int > BWNO_th)
-								mod->cache->prefetch.aggr = a2; /* Enforce throttle down */
-							else if(mod->cache->prefetch.aggr > a3)
-								mod->cache->prefetch.aggr = a3; /* Only allow throttle down */
-						}
-					}
-				}
-
-				/* Invalid level */
-				else
-					fatal("Invalid FDP level");
-
-				break;
-			}
-
-			default:
-				fatal("Invalid adaptative prefetch policy");
-				break;
-		}
-		if(!mod->cache->pref_enabled)
-			stack->last_cycle_pref_disabled = esim_cycle();
-	}
-
-	/* Enable prefetch */
-	else
-	{
-		switch(mod->cache->prefetch.adapt_policy)
-		{
-			case adapt_pref_policy_none:
-				break;
-
-			case adapt_pref_policy_adp:
-			{
-				if ((misses_int > stack->last_misses_int * 1.1) ||
-					(ratio_cycles_stalled > 0.4 && strides_detected_int > 250) ||
-					(stack->last_cycle_pref_disabled == stack->last_cycle && ipc_int < 0.9 * stack->last_ipc_int))
-				{
-					mod->cache->pref_enabled = 1;
-				}
-				break;
-			}
-
-			case adapt_pref_policy_adp_gbwc:
-			{
-				const double BWNO_th = cache->prefetch.thresholds.bwno;
-				const double misses_th = cache->prefetch.thresholds.misses;
-				const double ipc_th = cache->prefetch.thresholds.ipc;
-				const double ratio_cycles_stalled_th = cache->prefetch.thresholds.ratio_cycles_stalled;
-
-				int conditions_fulfilled = 0;
-
-				/* In order to reenable the prefetcher one of the three first conditions AND the forth one must be fulfilled */
-				if (misses_int > stack->last_misses_int * misses_th) /* Cond 1 */
-					conditions_fulfilled |= 1;
-
-				if (ratio_cycles_stalled > ratio_cycles_stalled_th) /* Cond 2 */
-					conditions_fulfilled |= 2;
-
-				if (ipc_int < stack->last_ipc_int * ipc_th) /* Cond 3 */
-					conditions_fulfilled |= 4;
-
-				if (BWNO_int < BWNO_th) /* Cond 4 */
-					conditions_fulfilled |= 8;
-
-				if (conditions_fulfilled > 8)
-					cache->pref_enabled = 1;
-
-				cache->prefetch.flags = conditions_fulfilled;
-
-				break;
-			}
-
-			case adapt_pref_policy_fdp:
-				fatal("Current policy doesn't disable prefetch");
-				break;
-
-			default:
-				fatal("Invalid adaptative prefetch policy");
-				break;
-		}
-	}
-
-	stack->last_cycle = esim_cycle();
-	stack->last_cycles_stalled = cycles_stalled;
-	stack->last_useful_prefetches = mod->useful_prefetches;
-	stack->last_delayed_hits = mod->delayed_hits;
-	stack->last_completed_prefetches = mod->completed_prefetches;
-	stack->last_no_retry_accesses = mod->no_retry_accesses;
-	stack->last_no_retry_hits = mod->no_retry_hits;
-	stack->last_misses_int = misses_int;
-	stack->last_strides_detected = cache->prefetch.stride_detector.strides_detected;
-	stack->last_uinsts = uinsts;
-	stack->last_ipc_int = ipc_int;
-	stack->last_evictions = mod->evictions;
-
-schedule_next_event:
-	assert(mod->cache->prefetch.adapt_interval);
-	assert(mod->cache->prefetch.adapt_interval_kind);
-	esim_schedule_event(event, stack,
-			cache->prefetch.adapt_interval_kind == interval_kind_cycles ?
-			cache->prefetch.adapt_interval : stack->backoff);
-}
-
-
 struct mod_client_info_t *mod_client_info_create(struct mod_t *mod)
 {
 	struct mod_client_info_t *client_info;
@@ -1362,10 +906,14 @@ void mod_interval_report_init(struct mod_t *mod)
 
 	fprintf(stack->report_file, "%s", "esim-time");                                            /* Global simulation time */
 	fprintf(stack->report_file, ",%s-%s", mod->name, "pref-int");                              /* Prefetches executed in the interval */
+	fprintf(stack->report_file, ",%s-%s", mod->name, "pref-late-int");                         /* Late prefetches in the interval */
 	fprintf(stack->report_file, ",%s-%s", mod->name, "pref-acc-int");                          /* Prefetch acuracy for the interval */
+	fprintf(stack->report_file, ",%s-%s", mod->name, "hits-int");                              /* Cache hits for the interval */
+	fprintf(stack->report_file, ",%s-%s", mod->name, "stream-hits-int");                       /* Hits in stream buffer for the interval */
+	fprintf(stack->report_file, ",%s-%s", mod->name, "misses-int");                            /* Cache misses for the interval */
 	fprintf(stack->report_file, ",%s-%s", mod->name, "pref-cov-int");                          /* Prefetch coverage for the interval */
-	fprintf(stack->report_file, ",%s-%s", mod->name, "pref-delayed-hits-int");                 /* Hits on a block being brought by a prefetch */
-	fprintf(stack->report_file, ",%s-%s", mod->name, "pref-delayed-hit-avg-lost-cycles-int");  /* Average cycles waiting for a block that is being brought by a prefetch */
+	fprintf(stack->report_file, ",%s-%s", mod->name, "delayed-hits-int");                      /* Hits on a block being brought by a prefetch */
+	fprintf(stack->report_file, ",%s-%s", mod->name, "delayed-hit-avg-delay-int");             /* Average cycles waiting for a block that is being brought by a prefetch */
 	fprintf(stack->report_file, ",%s-%s", mod->name, "misses-int");                            /* Cache misses in the interval */
 	fprintf(stack->report_file, "\n");
 	fflush(stack->report_file);
@@ -1387,10 +935,17 @@ void mod_interval_report(struct mod_t *mod)
 	long long delayed_hit_cycles_int = mod->delayed_hit_cycles - stack->delayed_hit_cycles;
 	double delayed_hit_avg_lost_cycles_int = delayed_hits_int ? (double) delayed_hit_cycles_int / delayed_hits_int : 0.0;
 
+	/* Cache hits */
+	long long hits_int = mod->hits - stack->hits;
+
+	/* Cache stream buffer hits */
+	long long stream_hits_int = mod->stream_hits - stack->stream_hits;
+
 	/* Cache misses */
-	long long accesses_int = mod->no_retry_accesses - stack->no_retry_accesses;
-	long long hits_int = mod->no_retry_hits - stack->no_retry_hits;
-	long long misses_int = accesses_int - hits_int;
+	long long misses_int = mod->misses - stack->misses;
+
+	/* Late prefetches */
+	long long late_prefetches_int = mod->late_prefetches - stack->late_prefetches;
 
 	/* Coverage */
 	double coverage_int = (misses_int + useful_prefetches_int) ?
@@ -1398,11 +953,14 @@ void mod_interval_report(struct mod_t *mod)
 
 	fprintf(stack->report_file, "%lld", esim_time);
 	fprintf(stack->report_file, ",%lld", completed_prefetches_int);
+	fprintf(stack->report_file, ",%lld", late_prefetches_int);
 	fprintf(stack->report_file, ",%.3f", prefetch_accuracy_int);
+	fprintf(stack->report_file, ",%lld", hits_int);
+	fprintf(stack->report_file, ",%lld", stream_hits_int);
+	fprintf(stack->report_file, ",%lld", misses_int);
 	fprintf(stack->report_file, ",%.3f", coverage_int);
 	fprintf(stack->report_file, ",%lld", delayed_hits_int);
 	fprintf(stack->report_file, ",%.3f", delayed_hit_avg_lost_cycles_int);
-	fprintf(stack->report_file, ",%lld", misses_int);
 	fprintf(stack->report_file, "\n");
 	fflush(stack->report_file);
 
@@ -1411,172 +969,28 @@ void mod_interval_report(struct mod_t *mod)
 	stack->delayed_hit_cycles = mod->delayed_hit_cycles;
 	stack->useful_prefetches = mod->useful_prefetches;
 	stack->completed_prefetches = mod->completed_prefetches;
-	stack->no_retry_accesses = mod->no_retry_accesses;
-	stack->no_retry_hits = mod->no_retry_hits;
-	stack->no_retry_stream_hits = mod->no_retry_stream_hits;
-	stack->misses_int = misses_int;
-	stack->strides_detected = mod->cache->prefetch.stride_detector.strides_detected;
+	stack->hits = mod->hits;
+	stack->stream_hits = mod->stream_hits;
+	stack->misses = mod->misses;
+	stack->late_prefetches = mod->late_prefetches;
 }
 
 
 void mod_report_stack_reset_stats(struct mod_report_stack_t *stack)
 {
-	/* int i; */
-	/* int size; */
-	/* struct line_writer_t *lw = stack->line_writer; */
-	/* FILE *f = stack->report_file; */
-    /*  */
-	/* stack->last_cycle = esim_cycle(); */
-	/* stack->uinst_count = 0; */
-	/* stack->delayed_hits = 0; */
-	/* stack->delayed_hit_cycles = 0; */
-	/* stack->useful_prefetches = 0; */
-	/* stack->completed_prefetches = 0; */
-	/* stack->no_retry_accesses = 0; */
-	/* stack->no_retry_hits = 0; */
-	/* stack->no_retry_stream_hits = 0; */
-	/* stack->effective_useful_prefetches = 0; */
-	/* stack->misses_int = 0; */
-	/* stack->strides_detected = 0; */
-	/* stack->last_cycles_stalled = 0; */
-    /*  */
-	/* #<{(| Erase report file |)}># */
-	/* fseeko(f, 0, SEEK_SET); */
-    /*  */
-	/* #<{(| Print header |)}># */
-	/* fprintf(f, "%s\nRESETED\n", help_mod_report); */
-    /*  */
-	/* line_writer_add_column(lw, 9, line_writer_align_right, "%s", "cycle"); */
-	/* line_writer_add_column(lw, 9, line_writer_align_right, "%s", "inst"); */
-	/* line_writer_add_column(lw, 9, line_writer_align_right, "%s", "completed-prefetches-int"); */
-	/* line_writer_add_column(lw, 9, line_writer_align_right, "%s", "completed-prefetches-glob"); */
-	/* line_writer_add_column(lw, 9, line_writer_align_right, "%s", "prefetch-accuracy-int"); */
-	/* line_writer_add_column(lw, 9, line_writer_align_right, "%s", "delayed-hits-int"); */
-	/* line_writer_add_column(lw, 9, line_writer_align_right, "%s", "delayed-hit-avg-lost-cycles-int"); */
-	/* line_writer_add_column(lw, 9, line_writer_align_right, "%s", "misses-int"); */
-	/* line_writer_add_column(lw, 9, line_writer_align_right, "%s", "stream-hits-int"); */
-	/* line_writer_add_column(lw, 8, line_writer_align_right, "%s", "mpki-int"); */
-	/* line_writer_add_column(lw, 9, line_writer_align_right, "%s", "pseudocoverage-int"); */
-	/* line_writer_add_column(lw, 9, line_writer_align_right, "%s", "prefetch-active-int"); */
-	/* line_writer_add_column(lw, 9, line_writer_align_right, "%s", "strides-detected-int"); */
-	/* line_writer_add_column(lw, 9, line_writer_align_right, "%s", "pct-rob-stalled-int"); */
-	/* line_writer_add_column(lw, 6, line_writer_align_right, "%s", "bwc-int"); */
-	/* line_writer_add_column(lw, 6, line_writer_align_right, "%s", "bwn-int"); */
-	/* line_writer_add_column(lw, 6, line_writer_align_right, "%s", "bwno-int"); */
-	/* line_writer_add_column(lw, 9, line_writer_align_right, "%s", "flags"); */
-    /*  */
-	/* size = line_writer_write(lw, f); */
-	/* line_writer_clear(lw); */
-    /*  */
-	/* for (i = 0; i < size - 1; i++) */
-	/* 	fprintf(f, "-"); */
-	/* fprintf(f, "\n"); */
+	/* TODO */
 }
 
 
 void mod_adapt_pref_stack_reset_stats(struct mod_adapt_pref_stack_t *stack)
 {
-	stack->last_uinsts = 0;
-	stack->last_cycle = esim_cycle();
-	stack->last_useful_prefetches = 0;
-	stack->last_completed_prefetches = 0;
-	stack->last_no_retry_accesses = 0;
-	stack->last_no_retry_hits = 0;
-	stack->last_cycles_stalled = 0;
-	stack->last_misses_int = 0;
-	stack->last_strides_detected = 0;
-	stack->last_delayed_hits = 0;
-	stack->last_cycle_pref_disabled = 0;
-	stack->last_ipc_int = 0;
+	/* TODO */
 }
 
 
 void mod_reset_stats(struct mod_t *mod)
 {
-	mod->accesses = 0;
-	mod->hits = 0;
-
-	mod->reads = 0;
-	mod->effective_reads = 0;
-	mod->effective_read_hits = 0;
-	mod->writes = 0;
-	mod->effective_writes = 0;
-	mod->effective_write_hits = 0;
-	mod->nc_writes = 0;
-	mod->effective_nc_writes = 0;
-	mod->effective_nc_write_hits = 0;
-	mod->prefetches = 0;
-	mod->evictions = 0;
-
-	mod->blocking_reads = 0;
-	mod->non_blocking_reads = 0;
-	mod->read_hits = 0;
-	mod->blocking_writes = 0;
-	mod->non_blocking_writes = 0;
-	mod->write_hits = 0;
-	mod->blocking_nc_writes = 0;
-	mod->non_blocking_nc_writes = 0;
-	mod->nc_write_hits = 0;
-
-	mod->read_retries = 0;
-	mod->write_retries = 0;
-	mod->nc_write_retries = 0;
-
-	mod->no_retry_accesses = 0;
-	mod->no_retry_hits = 0;
-	mod->no_retry_reads = 0;
-	mod->no_retry_read_hits = 0;
-	mod->no_retry_writes = 0;
-	mod->no_retry_write_hits = 0;
-	mod->no_retry_nc_writes = 0;
-	mod->no_retry_nc_write_hits = 0;
-	mod->no_retry_stream_hits = 0;
-
-	/* Prefetch */
-	mod->programmed_prefetches = 0;
-	mod->completed_prefetches = 0;
-	mod->canceled_prefetches = 0;
-	mod->canceled_prefetches_end_stream = 0;
-	mod->canceled_prefetches_coalesce = 0;
-	mod->canceled_prefetches_cache_hit = 0;
-	mod->canceled_prefetches_stream_hit = 0;
-	mod->canceled_prefetches_retry = 0;
-	mod->useful_prefetches = 0;
-	mod->effective_useful_prefetches = 0; /* Useful prefetches with less delay hit cicles than 1/3 of the delay of accesing MM */
-
-	mod->prefetch_retries = 0;
-
-	mod->stream_hits = 0;
-	mod->delayed_hits = 0; /* Hit on a block being brougth by a prefetch */
-	mod->delayed_hit_cycles = 0; /* Cicles lost due delayed hits */
-	mod->delayed_hits_cycles_counted = 0; /* Number of delayed hits whose lost cycles has been counted */
-
-	mod->single_prefetches = 0; /* Prefetches on hit */
-	mod->group_prefetches = 0; /* Number of GROUPS */
-	mod->canceled_prefetch_groups = 0;
-
-	mod->up_down_hits = 0;
-	mod->up_down_head_hits = 0;
-	mod->down_up_read_hits = 0;
-	mod->down_up_write_hits = 0;
-
-	mod->fast_resumed_accesses = 0;
-	mod->write_buffer_read_hits = 0;
-	mod->write_buffer_write_hits = 0;
-	mod->write_buffer_prefetch_hits = 0;
-
-	mod->stream_evictions = 0;
-
-	/* Silent replacement */
-	mod->down_up_read_misses = 0;
-	mod->down_up_write_misses = 0;
-	mod->block_already_here = 0;
-
-	/* Reset stacks */
-	if (mod->report_stack)
-		mod_report_stack_reset_stats(mod->report_stack);
-	if (mod->adapt_pref_stack)
-		mod_adapt_pref_stack_reset_stats(mod->adapt_pref_stack);
+	/* TODO */
 }
 
 
@@ -1591,3 +1005,606 @@ void mod_recursive_reset_stats(struct mod_t *mod)
 	}
 }
 
+
+void mod_adapt_pref_adp(struct mod_t *mod)
+{
+	struct cache_t *cache = mod->cache;
+	struct prefetcher_t *pref = cache->prefetcher;
+	struct mod_adapt_pref_stack_t *stack = mod->adapt_pref_stack;
+
+	/* Main stats */
+	double acc_int;
+	double cov_int;
+	double rob_stall_int;
+	double bwno_int;
+	double ipc_int;
+
+	/* Auxiliar stats */
+	long long cycles_int;
+
+	long long prefs_int;
+	long long useful_prefs_int;
+
+	long long misses_int;
+
+	long long cycles_stalled;
+	long long cycles_stalled_int;
+
+	long long uinsts;
+	long long uinsts_int;
+
+	/* Counters */
+	int reachable_cores;
+
+	assert(pref);
+	assert(pref->adapt_policy == adapt_pref_policy_adp);
+
+	/* Cycles */
+	cycles_int = esim_cycle() - stack->last_cycle;
+
+	/* Completed prefetches */
+	prefs_int = mod->completed_prefetches - stack->last_completed_prefetches;
+
+	/* Useful prefetches */
+	useful_prefs_int = mod->useful_prefetches - stack->last_useful_prefetches;
+
+	/* Cache misses */
+	misses_int = mod->misses - stack->last_misses;
+
+	/* Coverage */
+	cov_int = (misses_int + useful_prefs_int) ? (double) useful_prefs_int / (misses_int + useful_prefs_int) : 0.0;
+
+	/* Accuracy */
+	acc_int = prefs_int ? (double) useful_prefs_int / prefs_int : 0.0;
+	acc_int = acc_int > 1 ? 1 : acc_int; /* May be slightly greather than 1 due bad timing with cycles */
+
+	/* Data involving all accessing cores */
+	reachable_cores = 0;
+	bwno_int = 0;
+	cycles_stalled = 0;
+	uinsts = 0;
+	for (int core = 0; core < x86_cpu_num_cores; core++)
+	{
+		/* Reachable cores */
+		if (mod->reachable_threads[core * x86_cpu_num_threads])
+		{
+			cycles_stalled += x86_cpu->core[core].dispatch_stall_cycles_rob_mem;
+			uinsts += X86_CORE.num_committed_uinst;
+			reachable_cores++;
+		}
+
+		/* Non reachable cores */
+		else
+		{
+			int i;
+			LIST_FOR_EACH(mod->reachable_mm_modules, i)
+			{
+				struct mod_t *mm_mod = list_get(mod->reachable_mm_modules, i);
+				bwno_int += dram_system_get_bwn(mm_mod->dram_system->handler, mm_mod->mc_id, core);
+			}
+		}
+	}
+	cycles_stalled /= reachable_cores;
+	uinsts /= reachable_cores;
+
+	/* Average IPC for the accessing cores */
+	uinsts_int = uinsts - stack->last_uinsts;
+	ipc_int = cycles_int ? (double) uinsts_int / cycles_int : 0.0;
+
+	/* Average pct. of ROB stall cicles due memory instructions for the accessig cores */
+	cycles_stalled_int = cycles_stalled - stack->last_cycles_stalled;
+	rob_stall_int = cycles_int > 0 ? (double) cycles_stalled_int / cycles_int : 0.0;
+
+	/* Pref enabled */
+	if (pref->enabled)
+	{
+		double bwno_th         = pref->th.adp.bwno;
+		double cov_th          = pref->th.adp.cov;
+		double acc_high_th     = pref->th.adp.acc_high;
+		double acc_low_th      = pref->th.adp.acc_low;
+		double acc_very_low_th = pref->th.adp.acc_very_low;
+
+		/* Very low accuracy */
+		if (acc_int < acc_very_low_th)
+		{
+			/* Reduce aggr. and disable */
+			pref->aggr = 2;
+			pref->enabled = 0;
+
+			/* Good coverage and others don't require lots of BW */
+			if (cov_int > cov_th && bwno_int < bwno_th)
+				pref->enabled = 1;
+		}
+
+		/* Low accuracy */
+		if (acc_int < acc_low_th)
+		{
+			/* Reduce aggr. */
+			pref->aggr = 2;
+
+			/* Bad coverage and others need bw */
+			if (cov_int < cov_th && bwno_int > bwno_th)
+				pref->enabled = 0;
+		}
+
+		/* Medium accuracy */
+		else if(acc_int < acc_high_th)
+		{
+			/* Others need bandwidth */
+			if (bwno_int > bwno_th)
+				pref->aggr = 2; /* Reduce aggr. */
+		}
+
+		/* High accuracy */
+		else
+		{
+			/* Others need bandwidth */
+			if (bwno_int > bwno_th)
+				pref->aggr = 2;
+
+			/* Others don't need a lot of bw */
+			else
+			{
+				/* Bad coverage */
+				if (cov_int < cov_th)
+					pref->aggr = 4;
+			}
+		}
+	}
+
+	/* Pref disabled */
+	else
+	{
+		double bwno_th      = pref->th.adp.bwno;
+		double misses_th    = pref->th.adp.misses;
+		double ipc_th       = pref->th.adp.ipc;
+		double rob_stall_th = pref->th.adp.rob_stall; /* Ratio of cycles with the ROB stalled due memory instructions */
+
+		if (bwno_int < bwno_th &&
+				(misses_int > stack->last_misses_int * misses_th ||
+				rob_stall_int > rob_stall_th ||
+				ipc_int < stack->last_ipc_int * ipc_th))
+		{
+			pref->enabled = 1;
+		}
+	}
+}
+
+
+void mod_adapt_pref_fdp(struct mod_t *mod)
+{
+	struct cache_t *cache = mod->cache;
+	struct prefetcher_t *pref = cache->prefetcher;
+	struct mod_adapt_pref_stack_t *stack = mod->adapt_pref_stack;
+
+	/* Main stats */
+	double acc_int;
+	double lateness_int;
+	double pollution_int; /* A ratio, not an absolute number like in HPAC */
+
+	/* Auxiliar stats */
+	long long prefs_int;
+	long long useful_prefs_int;
+	long long misses_int;
+	long long late_prefs_int;
+
+	/* Thresholds */
+	double acc_high_th  = pref->th.fdp.acc_high;
+	double acc_low_th   = pref->th.fdp.acc_low;
+	double lateness_th  = pref->th.fdp.lateness;
+	double pollution_th = pref->th.fdp.pollution;
+
+	/* Decision variables */
+	bool acc_high;
+	bool acc_medium;
+	bool acc_low;
+	bool late;
+	bool polluting;
+
+	/* Aggr. levels */
+	int a1 = 1;
+	int a2 = 2;
+	int a3 = 4;
+
+	assert(pref);
+	assert(pref->adapt_policy == adapt_pref_policy_fdp || pref->adapt_policy == adapt_pref_policy_hpac); /* HPAC uses FDP */
+
+	/* Completed prefetches */
+	prefs_int = mod->completed_prefetches - stack->last_completed_prefetches;
+
+	/* Useful prefetches */
+	useful_prefs_int = mod->useful_prefetches - stack->last_useful_prefetches;
+
+	/* Cache misses */
+	misses_int = mod->misses - stack->last_misses;
+
+	/* Accuracy */
+	acc_int = prefs_int ? (double) useful_prefs_int / prefs_int : 0.0;
+	acc_int = acc_int > 1 ? 1 : acc_int; /* May be slightly greather than 1 due bad timing with cycles */
+
+	/* Lateness */
+	late_prefs_int = mod->late_prefetches - stack->last_late_prefetches;
+	lateness_int = useful_prefs_int ? (double) late_prefs_int / useful_prefs_int : 0.0;
+
+	/* Pollution */
+	pollution_int = misses_int ? (double) stack->pref_dem_pollution_int / misses_int : 0.0;
+
+	/* Decision variables */
+	acc_high = acc_int >= acc_high_th;
+	acc_medium = acc_int < acc_high_th && acc_int >= acc_low_th;
+	acc_low = acc_int < acc_low_th;
+	late = lateness_int > lateness_th;
+	polluting = pollution_int > pollution_th;
+
+	/* Action taken {0 : none, 1 : increment, -1 : decrement} */
+	stack->last_action = 0;
+
+	/* Case 1 */
+	if (acc_high && late && !polluting)
+		goto increment;
+
+	/* Case 2 */
+	else if (acc_high && late && polluting)
+		goto increment;
+
+	/* Cases 3 7 11 */
+	else if (!late && !polluting)
+		goto done;
+
+	/* Cases 4 8 12 */
+	else if (!late && polluting)
+		goto decrement;
+
+	/* Case 5 */
+	else if (acc_medium && late && !polluting)
+		goto increment;
+
+	/* Case 6 */
+	else if (acc_medium && late && polluting)
+		goto decrement;
+
+	/* Case 9 */
+	else if (acc_low && late && !polluting)
+		goto decrement;
+
+	/* Case 10 */
+	else if (acc_low && late && polluting)
+		goto decrement;
+
+	/* Error */
+	else
+		fatal("%s: Error in adaptive algorithm", __FUNCTION__);
+
+increment:
+	if (pref->aggr == a1)
+		pref->aggr = a2;
+	else if(pref->aggr == a2)
+		pref->aggr = a2;
+	else if(pref->aggr == a3)
+		goto done;
+	else
+		fatal("%s: Error in adaptive algorithm", __FUNCTION__);
+	stack->last_action = 1;
+	goto done;
+
+decrement:
+	if (pref->aggr == a1)
+		goto done;
+	else if(pref->aggr == a2)
+		pref->aggr = a1;
+	else if(pref->aggr == a3)
+		pref->aggr = a2;
+	else
+		fatal("%s: Error in adaptive algorithm", __FUNCTION__);
+	stack->last_action = -1;
+
+done:
+	stack->last_completed_prefetches = mod->completed_prefetches;
+	stack->last_useful_prefetches = mod->useful_prefetches;
+	stack->last_misses = mod->misses;
+	stack->last_late_prefetches = mod->late_prefetches;
+	stack->pref_dem_pollution_int = 0;
+	bloom_clear(stack->pref_dem_pollution_filter);
+}
+
+
+void mod_adapt_pref_hpac(struct mod_t *mod)
+{
+	struct cache_t *cache = mod->cache;
+	struct prefetcher_t *pref = cache->prefetcher;
+	struct mod_adapt_pref_stack_t *stack = mod->adapt_pref_stack;
+
+	/* Main stats */
+	double acc_int;
+	double bwc_int;
+	double bwno_int;
+	long long  pollution_int; /* Absolute number, not a ratio like in FDP */
+
+	/* Auxiliar stats */
+	long long prefs_int;
+	long long useful_prefs_int;
+	int reachable_cores;
+
+	/* Thresholds */
+	double acc_th       = pref->th.hpac.acc;
+	double bwc_th       = pref->th.hpac.bwc;
+	double bwno_th      = pref->th.hpac.bwno;
+	double pollution_th = pref->th.hpac.pollution;
+
+	/* Decision variables */
+	bool acc;
+	bool bwc;
+	bool polluting;
+	bool bwno;
+
+	/* Aggr. levels */
+	int a1 = 1;
+	int a2 = 2;
+	int a3 = 4;
+
+	assert(pref);
+	assert(pref->adapt_policy == adapt_pref_policy_hpac);
+
+	/* Completed prefetches */
+	prefs_int = mod->completed_prefetches - stack->last_completed_prefetches;
+
+	/* Useful prefetches */
+	useful_prefs_int = mod->useful_prefetches - stack->last_useful_prefetches;
+
+	/* Accuracy */
+	acc_int = prefs_int ? (double) useful_prefs_int / prefs_int : 0.0;
+	acc_int = acc_int > 1 ? 1 : acc_int; /* May be slightly greather than 1 due bad timing with cycles */
+
+	/* Pollution */
+	pollution_int = stack->pref_dem_pollution_int;
+
+	/* BWC and BWNO */
+	reachable_cores = 0;
+	bwc_int = 0;
+	bwno_int = 0;
+	for (int core = 0; core < x86_cpu_num_cores; core++)
+	{
+		int i;
+		/* Reachable cores */
+		if (mod->reachable_threads[core * x86_cpu_num_threads])
+		{
+			LIST_FOR_EACH(mod->reachable_mm_modules, i)
+			{
+				struct mod_t *mm_mod = list_get(mod->reachable_mm_modules, i);
+				bwc_int += dram_system_get_bwc(mm_mod->dram_system->handler, mm_mod->mc_id, core);
+				reachable_cores++;
+			}
+		}
+
+		/* Non reachable cores */
+		else
+		{
+			LIST_FOR_EACH(mod->reachable_mm_modules, i)
+			{
+				struct mod_t *mm_mod = list_get(mod->reachable_mm_modules, i);
+				bwno_int += dram_system_get_bwn(mm_mod->dram_system->handler, mm_mod->mc_id, core);
+			}
+		}
+	}
+	bwc_int /= (reachable_cores * list_count(mod->reachable_mm_modules));
+	bwno_int /= list_count(mod->reachable_mm_modules);
+
+	/* Decision variables */
+	acc = acc_int >= acc_th;
+	bwc = bwc_int > bwc_th;
+	polluting = pollution_int > pollution_th;
+	bwno = bwno_int > bwno_th;
+
+	/* Apply FDP policy */
+	mod_adapt_pref_fdp(mod);
+
+	/* Correct FDP decisions */
+
+	/* Cases 1 - 7 */
+	if (!polluting)
+	{
+		/* Case 3a 3b */
+		if (!acc && bwno)
+			goto enf_down;
+		/* Case 2 */
+		else if(!acc && bwc && !bwno)
+			goto allow_down;
+		/* Cases 1 4 5 6 7 */
+		else
+			goto done;
+	}
+
+	/* Cases 8 - 14 */
+	else
+	{
+		/* Cases 8 9 10a 10b */
+		if (!acc)
+			goto enf_down;
+
+		/* Cases 11 12 13 14 */
+		else
+		{
+			/* Case 11 */
+			if (!bwc && !bwno)
+				goto done;
+			/* Case 14 */
+			else if (bwc && bwno)
+				goto enf_down;
+			/* Cases 12 13 */
+			else
+				goto allow_down;
+		}
+	}
+
+/* Action taken {0 : none, 1 : increment, -1 : decrement} */
+
+allow_down:
+	/* Undo any increment */
+	if (stack->last_action == 1)
+	{
+		if(pref->aggr == a2)
+			pref->aggr = a1;
+		else if(pref->aggr == a3)
+			pref->aggr = a2;
+		else
+			fatal("%s: Error in adaptive algorithm", __FUNCTION__);
+		stack->last_action = 0;
+	}
+	goto done;
+
+enf_down:
+	/* Enforce throttle down */
+	if (stack->last_action != -1)
+	{
+		if (pref->aggr == a1)
+			goto done;
+		else if(pref->aggr == a2)
+			pref->aggr = a1;
+		else if(pref->aggr == a3)
+			pref->aggr = a2;
+		else
+			fatal("%s: Error in adaptive algorithm", __FUNCTION__);
+		stack->last_action = -1;
+	}
+
+done:
+	stack->last_completed_prefetches = mod->completed_prefetches;
+	stack->last_useful_prefetches = mod->useful_prefetches;
+	stack->pref_dem_pollution_int = 0;
+	bloom_clear(stack->pref_dem_pollution_filter);
+}
+
+
+void mod_adapt_pref_schedule(struct mod_t *mod)
+{
+	struct mod_adapt_pref_stack_t *stack;
+	struct cache_t *cache = mod->cache;
+	struct prefetcher_t *pref = cache->prefetcher;
+
+	assert(cache->prefetcher->adapt_policy);
+
+	/* Create new stack */
+	stack = xcalloc(1, sizeof(struct mod_adapt_pref_stack_t));
+	stack->mod = mod;
+	stack->backoff = 50000;
+	mod->adapt_pref_stack = stack;
+
+	if (prefetcher_uses_pollution_filters(pref))
+	{
+		stack->pref_dem_pollution_filter = bloom_create(pref->bloom_bits, pref->bloom_capacity, pref->bloom_false_pos_prob);
+		/* stack->thread_pollution_filter[i] = bloom_create(pref->bloom_bits, pref->bloom_capacity, pref->bloom_false_pos_prob); */
+		/* stack->pref_thread_pollution_filter[i] = bloom_create(pref->bloom_bits, pref->bloom_capacity, pref->bloom_false_pos_prob); */
+	}
+
+	/* Schedule first event */
+	assert(cache->prefetcher->adapt_interval);
+	esim_schedule_event(EV_MOD_ADAPT_PREF, stack, cache->prefetcher->adapt_interval_kind == interval_kind_cycles ?
+			cache->prefetcher->adapt_interval : stack->backoff);
+}
+
+
+/* This function will be called at fixed size intervals of cycles, instructions or
+ * evictions to tune prefetch aggressivity. If the interval is in cycles, this function will be called only when nedded.
+ * If the interval is in instructions or evictions, this function is called every N cycles (N heuristically computed) and only
+ * does something if the requisites of intr/evictions are fulfilled. */
+void mod_adapt_pref_handler(int event, void *data)
+{
+	struct mod_adapt_pref_stack_t *stack = data;
+	struct mod_t *mod = stack->mod;
+	struct cache_t *cache = mod->cache;
+	struct prefetcher_t *pref = cache->prefetcher;
+
+	long long cycles_int = esim_cycle() - stack->last_cycle;
+	long long uinsts = 0;
+
+	/* If simulation has ended, no more
+	 * events to schedule. */
+	if (esim_finish)
+		return;
+
+	/* Find out if an interval has finished */
+	switch(cache->prefetcher->adapt_interval_kind)
+	{
+		case interval_kind_cycles:
+			/* We can be sure the interval has finished */
+			break;
+
+		case interval_kind_instructions:
+		{
+			long long uinsts_int;
+			double ipc_int;
+
+			/* Number of uinsts executed in this interval by the threads accessing this module */
+			for (int core = 0; core < x86_cpu_num_cores; core++)
+				if (mod->reachable_threads[core * x86_cpu_num_threads])
+					uinsts += X86_CORE.num_committed_uinst;
+			uinsts_int = uinsts - stack->last_uinsts;
+
+			/* Mean IPC for all the threads accessing this module */
+			ipc_int = cycles_int ? (double) uinsts_int / cycles_int : 0.0;
+
+			/* Try to predict when the next interval will begin */
+			stack->backoff = ipc_int ? 0.75 * (pref->adapt_interval - uinsts_int) / ipc_int : 10000;
+			stack->backoff = MAX(stack->backoff, 100);
+			stack->backoff = MIN(stack->backoff, 75000);
+
+			/* Interval has not finished yet */
+			if (uinsts_int < cache->prefetcher->adapt_interval)
+				goto schedule_next_event;
+			break;
+		}
+
+		case interval_kind_evictions:
+		{
+			/* Evictions in this interval */
+			long long evictions_int = mod->evictions - stack->last_evictions;
+			double epc_int;
+
+			/* Try to predict when the next interval will begin */
+			epc_int = cycles_int ? (double) evictions_int / cycles_int : 0.0;
+			stack->backoff =  epc_int ? 0.75 * (pref->adapt_interval - evictions_int) / epc_int : 10000;
+			stack->backoff = MAX(stack->backoff, 100);
+			stack->backoff = MIN(stack->backoff, 75000);
+
+			/* Interval has not finished yet */
+			if (evictions_int < pref->adapt_interval)
+				goto schedule_next_event;
+			break;
+		}
+
+		case interval_kind_invalid:
+			fatal("%s: Invalid interval kind", __FUNCTION__);
+			break;
+	}
+
+
+	switch(mod->cache->prefetcher->adapt_policy)
+	{
+		case adapt_pref_policy_adp:
+			mod_adapt_pref_adp(mod);
+			break;
+
+		case adapt_pref_policy_fdp:
+			mod_adapt_pref_fdp(mod);
+			break;
+
+		case adapt_pref_policy_hpac:
+			mod_adapt_pref_hpac(mod);
+			break;
+
+		default:
+			fatal("Invalid adaptative prefetch policy");
+			break;
+	}
+
+	stack->last_cycle = esim_cycle();
+	stack->last_uinsts = uinsts;
+	stack->last_evictions = mod->evictions;
+
+schedule_next_event:
+	assert(pref->adapt_interval);
+	assert(pref->adapt_interval_kind);
+	esim_schedule_event(event, stack,
+			pref->adapt_interval_kind == interval_kind_cycles ?
+			pref->adapt_interval : stack->backoff);
+}

@@ -22,20 +22,8 @@
 
 #define block_invalid_tag -1
 
-#include "prefetcher.h"
-
 extern struct str_map_t cache_policy_map;
 extern struct str_map_t cache_block_state_map;
-extern struct str_map_t adapt_pref_policy_map;
-extern struct str_map_t interval_kind_map;
-
-enum interval_kind_t
-{
-	interval_kind_invalid = 0,
-	interval_kind_instructions,
-	interval_kind_cycles,
-	interval_kind_evictions,
-};
 
 enum cache_policy_t
 {
@@ -43,15 +31,6 @@ enum cache_policy_t
 	cache_policy_lru,
 	cache_policy_fifo,
 	cache_policy_random
-};
-
-enum adapt_pref_policy_t
-{
-	adapt_pref_policy_none = 0,
-	adapt_pref_policy_adp,
-	adapt_pref_policy_fdp,
-	adapt_pref_policy_fdp_gbwc,
-	adapt_pref_policy_adp_gbwc,
 };
 
 enum cache_block_state_t
@@ -145,52 +124,12 @@ struct cache_t
 	unsigned int block_mask;
 	int log_block_size;
 
-	/* Prefetching */
-	unsigned int pref_enabled : 1;
-
 	struct {
-		enum prefetcher_type_t type; 	/* Type of prefetcher */
-		unsigned int max_num_streams; 	/* Max number of stream buffers */
-		unsigned int max_num_slots; 	/* Max number of blocks per stream */
-		unsigned int aggr; 	/* Number of blocks to request per prefetch when there is a prefetch hit */
-		unsigned int aggr_ini; 	/* Number of blocks to requests when a new stream is allocated */
-
-		unsigned int stream_tag_bits; 	/* For obtaining stream_tag */
-		unsigned int stream_tag_mask; 	/* For obtaining stream_tag */
-
-		unsigned int czone_bits; 		/* For obtaining czone */
-		unsigned int czone_mask; 		/* For obtaining czone */
-
-		unsigned int distance; /* Max number of blocks of one single stream prefetched at any time */
-
-		struct stream_buffer_t *streams;
-		struct stream_buffer_t *stream_head;
-		struct stream_buffer_t *stream_tail;
-
-		enum adapt_pref_policy_t adapt_policy; /* Adaptative policy used */
-		long long adapt_interval; /* Interval at wich the adaptative policy is aplied */
-		enum interval_kind_t adapt_interval_kind; /* Tells if the interval is in cycles or in instructions */
-
-		int flags; /* Multiporpose flags for stats reporting */
-
 		struct
 		{
 			struct linked_list_t *camps;
 			long long strides_detected;
 		} stride_detector;
-
-		struct
-		{
-			double pseudocoverage;
-			double accuracy_very_low;
-			double accuracy_low;
-			double accuracy_high;
-			double bwno;
-			double ratio_cycles_stalled;
-			double ipc;
-			double misses;
-		} thresholds; /* Only for tunning thresholds */
-
 	} prefetch;
 
 	struct prefetcher_t *prefetcher;
@@ -198,8 +137,7 @@ struct cache_t
 	struct cache_write_buffer wb;
 };
 
-struct cache_t *cache_create(char *name, unsigned int num_sets, int num_streams, int pref_aggr, unsigned int block_size,
-	unsigned int assoc, enum cache_policy_t policy);
+struct cache_t *cache_create(char *name, unsigned int num_sets, unsigned int block_size, unsigned int assoc, enum cache_policy_t policy);
 void cache_free(struct cache_t *cache);
 
 void cache_decode_address(struct cache_t *cache, unsigned int addr,

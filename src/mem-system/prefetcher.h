@@ -28,6 +28,8 @@
  */
 
 extern struct str_map_t prefetcher_type_map;
+extern struct str_map_t adapt_pref_policy_map;
+extern struct str_map_t interval_kind_map;
 
 enum prefetcher_type_t
 {
@@ -69,20 +71,100 @@ struct prefetcher_it_t
    	int ptr;
 };
 
+/* Adaptive policy */
+enum adapt_pref_policy_t
+{
+	adapt_pref_policy_none = 0,
+	adapt_pref_policy_adp,
+	adapt_pref_policy_fdp,
+	adapt_pref_policy_hpac,
+	adapt_pref_policy_mbp,
+};
+
+/* Interval kind for the adaptive policy */
+enum interval_kind_t
+{
+	interval_kind_invalid = 0,
+	interval_kind_instructions,
+	interval_kind_cycles,
+	interval_kind_evictions,
+};
+
+/* Thresholds for adaptive algorithms */
+struct thresholds_t
+{
+	struct
+	{
+		double acc_high;
+		double acc_low;
+		double acc_very_low;
+		double cov;
+		double bwno;
+		double rob_stall;
+		double ipc;
+		double misses;
+	} adp;
+	struct
+	{
+		double acc_high;
+		double acc_low;
+		double lateness;
+		double pollution;
+	} fdp;
+	struct
+	{
+		double acc;
+		double bwno;
+		double bwc;
+		double pollution;
+	} hpac;
+	struct
+	{
+		double ratio;
+	} mbp;
+};
+
 /* The main prefetcher object */
 struct prefetcher_t
 {
+	enum prefetcher_type_t type; 	/* Type of prefetcher */
+	int enabled;
 	int ghb_size;
 	int it_size;
 	int lookup_depth;
-	enum prefetcher_type_t type;
+	int aggr;
 
 	struct prefetcher_ghb_t *ghb;
 	struct prefetcher_it_t *index_table;
-
-	struct bloom_t *pollution_filter;
-
 	int ghb_head;
+
+	/* CZone prefetchers */
+	int czone_bits;					/* Size in bits of the czone */
+	unsigned int czone_mask; 		/* For obtaining czone */
+
+	/* Streaming prefetchers */
+	int max_num_streams;			/* Max number of streams */
+	int max_num_slots;				/* Max number of blocks per stream */
+	int distance;					/* How ahead of the accesses of the processor this prefetcher is. If buffers are used, this can't be greater than max_num_slots. */
+	int stream_tag_bits;			/* Size in bits of the tag */
+	unsigned int stream_tag_mask;	/* For obtaining stream_tag */
+	struct stream_buffer_t *streams;
+	struct stream_buffer_t *stream_head;
+	struct stream_buffer_t *stream_tail;
+
+	/* Adaptive prefetchers */
+	enum adapt_pref_policy_t adapt_policy;		/* Adaptative policy used */
+	unsigned int aggr_ini;						/* Initial aggressivity */
+	long long adapt_interval;					/* Interval at wich the adaptative policy is aplied */
+	enum interval_kind_t adapt_interval_kind;	/* What units are used for the interval */
+	int bloom_bits;								/* For pollution filters */
+	int bloom_capacity;
+	double bloom_false_pos_prob;
+
+	/* Thresholds */
+	struct thresholds_t th;
+
+	struct cache_t *parent_cache;
 };
 
 
@@ -91,7 +173,8 @@ struct mod_stack_t;
 struct mod_t;
 
 
-struct prefetcher_t *prefetcher_create(int prefetcher_ghb_size, int prefetcher_it_size, int prefetcher_lookup_depth, enum prefetcher_type_t type);
+struct prefetcher_t *prefetcher_create(int prefetcher_ghb_size, int prefetcher_it_size, int prefetcher_lookup_depth, enum prefetcher_type_t type, int aggr);
+void prefetcher_stream_buffers_create(struct prefetcher_t *pref, int max_num_streams, int max_num_slots);
 void prefetcher_free(struct prefetcher_t *pref);
 
 int prefetcher_update_tables(struct mod_stack_t *stack);
@@ -102,8 +185,10 @@ void prefetcher_cache_hit(struct mod_stack_t *stack, struct mod_t *mod);
 void prefetcher_stream_buffer_hit(struct mod_stack_t *stack);
 void prefetcher_stream_buffer_miss(struct mod_stack_t *stack);
 
-int prefetcher_uses_stream_buffers(enum prefetcher_type_t type);
-int prefetcher_uses_pc_indexed_ghb(enum prefetcher_type_t type);
-int prefetcher_uses_czone_indexed_ghb(enum prefetcher_type_t type);
+int prefetcher_uses_stream_buffers(struct prefetcher_t *pref);
+int prefetcher_uses_pc_indexed_ghb(struct prefetcher_t *pref);
+int prefetcher_uses_czone_indexed_ghb(struct prefetcher_t *pref);
+int prefetcher_uses_pollution_filters(struct prefetcher_t *pref);
 
+void prefetcher_set_default_adaptive_thresholds(struct prefetcher_t *pref);
 #endif

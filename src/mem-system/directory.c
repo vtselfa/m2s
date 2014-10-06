@@ -36,7 +36,7 @@
 	((X) * dir->ysize * dir->zsize + (Y) * dir->zsize + (Z))))
 
 
-struct dir_t *dir_create(char *name, int xsize, int ysize, int zsize, int num_pref_streams, int pref_aggressivity, int num_nodes)
+struct dir_t *dir_create(char *name, int xsize, int ysize, int zsize, int num_nodes)
 {
 	struct dir_t *dir;
 	struct dir_entry_t *dir_entry;
@@ -57,13 +57,10 @@ struct dir_t *dir_create(char *name, int xsize, int ysize, int zsize, int num_pr
 	dir = xcalloc(1, dir_size);
 	dir->name = xstrdup(name);
 	dir->dir_lock = xcalloc(xsize * ysize, sizeof(struct dir_lock_t));
-	dir->pref_dir_lock = xcalloc(num_pref_streams * pref_aggressivity, sizeof(struct dir_lock_t));
 	dir->num_nodes = num_nodes;
 	dir->xsize = xsize;
 	dir->ysize = ysize;
 	dir->zsize = zsize;
-	dir->ssize = num_pref_streams;
-	dir->asize = pref_aggressivity;
 
 	/* Reset all owners */
 	for (x = 0; x < xsize; x++)
@@ -255,7 +252,7 @@ int dir_pref_entry_lock(struct dir_t *dir, int pref_stream, int pref_slot, int e
 	/* If the entry is already locked, enqueue a new waiter and
 	 * return failure to lock. */
 	if (dir_lock->lock){
-		assert(dir_lock->stack_id != stack->id);
+		assert(dir_lock->locking_stack->id != stack->id);
 
 		/* Enqueue the stack to the end of the lock queue */
 		stack->dir_lock_next = NULL;
@@ -290,10 +287,14 @@ int dir_pref_entry_lock(struct dir_t *dir, int pref_stream, int pref_slot, int e
 	/* Trace */
 	mem_trace("mem.new_access_block cache=\"%s\" access=\"A-%lld\" pref_stream=%d pref_slot=%d\n", dir->name, stack->id, pref_stream, pref_slot);
 
+	/* Set the oldest stack with this id as the locking stack */
+	dir_lock->locking_stack = stack;
+	while (dir_lock->locking_stack->ret_stack)
+		dir_lock->locking_stack = dir_lock->locking_stack->ret_stack;
+
 	/* Lock entry */
 	dir_lock->lock = 1;
-	dir_lock->stack_id = stack->id;
-	dir_lock->prefetch_stack = stack->access_kind == mod_access_prefetch? 1 : 0;
+	return 1;
 	return 1;
 }
 
@@ -368,10 +369,13 @@ int dir_entry_lock(struct dir_t *dir, int x, int y, int event, struct mod_stack_
 	mem_trace("mem.new_access_block cache=\"%s\" access=\"A-%lld\" set=%d way=%d\n",
 		dir->name, stack->id, x, y);
 
+	/* Set the oldest stack with this id as the locking stack */
+	dir_lock->locking_stack = stack;
+	while (dir_lock->locking_stack->ret_stack)
+		dir_lock->locking_stack = dir_lock->locking_stack->ret_stack;
+
 	/* Lock entry */
 	dir_lock->lock = 1;
-	dir_lock->stack_id = stack->id;
-	dir_lock->prefetch_stack = stack->access_kind == mod_access_prefetch? 1 : 0;
 	return 1;
 }
 
@@ -412,9 +416,10 @@ void dir_entry_unlock(struct dir_t *dir, int x, int y)
 
 	/* Trace */
 	mem_trace("mem.end_access_block cache=\"%s\" access=\"A-%lld\" set=%d way=%d\n",
-		dir->name, dir_lock->stack_id, x, y);
+		dir->name, dir_lock->locking_stack->id, x, y);
 
 	/* Unlock entry */
+	dir_lock->locking_stack = NULL;
 	dir_lock->lock = 0;
 }
 
@@ -438,8 +443,18 @@ void dir_pref_entry_unlock(struct dir_t *dir, int pref_stream, int pref_slot)
 	mem_debug("    %d accesses waiting in stream %d slot %d resumed\n", num_accesses, pref_stream, pref_slot);
 
 	/* Trace */
-	mem_trace("mem.end_access_block cache=\"%s\" access=\"A-%lld\" pref_stream=%d pref_slot=%d\n", dir->name, dir_lock->stack_id, pref_stream, pref_slot);
+	mem_trace("mem.end_access_block cache=\"%s\" access=\"A-%lld\" pref_stream=%d pref_slot=%d\n", dir->name, dir_lock->locking_stack->id, pref_stream, pref_slot);
 
 	/* Unlock entry */
+	dir_lock->locking_stack = NULL;
 	dir_lock->lock = 0;
 }
+
+
+void dir_stream_buffers_create(struct dir_t *dir, int max_num_streams, int max_num_slots)
+{
+	dir->pref_dir_lock = xcalloc(max_num_streams * max_num_slots, sizeof(struct dir_lock_t));
+	dir->ssize = max_num_streams;
+	dir->asize = max_num_slots;
+}
+

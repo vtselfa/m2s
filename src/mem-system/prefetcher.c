@@ -42,7 +42,7 @@ int get_it_index_tag(struct prefetcher_t *pref, struct mod_stack_t *stack, int *
 int prefetcher_ghb_cs_find_stride(struct prefetcher_t *pref, int it_index);
 
 /* If a new type is added don't forget to update functions
- * prefetcher_uses_pc_indexed_ghb and pretcher_uses_pc_indexed_ghb */
+ * prefetcher_uses_XXX */
 struct str_map_t prefetcher_type_map =
 {
 	5, {
@@ -54,9 +54,29 @@ struct str_map_t prefetcher_type_map =
 	}
 };
 
+struct str_map_t adapt_pref_policy_map =
+{
+	5, {
+		{ "None", adapt_pref_policy_none },
+		{ "ADP", adapt_pref_policy_adp },
+		{ "FDP", adapt_pref_policy_fdp },
+		{ "HPAC", adapt_pref_policy_hpac },
+		{ "MBP", adapt_pref_policy_mbp },
+	}
+};
+
+struct str_map_t interval_kind_map =
+{
+	3, {
+		{ "cycles", interval_kind_cycles },
+		{ "instructions", interval_kind_instructions },
+		{ "evictions", interval_kind_evictions },
+	}
+};
+
 
 struct prefetcher_t *prefetcher_create(int prefetcher_ghb_size, int prefetcher_it_size,
-				       int prefetcher_lookup_depth, enum prefetcher_type_t type)
+				       int prefetcher_lookup_depth, enum prefetcher_type_t type, int aggr)
 {
 	struct prefetcher_t *pref;
 
@@ -64,7 +84,9 @@ struct prefetcher_t *prefetcher_create(int prefetcher_ghb_size, int prefetcher_i
 	/* The global history buffer and index table cannot be 0
 	 * if the prefetcher object is created. */
 	assert(prefetcher_ghb_size >= 1 && prefetcher_it_size >= 1);
+	assert(aggr > 0);
 	pref = xcalloc(1, sizeof(struct prefetcher_t));
+	pref->enabled = 1;
 	pref->ghb_size = prefetcher_ghb_size;
 	pref->it_size = prefetcher_it_size;
 	pref->lookup_depth = prefetcher_lookup_depth;
@@ -72,6 +94,7 @@ struct prefetcher_t *prefetcher_create(int prefetcher_ghb_size, int prefetcher_i
 	pref->ghb = xcalloc(prefetcher_ghb_size, sizeof(struct prefetcher_ghb_t));
 	pref->index_table = xcalloc(prefetcher_it_size, sizeof(struct prefetcher_it_t));
 	pref->ghb_head = -1;
+	pref->aggr = aggr;
 
 	for (int i = 0; i < prefetcher_it_size; i++)
 	{
@@ -97,7 +120,18 @@ void prefetcher_free(struct prefetcher_t *pref)
 	{
 		free(pref->ghb);
 		free(pref->index_table);
-		bloom_free(pref->pollution_filter);
+		if(pref->streams)
+		{
+			for (int stream = 0; stream < pref->max_num_streams; stream++)
+			{
+				struct stream_buffer_t *sb = &pref->streams[stream];
+				if (sb->pending_prefetches)
+					fprintf(stderr, "WARNING: %d pending prefetches in cache %s stream %d since %lld\n",
+						sb->pending_prefetches, pref->parent_cache->name, sb->stream, sb->time);
+				free(pref->streams[stream].blocks);
+			}
+			free(pref->streams);
+		}
 		free(pref);
 	}
 }
@@ -106,19 +140,17 @@ void prefetcher_free(struct prefetcher_t *pref)
 int get_it_index_tag(struct prefetcher_t *pref, struct mod_stack_t *stack,
 			     int *it_index, unsigned *tag)
 {
-	struct mod_t *mod = stack->target_mod ? stack->target_mod : stack->mod;
-	struct cache_t *cache = mod->cache;
 	*it_index = -1;
 
 	/* CZONE */
-	if (prefetcher_uses_czone_indexed_ghb(pref->type))
+	if (prefetcher_uses_czone_indexed_ghb(pref))
 	{
-		PTR_ASSIGN(it_index, (stack->addr >> cache->prefetch.czone_bits) % pref->it_size);
-		PTR_ASSIGN(tag, stack->addr & cache->prefetch.stream_tag_mask);
+		PTR_ASSIGN(it_index, (stack->addr >> pref->czone_bits) % pref->it_size);
+		PTR_ASSIGN(tag, stack->addr & pref->stream_tag_mask);
 	}
 
 	/* PC */
-	else if (prefetcher_uses_pc_indexed_ghb(pref->type))
+	else if (prefetcher_uses_pc_indexed_ghb(pref))
 	{
 		/* No PC information */
 		if (stack->client_info->prefetcher_eip == -1)
@@ -287,7 +319,7 @@ static void prefetcher_ghb_cs(struct mod_t *mod, struct mod_stack_t *stack, int 
 		case prefetcher_type_pc_cs:
 		case prefetcher_type_cz_cs:
 		{
-			for(int i = 1; i <= mod->cache->prefetch.aggr; i++)
+			for(int i = 1; i <= pref->aggr; i++)
 			{
 				unsigned int pref_addr = stack->addr + i * stride;
 				if (!valid_prefetch_addr(mod, pref_addr, stride))
@@ -539,9 +571,10 @@ void prefetcher_cache_hit(struct mod_stack_t *stack, struct mod_t *target_mod)
 }
 
 
-int prefetcher_uses_stream_buffers(enum prefetcher_type_t type)
+int prefetcher_uses_stream_buffers(struct prefetcher_t *pref)
 {
-	switch(type)
+	if (!pref) return 0;
+	switch(pref->type)
 	{
 		case prefetcher_type_cz_cs_sb:
 		case prefetcher_type_pc_cs_sb:
@@ -552,9 +585,10 @@ int prefetcher_uses_stream_buffers(enum prefetcher_type_t type)
 }
 
 
-int prefetcher_uses_pc_indexed_ghb(enum prefetcher_type_t type)
+int prefetcher_uses_pc_indexed_ghb(struct prefetcher_t *pref)
 {
-	switch(type)
+	if (!pref) return 0;
+	switch(pref->type)
 	{
 		case prefetcher_type_pc_cs:
 		case prefetcher_type_pc_dc:
@@ -566,9 +600,10 @@ int prefetcher_uses_pc_indexed_ghb(enum prefetcher_type_t type)
 }
 
 
-int prefetcher_uses_czone_indexed_ghb(enum prefetcher_type_t type)
+int prefetcher_uses_czone_indexed_ghb(struct prefetcher_t *pref)
 {
-	switch(type)
+	if (!pref) return 0;
+	switch(pref->type)
 	{
 		case prefetcher_type_cz_cs:
 		case prefetcher_type_cz_cs_sb:
@@ -595,7 +630,8 @@ int can_prefetch(struct mod_stack_t *stack)
 {
 	struct mod_t *mod = stack->target_mod ? stack->target_mod : stack->mod;
 
-	return mod->cache->pref_enabled && /* Prefetch is enabled */
+	return mod->cache->prefetcher && /* This module has a prefetcher */
+		mod->cache->prefetcher->enabled && /* Prefetch is enabled */
 		!stack->prefetch && /* A prefetch cannot trigger more prefetches */
 		!stack->background && /* Background stacks can't enqueue prefetches */
 		mod->kind == mod_kind_cache && /* Only enqueue prefetches in cache modules */
@@ -608,16 +644,17 @@ void prefetch_to_stream_buffer(
 		int stream, int num_prefetches)
 {
 	struct cache_t *cache = mod->cache;
+	struct prefetcher_t *pref = cache->prefetcher;
 	struct stream_buffer_t *sb;
 	unsigned int prev_address;
 	int max_num_slots;
 	int max_num_streams;
 	int i;
 
-	sb = &cache->prefetch.streams[stream];
+	sb = &pref->streams[stream];
 
-	max_num_slots = cache->prefetch.max_num_slots;
-	max_num_streams = cache->prefetch.max_num_streams;
+	max_num_slots = pref->max_num_slots;
+	max_num_streams = pref->max_num_streams;
 
 	/* Assertions */
 	assert(sb->stride);
@@ -674,7 +711,7 @@ void prefetch_to_stream_buffer(
 		}
 
 		/* End of stream */
-		if (sb->stream_transcient_tag != (sb->next_address & cache->prefetch.stream_tag_mask))
+		if (sb->stream_transcient_tag != (sb->next_address & pref->stream_tag_mask))
 			break;
 	}
 }
@@ -683,6 +720,7 @@ void prefetch_to_stream_buffer(
 void stream_buffer_allocate_stream(struct mod_t *mod, struct mod_client_info_t *client_info, unsigned int miss_addr, int stride)
 {
 	struct cache_t *cache = mod->cache;
+	struct prefetcher_t *pref = cache->prefetcher;
 	struct stream_buffer_t *sb;
 	unsigned int stream_tag;
 	unsigned int base_addr;
@@ -691,13 +729,13 @@ void stream_buffer_allocate_stream(struct mod_t *mod, struct mod_client_info_t *
 	assert(stride);
 
 	base_addr = miss_addr + stride;
-	stream_tag = base_addr & cache->prefetch.stream_tag_mask;
+	stream_tag = base_addr & pref->stream_tag_mask;
 
 	/* If there is a stream with the same tag, replace it. If not, replace the last recently used one. */
 	stream = cache_find_stream(cache, stream_tag);
 	if (stream == -1) /* Stream tag not found */
 		stream = cache_select_stream(cache);
-	sb = &cache->prefetch.streams[stream];
+	sb = &pref->streams[stream];
 
 	/* Invalid prefetch address */
 	if (!valid_prefetch_addr(mod, base_addr, stride))
@@ -708,7 +746,7 @@ void stream_buffer_allocate_stream(struct mod_t *mod, struct mod_client_info_t *
 		return;
 
 	/* Locked blocks */
-	for (int slot = 0; slot < cache->prefetch.max_num_slots; slot++)
+	for (int slot = 0; slot < pref->max_num_slots; slot++)
 	{
 		struct dir_lock_t *dir_lock = dir_pref_lock_get(mod->dir, stream, slot);
 		if (dir_lock->lock)
@@ -719,7 +757,7 @@ void stream_buffer_allocate_stream(struct mod_t *mod, struct mod_client_info_t *
 	}
 
 	/* Invalidate all blocks in the stream */
-	for (int i = 0; i < cache->prefetch.max_num_slots; i++)
+	for (int i = 0; i < pref->max_num_slots; i++)
 	{
 		sb->blocks[i].tag = block_invalid_tag;
 		sb->blocks[i].transient_tag = block_invalid_tag;
@@ -734,24 +772,24 @@ void stream_buffer_allocate_stream(struct mod_t *mod, struct mod_client_info_t *
 	sb->stride = stride;
 	sb->stream_tag = block_invalid_tag;
 
-	prefetch_to_stream_buffer(mod, client_info, stream, cache->prefetch.aggr_ini);
+	prefetch_to_stream_buffer(mod, client_info, stream, pref->aggr_ini);
 }
 
 
 void stream_buffer_prefetch_in_stream(struct mod_t *mod, struct mod_client_info_t *client_info, int stream, int slot)
 {
-	struct cache_t *cache;
+	struct prefetcher_t *pref;
 	struct stream_buffer_t *sb;
 	unsigned int prev_address;
 	unsigned int mmu_page_tag;
 
-	cache = mod->cache;
+	pref = mod->cache->prefetcher;
 
 	/* Assure that the stream and the slot are correct */
-	assert(stream >= 0 && stream < cache->prefetch.max_num_streams);
-	assert(slot >= 0 && slot < cache->prefetch.max_num_slots);
+	assert(stream >= 0 && stream < pref->max_num_streams);
+	assert(slot >= 0 && slot < pref->max_num_slots);
 
-	sb = &cache->prefetch.streams[stream];
+	sb = &pref->streams[stream];
 	prev_address = sb->next_address - sb->stride;
 	mmu_page_tag = prev_address & ~mmu_page_mask;
 
@@ -766,14 +804,14 @@ void stream_buffer_prefetch_in_stream(struct mod_t *mod, struct mod_client_info_
 	assert(sb->stride < 0 || (prev_address + sb->stride) > prev_address); /* Overflow */
 
 	/* Allocate a new stream if next_address is not in the stream anymore */
-	if (sb->stream_transcient_tag != (sb->next_address & cache->prefetch.stream_tag_mask))
+	if (sb->stream_transcient_tag != (sb->next_address & pref->stream_tag_mask))
 	{
 		sb->dead = 1; /* Only do this the first time */
 		stream_buffer_allocate_stream(mod, client_info, sb->next_address - sb->stride, sb->stride);
 		return;
 	}
 
-	prefetch_to_stream_buffer(mod, client_info, stream, cache->prefetch.aggr);
+	prefetch_to_stream_buffer(mod, client_info, stream, pref->aggr);
 }
 
 
@@ -814,3 +852,89 @@ void prefetcher_stream_buffer_miss(struct mod_stack_t *stack)
 		stream_buffer_allocate_stream(mod, stack->client_info, stack->addr, stride);
 }
 
+
+void prefetcher_stream_buffers_create(struct prefetcher_t *pref, int max_num_streams, int max_num_slots)
+{
+	pref->max_num_slots = max_num_slots;
+	pref->max_num_streams = max_num_streams;
+
+	/* Create matrix of prefetched blocks */
+	pref->streams = xcalloc(max_num_streams, sizeof(struct stream_buffer_t));
+	for(int stream = 0; stream < max_num_streams; stream++)
+		pref->streams[stream].blocks = xcalloc(max_num_slots, sizeof(struct stream_block_t));
+
+	/* Initialize streams */
+	pref->stream_head = &pref->streams[0];
+	pref->stream_tail = &pref->streams[max_num_streams - 1];
+	for (int stream = 0; stream < max_num_streams; stream++)
+	{
+		struct stream_buffer_t *sb = &pref->streams[stream];
+		sb->stream = stream;
+		sb->stream_tag = -1; /* 0xFFFF...FFFF */
+		sb->stream_transcient_tag = -1; /* 0xFFFF...FFFF */
+		sb->stream_prev = stream ? &pref->streams[stream - 1] : NULL;
+		sb->stream_next = stream < max_num_streams - 1 ?
+			&pref->streams[stream + 1] : NULL;
+		for(int slot = 0; slot < max_num_slots; slot++)
+			sb->blocks[slot].slot = slot;
+	}
+}
+
+
+/* Adaptive prefetcher that uses bloom filters to estimate pollution */
+int prefetcher_uses_pollution_filters(struct prefetcher_t *pref)
+{
+	if (prefetcher_uses_stream_buffers(pref) || !pref->adapt_policy)
+		return 0;
+	switch(pref->adapt_policy)
+	{
+		case adapt_pref_policy_fdp:
+		case adapt_pref_policy_hpac:
+			return 1;
+		default:
+			return 0;
+	}
+}
+
+
+void prefetcher_set_default_adaptive_thresholds(struct prefetcher_t *pref)
+{
+	if (!pref) return;
+
+	switch (pref->adapt_policy)
+	{
+		case adapt_pref_policy_adp:
+			#define POLICY adp
+			pref->th.POLICY.bwno = 2.75;
+			pref->th.POLICY.cov = 0.3;
+			pref->th.POLICY.acc_very_low = 0.2;
+			pref->th.POLICY.acc_low = 0.4;
+			pref->th.POLICY.acc_high = 0.8;
+			pref->th.POLICY.misses = 1.15;
+			pref->th.POLICY.ipc = 0.9;
+			pref->th.POLICY.rob_stall = 0.6;
+			#undef POLICY
+			break;
+
+		case adapt_pref_policy_hpac:
+			#define POLICY hpac
+			pref->th.POLICY.acc = 0.60;
+			pref->th.POLICY.bwc = 50000;
+			pref->th.POLICY.bwno = 75000;
+			pref->th.POLICY.pollution = 90; /* NOTE: These fucking morons use here an absolute value while in FDP use a ratio */
+			#undef POLICY
+			/* No 'break' since HPAC needs FDP */
+
+		case adapt_pref_policy_fdp:
+			#define POLICY fdp
+			pref->th.POLICY.acc_low = 0.40;
+			pref->th.POLICY.acc_high = 0.75;
+			pref->th.POLICY.lateness = 0.01;
+			pref->th.POLICY.pollution = 0.005; /* NOTE: See HPAC thresholds */
+			#undef POLICY
+			break;
+
+		default:
+			break;
+	}
+}

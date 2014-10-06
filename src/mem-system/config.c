@@ -514,6 +514,155 @@ try_external_network:
 }
 
 
+static struct prefetcher_t* mem_config_read_prefetcher(struct config_t *config, char *section)
+{
+	char pref_name[MAX_STRING_SIZE];
+
+	char *type_str;
+	char *adapt_policy_str;
+	char *adapt_interval_kind_str;
+
+	enum prefetcher_type_t type;
+	struct prefetcher_t *pref;
+
+	int ghb_size;
+	int it_size;
+	int lookup_depth;
+	int aggr;
+
+	config_section_enforce(config, section);
+
+	/* Extract pref name */
+	str_token(pref_name, sizeof pref_name, section, 0, " ");
+
+	/* General parameters */
+	type_str = config_read_string(config, section, "Type", "cz_cs_sb");
+	ghb_size = config_read_int(config, section, "GHBSize", 256);
+	it_size = config_read_int(config, section, "ITSize", 64);
+	lookup_depth = config_read_int(config, section, "LookupDepth", 2);
+	aggr = config_read_int(config, section, "Aggressivity", 4); /* If an adaptive policy is used, this is the maximum aggressivity */
+
+	/* Creation */
+	type = str_map_string_case_err_msg(&prefetcher_type_map, type_str,
+			"%s: prefetcher %s: Invalid prefetcher type", mem_config_file_name, pref_name);
+	pref = prefetcher_create(ghb_size, it_size, lookup_depth, type, aggr);
+
+	/* CZone prefetchers */
+	pref->czone_bits = config_read_int(config, section, "CZoneBits", 13);
+	pref->czone_mask = ~(-1 << pref->czone_bits);
+
+	/* Streaming prefetchers */
+	pref->distance = config_read_int(config, section, "Distance", 16); /* Max prefetched blocks at any time in a given stream. If using stream buffers, max depth of the stream buffer. */
+	pref->max_num_streams = config_read_int(config, section, "Streams", 4);  /* Number of prefetch streams per cache. If using stream buffers, number of buffers. */
+	pref->max_num_slots = config_read_int(config, section, "Slots", pref->distance);
+	pref->stream_tag_bits = config_read_int(config, section, "StreamTagBits", sizeof(unsigned int) * 8 - pref->czone_bits);
+	pref->stream_tag_mask = -1 << (sizeof(pref->stream_tag_mask) * 8 - pref->stream_tag_bits);
+	prefetcher_stream_buffers_create(pref, pref->max_num_streams, pref->max_num_slots);
+
+	/* Adaptive prefetchers */
+	pref->aggr_ini = config_read_int(config, section, "InitialAggressivity", aggr);
+	adapt_policy_str = config_read_string(config, section, "AdaptPolicy", "none");
+	pref->adapt_policy = str_map_string_case_err_msg(&adapt_pref_policy_map, adapt_policy_str,
+			"%s: cache %s: Invalid adaptative prefetch policy", mem_config_file_name, pref_name);
+	pref->adapt_interval = config_read_llint(config, section, "AdaptInterval", 50000);
+	adapt_interval_kind_str = config_read_string(config, section, "AdaptIntervalKind", "cycles");
+	pref->adapt_interval_kind = str_map_string_case_err_msg(&interval_kind_map, adapt_interval_kind_str,
+			"%s: cache %s: Invalid interval kind", mem_config_file_name, pref_name);
+
+	/* Bloom Filter */
+	pref->bloom_bits = config_read_int(config, section, "BloomBits", 0); /* If 0, compute it using the capacity and probability */
+	pref->bloom_capacity = config_read_int(config, section, "BloomCapacity", 4096); /* If 0, compute it using the size in bits and probability */
+	pref->bloom_false_pos_prob = config_read_double(config, section, "BloomFalsePosProb", 0.05); /* Max false positive probability */
+
+	/* Thresholds */
+	prefetcher_set_default_adaptive_thresholds(pref);
+	switch (pref->adapt_policy)
+	{
+		case adapt_pref_policy_adp:
+			#define POLICY adp
+			#define POLICY_UP "ADP"
+			pref->th.POLICY.acc_high = config_read_double(config, section, POLICY_UP ".AccHigh", pref->th.POLICY.acc_high);
+			pref->th.POLICY.acc_low = config_read_double(config, section, POLICY_UP ".AccLow", pref->th.POLICY.acc_low);
+			pref->th.POLICY.acc_very_low = config_read_double(config, section, POLICY_UP ".AccVeryLow", pref->th.POLICY.acc_very_low);
+			pref->th.POLICY.cov = config_read_double(config, section, POLICY_UP ".Cov", pref->th.POLICY.cov);
+			pref->th.POLICY.bwno = config_read_double(config, section, POLICY_UP ".BWNO", pref->th.POLICY.bwno);
+			pref->th.POLICY.rob_stall = config_read_double(config, section, POLICY_UP ".RobStall", pref->th.POLICY.rob_stall);
+			pref->th.POLICY.ipc = config_read_double(config, section, POLICY_UP ".IPC", pref->th.POLICY.ipc);
+			pref->th.POLICY.misses = config_read_double(config, section, POLICY_UP ".Misses", pref->th.POLICY.misses);
+			#undef POLICY
+			#undef POLICY_UP
+			break;
+
+		case adapt_pref_policy_hpac:
+			#define POLICY hpac
+			#define POLICY_UP "HPAC"
+			pref->th.POLICY.acc = config_read_double(config, section, POLICY_UP ".Acc", pref->th.POLICY.acc);
+			pref->th.POLICY.bwno = config_read_double(config, section, POLICY_UP ".BWNO", pref->th.POLICY.bwno);
+			pref->th.POLICY.bwc = config_read_double(config, section, POLICY_UP ".BWC", pref->th.POLICY.bwc);
+			pref->th.POLICY.pollution = config_read_double(config, section, POLICY_UP ".Pollution", pref->th.POLICY.pollution);
+			#undef POLICY
+			#undef POLICY_UP
+			/* No 'break' since HPAC needs FDP */
+
+		case adapt_pref_policy_fdp:
+			#define POLICY fdp
+			#define POLICY_UP "FDP"
+			pref->th.POLICY.acc_high = config_read_double(config, section, POLICY_UP ".AccHigh", pref->th.POLICY.acc_high);
+			pref->th.POLICY.acc_low = config_read_double(config, section, POLICY_UP ".AccLow", pref->th.POLICY.acc_low);
+			pref->th.POLICY.lateness = config_read_double(config, section, POLICY_UP ".Lateness", pref->th.POLICY.lateness);
+			pref->th.POLICY.pollution = config_read_double(config, section, POLICY_UP ".Pollution", pref->th.POLICY.pollution);
+			#undef POLICY
+			#undef POLICY_UP
+			break;
+
+		default:
+			break;
+	}
+
+	/* Check */
+	if (ghb_size < 1 || it_size < 1 || lookup_depth < 2 || lookup_depth > PREFETCHER_LOOKUP_DEPTH_MAX)
+		fatal("%s: cache %s: invalid prefetcher configuration.\n%s", mem_config_file_name, pref_name, mem_err_config_note);
+
+	if (aggr < 1)
+		fatal("%s: cache %s: invalid value for variable 'PrefetcherAggressivity'.\n%s",
+				mem_config_file_name, pref_name, mem_err_config_note);
+
+	if (pref->czone_bits < 1 || pref->czone_bits > 32)
+		fatal("%s: cache %s: invalid value for variable 'CZoneBits'.\n%s",
+				mem_config_file_name, pref_name, mem_err_config_note);
+
+	if (pref->stream_tag_bits < 1 || pref->stream_tag_bits > 32)
+		fatal("%s: cache %s: invalid value for variable 'StreamTagBits'.\n%s",
+				mem_config_file_name, pref_name, mem_err_config_note);
+
+	if (pref->max_num_streams < 1)
+		fatal("%s: cache %s: invalid value for variable 'Streams'.\n%s",
+				mem_config_file_name, pref_name, mem_err_config_note);
+
+	if (pref->distance < 1 && pref->distance <= pref->max_num_slots)
+		fatal("%s: cache %s: invalid value for variable 'Distance'.\n%s",
+				mem_config_file_name, pref_name, mem_err_config_note);
+
+	if (pref->aggr_ini < 1)
+		fatal("%s: cache %s: invalid value for variable 'InitialAggressivity'.\n%s",
+				mem_config_file_name, pref_name, mem_err_config_note);
+
+	if (pref->bloom_bits < 0)
+		fatal("%s: cache %s: invalid value for variable 'BloomBits'.\n%s",
+				mem_config_file_name, pref_name, mem_err_config_note);
+
+	if (pref->bloom_capacity < 0)
+		fatal("%s: cache %s: invalid value for variable 'BloomCapacity'.\n%s",
+				mem_config_file_name, pref_name, mem_err_config_note);
+
+	if (pref->bloom_false_pos_prob <= 0 || pref->bloom_false_pos_prob > 1)
+		fatal("%s: cache %s: invalid value for variable 'BloomBits'.\n%s",
+				mem_config_file_name, pref_name, mem_err_config_note);
+
+	return pref;
+}
+
+
 static struct mod_t *mem_config_read_cache(struct config_t *config,
 	char *section)
 {
@@ -532,41 +681,14 @@ static struct mod_t *mem_config_read_cache(struct config_t *config,
 	int mshr_size;
 	int num_ports;
 
-	int enable_prefetcher;
-	char *prefetcher_type_str;
-	enum prefetcher_type_t prefetcher_type;
-
-	/* Global History Buffer prefetcher */
-	int prefetcher_ghb_size;
-	int prefetcher_it_size;
-	int prefetcher_lookup_depth;
-
-	/* Czone Streams prefetcher */
-	int prefetcher_num_streams; /* Number of prefetch streams per cache */
-	int prefetcher_aggr; /* Aggressivity of the prefetcher */
-	int prefetcher_aggr_ini;
-	int prefetcher_distance; /* Max prefetched blocks at any time. If using stream buffers, max depth of the stream buffer. */
-	int prefetcher_czone_bits;
-	int prefetcher_stream_tag_bits;
-
-	/* Adaptative prefetch */
-	char *prefetcher_adp_policy_str;
-	enum adapt_pref_policy_t prefetcher_adp_policy = adapt_pref_policy_none;
-	char *prefetcher_adp_interval_kind_str;
-	enum interval_kind_t prefetcher_adp_interval_kind;
-	long long prefetcher_adp_interval;
-
-	/* Pollution filter */
-	int pol_filter_bits;
-	int pol_filter_capacity;
-	double pol_filter_false_pos_prob;
-
 	char *net_name;
 	char *net_node_name;
 
 	struct mod_t *mod;
 	struct net_t *net;
 	struct net_node_t *net_node;
+
+	char *prefetcher_str;
 
 	/* Cache parameters */
 	snprintf(buf, sizeof buf, "CacheGeometry %s",
@@ -588,40 +710,6 @@ static struct mod_t *mem_config_read_cache(struct config_t *config,
 	policy_str = config_read_string(config, buf, "Policy", "LRU");
 	mshr_size = config_read_int(config, buf, "MSHR", 16);
 	num_ports = config_read_int(config, buf, "Ports", 2);
-	enable_prefetcher = config_read_bool(config, buf,
-		"EnablePrefetcher", 0);
-	prefetcher_type_str = config_read_string(config, buf,
-		"PrefetcherType", "cz_cs_sb");
-	prefetcher_ghb_size = config_read_int(config, buf,
-		"PrefetcherGHBSize", 256);
-	prefetcher_it_size = config_read_int(config, buf,
-		"PrefetcherITSize", 64);
-	prefetcher_lookup_depth = config_read_int(config, buf,
-		"PrefetcherLookupDepth", 2);
-	prefetcher_num_streams = config_read_int(config, buf,
-		"PrefetcherStreams", 4);
-	prefetcher_aggr = config_read_int(config, buf,
-		"PrefetcherAggressivity", 4);
-	prefetcher_aggr_ini = config_read_int(config, buf,
-		"PrefetcherInitialAggressivity", 4);
-	prefetcher_distance = config_read_int(config, buf,
-		"PrefetcherDistance", 16);
-	prefetcher_czone_bits = config_read_int(config, buf,
-		"PrefetcherCZoneBits", 13);
-	prefetcher_stream_tag_bits = config_read_int(config, buf,
-		"PrefetcherStreamTagBits", sizeof(int) * 8 - prefetcher_czone_bits);
-
-	prefetcher_adp_policy_str = config_read_string(config, buf,
-		"AdaptivePrefPolicy", "none");
-	prefetcher_adp_interval = config_read_llint(config, buf,
-		"AdaptivePrefInterval", 50000);
-	prefetcher_adp_interval_kind_str = config_read_string(config, buf,
-		"AdaptivePrefIntervalKind", "cycles");
-
-	/* Pollution filter */
-	pol_filter_bits = config_read_int(config, buf, "PollFilterBits", 0);
-	pol_filter_capacity = config_read_int(config, buf, "PollFilterCapacity", 1024);
-	pol_filter_false_pos_prob = config_read_double(config, buf, "PollFilterMaxFalsePosProb", 0.05); /* Max false positive probability */
 
 	/* Checks */
 	policy = str_map_string_case(&cache_policy_map, policy_str);
@@ -655,50 +743,6 @@ static struct mod_t *mem_config_read_cache(struct config_t *config,
 		fatal("%s: cache %s: invalid value for variable 'Ports'.\n%s",
 			mem_config_file_name, mod_name, mem_err_config_note);
 
-	if (enable_prefetcher)
-	{
-		prefetcher_type = str_map_string_case_err_msg(&prefetcher_type_map, prefetcher_type_str,
-			"%s: cache %s: Invalid prefetcher type", mem_config_file_name, mod_name);
-
-		/* Prefetchers with Stream Buffers */
-		if (prefetcher_uses_stream_buffers(prefetcher_type))
-		{
-			if (prefetcher_num_streams < 1)
-				fatal("%s: cache %s: invalid value for variable 'PrefetcherStreams'.\n%s",
-					mem_config_file_name, mod_name, mem_err_config_note);
-
-			if (prefetcher_aggr < 1)
-				fatal("%s: cache %s: invalid value for variable 'PrefetcherAggressivity'.\n%s",
-					mem_config_file_name, mod_name, mem_err_config_note);
-
-			if (prefetcher_aggr_ini < 1)
-				fatal("%s: cache %s: invalid value for variable 'PrefetcherInitialAggressivity'.\n%s",
-					mem_config_file_name, mod_name, mem_err_config_note);
-
-			if (prefetcher_distance < 1)
-				fatal("%s: cache %s: invalid value for variable 'PrefetcherDistance'.\n%s",
-					mem_config_file_name, mod_name, mem_err_config_note);
-		}
-
-		/* GHB */
-		if (prefetcher_ghb_size < 1 ||
-				prefetcher_it_size < 1 ||
-				prefetcher_lookup_depth < 2 ||
-				prefetcher_lookup_depth > PREFETCHER_LOOKUP_DEPTH_MAX)
-			fatal("%s: cache %s: invalid prefetcher configuration.\n%s", mem_config_file_name, mod_name, mem_err_config_note);
-
-		/* Apdaptative prefetch policy */
-		prefetcher_adp_policy = str_map_string_case_err_msg(&adapt_pref_policy_map, prefetcher_adp_policy_str,
-				"%s: cache %s: Invalid adaptative prefetch policy", mem_config_file_name, mod_name);
-
-		if (prefetcher_adp_policy)
-		{
-			/* Interval kind (instructions or cycles) */
-			prefetcher_adp_interval_kind = str_map_string_case_err_msg(&interval_kind_map, prefetcher_adp_interval_kind_str,
-					"%s: cache %s: Invalid interval kind", mem_config_file_name, mod_name);
-		}
-	}
-
 	/* Create module */
 	mod = mod_create(mod_name, mod_kind_cache, num_ports,
 		block_size, latency);
@@ -729,41 +773,15 @@ static struct mod_t *mem_config_read_cache(struct config_t *config,
 	mod->low_net_node = net_node;
 
 	/* Create cache */
-	mod->cache = cache_create(mod->name, num_sets, prefetcher_num_streams, prefetcher_distance, block_size, assoc,
-		policy);
+	mod->cache = cache_create(mod->name, num_sets, block_size, assoc, policy);
 
-	/* Fill in prefetcher parameters */
-	mod->cache->pref_enabled = enable_prefetcher;
-	if (enable_prefetcher)
+	/* Create prefetcher */
+	prefetcher_str = config_read_string(config, buf, "Prefetcher", "");
+	if (strlen(prefetcher_str))
 	{
-		mod->cache->prefetch.type = prefetcher_type;
-		mod->cache->prefetch.aggr = prefetcher_aggr;
-		mod->cache->prefetch.aggr_ini = prefetcher_aggr_ini;
-		mod->cache->prefetch.adapt_policy = prefetcher_adp_policy;
-		mod->cache->prefetch.adapt_interval = prefetcher_adp_interval;
-		mod->cache->prefetch.adapt_interval_kind = prefetcher_adp_interval_kind;
-		mod->cache->prefetch.czone_bits = prefetcher_czone_bits;
-		mod->cache->prefetch.czone_mask = ~(-1 << prefetcher_czone_bits);
-		mod->cache->prefetch.stream_tag_bits = prefetcher_stream_tag_bits;
-		mod->cache->prefetch.stream_tag_mask = -1 << (sizeof(mod->cache->prefetch.stream_tag_mask) * 8 - prefetcher_stream_tag_bits);
-
-		mod->cache->prefetch.thresholds.bwno = config_read_double(config, buf, "BWNOThreshold", 2.75);
-		mod->cache->prefetch.thresholds.pseudocoverage = config_read_double(config, buf, "PseudocoverageThreshold", 0.3);
-
-		mod->cache->prefetch.thresholds.accuracy_very_low = config_read_double(config, buf, "AccuracyVeryLowThreshold", 0.2);
-		mod->cache->prefetch.thresholds.accuracy_low = config_read_double(config, buf, "AccuracyLowThreshold", 0.4);
-		mod->cache->prefetch.thresholds.accuracy_high = config_read_double(config, buf, "AccuracyHighThreshold", 0.8);
-
-		mod->cache->prefetch.thresholds.misses = config_read_double(config, buf, "MissesThreshold", 1.15);
-		mod->cache->prefetch.thresholds.ipc = config_read_double(config, buf, "IPCThreshold", 0.9);
-		mod->cache->prefetch.thresholds.ratio_cycles_stalled = config_read_double(config, buf, "RatioCyclesStalledThreshold", 0.6);
-
-		mod->cache->prefetcher = prefetcher_create(prefetcher_ghb_size,
-				prefetcher_it_size, prefetcher_lookup_depth, prefetcher_type);
-
-		/* Pollution filter */
-		if (!prefetcher_uses_stream_buffers(prefetcher_type))
-			mod->cache->prefetcher->pollution_filter = bloom_create(pol_filter_bits, pol_filter_capacity, pol_filter_false_pos_prob);
+		snprintf(buf, sizeof buf, " Prefetcher %s ", prefetcher_str);
+		mod->cache->prefetcher = mem_config_read_prefetcher(config, buf);
+		mod->cache->prefetcher->parent_cache = mod->cache;
 	}
 
 	/* Return */
@@ -839,7 +857,7 @@ static struct mod_t *mem_config_read_main_memory(struct config_t *config,
 	mod->high_net_node = net_node;
 
 	/* Create cache and directory */
-	mod->cache = cache_create(mod->name, dir_size / dir_assoc, 0, 0, block_size,
+	mod->cache = cache_create(mod->name, dir_size / dir_assoc, block_size,
 			dir_assoc, cache_policy_lru);
 
 	/* Connect to specified main mem system, if any */
@@ -1082,14 +1100,11 @@ static void mem_config_read_modules(struct config_t *config)
 		if (!strcasecmp(mod_type, "Cache"))
 			mod = mem_config_read_cache(config, section);
 		else if (!strcasecmp(mod_type, "MainMemory"))
-		{
-
 			mod = mem_config_read_main_memory(config, section);
-
-		}else
+		else
 			fatal("%s: %s: invalid or missing value for 'Type'.\n%s",
-				mem_config_file_name, mod_name,
-				mem_err_config_note);
+					mem_config_file_name, mod_name,
+					mem_err_config_note);
 
 		/* Read module address range */
 		mem_config_read_module_address_range(config, mod, section);
@@ -1097,7 +1112,6 @@ static void mem_config_read_modules(struct config_t *config)
 		/* Add module */
 		list_add(mem_system->mod_list, mod);
 		mem_debug("\t%s\n", mod_name);
-
 	}
 
 	/* Debug */
@@ -1114,7 +1128,6 @@ static void mem_config_read_modules(struct config_t *config)
 		assert(config_section_exists(config, buf));
 		config_write_ptr(config, buf, "ptr", mod);
 	}
-
 }
 
 
@@ -1498,6 +1511,7 @@ static void mem_config_calculate_sub_block_sizes(void)
 {
 	struct mod_t *mod;
 	struct mod_t *high_mod;
+	struct prefetcher_t *pref;
 
 	int num_nodes;
 	int i;
@@ -1507,6 +1521,7 @@ static void mem_config_calculate_sub_block_sizes(void)
 	{
 		/* Get module */
 		mod = list_get(mem_system->mod_list, i);
+		pref = mod->cache->prefetcher;
 
 		/* Calculate sub-block size */
 		mod->sub_block_size = mod->block_size;
@@ -1525,8 +1540,9 @@ static void mem_config_calculate_sub_block_sizes(void)
 
 		/* Create directory */
 		mod->num_sub_blocks = mod->block_size / mod->sub_block_size;
-		mod->dir = dir_create(mod->name, mod->dir_num_sets, mod->dir_assoc,
-			mod->num_sub_blocks, mod->cache->prefetch.max_num_streams, mod->cache->prefetch.max_num_slots, num_nodes);
+		mod->dir = dir_create(mod->name, mod->dir_num_sets, mod->dir_assoc, mod->num_sub_blocks, num_nodes);
+		if (prefetcher_uses_stream_buffers(pref))
+			dir_stream_buffers_create(mod->dir, pref->max_num_streams, pref->max_num_slots);
 		mem_debug("\t%s - %dx%dx%d (%dx%dx%d effective) - %d entries, %d sub-blocks\n",
 			mod->name, mod->dir_num_sets, mod->dir_assoc, num_nodes,
 			mod->dir_num_sets, mod->dir_assoc, linked_list_count(mod->high_mod_list),

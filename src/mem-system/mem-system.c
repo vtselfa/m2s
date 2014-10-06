@@ -39,6 +39,7 @@
 #include "mod-stack.h"
 #include "module.h"
 #include "nmoesi-protocol.h"
+#include "prefetcher.h"
 
 
 /*
@@ -376,7 +377,7 @@ void mem_system_init(void)
 			continue;
 
 		/* Shedule adaptative prefetch */
-		if (mod->cache->prefetch.adapt_policy)
+		if (mod->cache->prefetcher && mod->cache->prefetcher->adapt_policy)
 			mod_adapt_pref_schedule(mod);
 	}
 

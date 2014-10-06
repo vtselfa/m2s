@@ -34,20 +34,18 @@ extern int max_mod_level;
 struct mod_report_stack_t
 {
 	struct mod_t *mod;
-	struct line_writer_t *line_writer;
-	long long last_cycle;
-	long long uinst_count;
+	long long completed_prefetches;
+	long long useful_prefetches;
+	long long late_prefetches;
+	long long hits;
+	long long stream_hits;
+	long long misses;
 	long long delayed_hits;
 	long long delayed_hit_cycles;
-	long long useful_prefetches;
-	long long completed_prefetches;
-	long long no_retry_accesses;
-	long long no_retry_hits;
-	long long no_retry_stream_hits;
-	long long effective_useful_prefetches;
-	long long misses_int;
-	long long strides_detected;
-	long long last_cycles_stalled;
+
+	struct hash_table_gen_t *pref_dem_pollution_filter;
+	long long pref_dem_pollution_int; /* Prefetches evict blocks that are later requested */
+
 	FILE *report_file;
 };
 
@@ -109,6 +107,8 @@ struct mod_client_info_t
 	/* This field is for use by the prefetcher. It is set
 	 * to the PC of the instruction accessing the module */
 	unsigned int prefetcher_eip;
+
+	unsigned int late_prefetch : 1; /* Flag that marks this access as a late prefetch */
 };
 
 /* Type of address range */
@@ -122,20 +122,26 @@ enum mod_range_kind_t
 struct mod_adapt_pref_stack_t
 {
 	struct mod_t *mod;
+	struct bloom_t *pref_dem_pollution_filter; /* Evictions of blocks caused by prefetch requests */
+
+	long long last_cycle;
 	long long last_uinsts;
 	long long last_evictions;
-	long long last_cycle;
 	long long last_useful_prefetches;
 	long long last_completed_prefetches;
-	long long last_no_retry_accesses;
-	long long last_no_retry_hits;
 	long long last_cycles_stalled;
+	long long last_misses;
+	long long last_late_prefetches;
+
 	long long last_misses_int;
-	long long last_strides_detected;
-	long long last_delayed_hits;
-	long long last_cycle_pref_disabled;
-	double last_ipc_int;
+
+	long long pref_dem_pollution_int;
+
 	long long backoff;
+
+	double last_ipc_int;
+
+	int last_action;
 };
 
 #define MOD_ACCESS_HASH_TABLE_SIZE  17
@@ -274,9 +280,16 @@ struct mod_t
 	struct mod_report_stack_t *report_stack;
 
 	/* Statistics */
-
-	long long accesses;
+	/* Vicent's Seal of Approval */
 	long long hits;
+	long long misses;
+	long long retries;
+	long long late_prefetches;
+	long long completed_prefetches;
+	long long useful_prefetches;
+
+	/* Stats not approved */
+	long long accesses;
 
 	long long reads;
 	long long effective_reads;
@@ -316,14 +329,12 @@ struct mod_t
 
 	/* Prefetch */
 	long long programmed_prefetches;
-	long long completed_prefetches;
 	long long canceled_prefetches;
 	long long canceled_prefetches_end_stream;
 	long long canceled_prefetches_coalesce;
 	long long canceled_prefetches_cache_hit;
 	long long canceled_prefetches_stream_hit;
 	long long canceled_prefetches_retry;
-	long long useful_prefetches;
 	long long effective_useful_prefetches; /* Useful prefetches with less delay hit cicles than 1/3 of the delay of accesing MM */
 	long long pollution;
 

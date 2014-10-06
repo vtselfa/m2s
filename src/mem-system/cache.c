@@ -33,6 +33,7 @@
  * Public Variables
  */
 
+
 struct str_map_t cache_policy_map =
 {
 	3, {
@@ -54,33 +55,11 @@ struct str_map_t cache_block_state_map =
 	}
 };
 
-struct str_map_t adapt_pref_policy_map =
-{
-	5, {
-		{ "None", adapt_pref_policy_none },
-		{ "ADP", adapt_pref_policy_adp },
-		{ "FDP", adapt_pref_policy_fdp },
-		{ "FDP_GBWC", adapt_pref_policy_fdp_gbwc },
-		{ "ADP_GBWC", adapt_pref_policy_adp_gbwc },
-	}
-};
-
-struct str_map_t interval_kind_map =
-{
-	3, {
-		{ "cycles", interval_kind_cycles },
-		{ "instructions", interval_kind_instructions },
-		{ "evictions", interval_kind_evictions },
-	}
-};
-
-
-
-
 
 /*
  * Private Functions
  */
+
 
 enum cache_waylist_enum
 {
@@ -139,15 +118,12 @@ static void cache_update_waylist(struct cache_set_t *set,
 }
 
 
-
-
-
 /*
  * Public Functions
  */
 
 
-struct cache_t *cache_create(char *name, unsigned int num_sets, int num_streams, int num_slots, unsigned int block_size,
+struct cache_t *cache_create(char *name, unsigned int num_sets, unsigned int block_size,
 	unsigned int assoc, enum cache_policy_t policy)
 {
 	struct cache_t *cache;
@@ -161,8 +137,6 @@ struct cache_t *cache_create(char *name, unsigned int num_sets, int num_streams,
 	cache->block_size = block_size;
 	cache->assoc = assoc;
 	cache->policy = policy;
-	cache->prefetch.max_num_streams = num_streams;
-	cache->prefetch.max_num_slots = num_slots;
 
 	/* Derived fields */
 	assert(!(num_sets & (num_sets - 1)));
@@ -170,27 +144,6 @@ struct cache_t *cache_create(char *name, unsigned int num_sets, int num_streams,
 	assert(!(assoc & (assoc - 1)));
 	cache->log_block_size = log_base2(block_size);
 	cache->block_mask = block_size - 1;
-
-	/* Create matrix of prefetched blocks */
-	cache->prefetch.streams = xcalloc(num_streams, sizeof(struct stream_buffer_t));
-	for(int stream = 0; stream < num_streams; stream++)
-		cache->prefetch.streams[stream].blocks = xcalloc(num_slots, sizeof(struct stream_block_t));
-
-	/* Initialize streams */
-	cache->prefetch.stream_head = &cache->prefetch.streams[0];
-	cache->prefetch.stream_tail = &cache->prefetch.streams[num_streams - 1];
-	for (int stream = 0; stream < num_streams; stream++)
-	{
-		struct stream_buffer_t *sb = &cache->prefetch.streams[stream];
-		sb->stream = stream;
-		sb->stream_tag = -1; /* 0xFFFF...FFFF */
-		sb->stream_transcient_tag = -1; /* 0xFFFF...FFFF */
-		sb->stream_prev = stream ? &cache->prefetch.streams[stream-1] : NULL;
-		sb->stream_next = stream < num_streams - 1 ?
-			&cache->prefetch.streams[stream + 1] : NULL;
-		for(int slot = 0; slot < num_slots; slot++)
-			sb->blocks[slot].slot = slot;
-	}
 
 	/* Write buffer between streams and cache */
 	cache->wb.blocks = linked_list_create();
@@ -221,10 +174,11 @@ struct cache_t *cache_create(char *name, unsigned int num_sets, int num_streams,
 
 
 int cache_find_stream(struct cache_t *cache, unsigned int stream_tag){
+	struct prefetcher_t *pref = cache->prefetcher;
 	int stream;
 	/* Look both stream tag and transcient tag */
-	for (stream = 0; stream < cache->prefetch.max_num_streams; stream++){
-		if (cache->prefetch.streams[stream].stream_transcient_tag == stream_tag || cache->prefetch.streams[stream].stream_tag == stream_tag)
+	for (stream = 0; stream < pref->max_num_streams; stream++){
+		if (pref->streams[stream].stream_transcient_tag == stream_tag || pref->streams[stream].stream_tag == stream_tag)
 			return stream;
 	}
 	return -1;
@@ -234,8 +188,9 @@ int cache_find_stream(struct cache_t *cache, unsigned int stream_tag){
 int cache_detect_stride(struct cache_t *cache, int addr)
 {
 	struct linked_list_t *sd = cache->prefetch.stride_detector.camps;
+	struct prefetcher_t *pref = cache->prefetcher;
 	struct stride_detector_camp_t *camp;
-	int tag = addr & ~cache->prefetch.czone_mask;
+	int tag = addr & ~pref->czone_mask;
 	int stride;
 	const int table_max_size = 128;
 	LINKED_LIST_FOR_EACH(sd){
@@ -280,26 +235,13 @@ int cache_detect_stride(struct cache_t *cache, int addr)
 
 void cache_free(struct cache_t *cache)
 {
-	int set, stream;
 	struct linked_list_t *sd = cache->prefetch.stride_detector.camps;
 	struct stride_detector_camp_t *camp;
-	struct stream_buffer_t *sb;
+	int set;
 
 	for (set = 0; set < cache->num_sets; set++)
 		free(cache->sets[set].blocks);
 	free(cache->sets);
-
-	/* Destroy streams */
-	for (stream = 0; stream<cache->prefetch.max_num_streams; stream++)
-	{
-		sb = &cache->prefetch.streams[stream];
-		if (sb->pending_prefetches)
-			fprintf(stderr, "WARNING: %d pending prefetches in cache %s stream %d since %lld\n",
-				sb->pending_prefetches, cache->name, sb->stream, sb->time);
-		//assert(!cache->prefetch.streams[stream].pending_prefetches);
-		free(cache->prefetch.streams[stream].blocks);
-	}
-	free(cache->prefetch.streams);
 
 	/* Destroy write buffer */
 	assert(!linked_list_count(cache->wb.blocks));
@@ -384,10 +326,13 @@ void cache_set_block(struct cache_t *cache, int set, int way, int tag, int state
 /* Set tag and state of prefetched block */
 void cache_set_pref_block(struct cache_t *cache, int pref_stream, int pref_slot, int tag, int state)
 {
+	struct prefetcher_t *pref = cache->prefetcher;
+	struct stream_buffer_t *sb;
 
-	assert(pref_stream >= 0 && pref_stream < cache->prefetch.max_num_streams);
-	struct stream_buffer_t *sb = &cache->prefetch.streams[pref_stream];
-	assert(pref_slot >= 0 && pref_slot < cache->prefetch.max_num_slots);
+	assert(pref_stream >= 0 && pref_stream < pref->max_num_streams);
+	assert(pref_slot >= 0 && pref_slot < pref->max_num_slots);
+
+	sb = &pref->streams[pref_stream];
 
 	mem_trace("mem.set_block in prefetch buffer of \"%s\"\
 			pref_stream=%d tag=0x%x state=\"%s\"\n",
@@ -411,10 +356,11 @@ void cache_get_block(struct cache_t *cache, int set, int way, int *tag_ptr, int 
 struct stream_block_t * cache_get_pref_block(struct cache_t *cache,
 	int pref_stream, int pref_slot)
 {
+	struct prefetcher_t *pref = cache->prefetcher;
 	struct stream_buffer_t *sb;
-	assert(pref_stream >= 0 && pref_stream < cache->prefetch.max_num_streams);
-	assert(pref_slot >= 0 && pref_slot < cache->prefetch.max_num_slots);
-	sb = &cache->prefetch.streams[pref_stream];
+	assert(pref_stream >= 0 && pref_stream < pref->max_num_streams);
+	assert(pref_slot >= 0 && pref_slot < pref->max_num_slots);
+	sb = &pref->streams[pref_stream];
 	return &sb->blocks[pref_slot];
 }
 
@@ -422,10 +368,11 @@ struct stream_block_t * cache_get_pref_block(struct cache_t *cache,
 void cache_get_pref_block_data(struct cache_t *cache, int pref_stream,
 	int pref_slot, int *tag_ptr, int *state_ptr)
 {
+	struct prefetcher_t *pref = cache->prefetcher;
 	struct stream_buffer_t *sb;
-	assert(pref_stream >= 0 && pref_stream < cache->prefetch.max_num_streams);
-	assert(pref_slot >= 0 && pref_slot < cache->prefetch.max_num_slots);
-	sb = &cache->prefetch.streams[pref_stream];
+	assert(pref_stream >= 0 && pref_stream < pref->max_num_streams);
+	assert(pref_slot >= 0 && pref_slot < pref->max_num_slots);
+	sb = &pref->streams[pref_stream];
 	PTR_ASSIGN(tag_ptr, sb->blocks[pref_slot].tag);
 	PTR_ASSIGN(state_ptr, sb->blocks[pref_slot].state);
 }
@@ -454,25 +401,26 @@ void cache_access_block(struct cache_t *cache, int set, int way)
 
 void cache_access_stream(struct cache_t *cache, int stream)
 {
-	struct stream_buffer_t * accessed;
+	struct prefetcher_t *pref = cache->prefetcher;
+	struct stream_buffer_t *accessed;
 
 	/* Integrity tests */
-	assert(stream >= 0 && stream < cache->prefetch.max_num_streams);
+	assert(stream >= 0 && stream < pref->max_num_streams);
 	#ifndef NDEBUG
-		for(accessed = cache->prefetch.stream_head; accessed->stream_next; accessed = accessed->stream_next) {};
-		assert(accessed == cache->prefetch.stream_tail);
-		for(accessed = cache->prefetch.stream_tail; accessed->stream_prev; accessed = accessed->stream_prev) {};
+		for(accessed = pref->stream_head; accessed->stream_next; accessed = accessed->stream_next) {};
+		assert(accessed == pref->stream_tail);
+		for(accessed = pref->stream_tail; accessed->stream_prev; accessed = accessed->stream_prev) {};
 	#endif
-	assert(accessed == cache->prefetch.stream_head);
+	assert(accessed == pref->stream_head);
 
 	/* Return if only one stream */
-	if(cache->prefetch.max_num_streams < 2) return;
+	if(pref->max_num_streams < 2) return;
 
-	accessed = &cache->prefetch.streams[stream];
+	accessed = &pref->streams[stream];
 	/* Is tail */
 	if(!accessed->stream_next && accessed->stream_prev){
 		accessed->stream_prev->stream_next = NULL;
-		cache->prefetch.stream_tail = accessed->stream_prev;
+		pref->stream_tail = accessed->stream_prev;
 	/* Is in the middle */
 	} else if(accessed->stream_next && accessed->stream_prev) {
 		accessed->stream_prev->stream_next = accessed->stream_next;
@@ -484,16 +432,17 @@ void cache_access_stream(struct cache_t *cache, int stream)
 
 	/* Put first */
 	accessed->stream_prev = NULL;
-	accessed->stream_next = cache->prefetch.stream_head;
+	accessed->stream_next = pref->stream_head;
 	accessed->stream_next->stream_prev = accessed;
-	cache->prefetch.stream_head = accessed;
+	pref->stream_head = accessed;
 }
 
 
 /* Return LRU or empty stream buffer */
 int cache_select_stream(struct cache_t *cache)
 {
-	int s = cache->prefetch.stream_tail->stream;
+	struct prefetcher_t *pref = cache->prefetcher;
+	int s = pref->stream_tail->stream;
 
 	/* Update LRU */
 	cache_access_stream(cache, s);
