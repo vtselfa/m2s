@@ -276,7 +276,6 @@ struct mod_t
 	struct mod_adapt_pref_stack_t *adapt_pref_stack;
 
 	/* Reporting statistics at intervals */
-	int report_enabled;
 	struct mod_report_stack_t *report_stack;
 
 	/* Statistics */

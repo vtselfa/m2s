@@ -17,6 +17,7 @@
  */
 
 #include <assert.h>
+#include <math.h>
 
 #include <arch/x86/timing/cpu.h>
 #include <arch/x86/emu/context.h>
@@ -27,6 +28,7 @@
 #include <lib/util/bloom.h>
 #include <lib/util/debug.h>
 #include <lib/util/file.h>
+#include <lib/util/hash-table-gen.h>
 #include <lib/util/linked-list.h>
 #include <lib/util/list.h>
 #include <lib/util/line-writer.h>
@@ -127,7 +129,10 @@ void mod_free(struct mod_t *mod)
 
 	/* Interval report */
 	if(mod->report_stack)
+	{
+		hash_table_gen_free(mod->report_stack->pref_dem_pollution_filter);
 		file_close(mod->report_stack->report_file);
+	}
 	free(mod->report_stack);
 
 	free(mod);
@@ -891,6 +896,9 @@ void mod_interval_report_init(struct mod_t *mod)
 	/* Create new stack */
 	stack = xcalloc(1, sizeof(struct mod_report_stack_t));
 
+	/* To measure pollution */
+	stack->pref_dem_pollution_filter = hash_table_gen_create(256);
+
 	/* Interval reporting of stats */
 	ret = snprintf(interval_report_file_name, MAX_PATH_SIZE, "%s/%s.intrep.csv", mod_interval_reports_dir, mod->name);
 	if (ret < 0 || ret >= MAX_PATH_SIZE)
@@ -904,17 +912,18 @@ void mod_interval_report_init(struct mod_t *mod)
 
 	mod->report_stack = stack;
 
-	fprintf(stack->report_file, "%s", "esim-time");                                            /* Global simulation time */
-	fprintf(stack->report_file, ",%s-%s", mod->name, "pref-int");                              /* Prefetches executed in the interval */
-	fprintf(stack->report_file, ",%s-%s", mod->name, "pref-useful-int");                       /* Prefetches executed in the interval */
-	fprintf(stack->report_file, ",%s-%s", mod->name, "pref-acc-int");                          /* Prefetch acuracy for the interval */
-	fprintf(stack->report_file, ",%s-%s", mod->name, "pref-late-int");                         /* Late prefetches in the interval */
-	fprintf(stack->report_file, ",%s-%s", mod->name, "hits-int");                              /* Cache hits for the interval */
-	fprintf(stack->report_file, ",%s-%s", mod->name, "stream-hits-int");                       /* Hits in stream buffer for the interval */
-	fprintf(stack->report_file, ",%s-%s", mod->name, "misses-int");                            /* Cache misses for the interval */
-	fprintf(stack->report_file, ",%s-%s", mod->name, "pref-cov-int");                          /* Prefetch coverage for the interval */
-	fprintf(stack->report_file, ",%s-%s", mod->name, "delayed-hits-int");                      /* Hits on a block being brought by a prefetch */
-	fprintf(stack->report_file, ",%s-%s", mod->name, "delayed-hit-avg-delay-int");             /* Average cycles waiting for a block that is being brought by a prefetch */
+	fprintf(stack->report_file, "%s", "esim-time");                                   /* Global simulation time */
+	fprintf(stack->report_file, ",%s-%s", mod->name, "pref-int");                     /* Prefetches executed in the interval */
+	fprintf(stack->report_file, ",%s-%s", mod->name, "pref-useful-int");              /* Prefetches executed in the interval */
+	fprintf(stack->report_file, ",%s-%s", mod->name, "pref-acc-int");                 /* Prefetch acuracy for the interval */
+	fprintf(stack->report_file, ",%s-%s", mod->name, "pref-late-int");                /* Late prefetches in the interval */
+	fprintf(stack->report_file, ",%s-%s", mod->name, "hits-int");                     /* Cache hits for the interval */
+	fprintf(stack->report_file, ",%s-%s", mod->name, "stream-hits-int");              /* Hits in stream buffer for the interval */
+	fprintf(stack->report_file, ",%s-%s", mod->name, "misses-int");                   /* Cache misses for the interval */
+	fprintf(stack->report_file, ",%s-%s", mod->name, "pref-cov-int");                 /* Prefetch coverage for the interval */
+	fprintf(stack->report_file, ",%s-%s", mod->name, "delayed-hits-int");             /* Hits on a block being brought by a prefetch */
+	fprintf(stack->report_file, ",%s-%s", mod->name, "delayed-hit-avg-delay-int");    /* Average cycles waiting for a block that is being brought by a prefetch */
+	fprintf(stack->report_file, ",%s-%s", mod->name, "pref-pollution-int");           /* Ratio between prefetch-caused misses and total misses in the interval */
 	fprintf(stack->report_file, "\n");
 	fflush(stack->report_file);
 }
@@ -927,13 +936,13 @@ void mod_interval_report(struct mod_t *mod)
 	/* Prefetch accuracy */
 	long long completed_prefetches_int = mod->completed_prefetches - stack->completed_prefetches;
 	long long useful_prefetches_int = mod->useful_prefetches - stack->useful_prefetches;
-	double prefetch_accuracy_int = completed_prefetches_int ? (double) useful_prefetches_int / completed_prefetches_int : 0.0;
+	double prefetch_accuracy_int = completed_prefetches_int ? (double) useful_prefetches_int / completed_prefetches_int : NAN;
 	prefetch_accuracy_int = prefetch_accuracy_int > 1 ? 1 : prefetch_accuracy_int; /* May be slightly greather than 1 due bad timing with cycles */
 
 	/* Delayed hits */
 	long long delayed_hits_int = mod->delayed_hits - stack->delayed_hits;
 	long long delayed_hit_cycles_int = mod->delayed_hit_cycles - stack->delayed_hit_cycles;
-	double delayed_hit_avg_lost_cycles_int = delayed_hits_int ? (double) delayed_hit_cycles_int / delayed_hits_int : 0.0;
+	double delayed_hit_avg_lost_cycles_int = delayed_hits_int ? (double) delayed_hit_cycles_int / delayed_hits_int : NAN;
 
 	/* Cache hits */
 	long long hits_int = mod->hits - stack->hits;
@@ -949,7 +958,7 @@ void mod_interval_report(struct mod_t *mod)
 
 	/* Coverage */
 	double coverage_int = (misses_int + useful_prefetches_int) ?
-		(double) useful_prefetches_int / (misses_int + useful_prefetches_int) : 0.0;
+		(double) useful_prefetches_int / (misses_int + useful_prefetches_int) : NAN;
 
 	fprintf(stack->report_file, "%lld", esim_time);
 	fprintf(stack->report_file, ",%lld", completed_prefetches_int);
@@ -962,10 +971,11 @@ void mod_interval_report(struct mod_t *mod)
 	fprintf(stack->report_file, ",%.3f", coverage_int);
 	fprintf(stack->report_file, ",%lld", delayed_hits_int);
 	fprintf(stack->report_file, ",%.3f", delayed_hit_avg_lost_cycles_int);
+	fprintf(stack->report_file, ",%.3f", misses_int ? (double) stack->pref_dem_pollution_int / misses_int : NAN);
 	fprintf(stack->report_file, "\n");
 	fflush(stack->report_file);
 
-	/* Update counters */
+	/* Update stack */
 	stack->delayed_hits = mod->delayed_hits;
 	stack->delayed_hit_cycles = mod->delayed_hit_cycles;
 	stack->useful_prefetches = mod->useful_prefetches;
@@ -974,6 +984,9 @@ void mod_interval_report(struct mod_t *mod)
 	stack->stream_hits = mod->stream_hits;
 	stack->misses = mod->misses;
 	stack->late_prefetches = mod->late_prefetches;
+	stack->pref_dem_pollution_int = 0;
+
+	hash_table_gen_clear(stack->pref_dem_pollution_filter);
 }
 
 

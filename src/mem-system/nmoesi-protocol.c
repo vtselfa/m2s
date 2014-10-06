@@ -28,6 +28,7 @@
 #include <lib/mhandle/mhandle.h>
 #include <lib/util/bloom.h>
 #include <lib/util/debug.h>
+#include <lib/util/hash-table-gen.h>
 #include <lib/util/linked-list.h>
 #include <lib/util/list.h>
 #include <lib/util/misc.h>
@@ -2038,14 +2039,17 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 				ret->stream_retried = 0;
 			}
 
-			/* If this is an on demand request, search the block in the pollution filter to find out if it
+			/* If this is an on demand request, search the block in the pollution filters to find out if it
 			 * has been previously evicted by a prefetch request */
-			if (!stack->prefetch &&
-					mod->adapt_pref_stack &&
-					mod->adapt_pref_stack->pref_dem_pollution_filter &&
-					BLOOM_FIND(mod->adapt_pref_stack->pref_dem_pollution_filter, stack->tag))
+			if (!stack->prefetch)
 			{
-				mod->adapt_pref_stack->pref_dem_pollution_int++;
+				/* Adaptive prefetch */
+				if (prefetcher_uses_pollution_filters(pref) && BLOOM_FIND(mod->adapt_pref_stack->pref_dem_pollution_filter, stack->tag))
+					mod->adapt_pref_stack->pref_dem_pollution_int++;
+
+				/* Interval report */
+				if (hash_table_gen_get(mod->report_stack->pref_dem_pollution_filter, (void*) &stack->tag, sizeof(stack->tag)))
+					mod->report_stack->pref_dem_pollution_int++;
 			}
 
 			/* Cache entry is locked. Record the transient tag so that a subsequent lookup
@@ -2780,21 +2784,26 @@ void mod_handler_nmoesi_evict(int event, void *data)
 		/* Invalidate block if there was no error. */
 		if (!stack->err)
 		{
-			/* If a prefetch to cache evicts a block that was requested by the core,
-			 * add it to the bloom filter so pollution caused by the prefetcher can be estimated */
+			/* If a prefetch to cache evicts a block that was requested by the core
+			 * store the tag to estimate pollution */
 			if (stack->prefetch && /* It's a prefetch */
 					!prefetcher_uses_stream_buffers(mod->cache->prefetcher) && /* Prefetches go to cache */
-					mod->cache->prefetcher->adapt_policy && /* Adaptive policy used */
-					mod->adapt_pref_stack->pref_dem_pollution_filter && /* Adaptive policy uses a pollution filter */
 					!mod_get_prefetched_bit(mod, stack->src_tag)) /* Evicted block is not an unused prefetched block */
 			{
-				double false_pos_prob = BLOOM_ADD(mod->adapt_pref_stack->pref_dem_pollution_filter, stack->src_tag);
-				if (false_pos_prob)
-					warning("%lld Module %s pollution filter full, false positive probability is %f", esim_time, mod->name, false_pos_prob);
+				/* Adaptive prefetch */
+				if (prefetcher_uses_pollution_filters(mod->cache->prefetcher))
+				{
+					double false_pos_prob = BLOOM_ADD(mod->adapt_pref_stack->pref_dem_pollution_filter, stack->src_tag);
+					if (false_pos_prob)
+						warning("%lld Module %s pollution filter full, false positive probability is %f", esim_time, mod->name, false_pos_prob);
+				}
+
+				/* Interval reports */
+				hash_table_gen_insert(mod->report_stack->pref_dem_pollution_filter, (void*) &stack->src_tag, sizeof(stack->src_tag), (void*) 1);
 			}
 
 			cache_set_block(mod->cache, stack->src_set, stack->src_way,
-				0, cache_block_invalid);
+					0, cache_block_invalid);
 		}
 		assert(!dir_entry_group_shared_or_owned(mod->dir, stack->src_set, stack->src_way));
 		esim_schedule_event(EV_MOD_NMOESI_EVICT_FINISH, stack, 0);
