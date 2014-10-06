@@ -169,6 +169,7 @@ void bloom_free(struct bloom_t *bloom)
 
 void bloom_clear(struct bloom_t *bloom)
 {
+	if (!bloom) return;
 	memset(bloom->bitarray, 0, (bloom->size_in_bits + CHAR_BIT - 1) / CHAR_BIT);
 	bloom->num_elements = 0;
 }
