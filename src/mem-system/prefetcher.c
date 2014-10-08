@@ -884,7 +884,7 @@ void prefetcher_stream_buffers_create(struct prefetcher_t *pref, int max_num_str
 /* Adaptive prefetcher that uses bloom filters to estimate pollution */
 int prefetcher_uses_pollution_filters(struct prefetcher_t *pref)
 {
-	if (prefetcher_uses_stream_buffers(pref) || !pref->adapt_policy)
+	if (!pref || prefetcher_uses_stream_buffers(pref) || !pref->adapt_policy)
 		return 0;
 	switch(pref->adapt_policy)
 	{

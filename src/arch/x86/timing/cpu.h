@@ -149,6 +149,10 @@ struct x86_thread_report_stack_t
 	long long dispatch_stall_cycles_rob_mem;
 	long long dispatch_stall_cycles_rob_load;
 	long long num_committed_uinst;
+	long long *hits_per_level_int;
+	long long *stream_hits_per_level_int;
+	long long *misses_per_level_int;
+	long long *retries_per_level_int;
 	FILE *report_file;
 };
 

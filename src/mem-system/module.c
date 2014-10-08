@@ -124,14 +124,33 @@ void mod_free(struct mod_t *mod)
 
 	/* Adaptative prefetch */
 	if (mod->adapt_pref_stack)
-		bloom_free(mod->adapt_pref_stack->pref_dem_pollution_filter);
+		bloom_free(mod->adapt_pref_stack->pref_pollution_filter);
 	free(mod->adapt_pref_stack);
 
 	/* Interval report */
 	if(mod->report_stack)
 	{
-		hash_table_gen_free(mod->report_stack->pref_dem_pollution_filter);
-		file_close(mod->report_stack->report_file);
+		int core;
+		int thread;
+		struct mod_report_stack_t *stack = mod->report_stack;
+
+		hash_table_gen_free(stack->pref_pollution_filter);
+		X86_CORE_FOR_EACH X86_THREAD_FOR_EACH
+		{
+			int pos = core * x86_cpu_num_threads + thread;
+			if (mod->reachable_threads[pos])
+			{
+				hash_table_gen_free(stack->dem_pollution_filter_per_thread[pos]);
+				hash_table_gen_free(stack->pref_pollution_filter_per_thread[pos]);
+			}
+		}
+		free(stack->hits_per_thread_int);
+		free(stack->stream_hits_per_thread_int);
+		free(stack->misses_per_thread_int);
+		free(stack->retries_per_thread_int);
+		free(stack->dem_pollution_per_thread_int);
+		free(stack->pref_pollution_per_thread_int);
+		file_close(stack->report_file);
 	}
 	free(mod->report_stack);
 
@@ -891,13 +910,37 @@ void mod_interval_report_init(struct mod_t *mod)
 {
 	struct mod_report_stack_t *stack;
 	char interval_report_file_name[MAX_PATH_SIZE];
+	int thread;
+	int core;
 	int ret;
 
 	/* Create new stack */
 	stack = xcalloc(1, sizeof(struct mod_report_stack_t));
+	stack->hits_per_thread_int        = xcalloc(x86_cpu_num_cores * x86_cpu_num_threads, sizeof(long long));
+	stack->stream_hits_per_thread_int = xcalloc(x86_cpu_num_cores * x86_cpu_num_threads, sizeof(long long));
+	stack->misses_per_thread_int      = xcalloc(x86_cpu_num_cores * x86_cpu_num_threads, sizeof(long long));
+	stack->retries_per_thread_int     = xcalloc(x86_cpu_num_cores * x86_cpu_num_threads, sizeof(long long));
 
 	/* To measure pollution */
-	stack->pref_dem_pollution_filter = hash_table_gen_create(256);
+
+	/* General hash table */
+	stack->pref_pollution_filter = hash_table_gen_create(256);
+	/* A hash table per thread */
+	stack->pref_pollution_filter_per_thread = xcalloc(x86_cpu_num_cores * x86_cpu_num_threads, sizeof(struct hash_table_gen_t *));
+	stack->dem_pollution_filter_per_thread = xcalloc(x86_cpu_num_cores * x86_cpu_num_threads, sizeof(struct hash_table_gen_t *));
+	/* A counter per thread */
+	stack->dem_pollution_per_thread_int = xcalloc(x86_cpu_num_cores * x86_cpu_num_threads, sizeof(long long));
+	stack->pref_pollution_per_thread_int = xcalloc(x86_cpu_num_cores * x86_cpu_num_threads, sizeof(long long));
+
+	X86_CORE_FOR_EACH X86_THREAD_FOR_EACH
+	{
+		int pos = core * x86_cpu_num_threads + thread;
+		if (mod->reachable_threads[pos])
+		{
+			stack->dem_pollution_filter_per_thread[pos] = hash_table_gen_create(256);
+			stack->pref_pollution_filter_per_thread[pos] = hash_table_gen_create(256);
+		}
+	}
 
 	/* Interval reporting of stats */
 	ret = snprintf(interval_report_file_name, MAX_PATH_SIZE, "%s/%s.intrep.csv", mod_interval_reports_dir, mod->name);
@@ -924,6 +967,21 @@ void mod_interval_report_init(struct mod_t *mod)
 	fprintf(stack->report_file, ",%s-%s", mod->name, "delayed-hits-int");             /* Hits on a block being brought by a prefetch */
 	fprintf(stack->report_file, ",%s-%s", mod->name, "delayed-hit-avg-delay-int");    /* Average cycles waiting for a block that is being brought by a prefetch */
 	fprintf(stack->report_file, ",%s-%s", mod->name, "pref-pollution-int");           /* Ratio between prefetch-caused misses and total misses in the interval */
+	X86_CORE_FOR_EACH X86_THREAD_FOR_EACH                                             /* Thread - thread pollution */
+	{
+		int pos = core * x86_cpu_num_threads + thread;
+		if (mod->reachable_threads[pos])
+		{
+			fprintf(stack->report_file, ",%s-c%dt%d-%s", mod->name, core, thread, "hits-int");
+			fprintf(stack->report_file, ",%s-c%dt%d-%s", mod->name, core, thread, "stream-hits-int");
+			fprintf(stack->report_file, ",%s-c%dt%d-%s", mod->name, core, thread, "misses-int");
+			fprintf(stack->report_file, ",%s-c%dt%d-%s", mod->name, core, thread, "retries-int");
+			/* Demand pollution suffered by thread */
+			fprintf(stack->report_file, ",%s-c%dt%d-%s", mod->name, core, thread, "dem-pollution-int");
+			/* Prefetch pollution suffered by thread */
+			fprintf(stack->report_file, ",%s-c%dt%d-%s", mod->name, core, thread, "pref-pollution-int");
+		}
+	}
 	fprintf(stack->report_file, "\n");
 	fflush(stack->report_file);
 }
@@ -932,6 +990,9 @@ void mod_interval_report_init(struct mod_t *mod)
 void mod_interval_report(struct mod_t *mod)
 {
 	struct mod_report_stack_t *stack = mod->report_stack;
+
+	int core;
+	int thread;
 
 	/* Prefetch accuracy */
 	long long completed_prefetches_int = mod->completed_prefetches - stack->completed_prefetches;
@@ -971,7 +1032,22 @@ void mod_interval_report(struct mod_t *mod)
 	fprintf(stack->report_file, ",%.3f", coverage_int);
 	fprintf(stack->report_file, ",%lld", delayed_hits_int);
 	fprintf(stack->report_file, ",%.3f", delayed_hit_avg_lost_cycles_int);
-	fprintf(stack->report_file, ",%.3f", misses_int ? (double) stack->pref_dem_pollution_int / misses_int : NAN);
+	fprintf(stack->report_file, ",%.3f", misses_int ? (double) stack->pref_pollution_int / misses_int : NAN);
+	X86_CORE_FOR_EACH X86_THREAD_FOR_EACH /* Thread - thread pollution */
+	{
+		int pos = core * x86_cpu_num_threads + thread;
+		if (mod->reachable_threads[pos])
+		{
+			fprintf(stack->report_file, ",%lld", stack->hits_per_thread_int[pos]);
+			fprintf(stack->report_file, ",%lld", stack->stream_hits_per_thread_int[pos]);
+			fprintf(stack->report_file, ",%lld", stack->misses_per_thread_int[pos]);
+			fprintf(stack->report_file, ",%lld", stack->retries_per_thread_int[pos]);
+			/* Percentage of misses for this thread that have been caused by evictions caused by DEMAND requests of other threads */
+			fprintf(stack->report_file, ",%.3f", stack->misses_per_thread_int[pos] ? (double) stack->dem_pollution_per_thread_int[pos] / stack->misses_per_thread_int[pos] : NAN);
+			/* Percentage of misses for this thread that have been caused by evictions caused by PREFETCH requests of other threads */
+			fprintf(stack->report_file, ",%.3f", stack->misses_per_thread_int[pos] ? (double) stack->pref_pollution_per_thread_int[pos] / stack->misses_per_thread_int[pos] : NAN);
+		}
+	}
 	fprintf(stack->report_file, "\n");
 	fflush(stack->report_file);
 
@@ -984,9 +1060,22 @@ void mod_interval_report(struct mod_t *mod)
 	stack->stream_hits = mod->stream_hits;
 	stack->misses = mod->misses;
 	stack->late_prefetches = mod->late_prefetches;
-	stack->pref_dem_pollution_int = 0;
+	stack->pref_pollution_int = 0;
 
-	hash_table_gen_clear(stack->pref_dem_pollution_filter);
+	hash_table_gen_clear(stack->pref_pollution_filter);
+	X86_CORE_FOR_EACH X86_THREAD_FOR_EACH
+	{
+		int pos = core * x86_cpu_num_threads + thread;
+		if (mod->reachable_threads[pos])
+		{
+			stack->hits_per_thread_int[pos] = 0;
+			stack->stream_hits_per_thread_int[pos] = 0;
+			stack->misses_per_thread_int[pos] = 0;
+			stack->retries_per_thread_int[pos] = 0;
+			hash_table_gen_clear(stack->dem_pollution_filter_per_thread[pos]);
+			hash_table_gen_clear(stack->pref_pollution_filter_per_thread[pos]);
+		}
+	}
 }
 
 
@@ -1241,7 +1330,7 @@ void mod_adapt_pref_fdp(struct mod_t *mod)
 	lateness_int = useful_prefs_int ? (double) late_prefs_int / useful_prefs_int : 0.0;
 
 	/* Pollution */
-	pollution_int = misses_int ? (double) stack->pref_dem_pollution_int / misses_int : 0.0;
+	pollution_int = misses_int ? (double) stack->pref_pollution_int / misses_int : 0.0;
 
 	/* Decision variables */
 	acc_high = acc_int >= acc_high_th;
@@ -1317,8 +1406,8 @@ done:
 	stack->last_useful_prefetches = mod->useful_prefetches;
 	stack->last_misses = mod->misses;
 	stack->last_late_prefetches = mod->late_prefetches;
-	stack->pref_dem_pollution_int = 0;
-	bloom_clear(stack->pref_dem_pollution_filter);
+	stack->pref_pollution_int = 0;
+	bloom_clear(stack->pref_pollution_filter);
 }
 
 
@@ -1370,7 +1459,7 @@ void mod_adapt_pref_hpac(struct mod_t *mod)
 	acc_int = acc_int > 1 ? 1 : acc_int; /* May be slightly greather than 1 due bad timing with cycles */
 
 	/* Pollution */
-	pollution_int = stack->pref_dem_pollution_int;
+	pollution_int = stack->pref_pollution_int;
 
 	/* BWC and BWNO */
 	reachable_cores = 0;
@@ -1484,8 +1573,8 @@ enf_down:
 done:
 	stack->last_completed_prefetches = mod->completed_prefetches;
 	stack->last_useful_prefetches = mod->useful_prefetches;
-	stack->pref_dem_pollution_int = 0;
-	bloom_clear(stack->pref_dem_pollution_filter);
+	stack->pref_pollution_int = 0;
+	bloom_clear(stack->pref_pollution_filter);
 }
 
 
@@ -1505,7 +1594,7 @@ void mod_adapt_pref_schedule(struct mod_t *mod)
 
 	if (prefetcher_uses_pollution_filters(pref))
 	{
-		stack->pref_dem_pollution_filter = bloom_create(pref->bloom_bits, pref->bloom_capacity, pref->bloom_false_pos_prob);
+		stack->pref_pollution_filter = bloom_create(pref->bloom_bits, pref->bloom_capacity, pref->bloom_false_pos_prob);
 		/* stack->thread_pollution_filter[i] = bloom_create(pref->bloom_bits, pref->bloom_capacity, pref->bloom_false_pos_prob); */
 		/* stack->pref_thread_pollution_filter[i] = bloom_create(pref->bloom_bits, pref->bloom_capacity, pref->bloom_false_pos_prob); */
 	}

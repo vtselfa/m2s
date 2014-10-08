@@ -43,8 +43,18 @@ struct mod_report_stack_t
 	long long delayed_hits;
 	long long delayed_hit_cycles;
 
-	struct hash_table_gen_t *pref_dem_pollution_filter;
-	long long pref_dem_pollution_int; /* Prefetches evict blocks that are later requested */
+	struct hash_table_gen_t *pref_pollution_filter; /* Blocks replaced by prefetches */
+	struct hash_table_gen_t **dem_pollution_filter_per_thread; /* Blocks replaced by DEMAND requests, per thread */
+	struct hash_table_gen_t **pref_pollution_filter_per_thread; /* Blocks replaced by PREFETCH requests, per thread */
+
+	long long pref_pollution_int; /* Number prefetch-evicted blocks that are later requested */
+	long long *dem_pollution_per_thread_int; /* Pollution SUFFERED per thread that is caused by DEMAND request from other threads */
+	long long *pref_pollution_per_thread_int; /* Pollution SUFFERED per thread that is caused by PREFETCH request from other threads */
+
+	long long *hits_per_thread_int;
+	long long *misses_per_thread_int;
+	long long *retries_per_thread_int;
+	long long *stream_hits_per_thread_int;
 
 	FILE *report_file;
 };
@@ -122,7 +132,7 @@ enum mod_range_kind_t
 struct mod_adapt_pref_stack_t
 {
 	struct mod_t *mod;
-	struct bloom_t *pref_dem_pollution_filter; /* Evictions of blocks caused by prefetch requests */
+	struct bloom_t *pref_pollution_filter; /* Evictions of blocks caused by prefetch requests */
 
 	long long last_cycle;
 	long long last_uinsts;
@@ -135,7 +145,7 @@ struct mod_adapt_pref_stack_t
 
 	long long last_misses_int;
 
-	long long pref_dem_pollution_int;
+	long long pref_pollution_int;
 
 	long long backoff;
 

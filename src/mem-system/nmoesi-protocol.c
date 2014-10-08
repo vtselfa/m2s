@@ -1792,6 +1792,8 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 
 	assert(ctx);
 	assert(stack->request_dir);
+	assert(stack->client_info->core >= 0 && stack->client_info->core < x86_cpu_num_cores);
+	assert(stack->client_info->thread >= 0 && stack->client_info->thread < x86_cpu_num_threads);
 
 	if (event == EV_MOD_NMOESI_FIND_AND_LOCK)
 	{
@@ -2003,8 +2005,13 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 				/* Interval statistics */
 				if (should_count_stats(stack))
 				{
+					int core = stack->client_info->core;
+					int thread = stack->client_info->thread;
+					int pos = core * x86_cpu_num_threads + thread;
 					mod->retries++;
+					mod->report_stack->retries_per_thread_int[pos]++;
 					ctx->report_stack->retries_per_level_int[mod->level]++;
+					X86_THREAD.report_stack->retries_per_level_int[mod->level]++;
 					/* If the stack locking the block is a prefetch that is bringing the block, then count that prefetch as a late prefetch */
 					if (dir_lock->locking_stack->prefetch)
 						dir_lock->locking_stack->client_info->late_prefetch = 1;
@@ -2040,17 +2047,45 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 			}
 
 			/* If this is an on demand request, search the block in the pollution filters to find out if it
-			 * has been previously evicted by a prefetch request */
+			 * has been previously evicted by a prefetch request or by another accessig thread */
 			if (!stack->prefetch)
 			{
-				/* Adaptive prefetch */
-				if (prefetcher_uses_pollution_filters(pref) && BLOOM_FIND(mod->adapt_pref_stack->pref_dem_pollution_filter, stack->tag))
-					mod->adapt_pref_stack->pref_dem_pollution_int++;
+				int thread = stack->client_info->thread;
+				int core = stack->client_info->core;
+				int victim_thread = core * x86_cpu_num_threads + thread;
 
-				/* Interval report */
-				if (hash_table_gen_get(mod->report_stack->pref_dem_pollution_filter, (void*) &stack->tag, sizeof(stack->tag)))
-					mod->report_stack->pref_dem_pollution_int++;
+				assert(mod->reachable_threads[victim_thread]);
+
+				/* Prefetch - demand pollution for adaptive prefetch */
+				if (prefetcher_uses_pollution_filters(pref) && BLOOM_FIND(mod->adapt_pref_stack->pref_pollution_filter, stack->tag))
+					mod->adapt_pref_stack->pref_pollution_int++;
+
+				/* Prefetch - demand pollution */
+				if (hash_table_gen_get(mod->report_stack->pref_pollution_filter, (void*) &stack->tag, sizeof(stack->tag)))
+					mod->report_stack->pref_pollution_int++;
+
+				/* Thread - thread pollution */
+				X86_CORE_FOR_EACH X86_THREAD_FOR_EACH
+				{
+					int pos = core * x86_cpu_num_threads + thread;
+					if (mod->reachable_threads[pos] && pos != victim_thread)
+					{
+						/* Demand */
+						if (hash_table_gen_get(mod->report_stack->dem_pollution_filter_per_thread[pos], (void*) &stack->tag, sizeof(stack->tag)))
+						{
+							mod->report_stack->dem_pollution_per_thread_int[victim_thread]++;
+							goto out; /* Exiting two nested loops */
+						}
+						/* Prefetch */
+						if (hash_table_gen_get(mod->report_stack->pref_pollution_filter_per_thread[pos], (void*) &stack->tag, sizeof(stack->tag)))
+						{
+							mod->report_stack->pref_pollution_per_thread_int[victim_thread]++;
+							goto out;
+						}
+					}
+				}
 			}
+out:
 
 			/* Cache entry is locked. Record the transient tag so that a subsequent lookup
 			* detects that the block is being brought.
@@ -2148,8 +2183,13 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 				/* Interval statistics */
 				if (should_count_stats(stack))
 				{
+					int core = stack->client_info->core;
+					int thread = stack->client_info->thread;
+					int pos = core * x86_cpu_num_threads + thread;
 					mod->retries++;
+					mod->report_stack->retries_per_thread_int[pos]++;
 					ctx->report_stack->retries_per_level_int[mod->level]++;
+					X86_THREAD.report_stack->retries_per_level_int[mod->level]++;
 					/* If the stack locking the block is a prefetch that is bringing the block, then count that prefetch as a late prefetch */
 					if(dir_lock->locking_stack->prefetch)
 						dir_lock->locking_stack->client_info->late_prefetch = 1;
@@ -2344,8 +2384,13 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 			/* Interval statistics */
 			if (should_count_stats(stack))
 			{
+				int core = stack->client_info->core;
+				int thread = stack->client_info->thread;
+				int pos = core * x86_cpu_num_threads + thread;
 				mod->retries++; /* Total number of retries for this module */
+				mod->report_stack->retries_per_thread_int[pos]++;
 				ctx->report_stack->retries_per_level_int[mod->level]++;  /* Number of retries for the context in this module for the current interval */
+				X86_THREAD.report_stack->retries_per_level_int[mod->level]++;
 			}
 
 			ret->err = 1;
@@ -2357,20 +2402,29 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 		/* Statistics */
 		if (should_count_stats(stack))
 		{
+			int core = stack->client_info->core;
+			int thread = stack->client_info->thread;
+			int pos = core * x86_cpu_num_threads + thread;
 			if (stack->hit)
 			{
 				mod->hits++;
+				mod->report_stack->hits_per_thread_int[pos]++;
 				ctx->report_stack->hits_per_level_int[mod->level]++;
+				X86_THREAD.report_stack->hits_per_level_int[mod->level]++;
 			}
 			else if (stack->stream_hit)
 			{
 				mod->stream_hits++;
+				mod->report_stack->stream_hits_per_thread_int[pos]++;
 				ctx->report_stack->stream_hits_per_level_int[mod->level]++;
+				X86_THREAD.report_stack->stream_hits_per_level_int[mod->level]++;
 			}
 			else
 			{
 				mod->misses++;
+				mod->report_stack->misses_per_thread_int[pos]++;
 				ctx->report_stack->misses_per_level_int[mod->level]++;
+				X86_THREAD.report_stack->misses_per_level_int[mod->level]++;
 			}
 
 			if (mod_get_prefetched_bit(mod, stack->tag) || stack->stream_hit)
@@ -2784,24 +2838,42 @@ void mod_handler_nmoesi_evict(int event, void *data)
 		/* Invalidate block if there was no error. */
 		if (!stack->err)
 		{
-			/* If a prefetch to cache evicts a block that was requested by the core
-			 * store the tag to estimate pollution */
-			if (stack->prefetch && /* It's a prefetch */
-					!prefetcher_uses_stream_buffers(mod->cache->prefetcher) && /* Prefetches go to cache */
-					!mod_get_prefetched_bit(mod, stack->src_tag)) /* Evicted block is not an unused prefetched block */
+			int core = stack->client_info->core;
+			int thread = stack->client_info->thread;
+			int pos = core * x86_cpu_num_threads + thread;
+
+			assert(mod->reachable_threads[pos]);
+			assert(core >= 0 && core < x86_cpu_num_cores);
+			assert(thread >= 0 && thread < x86_cpu_num_threads);
+
+			/* If an access evicts a block, store the tag to know if it is accessed in the future and estimate pollution */
+
+			/* Prefetch pollution */
+			if (stack->prefetch)
 			{
-				/* Adaptive prefetch */
+				assert(!prefetcher_uses_stream_buffers(mod->cache->prefetcher)); /* Prefetches to stream buffers cannot cause evictions */
+
+				/* Prefetch pollution for adaptive prefetch */
 				if (prefetcher_uses_pollution_filters(mod->cache->prefetcher))
 				{
-					double false_pos_prob = BLOOM_ADD(mod->adapt_pref_stack->pref_dem_pollution_filter, stack->src_tag);
+					double false_pos_prob = BLOOM_ADD(mod->adapt_pref_stack->pref_pollution_filter, stack->src_tag);
 					if (false_pos_prob)
 						warning("%lld Module %s pollution filter full, false positive probability is %f", esim_time, mod->name, false_pos_prob);
 				}
 
-				/* Interval reports */
-				hash_table_gen_insert(mod->report_stack->pref_dem_pollution_filter, (void*) &stack->src_tag, sizeof(stack->src_tag), (void*) 1);
+				/* Prefetch pollution */
+				hash_table_gen_insert(mod->report_stack->pref_pollution_filter, (void*) &stack->src_tag, sizeof(stack->src_tag), (void*) 1);
+
+				/* Interthread prefetch pollution */
+				hash_table_gen_insert(mod->report_stack->pref_pollution_filter_per_thread[pos], (void*) &stack->src_tag, sizeof(stack->src_tag), (void*) 1);
 			}
 
+			/* Interthread demand pollution */
+			else
+				hash_table_gen_insert(mod->report_stack->dem_pollution_filter_per_thread[pos], (void*) &stack->src_tag, sizeof(stack->src_tag), (void*) 1);
+
+
+			/* Invalidate block */
 			cache_set_block(mod->cache, stack->src_set, stack->src_way,
 					0, cache_block_invalid);
 		}

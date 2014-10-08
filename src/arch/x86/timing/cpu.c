@@ -680,7 +680,13 @@ static void x86_cpu_core_init(int core)
 static void x86_cpu_thread_done(int core, int thread)
 {
 	if (X86_THREAD.report_stack)
+	{
+		free(X86_THREAD.report_stack->hits_per_level_int);
+		free(X86_THREAD.report_stack->stream_hits_per_level_int);
+		free(X86_THREAD.report_stack->misses_per_level_int);
+		free(X86_THREAD.report_stack->retries_per_level_int);
 		file_close(X86_THREAD.report_stack->report_file);
+	}
 	free(X86_THREAD.report_stack);
 	file_close(X86_THREAD.mapping_report_file);
 }
@@ -1358,6 +1364,10 @@ static void x86_thread_interval_report_init(int core, int thread)
 
 	/* Create new stack */
 	stack = xcalloc(1, sizeof(struct x86_thread_report_stack_t));
+	stack->hits_per_level_int = xcalloc(max_mod_level + 1, sizeof(long long)); /* As there isn't any level 0, position 0 in the array is not used */
+	stack->stream_hits_per_level_int = xcalloc(max_mod_level + 1, sizeof(long long));
+	stack->misses_per_level_int = xcalloc(max_mod_level + 1, sizeof(long long));
+	stack->retries_per_level_int = xcalloc(max_mod_level + 1, sizeof(long long));
 
 	/* Interval reporting of stats */
 	ret = snprintf(interval_report_file_name, MAX_PATH_SIZE, "%s/c%dt%d.intrep.csv", x86_thread_interval_reports_dir, core, thread);
@@ -1380,6 +1390,13 @@ static void x86_thread_interval_report_init(int core, int thread)
 	fprintf(stack->report_file, ",c%dt%d-%s", core, thread, "ipc-glob");                   /* Global microinstructions per cycle */
 	fprintf(stack->report_file, ",c%dt%d-%s", core, thread, "pct-rob-stall-int");          /* Percentage of cycles with the ROB full */
 	fprintf(stack->report_file, ",c%dt%d-%s", core, thread, "pct-rob-stall-load-int");     /* Percentage of cycles with the ROB full with a load in the head */
+	for (int level = 1; level <= max_mod_level - 1; level++)
+	{
+		fprintf(stack->report_file, ",c%dt%d-l%d-%s", core, thread, level, "hits-int");
+		fprintf(stack->report_file, ",c%dt%d-l%d-%s", core, thread, level, "stream-hits-int");
+		fprintf(stack->report_file, ",c%dt%d-l%d-%s", core, thread, level, "misses-int");
+		fprintf(stack->report_file, ",c%dt%d-l%d-%s", core, thread, level, "retries-int");
+	}
 	fprintf(stack->report_file, "\n");
 	fflush(stack->report_file);
 }
@@ -1414,6 +1431,13 @@ static void x86_cpu_thread_interval_report(int core, int thread)
 	fprintf(stack->report_file, ",%.3f", ipc_glob);
 	fprintf(stack->report_file, ",%.3f", pct_cycles_stalled);
 	fprintf(stack->report_file, ",%.3f", pct_cycles_stalled_load);
+	for (int level = 1; level <= max_mod_level - 1; level++)
+	{
+		fprintf(stack->report_file, ",%lld", stack->hits_per_level_int[level]);
+		fprintf(stack->report_file, ",%lld", stack->stream_hits_per_level_int[level]);
+		fprintf(stack->report_file, ",%lld", stack->misses_per_level_int[level]);
+		fprintf(stack->report_file, ",%lld", stack->retries_per_level_int[level]);
+	}
 	fprintf(stack->report_file, "\n");
 	fflush(stack->report_file);
 
@@ -1422,6 +1446,13 @@ static void x86_cpu_thread_interval_report(int core, int thread)
 	stack->dispatch_stall_cycles_rob_mem = X86_THREAD.dispatch_stall_cycles_rob_mem;
 	stack->dispatch_stall_cycles_rob_load = X86_THREAD.dispatch_stall_cycles_rob_load;
 	stack->num_committed_uinst = X86_THREAD.num_committed_uinst;
+	for (int level = 1; level <= max_mod_level - 1; level++) /* Deepest mod level is main memory, not cache */
+	{
+		stack->hits_per_level_int[level] = 0;
+		stack->stream_hits_per_level_int[level] = 0;
+		stack->misses_per_level_int[level] = 0;
+		stack->retries_per_level_int[level] = 0;
+	}
 }
 
 
