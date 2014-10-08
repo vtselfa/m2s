@@ -561,13 +561,6 @@ void prefetcher_cache_hit(struct mod_stack_t *stack, struct mod_t *target_mod)
 			fatal("%s: Invalid prefetcher type", __FUNCTION__);
 			break;
 	}
-
-	/* Prefetch hit */
-	if (mod_get_prefetched_bit(target_mod, stack->addr))
-	{
-		mod_set_prefetched_bit(target_mod, stack->addr, 0); /* Clear prefetched bit */
-		target_mod->useful_prefetches++;
-	}
 }
 
 

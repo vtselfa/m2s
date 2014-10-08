@@ -2431,6 +2431,7 @@ out:
 			{
 				mod->useful_prefetches++;
 				ctx->report_stack->useful_prefs_per_level_int[mod->level]++;
+				mod_set_prefetched_bit(mod, stack->addr, 0);
 			}
 		}
 
