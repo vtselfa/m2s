@@ -1,6 +1,7 @@
 /*
  *  Libstruct
  *  Copyright (C) 2012  Rafael Ubal (ubal@ece.neu.edu)
+ *  Copyright (C) 2014  Vicent Selfa (viselol@disca.upv.es)
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -20,7 +21,6 @@
 #ifndef LIB_UTIL_HASH_TABLE_GEN_H
 #define LIB_UTIL_HASH_TABLE_GEN_H
 
-struct hash_table_gen_t;
 
 /** Iterate through all elements of the hash table.
  *

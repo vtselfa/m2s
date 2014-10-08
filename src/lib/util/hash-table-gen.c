@@ -274,6 +274,8 @@ struct hash_table_gen_t *hash_table_gen_create(unsigned int size)
 
 void hash_table_gen_free(struct hash_table_gen_t *table)
 {
+	if (!table) return;
+
 	/* Clear table */
 	hash_table_gen_clear(table);
 
