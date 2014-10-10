@@ -1072,6 +1072,8 @@ void mod_interval_report(struct mod_t *mod)
 			stack->stream_hits_per_thread_int[pos] = 0;
 			stack->misses_per_thread_int[pos] = 0;
 			stack->retries_per_thread_int[pos] = 0;
+			stack->dem_pollution_per_thread_int[pos] = 0;
+			stack->pref_pollution_per_thread_int[pos] = 0;
 			hash_table_gen_clear(stack->dem_pollution_filter_per_thread[pos]);
 			hash_table_gen_clear(stack->pref_pollution_filter_per_thread[pos]);
 		}

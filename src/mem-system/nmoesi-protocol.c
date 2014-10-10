@@ -169,6 +169,7 @@ int should_count_stats(struct mod_stack_t *stack)
 {
 	struct mod_t *mod = stack->target_mod ? stack->target_mod : stack->mod;
 	return stack->request_dir == mod_request_up_down &&
+		!stack->prefetch &&
 		mod->kind == mod_kind_cache &&
 		(stack->access_kind == mod_access_load ||
 		stack->access_kind == mod_access_store ||
