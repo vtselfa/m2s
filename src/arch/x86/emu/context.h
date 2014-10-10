@@ -41,8 +41,8 @@ struct x86_ctx_report_stack_t
 	long long mm_read_accesses;
 	long long mm_write_accesses;
 	long long mm_pref_accesses;
+	long long dispatch_stall_cycles_rob;
 	long long dispatch_stall_cycles_rob_load;
-	long long dispatch_stall_cycles_rob_mem;
 
 	/* Stats in L1, L2, etc. in the interval */
 	long long *hits_per_level_int;

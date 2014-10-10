@@ -953,8 +953,8 @@ void x86_ctx_interval_report_init(struct x86_ctx_t *ctx)
 	fprintf(stack->report_file, ",pid%d-%s", ctx->pid, "mm-reads-int");
 	fprintf(stack->report_file, ",pid%d-%s", ctx->pid, "mm-prefs-int");
 	fprintf(stack->report_file, ",pid%d-%s", ctx->pid, "mm-writes-int");
-	fprintf(stack->report_file, ",pid%d-%s", ctx->pid, "pct-rob-stall-int");
-	fprintf(stack->report_file, ",pid%d-%s", ctx->pid, "pct-rob-stall-load-int");
+	fprintf(stack->report_file, ",pid%d-%s", ctx->pid, "rob-stall-int");
+	fprintf(stack->report_file, ",pid%d-%s", ctx->pid, "rob-stall-load-int");
 	for (int level = 1; level <= max_mod_level - 1; level++)
 	{
 		fprintf(stack->report_file, ",pid%d-l%d-%s", ctx->pid, level, "hits-int");
@@ -977,8 +977,8 @@ void x86_ctx_interval_report(struct x86_ctx_t *ctx)
 	long long uinst_count_int;
 	double ipc_int;
 	double ipc_glob;
-	double pct_cycles_stalled;
-	double pct_cycles_stalled_load;
+	double rob_stall;
+	double rob_stall_load;
 	long long mm_read_accesses;
 	long long mm_write_accesses;
 	long long mm_pref_accesses;
@@ -990,12 +990,12 @@ void x86_ctx_interval_report(struct x86_ctx_t *ctx)
 	mm_write_accesses = ctx->mm_write_accesses - stack->mm_write_accesses;
 	mm_pref_accesses = ctx->mm_pref_accesses - stack->mm_pref_accesses;
 
-	pct_cycles_stalled = cycles_int > 0 ?
-			(double) 100 * (ctx->dispatch_stall_cycles_rob_mem - stack->dispatch_stall_cycles_rob_mem) / cycles_int :
+	rob_stall = cycles_int > 0 ?
+			(double) (ctx->dispatch_stall_cycles_rob - stack->dispatch_stall_cycles_rob) / cycles_int :
 			NAN;
 
-	pct_cycles_stalled_load = cycles_int > 0 ?
-			(double) 100 * (ctx->dispatch_stall_cycles_rob_load - stack->dispatch_stall_cycles_rob_load) / cycles_int :
+	rob_stall_load = cycles_int > 0 ?
+			(double) (ctx->dispatch_stall_cycles_rob_load - stack->dispatch_stall_cycles_rob_load) / cycles_int :
 			NAN;
 
 	/*
@@ -1026,8 +1026,8 @@ void x86_ctx_interval_report(struct x86_ctx_t *ctx)
 	fprintf(stack->report_file, ",%lld", mm_read_accesses);
 	fprintf(stack->report_file, ",%lld", mm_pref_accesses);
 	fprintf(stack->report_file, ",%lld", mm_write_accesses);
-	fprintf(stack->report_file, ",%.3f", pct_cycles_stalled);
-	fprintf(stack->report_file, ",%.3f", pct_cycles_stalled_load);
+	fprintf(stack->report_file, ",%.3f", rob_stall);
+	fprintf(stack->report_file, ",%.3f", rob_stall_load);
 
 	/* More stats per cache level */
 	for (int level = 1; level <= max_mod_level - 1; level++)
@@ -1052,7 +1052,7 @@ void x86_ctx_interval_report(struct x86_ctx_t *ctx)
 	stack->mm_write_accesses = ctx->mm_write_accesses;
 	stack->mm_pref_accesses = ctx->mm_pref_accesses;
 	stack->dispatch_stall_cycles_rob_load = ctx->dispatch_stall_cycles_rob_load;
-	stack->dispatch_stall_cycles_rob_mem = ctx->dispatch_stall_cycles_rob_mem;
+	stack->dispatch_stall_cycles_rob = ctx->dispatch_stall_cycles_rob;
 	for (int level = 1; level <= max_mod_level - 1; level++) /* Deepest mod level is main memory, not cache */
 	{
 		stack->hits_per_level_int[level] = 0;

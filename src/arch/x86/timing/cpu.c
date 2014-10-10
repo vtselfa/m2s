@@ -18,6 +18,7 @@
  */
 
 #include <assert.h>
+#include <math.h>
 
 #include <arch/common/arch.h>
 #include <arch/x86/emu/checkpoint.h>
@@ -1383,13 +1384,13 @@ static void x86_thread_interval_report_init(int core, int thread)
 
 	X86_THREAD.report_stack = stack;
 
-	fprintf(stack->report_file, "%s", "esim-time");                                        /* Global simulation time */
-	fprintf(stack->report_file, ",c%dt%d-%s", core, thread, "inst");                       /* Instructions */
-	fprintf(stack->report_file, ",c%dt%d-%s", core, thread, "uinst");                      /* Microinstructions */
-	fprintf(stack->report_file, ",c%dt%d-%s", core, thread, "ipc-int");                    /* Microinstructions per cycle in the interval */
-	fprintf(stack->report_file, ",c%dt%d-%s", core, thread, "ipc-glob");                   /* Global microinstructions per cycle */
-	fprintf(stack->report_file, ",c%dt%d-%s", core, thread, "pct-rob-stall-int");          /* Percentage of cycles with the ROB full */
-	fprintf(stack->report_file, ",c%dt%d-%s", core, thread, "pct-rob-stall-load-int");     /* Percentage of cycles with the ROB full with a load in the head */
+	fprintf(stack->report_file, "%s", "esim-time");                                   /* Global simulation time */
+	fprintf(stack->report_file, ",c%dt%d-%s", core, thread, "inst");                  /* Instructions */
+	fprintf(stack->report_file, ",c%dt%d-%s", core, thread, "uinst");                 /* Microinstructions */
+	fprintf(stack->report_file, ",c%dt%d-%s", core, thread, "ipc-int");               /* Microinstructions per cycle in the interval */
+	fprintf(stack->report_file, ",c%dt%d-%s", core, thread, "ipc-glob");              /* Global microinstructions per cycle */
+	fprintf(stack->report_file, ",c%dt%d-%s", core, thread, "rob-stall-int");         /* Ratio of cycles with the ROB full */
+	fprintf(stack->report_file, ",c%dt%d-%s", core, thread, "rob-stall-load-int");    /* Ratio of cycles with the ROB full with a load in the head */
 	for (int level = 1; level <= max_mod_level - 1; level++)
 	{
 		fprintf(stack->report_file, ",c%dt%d-l%d-%s", core, thread, level, "hits-int");
@@ -1407,18 +1408,18 @@ static void x86_cpu_thread_interval_report(int core, int thread)
 	struct x86_thread_report_stack_t *stack = X86_THREAD.report_stack;
 	long long cycles_int = arch_x86->cycle - stack->last_cycle;
 	long long num_committed_uinst_int;
-	double pct_cycles_stalled;
-	double pct_cycles_stalled_load;
+	double rob_stall;
+	double rob_stall_load;
 	double ipc_int;
 	double ipc_glob;
 
-	pct_cycles_stalled = cycles_int > 0 ?
-			(double) 100 * (X86_THREAD.dispatch_stall_cycles_rob_mem - stack->dispatch_stall_cycles_rob_mem) / cycles_int :
-			0.0;
+	rob_stall = cycles_int > 0 ?
+			(double) (X86_THREAD.dispatch_stall_cycles_rob - stack->dispatch_stall_cycles_rob) / cycles_int :
+			NAN;
 
-	pct_cycles_stalled_load = cycles_int > 0 ?
-			(double) 100 * (X86_THREAD.dispatch_stall_cycles_rob_load - stack->dispatch_stall_cycles_rob_load) / cycles_int :
-			0.0;
+	rob_stall_load = cycles_int > 0 ?
+			(double) (X86_THREAD.dispatch_stall_cycles_rob_load - stack->dispatch_stall_cycles_rob_load) / cycles_int :
+			NAN;
 
 	num_committed_uinst_int = X86_THREAD.num_committed_uinst - stack->num_committed_uinst;
 	ipc_glob = arch_x86->cycle - arch_x86->last_reset_cycle ? (double) X86_THREAD.num_committed_uinst / (arch_x86->cycle - arch_x86->last_reset_cycle) : 0.0;
@@ -1429,8 +1430,8 @@ static void x86_cpu_thread_interval_report(int core, int thread)
 	fprintf(stack->report_file, ",%lld", X86_THREAD.num_committed_uinst);
 	fprintf(stack->report_file, ",%.3f", ipc_int);
 	fprintf(stack->report_file, ",%.3f", ipc_glob);
-	fprintf(stack->report_file, ",%.3f", pct_cycles_stalled);
-	fprintf(stack->report_file, ",%.3f", pct_cycles_stalled_load);
+	fprintf(stack->report_file, ",%.3f", rob_stall);
+	fprintf(stack->report_file, ",%.3f", rob_stall_load);
 	for (int level = 1; level <= max_mod_level - 1; level++)
 	{
 		fprintf(stack->report_file, ",%lld", stack->hits_per_level_int[level]);
@@ -1443,7 +1444,7 @@ static void x86_cpu_thread_interval_report(int core, int thread)
 
 	/* Update intermediate results */
 	stack->last_cycle = arch_x86->cycle;
-	stack->dispatch_stall_cycles_rob_mem = X86_THREAD.dispatch_stall_cycles_rob_mem;
+	stack->dispatch_stall_cycles_rob = X86_THREAD.dispatch_stall_cycles_rob;
 	stack->dispatch_stall_cycles_rob_load = X86_THREAD.dispatch_stall_cycles_rob_load;
 	stack->num_committed_uinst = X86_THREAD.num_committed_uinst;
 	for (int level = 1; level <= max_mod_level - 1; level++) /* Deepest mod level is main memory, not cache */
