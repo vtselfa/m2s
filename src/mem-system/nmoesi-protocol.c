@@ -2047,47 +2047,6 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 				ret->stream_retried = 0;
 			}
 
-			/* If this is an on demand request, search the block in the pollution filters to find out if it
-			 * has been previously evicted by a prefetch request or by another accessig thread */
-			if (!stack->prefetch)
-			{
-				int thread = stack->client_info->thread;
-				int core = stack->client_info->core;
-				int victim_thread = core * x86_cpu_num_threads + thread;
-
-				assert(mod->reachable_threads[victim_thread]);
-
-				/* Prefetch - demand pollution for adaptive prefetch */
-				if (prefetcher_uses_pollution_filters(pref) && BLOOM_FIND(mod->adapt_pref_stack->pref_pollution_filter, stack->tag))
-					mod->adapt_pref_stack->pref_pollution_int++;
-
-				/* Prefetch - demand pollution */
-				if (hash_table_gen_get(mod->report_stack->pref_pollution_filter, (void*) &stack->tag, sizeof(stack->tag)))
-					mod->report_stack->pref_pollution_int++;
-
-				/* Thread - thread pollution */
-				X86_CORE_FOR_EACH X86_THREAD_FOR_EACH
-				{
-					int pos = core * x86_cpu_num_threads + thread;
-					if (mod->reachable_threads[pos] && pos != victim_thread)
-					{
-						/* Demand */
-						if (hash_table_gen_get(mod->report_stack->dem_pollution_filter_per_thread[pos], (void*) &stack->tag, sizeof(stack->tag)))
-						{
-							mod->report_stack->dem_pollution_per_thread_int[victim_thread]++;
-							goto out; /* Exiting two nested loops */
-						}
-						/* Prefetch */
-						if (hash_table_gen_get(mod->report_stack->pref_pollution_filter_per_thread[pos], (void*) &stack->tag, sizeof(stack->tag)))
-						{
-							mod->report_stack->pref_pollution_per_thread_int[victim_thread]++;
-							goto out;
-						}
-					}
-				}
-			}
-out:
-
 			/* Cache entry is locked. Record the transient tag so that a subsequent lookup
 			* detects that the block is being brought.
 			* Also, update LRU counters here. */
@@ -2405,25 +2364,28 @@ out:
 		{
 			int core = stack->client_info->core;
 			int thread = stack->client_info->thread;
-			int pos = core * x86_cpu_num_threads + thread;
+			int thread_abs = core * x86_cpu_num_threads + thread;
+
+			assert(mod->reachable_threads[thread_abs]);
+
 			if (stack->hit)
 			{
 				mod->hits++;
-				mod->report_stack->hits_per_thread_int[pos]++;
+				mod->report_stack->hits_per_thread_int[thread_abs]++;
 				ctx->report_stack->hits_per_level_int[mod->level]++;
 				X86_THREAD.report_stack->hits_per_level_int[mod->level]++;
 			}
 			else if (stack->stream_hit)
 			{
 				mod->stream_hits++;
-				mod->report_stack->stream_hits_per_thread_int[pos]++;
+				mod->report_stack->stream_hits_per_thread_int[thread_abs]++;
 				ctx->report_stack->stream_hits_per_level_int[mod->level]++;
 				X86_THREAD.report_stack->stream_hits_per_level_int[mod->level]++;
 			}
 			else
 			{
 				mod->misses++;
-				mod->report_stack->misses_per_thread_int[pos]++;
+				mod->report_stack->misses_per_thread_int[thread_abs]++;
 				ctx->report_stack->misses_per_level_int[mod->level]++;
 				X86_THREAD.report_stack->misses_per_level_int[mod->level]++;
 			}
@@ -2433,6 +2395,41 @@ out:
 				mod->useful_prefetches++;
 				ctx->report_stack->useful_prefs_per_level_int[mod->level]++;
 				mod_set_prefetched_bit(mod, stack->addr, 0);
+			}
+
+			/* If this is an on demand request, search the block in the pollution filters to find out if it
+			 * has been previously evicted by a prefetch request or by another accessig thread */
+			if (!stack->hit && !stack->stream_hit)
+			{
+				/* Prefetch - demand pollution for adaptive prefetch */
+				if (prefetcher_uses_pollution_filters(pref) && BLOOM_FIND(mod->adapt_pref_stack->pref_pollution_filter, stack->tag))
+					mod->adapt_pref_stack->pref_pollution_int++;
+
+				/* Prefetch - demand pollution */
+				if (hash_table_gen_get(mod->report_stack->pref_pollution_filter, (void*) &stack->tag, sizeof(stack->tag)))
+					mod->report_stack->pref_pollution_int++;
+
+				/* Thread - thread pollution */
+				X86_CORE_FOR_EACH X86_THREAD_FOR_EACH
+				{
+					int pos = core * x86_cpu_num_threads + thread;
+					if (mod->reachable_threads[pos] && pos != thread_abs)
+					{
+						/* Demand */
+						if (hash_table_gen_get(mod->report_stack->dem_pollution_filter_per_thread[pos], (void*) &stack->tag, sizeof(stack->tag)))
+						{
+							mod->report_stack->dem_pollution_per_thread_int[thread_abs]++;
+							goto out; /* Exiting two nested loops */
+						}
+						/* Prefetch */
+						if (hash_table_gen_get(mod->report_stack->pref_pollution_filter_per_thread[pos], (void*) &stack->tag, sizeof(stack->tag)))
+						{
+							mod->report_stack->pref_pollution_per_thread_int[thread_abs]++;
+							goto out;
+						}
+					}
+				}
+out:;
 			}
 		}
 
