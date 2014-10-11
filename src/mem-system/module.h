@@ -40,6 +40,7 @@ struct mod_report_stack_t
 	long long hits;
 	long long stream_hits;
 	long long misses;
+	long long retries;
 	long long delayed_hits;
 	long long delayed_hit_cycles;
 
