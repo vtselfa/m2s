@@ -110,9 +110,6 @@ void mod_free(struct mod_t *mod)
 	linked_list_free(mod->low_mod_list);
 	linked_list_free(mod->high_mod_list);
 
-	free(mod->reachable_threads);
-	list_free(mod->reachable_mm_modules);
-
 	if (mod->cache)
 		cache_free(mod->cache);
 	if (mod->dir)
@@ -144,6 +141,9 @@ void mod_free(struct mod_t *mod)
 				hash_table_gen_free(stack->pref_pollution_filter_per_thread[pos]);
 			}
 		}
+		free(stack->dem_pollution_filter_per_thread);
+		free(stack->pref_pollution_filter_per_thread);
+
 		free(stack->hits_per_thread_int);
 		free(stack->stream_hits_per_thread_int);
 		free(stack->misses_per_thread_int);
@@ -153,6 +153,9 @@ void mod_free(struct mod_t *mod)
 		file_close(stack->report_file);
 	}
 	free(mod->report_stack);
+
+	free(mod->reachable_threads);
+	list_free(mod->reachable_mm_modules);
 
 	free(mod);
 }
