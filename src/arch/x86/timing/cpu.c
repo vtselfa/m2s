@@ -1357,7 +1357,7 @@ void x86_cpu_reset_stats(void)
 }
 
 
-static void x86_thread_interval_report_init(int core, int thread)
+static void x86_cpu_thread_interval_report_init(int core, int thread)
 {
 	struct x86_thread_report_stack_t *stack;
 	char interval_report_file_name[MAX_PATH_SIZE];
@@ -1464,7 +1464,7 @@ void x86_cpu_interval_report_init()
 
 	X86_CORE_FOR_EACH
 		X86_THREAD_FOR_EACH
-			x86_thread_interval_report_init(core, thread);
+			x86_cpu_thread_interval_report_init(core, thread);
 }
 
 
