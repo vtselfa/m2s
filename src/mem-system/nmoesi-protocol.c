@@ -1735,15 +1735,18 @@ void mod_handler_nmoesi_prefetch(int event, void *data)
 		dir_entry_unlock(mod->dir, stack->set, stack->way);
 
 		/* Statistics. They are collected here to avoid cancelled prefetches, that go directly to EV_MOD_NMOESI_PREFETCH_FINISH. */
-		mod->completed_prefetches++;
+		if(!stack->hit && !stack->stream_hit)
+		{
+			mod->completed_prefetches++;
 
-		if (stack->client_info->late_prefetch)
-			mod->late_prefetches++;
+			if (stack->client_info->late_prefetch)
+				mod->late_prefetches++;
 
-		/* Measure end-to-end latency */
-		assert(stack->start_time != -1);
-		ctx->report_stack->aggregate_pref_lat_per_level_int[mod->level] += esim_time - stack->start_time;
-		ctx->report_stack->prefs_per_level_int[mod->level]++;
+			/* Measure end-to-end latency */
+			assert(stack->start_time != -1);
+			ctx->report_stack->aggregate_pref_lat_per_level_int[mod->level] += esim_time - stack->start_time;
+			ctx->report_stack->prefs_per_level_int[mod->level]++;
+		}
 
 		esim_schedule_event(EV_MOD_NMOESI_PREFETCH_FINISH, stack, 0);
 		return;
