@@ -959,38 +959,31 @@ void mod_interval_report_init(struct mod_t *mod)
 	mod->report_stack = stack;
 
 	fprintf(stack->report_file, "%s", "esim-time");                                   /* Global simulation time */
+	fprintf(stack->report_file, ",%s-%s", mod->name, "pref-int");                     /* Prefetches executed in the interval */
+	fprintf(stack->report_file, ",%s-%s", mod->name, "pref-useful-int");              /* Prefetches executed in the interval */
+	fprintf(stack->report_file, ",%s-%s", mod->name, "pref-acc-int");                 /* Prefetch acuracy for the interval */
+	fprintf(stack->report_file, ",%s-%s", mod->name, "pref-late-int");                /* Late prefetches in the interval */
 	fprintf(stack->report_file, ",%s-%s", mod->name, "hits-int");                     /* Cache hits for the interval */
-	if (prefetcher_uses_stream_buffers(mod->cache->prefetcher))
-		fprintf(stack->report_file, ",%s-%s", mod->name, "stream-hits-int");          /* Hits in stream buffer for the interval */
+	fprintf(stack->report_file, ",%s-%s", mod->name, "stream-hits-int");              /* Hits in stream buffer for the interval */
 	fprintf(stack->report_file, ",%s-%s", mod->name, "misses-int");                   /* Cache misses for the interval */
 	fprintf(stack->report_file, ",%s-%s", mod->name, "retries-int");                  /* Retries for the interval */
-	if (mod->cache->prefetcher)
-	{
-		fprintf(stack->report_file, ",%s-%s", mod->name, "pref-int");                     /* Prefetches executed in the interval */
-		fprintf(stack->report_file, ",%s-%s", mod->name, "pref-useful-int");              /* Prefetches executed in the interval */
-		fprintf(stack->report_file, ",%s-%s", mod->name, "pref-acc-int");                 /* Prefetch acuracy for the interval */
-		fprintf(stack->report_file, ",%s-%s", mod->name, "pref-late-int");                /* Late prefetches in the interval */
-		fprintf(stack->report_file, ",%s-%s", mod->name, "pref-cov-int");                 /* Prefetch coverage for the interval */
-		fprintf(stack->report_file, ",%s-%s", mod->name, "delayed-hits-int");             /* Hits on a block being brought by a prefetch */
-		fprintf(stack->report_file, ",%s-%s", mod->name, "delayed-hit-avg-delay-int");    /* Average cycles waiting for a block that is being brought by a prefetch */
-		if (!prefetcher_uses_stream_buffers(mod->cache->prefetcher))
-			fprintf(stack->report_file, ",%s-%s", mod->name, "pref-pollution-int");           /* Ratio between prefetch-caused misses and total misses in the interval */
-	}
-	X86_CORE_FOR_EACH X86_THREAD_FOR_EACH                                                 /* Thread - thread pollution */
+	fprintf(stack->report_file, ",%s-%s", mod->name, "pref-cov-int");                 /* Prefetch coverage for the interval */
+	fprintf(stack->report_file, ",%s-%s", mod->name, "delayed-hits-int");             /* Hits on a block being brought by a prefetch */
+	fprintf(stack->report_file, ",%s-%s", mod->name, "delayed-hit-avg-delay-int");    /* Average cycles waiting for a block that is being brought by a prefetch */
+	fprintf(stack->report_file, ",%s-%s", mod->name, "pref-pollution-int");           /* Ratio between prefetch-caused misses and total misses in the interval */
+	X86_CORE_FOR_EACH X86_THREAD_FOR_EACH                                             /* Thread - thread pollution */
 	{
 		int pos = core * x86_cpu_num_threads + thread;
 		if (mod->reachable_threads[pos])
 		{
 			fprintf(stack->report_file, ",%s-c%dt%d-%s", mod->name, core, thread, "hits-int");
-			if (prefetcher_uses_stream_buffers(mod->cache->prefetcher))
-				fprintf(stack->report_file, ",%s-c%dt%d-%s", mod->name, core, thread, "stream-hits-int");
+			fprintf(stack->report_file, ",%s-c%dt%d-%s", mod->name, core, thread, "stream-hits-int");
 			fprintf(stack->report_file, ",%s-c%dt%d-%s", mod->name, core, thread, "misses-int");
 			fprintf(stack->report_file, ",%s-c%dt%d-%s", mod->name, core, thread, "retries-int");
 			/* Demand pollution suffered by thread */
 			fprintf(stack->report_file, ",%s-c%dt%d-%s", mod->name, core, thread, "dem-pollution-int");
 			/* Prefetch pollution suffered by thread */
-			if (mod->cache->prefetcher && !prefetcher_uses_stream_buffers(mod->cache->prefetcher))
-				fprintf(stack->report_file, ",%s-c%dt%d-%s", mod->name, core, thread, "pref-pollution-int");
+			fprintf(stack->report_file, ",%s-c%dt%d-%s", mod->name, core, thread, "pref-pollution-int");
 		}
 	}
 	fprintf(stack->report_file, "\n");
@@ -1036,38 +1029,31 @@ void mod_interval_report(struct mod_t *mod)
 		(double) useful_prefetches_int / (misses_int + useful_prefetches_int) : NAN;
 
 	fprintf(stack->report_file, "%lld", esim_time);
+	fprintf(stack->report_file, ",%lld", completed_prefetches_int);
+	fprintf(stack->report_file, ",%lld", useful_prefetches_int);
+	fprintf(stack->report_file, ",%.3f", prefetch_accuracy_int);
+	fprintf(stack->report_file, ",%lld", late_prefetches_int);
 	fprintf(stack->report_file, ",%lld", hits_int);
-	if (prefetcher_uses_stream_buffers(mod->cache->prefetcher))
-		fprintf(stack->report_file, ",%lld", stream_hits_int);
+	fprintf(stack->report_file, ",%lld", stream_hits_int);
 	fprintf(stack->report_file, ",%lld", misses_int);
 	fprintf(stack->report_file, ",%lld", retries_int);
-	if (mod->cache->prefetcher)
-	{
-		fprintf(stack->report_file, ",%lld", completed_prefetches_int);
-		fprintf(stack->report_file, ",%lld", useful_prefetches_int);
-		fprintf(stack->report_file, ",%.3f", prefetch_accuracy_int);
-		fprintf(stack->report_file, ",%lld", late_prefetches_int);
-		fprintf(stack->report_file, ",%.3f", coverage_int);
-		fprintf(stack->report_file, ",%lld", delayed_hits_int);
-		fprintf(stack->report_file, ",%.3f", delayed_hit_avg_lost_cycles_int);
-		if (!prefetcher_uses_stream_buffers(mod->cache->prefetcher))
-			fprintf(stack->report_file, ",%.3f", misses_int ? (double) stack->pref_pollution_int / misses_int : NAN);
-	}
+	fprintf(stack->report_file, ",%.3f", coverage_int);
+	fprintf(stack->report_file, ",%lld", delayed_hits_int);
+	fprintf(stack->report_file, ",%.3f", delayed_hit_avg_lost_cycles_int);
+	fprintf(stack->report_file, ",%.3f", misses_int ? (double) stack->pref_pollution_int / misses_int : NAN);
 	X86_CORE_FOR_EACH X86_THREAD_FOR_EACH /* Thread - thread pollution */
 	{
 		int pos = core * x86_cpu_num_threads + thread;
 		if (mod->reachable_threads[pos])
 		{
 			fprintf(stack->report_file, ",%lld", stack->hits_per_thread_int[pos]);
-			if (prefetcher_uses_stream_buffers(mod->cache->prefetcher))
-				fprintf(stack->report_file, ",%lld", stack->stream_hits_per_thread_int[pos]);
+			fprintf(stack->report_file, ",%lld", stack->stream_hits_per_thread_int[pos]);
 			fprintf(stack->report_file, ",%lld", stack->misses_per_thread_int[pos]);
 			fprintf(stack->report_file, ",%lld", stack->retries_per_thread_int[pos]);
 			/* Percentage of misses for this thread that have been caused by evictions caused by DEMAND requests of other threads */
 			fprintf(stack->report_file, ",%.3f", stack->misses_per_thread_int[pos] ? (double) stack->dem_pollution_per_thread_int[pos] / stack->misses_per_thread_int[pos] : NAN);
 			/* Percentage of misses for this thread that have been caused by evictions caused by PREFETCH requests of other threads */
-			if (mod->cache->prefetcher && !prefetcher_uses_stream_buffers(mod->cache->prefetcher))
-				fprintf(stack->report_file, ",%.3f", stack->misses_per_thread_int[pos] ? (double) stack->pref_pollution_per_thread_int[pos] / stack->misses_per_thread_int[pos] : NAN);
+			fprintf(stack->report_file, ",%.3f", stack->misses_per_thread_int[pos] ? (double) stack->pref_pollution_per_thread_int[pos] / stack->misses_per_thread_int[pos] : NAN);
 		}
 	}
 	fprintf(stack->report_file, "\n");
