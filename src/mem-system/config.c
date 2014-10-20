@@ -1076,6 +1076,7 @@ static void mem_config_read_modules(struct config_t *config)
 
 	char *section;
 	char *mod_type;
+	char *prefetcher_str;
 
 	char buf[MAX_STRING_SIZE];
 	char mod_name[MAX_STRING_SIZE];
@@ -1096,7 +1097,19 @@ static void mem_config_read_modules(struct config_t *config)
 		mod_type = config_read_string(config, section, "Type", "");
 
 		if (!strcasecmp(mod_type, "Cache"))
+		{
 			mod = mem_config_read_cache(config, section);
+
+			/* Create prefetcher, replacing any prefetcher set in cache architecture */
+			prefetcher_str = config_read_string(config, section, "Prefetcher", "");
+			if (strlen(prefetcher_str))
+			{
+				prefetcher_free(mod->cache->prefetcher);
+				snprintf(buf, sizeof buf, " Prefetcher %s ", prefetcher_str);
+				mod->cache->prefetcher = mem_config_read_prefetcher(config, buf);
+				mod->cache->prefetcher->parent_cache = mod->cache;
+			}
+		}
 		else if (!strcasecmp(mod_type, "MainMemory"))
 			mod = mem_config_read_main_memory(config, section);
 		else
