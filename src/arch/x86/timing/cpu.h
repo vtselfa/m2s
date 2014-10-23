@@ -147,7 +147,10 @@ struct x86_thread_report_stack_t
 	int thread;
 	long long last_cycle;
 	long long dispatch_stall_cycles_rob;
-	long long dispatch_stall_cycles_rob_load;
+	long long dispatch_stall_cycles_rob_mem;
+	long long dispatch_stall_cycles_iq;
+	long long dispatch_stall_cycles_lsq;
+	long long dispatch_stall_cycles_rename;
 	long long num_committed_uinst;
 	long long *hits_per_level_int;
 	long long *stream_hits_per_level_int;
@@ -228,9 +231,12 @@ struct x86_thread_t
 	long long rob_full;
 	long long rob_reads;
 	long long rob_writes;
+
 	long long dispatch_stall_cycles_rob; /* Cicles with the ROB stalled */
 	long long dispatch_stall_cycles_rob_mem; /* Cicles with the ROB stalled due to a memory instruction */
-	long long dispatch_stall_cycles_rob_load; /* Cicles with the ROB stalled due to a load instruction */
+	long long dispatch_stall_cycles_iq;
+	long long dispatch_stall_cycles_lsq;
+	long long dispatch_stall_cycles_rename;
 
 	long long iq_occupancy;
 	long long iq_full;

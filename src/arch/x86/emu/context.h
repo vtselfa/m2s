@@ -42,7 +42,10 @@ struct x86_ctx_report_stack_t
 	long long mm_write_accesses;
 	long long mm_pref_accesses;
 	long long dispatch_stall_cycles_rob;
-	long long dispatch_stall_cycles_rob_load;
+	long long dispatch_stall_cycles_rob_mem;
+	long long dispatch_stall_cycles_iq;
+	long long dispatch_stall_cycles_lsq;
+	long long dispatch_stall_cycles_rename;
 
 	/* Stats in L1, L2, etc. in the interval */
 	long long *hits_per_level_int;
@@ -201,7 +204,9 @@ struct x86_ctx_t
 	long long mm_pref_accesses; /* Included in mm_read_accesses */
 	long long dispatch_stall_cycles_rob; /* Cicles with the ROB stalled this ctx has suffered */
 	long long dispatch_stall_cycles_rob_mem; /* Cicles with the ROB stalled due to a memory instruction this ctx has suffered */
-	long long dispatch_stall_cycles_rob_load; /* Cicles with the ROB stalled due to a load instruction this ctx has suffered */
+	long long dispatch_stall_cycles_iq; /* Cicles with the ROB stalled due to a load instruction this ctx has suffered */
+	long long dispatch_stall_cycles_lsq; /* Cicles with the ROB stalled due to a load instruction this ctx has suffered */
+	long long dispatch_stall_cycles_rename; /* Cicles with the ROB stalled due to a load instruction this ctx has suffered */
 
 	/* Mapping report */
 	FILE *mapping_report_file;
