@@ -104,7 +104,7 @@ void x86_rob_init()
 		}
 
 		break;
-	
+
 	case x86_rob_kind_shared:
 		break;
 	}
@@ -129,7 +129,7 @@ void x86_rob_done()
 	{
 	case x86_rob_kind_private:
 		break;
-	
+
 	case x86_rob_kind_shared:
 		break;
 	}
@@ -162,7 +162,7 @@ int x86_rob_can_enqueue(struct x86_uop_t *uop)
 		if (X86_THREAD.rob_count < x86_rob_size)
 			return 1;
 		break;
-	
+
 	case x86_rob_kind_shared:
 		x86_rob_trim(core);
 		if (X86_CORE.rob_count < x86_rob_total_size)
@@ -188,7 +188,7 @@ void x86_rob_enqueue(struct x86_uop_t *uop)
 			X86_THREAD.rob_left_bound : X86_THREAD.rob_tail + 1;
 		X86_THREAD.rob_count++;
 		break;
-	
+
 	case x86_rob_kind_shared:
 		x86_rob_trim(core);
 		assert(X86_CORE.rob_count < x86_rob_total_size);
@@ -216,7 +216,7 @@ int x86_rob_can_dequeue(int core, int thread)
 		if (X86_THREAD.rob_count > 0)
 			return 1;
 		break;
-	
+
 	case x86_rob_kind_shared:
 		x86_rob_trim(core);
 		if (!X86_CORE.rob_count)
@@ -246,7 +246,7 @@ struct x86_uop_t *x86_rob_head(int core, int thread)
 			return uop;
 		}
 		break;
-	
+
 	case x86_rob_kind_shared:
 		x86_rob_trim(core);
 		if (!X86_THREAD.rob_count)
@@ -282,7 +282,7 @@ void x86_rob_remove_head(int core, int thread)
 			X86_THREAD.rob_left_bound : X86_THREAD.rob_head + 1;
 		X86_THREAD.rob_count--;
 		break;
-	
+
 	case x86_rob_kind_shared:
 		x86_rob_trim(core);
 		assert(X86_THREAD.rob_count);
@@ -321,7 +321,7 @@ struct x86_uop_t *x86_rob_tail(int core, int thread)
 			return uop;
 		}
 		break;
-	
+
 	case x86_rob_kind_shared:
 		x86_rob_trim(core);
 		if (!X86_THREAD.rob_count)
@@ -357,7 +357,7 @@ struct x86_uop_t *x86_rob_get(int core, int thread, int index)
 		uop = list_get(X86_CORE.rob, index);
 		assert(uop);
 		return uop;
-	
+
 	case x86_rob_kind_shared:
 		x86_rob_trim(core);
 		index = (X86_CORE.rob_head + index) % x86_rob_total_size;
@@ -387,7 +387,7 @@ void x86_rob_remove_tail(int core, int thread)
 		X86_THREAD.rob_tail = idx;
 		X86_THREAD.rob_count--;
 		break;
-	
+
 	case x86_rob_kind_shared:
 		x86_rob_trim(core);
 		assert(X86_THREAD.rob_count);
@@ -445,7 +445,7 @@ void x86_rob_dump(int core, FILE *f)
 		}
 		break;
 	}
-	
+
 	case x86_rob_kind_shared:
 	{
 		x86_rob_trim(core);

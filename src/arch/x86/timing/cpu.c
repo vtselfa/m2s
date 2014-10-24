@@ -1271,8 +1271,6 @@ void x86_core_reset_stats(int core)
 	X86_CORE.dispatch_stall_cycles_lsq = 0;
 	X86_CORE.dispatch_stall_cycles_uop_queue = 0;
 	X86_CORE.dispatch_stall_cycles_rename = 0;
-	X86_CORE.last_dispatch_stall_cycles_rob_mem = 0;
-	X86_CORE.last_dispatch_stall_cycles_rob_load = 0;
 	for (i = 0; i < x86_uinst_opcode_count; i++)
 	{
 		X86_CORE.num_dispatched_uinst_array[i] = 0;
