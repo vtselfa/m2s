@@ -148,6 +148,7 @@ struct x86_thread_report_stack_t
 	long long last_cycle;
 	long long dispatch_stall_cycles_rob;
 	long long dispatch_stall_cycles_rob_mem;
+	long long dispatch_stall_cycles_rob_smt;
 	long long dispatch_stall_cycles_iq;
 	long long dispatch_stall_cycles_lsq;
 	long long dispatch_stall_cycles_rename;
@@ -237,6 +238,7 @@ struct x86_thread_t
 	long long dispatch_stall_cycles_iq;
 	long long dispatch_stall_cycles_lsq;
 	long long dispatch_stall_cycles_rename;
+	long long dispatch_stall_cycles_rob_smt; /* Cicles with the rob full of other thread's instructions */
 
 	long long iq_occupancy;
 	long long iq_full;
@@ -329,6 +331,8 @@ struct x86_core_t
 	long long dispatch_stall_cycles_rename;
 	long long last_dispatch_stall_cycles_rob_mem;
 	long long last_dispatch_stall_cycles_rob_load;
+	long long dispatch_stall_cycles_rob_smt;
+
 	long long num_dispatched_uinst_array[x86_uinst_opcode_count];
 	long long num_issued_uinst_array[x86_uinst_opcode_count];
 	long long num_committed_uinst_array[x86_uinst_opcode_count];

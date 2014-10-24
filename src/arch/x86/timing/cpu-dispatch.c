@@ -48,12 +48,26 @@ static enum x86_dispatch_stall_t x86_cpu_can_dispatch_thread(int core, int threa
 	if (!x86_rob_can_enqueue(uop))
 	{
 		struct x86_uop_t *head = x86_rob_head(core, thread);
-		if(head->flags & X86_UINST_MEM)
+		struct x86_uop_t *oldest = x86_rob_kind == x86_rob_kind_shared ? x86_rob_shared_head(core) : head;
+
+		/* The oldest uop in the shared ROB is from another thread, which is partially guilty of this stall */
+		if (oldest->thread != thread)
+		{
+			oldest = x86_rob_shared_head(core);
+			assert(oldest->core == core);
+			X86_CORE.dispatch_stall_cycles_rob_smt++;
+			X86_THREAD.dispatch_stall_cycles_rob_smt++;
+			X86_THREAD.ctx->dispatch_stall_cycles_rob_smt++;
+		}
+
+		/* Account for stalls caused by memory uops */
+		if (head && (head->flags & X86_UINST_MEM)) /* Head can be null if the ROB is shared and full of other thread's uops */
 		{
 			X86_CORE.dispatch_stall_cycles_rob_mem++;
 			X86_THREAD.dispatch_stall_cycles_rob_mem++;
 			X86_THREAD.ctx->dispatch_stall_cycles_rob_mem++;
 		}
+
 		X86_CORE.dispatch_stall_cycles_rob++;
 		X86_THREAD.dispatch_stall_cycles_rob++;
 		X86_THREAD.ctx->dispatch_stall_cycles_rob++;

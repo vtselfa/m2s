@@ -43,6 +43,7 @@ struct x86_ctx_report_stack_t
 	long long mm_pref_accesses;
 	long long dispatch_stall_cycles_rob;
 	long long dispatch_stall_cycles_rob_mem;
+	long long dispatch_stall_cycles_rob_smt;
 	long long dispatch_stall_cycles_iq;
 	long long dispatch_stall_cycles_lsq;
 	long long dispatch_stall_cycles_rename;
@@ -207,6 +208,7 @@ struct x86_ctx_t
 	long long dispatch_stall_cycles_iq; /* Cicles with the ROB stalled due to a load instruction this ctx has suffered */
 	long long dispatch_stall_cycles_lsq; /* Cicles with the ROB stalled due to a load instruction this ctx has suffered */
 	long long dispatch_stall_cycles_rename; /* Cicles with the ROB stalled due to a load instruction this ctx has suffered */
+	long long dispatch_stall_cycles_rob_smt; /* Cicles with the rob full of other thread's instructions */
 
 	/* Mapping report */
 	FILE *mapping_report_file;

@@ -1391,6 +1391,7 @@ static void x86_cpu_thread_interval_report_init(int core, int thread)
 	fprintf(stack->report_file, ",c%dt%d-%s", core, thread, "ipc-glob");             /* Global microinstructions per cycle */
 	fprintf(stack->report_file, ",c%dt%d-%s", core, thread, "rob-stall-int");        /* Ratio of cycles with the ROB stalled */
 	fprintf(stack->report_file, ",c%dt%d-%s", core, thread, "rob-stall-mem-int");    /* Ratio of cycles with the ROB stalled with a memory instruction in the head */
+	fprintf(stack->report_file, ",c%dt%d-%s", core, thread, "rob-stall-smt-int");    /* Ratio of cycles with the ROB stalled and filled with instructions of other threads */
 	fprintf(stack->report_file, ",c%dt%d-%s", core, thread, "iq-stall-int");         /* Ratio of cycles with the IQ stalled */
 	fprintf(stack->report_file, ",c%dt%d-%s", core, thread, "lsq-stall-int");        /* Ratio of cycles with the LSQ stalled */
 	fprintf(stack->report_file, ",c%dt%d-%s", core, thread, "rename-stall-int");     /* Ratio of cycles with the dispatch stalled due running out of rename registers */
@@ -1413,6 +1414,7 @@ static void x86_cpu_thread_interval_report(int core, int thread)
 	long long num_committed_uinst_int;
 	double rob_stall;
 	double rob_stall_mem;
+	double rob_stall_smt;
 	double iq_stall;
 	double lsq_stall;
 	double rename_stall;
@@ -1425,6 +1427,10 @@ static void x86_cpu_thread_interval_report(int core, int thread)
 
 	rob_stall_mem = cycles_int > 0 ?
 			(double) (X86_THREAD.dispatch_stall_cycles_rob_mem - stack->dispatch_stall_cycles_rob_mem) / cycles_int :
+			NAN;
+
+	rob_stall_smt = cycles_int > 0 ?
+			(double) (X86_THREAD.dispatch_stall_cycles_rob_smt - stack->dispatch_stall_cycles_rob_smt) / cycles_int :
 			NAN;
 
 	iq_stall = cycles_int > 0 ?
@@ -1450,6 +1456,7 @@ static void x86_cpu_thread_interval_report(int core, int thread)
 	fprintf(stack->report_file, ",%.3f", ipc_glob);
 	fprintf(stack->report_file, ",%.3f", rob_stall);
 	fprintf(stack->report_file, ",%.3f", rob_stall_mem);
+	fprintf(stack->report_file, ",%.3f", rob_stall_smt);
 	fprintf(stack->report_file, ",%.3f", iq_stall);
 	fprintf(stack->report_file, ",%.3f", lsq_stall);
 	fprintf(stack->report_file, ",%.3f", rename_stall);
@@ -1467,6 +1474,7 @@ static void x86_cpu_thread_interval_report(int core, int thread)
 	stack->last_cycle = arch_x86->cycle;
 	stack->dispatch_stall_cycles_rob = X86_THREAD.dispatch_stall_cycles_rob;
 	stack->dispatch_stall_cycles_rob_mem = X86_THREAD.dispatch_stall_cycles_rob_mem;
+	stack->dispatch_stall_cycles_rob_smt = X86_THREAD.dispatch_stall_cycles_rob_smt;
 	stack->dispatch_stall_cycles_iq = X86_THREAD.dispatch_stall_cycles_iq;
 	stack->dispatch_stall_cycles_lsq = X86_THREAD.dispatch_stall_cycles_lsq;
 	stack->dispatch_stall_cycles_rename = X86_THREAD.dispatch_stall_cycles_rename;

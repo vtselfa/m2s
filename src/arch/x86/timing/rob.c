@@ -472,3 +472,16 @@ void x86_rob_dump(int core, FILE *f)
 		panic("%s: invalid ROB type", __FUNCTION__);
 	}
 }
+
+
+/* Returns the oldest instruction in a shared ROB */
+struct x86_uop_t *x86_rob_shared_head(int core)
+{
+	assert(x86_rob_kind == x86_rob_kind_shared);
+
+	x86_rob_trim(core);
+	if (!X86_CORE.rob_count)
+		return NULL;
+
+	return list_get(X86_CORE.rob, X86_CORE.rob_head);
+}

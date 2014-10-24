@@ -41,6 +41,7 @@ void x86_rob_remove_head(int core, int thread);
 struct x86_uop_t *x86_rob_tail(int core, int thread);
 void x86_rob_remove_tail(int core, int thread);
 struct x86_uop_t *x86_rob_get(int core, int thread, int index);
+struct x86_uop_t *x86_rob_shared_head(int core);
 
 #endif
 

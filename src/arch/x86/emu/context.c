@@ -955,6 +955,7 @@ void x86_ctx_interval_report_init(struct x86_ctx_t *ctx)
 	fprintf(stack->report_file, ",pid%d-%s", ctx->pid, "mm-writes-int");
 	fprintf(stack->report_file, ",pid%d-%s", ctx->pid, "rob-stall-int");
 	fprintf(stack->report_file, ",pid%d-%s", ctx->pid, "rob-stall-mem-int");
+	fprintf(stack->report_file, ",pid%d-%s", ctx->pid, "rob-stall-smt-int");
 	fprintf(stack->report_file, ",pid%d-%s", ctx->pid, "iq-stall-int");
 	fprintf(stack->report_file, ",pid%d-%s", ctx->pid, "lsq-stall-int");
 	fprintf(stack->report_file, ",pid%d-%s", ctx->pid, "rename-stall-int");
@@ -982,6 +983,7 @@ void x86_ctx_interval_report(struct x86_ctx_t *ctx)
 	double ipc_glob;
 	double rob_stall;
 	double rob_stall_mem;
+	double rob_stall_smt;
 	double iq_stall;
 	double lsq_stall;
 	double rename_stall;
@@ -1002,6 +1004,10 @@ void x86_ctx_interval_report(struct x86_ctx_t *ctx)
 
 	rob_stall_mem = cycles_int > 0 ?
 			(double) (ctx->dispatch_stall_cycles_rob_mem - stack->dispatch_stall_cycles_rob_mem) / cycles_int :
+			NAN;
+
+	rob_stall_smt = cycles_int > 0 ?
+			(double) (ctx->dispatch_stall_cycles_rob_smt - stack->dispatch_stall_cycles_rob_smt) / cycles_int :
 			NAN;
 
 	iq_stall = cycles_int > 0 ?
@@ -1046,6 +1052,7 @@ void x86_ctx_interval_report(struct x86_ctx_t *ctx)
 	fprintf(stack->report_file, ",%lld", mm_write_accesses);
 	fprintf(stack->report_file, ",%.3f", rob_stall);
 	fprintf(stack->report_file, ",%.3f", rob_stall_mem);
+	fprintf(stack->report_file, ",%.3f", rob_stall_smt);
 	fprintf(stack->report_file, ",%.3f", iq_stall);
 	fprintf(stack->report_file, ",%.3f", lsq_stall);
 	fprintf(stack->report_file, ",%.3f", rename_stall);
@@ -1074,6 +1081,7 @@ void x86_ctx_interval_report(struct x86_ctx_t *ctx)
 	stack->mm_pref_accesses = ctx->mm_pref_accesses;
 	stack->dispatch_stall_cycles_rob = ctx->dispatch_stall_cycles_rob;
 	stack->dispatch_stall_cycles_rob_mem = ctx->dispatch_stall_cycles_rob_mem;
+	stack->dispatch_stall_cycles_rob_smt = ctx->dispatch_stall_cycles_rob_smt;
 	stack->dispatch_stall_cycles_iq = ctx->dispatch_stall_cycles_iq;
 	stack->dispatch_stall_cycles_lsq = ctx->dispatch_stall_cycles_lsq;
 	stack->dispatch_stall_cycles_rename = ctx->dispatch_stall_cycles_rename;
