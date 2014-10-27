@@ -18,12 +18,14 @@
 
 #include <assert.h>
 
+#include <arch/x86/timing/cpu.h>
 #include <lib/esim/trace.h>
 #include <lib/mhandle/mhandle.h>
 #include <lib/util/linked-list.h>
 #include <lib/util/misc.h>
 #include <lib/util/string.h>
 
+#include "atd.h"
 #include "cache.h"
 #include "mem-system.h"
 #include "prefetcher.h"
@@ -232,6 +234,7 @@ int cache_detect_stride(struct cache_t *cache, int addr)
 	return 0;
 }
 
+
 void cache_free(struct cache_t *cache)
 {
 	struct linked_list_t *sd = cache->prefetch.stride_detector.camps;
@@ -255,8 +258,9 @@ void cache_free(struct cache_t *cache)
 	}
 	linked_list_free(sd);
 
-	free(cache->name);
 	prefetcher_free(cache->prefetcher);
+
+	free(cache->name);
 	free(cache);
 }
 

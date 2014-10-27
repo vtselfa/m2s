@@ -54,8 +54,6 @@ enum mod_message_type_t
 /* Stack */
 struct mod_stack_t
 {
-
-
 	long long id;
 	enum mod_access_kind_t access_kind;
 	int *witness_ptr;
@@ -82,6 +80,11 @@ struct mod_stack_t
 	int src_tag;
 	int src_pref_stream;
 	int src_pref_slot;
+
+	/* Used for Auxiliary Tag Directory */
+	int atd_hit; /* Auxiliary Tags Directory */
+	int atd_way;
+	int src_atd_way;
 
 	/* Mem controller/main mem */
 	int state_main_memory; // when the request is thrown by MC, the state of this request in main memory

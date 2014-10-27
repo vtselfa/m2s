@@ -289,6 +289,9 @@ struct mod_t
 	/* Reporting statistics at intervals */
 	struct mod_report_stack_t *report_stack;
 
+	/* Alternate Tag Directory per thread */
+	struct atd_t **atd_per_thread;
+
 	/* Statistics */
 	/* Vicent's Seal of Approval */
 	long long hits;

@@ -40,6 +40,7 @@
 #include <network/node.h>
 #include <network/routing-table.h>
 
+#include "atd.h"
 #include "cache.h"
 #include "command.h"
 #include "directory.h"
@@ -1804,6 +1805,25 @@ static void mem_config_x86_thread_reachability()
 }
 
 
+void mem_config_create_atds()
+{
+	int i;
+
+	LIST_FOR_EACH(mem_system->mod_list, i)
+	{
+		struct mod_t *mod = list_get(mem_system->mod_list, i);
+		int core;
+		int thread;
+		X86_CORE_FOR_EACH X86_THREAD_FOR_EACH
+		{
+			int thread_id = core * x86_cpu_num_threads + thread;
+			if (mod->reachable_threads[thread_id])
+				mod->atd_per_thread[thread_id] = atd_create(mod, mod->cache->num_sets); /* TODO: For now, all sets are monitored */
+		}
+	}
+}
+
+
 /*
  * Public Functions
  */
@@ -1874,6 +1894,9 @@ void mem_config_read(void)
 
 	/* Compute wich dram systems are accessible from a given memory module */
 	mem_config_main_memory_reachability();
+
+	/* Create ATDs for each thread accessig each cache */
+	mem_config_create_atds();
 
 	/* Dump configuration to trace file */
 	mem_config_trace();

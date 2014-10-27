@@ -66,6 +66,14 @@ static enum x86_dispatch_stall_t x86_cpu_can_dispatch_thread(int core, int threa
 			X86_CORE.dispatch_stall_cycles_rob_mem++;
 			X86_THREAD.dispatch_stall_cycles_rob_mem++;
 			X86_THREAD.ctx->dispatch_stall_cycles_rob_mem++;
+
+			/* This miss is due an eviction in a shared cache caused by another thread */
+			if (head->uinst->interthread_miss)
+			{
+				X86_THREAD.interthread_penalty_cycles++;
+				X86_CORE.interthread_penalty_cycles++;
+				printf("Interthread Miss!!!\n");
+			}
 		}
 
 		X86_CORE.dispatch_stall_cycles_rob++;

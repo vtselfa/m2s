@@ -37,6 +37,7 @@
 #include <lib/util/stats.h>
 #include <lib/util/string.h>
 
+#include "atd.h"
 #include "directory.h"
 #include "local-mem-protocol.h"
 #include "mem-system.h"
@@ -96,7 +97,10 @@ struct mod_t *mod_create(char *name, enum mod_kind_t kind, int num_ports,
 
 	mod->client_info_repos = repos_create(sizeof(struct mod_client_info_t), mod->name);
 
-	mod->reachable_threads = xcalloc((long long) x86_cpu_num_cores * (long long) x86_cpu_num_threads, sizeof(char));
+	/* Alternate Tag Directory per thread */
+	mod->atd_per_thread = xcalloc(x86_cpu_num_cores * x86_cpu_num_threads, sizeof(struct adt_t *));
+	
+	mod->reachable_threads = xcalloc(x86_cpu_num_cores * x86_cpu_num_threads, sizeof(char));
 	mod->reachable_mm_modules = list_create();
 
 	mod->mc_id = -1; /* By default */
@@ -107,13 +111,14 @@ struct mod_t *mod_create(char *name, enum mod_kind_t kind, int num_ports,
 
 void mod_free(struct mod_t *mod)
 {
+	int core;
+	int thread;
+
 	linked_list_free(mod->low_mod_list);
 	linked_list_free(mod->high_mod_list);
 
-	if (mod->cache)
-		cache_free(mod->cache);
-	if (mod->dir)
-		dir_free(mod->dir);
+	cache_free(mod->cache);
+	dir_free(mod->dir);
 
 	free(mod->ports);
 	repos_free(mod->client_info_repos);
@@ -127,8 +132,6 @@ void mod_free(struct mod_t *mod)
 	/* Interval report */
 	if(mod->report_stack)
 	{
-		int core;
-		int thread;
 		struct mod_report_stack_t *stack = mod->report_stack;
 
 		hash_table_gen_free(stack->pref_pollution_filter);
@@ -156,6 +159,12 @@ void mod_free(struct mod_t *mod)
 
 	free(mod->reachable_threads);
 	list_free(mod->reachable_mm_modules);
+
+	X86_CORE_FOR_EACH X86_THREAD_FOR_EACH
+	{
+		int thread_id = core * x86_cpu_num_threads + thread;
+		atd_free(mod->atd_per_thread[thread_id]);
+	}
 
 	free(mod);
 }

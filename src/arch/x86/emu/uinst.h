@@ -141,7 +141,7 @@ enum x86_dep_t
 	x86_dep_xmmm32 = 0x800,
 	x86_dep_xmmm64 = 0x801,
 	x86_dep_xmmm128 = 0x802,
-	
+
 	x86_dep_xmm = 0x900
 };
 
@@ -276,6 +276,9 @@ struct x86_uinst_t
 	/* Memory access */
 	unsigned int address;
 	int size;
+
+	/* This memory access is a miss caused by thread pollution */
+	int interthread_miss : 1;
 };
 
 

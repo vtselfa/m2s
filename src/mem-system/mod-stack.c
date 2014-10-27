@@ -56,9 +56,7 @@ struct mod_stack_t *mod_stack_create(long long id, struct mod_t *mod,
 	stack->pref_stream = -1;
 	stack->pref_slot = -1;
 	stack->prefetch = prefetch;
-	stack->coal_table_block_max=-1;
-	stack->coal_table_block_min=-1;
-
+	stack->atd_way = -1;
 	stack->start_time = -1;
 
 	/* Return */

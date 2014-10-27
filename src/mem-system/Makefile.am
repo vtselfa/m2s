@@ -2,6 +2,9 @@ lib_LIBRARIES = libmemsystem.a
 
 libmemsystem_a_SOURCES = \
 	\
+	atd.c \
+	atd.h \
+	\
 	cache.c \
 	cache.h \
 	\
