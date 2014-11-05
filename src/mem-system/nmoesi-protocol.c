@@ -18,9 +18,9 @@
 
 #include <assert.h>
 
-#include <arch/x86/timing/cpu.h>
-#include <arch/x86/emu/loader.h>
 #include <arch/x86/emu/context.h>
+#include <arch/x86/timing/cpu.h>
+#include <arch/x86/timing/uop.h>
 
 #include <dramsim/bindings-c.h>
 #include <lib/esim/esim.h>
@@ -552,6 +552,7 @@ void mod_handler_nmoesi_load(int event, void *data)
 		new_stack->background = stack->background;
 		new_stack->request_dir = mod_request_up_down;
 		new_stack->access_kind = mod_access_load;
+		new_stack->event_queue_item = stack->event_queue_item;
 		esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK, new_stack, 0);
 		return;
 	}
@@ -876,6 +877,7 @@ void mod_handler_nmoesi_store(int event, void *data)
 		new_stack->witness_ptr = stack->witness_ptr;
 		new_stack->request_dir = mod_request_up_down;
 		new_stack->access_kind = mod_access_store;
+		new_stack->event_queue_item = stack->event_queue_item;
 		esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK, new_stack, 0);
 
 		/* Set witness variable to NULL so that retries from the same
@@ -2441,9 +2443,9 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 				/* Hit in ATD */
 				else if (stack->atd_hit > 0)
 				{
-					struct x86_uinst_t *uinst = stack->event_queue_item;
-					if (uinst)
-						uinst->interthread_miss = 1; /* Mark this memory instruction as an interthread miss */
+					struct x86_uop_t *uop = stack->event_queue_item;
+					if (uop)
+						uop->uinst->interthread_miss = 1; /* Mark this memory instruction as an interthread miss */
 					mod->atd_intermisses_per_thread[thread_id]++;
 					mod->report_stack->atd_intermisses_per_thread_int[thread_id]++;
 				}
@@ -3183,7 +3185,8 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 		new_stack->stream_retried_cycle = stack->stream_retried_cycle;
 		new_stack->request_dir = stack->request_dir;
 		new_stack->access_kind = mod_access_read_request;
-			esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK, new_stack, 0);
+		new_stack->event_queue_item = stack->event_queue_item;
+		esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK, new_stack, 0);
 		return;
 	}
 
@@ -4110,6 +4113,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 		new_stack->stream_retried_cycle = stack->stream_retried_cycle;
 		new_stack->request_dir = stack->request_dir;
 		new_stack->access_kind = mod_access_write_request;
+		new_stack->event_queue_item = stack->event_queue_item;
 		esim_schedule_event(EV_MOD_NMOESI_FIND_AND_LOCK, new_stack, 0);
 		return;
 	}

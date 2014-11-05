@@ -72,7 +72,6 @@ static enum x86_dispatch_stall_t x86_cpu_can_dispatch_thread(int core, int threa
 			{
 				X86_THREAD.interthread_penalty_cycles++;
 				X86_CORE.interthread_penalty_cycles++;
-				printf("Interthread Miss!!!\n");
 			}
 		}
 
