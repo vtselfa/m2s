@@ -86,10 +86,9 @@ void dir_free(struct dir_t *dir)
 		return;
 
 	#ifndef NDEBUG
-	int i;
-	for (i = 0; i < dir->ssize * dir->asize; i++)
+	for (int i = 0; i < dir->ssize * dir->asize; i++)
 		assert(!dir->pref_dir_lock[i].lock_queue);
-	for (i = 0; i < dir->xsize * dir->ysize; i++)
+	for (int i = 0; i < dir->xsize * dir->ysize; i++)
 		assert(!dir->dir_lock[i].lock_queue);
 	#endif
 

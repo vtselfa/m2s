@@ -69,8 +69,6 @@ int max_mod_level;
  */
 
 
-
-
 struct mod_t *mod_create(char *name, enum mod_kind_t kind, int num_ports,
 	int block_size, int latency)
 {
