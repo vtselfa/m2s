@@ -2395,11 +2395,21 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 
 			assert(mod->reachable_threads[thread_id]);
 
-			if (-stack->hit != stack->atd_hit)
-				printf("WRONG\n");
-			else
-				printf("OK\n");
+			/* Alternate Tag Directory hits */
+			if (stack->atd_hit)
+			{
+				mod->atd_hits_per_thread[thread_id]++;
+				mod->report_stack->atd_hits_per_thread_int[thread_id]++;
+			}
 
+			/* Alternate Tag Directory misses */
+			else
+			{
+				mod->atd_misses_per_thread[thread_id]++;
+				mod->report_stack->atd_misses_per_thread_int[thread_id]++;
+			}
+
+			/* Cache hits, misses, retries...*/
 			if (stack->hit)
 			{
 				mod->hits++;
@@ -2420,8 +2430,26 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 				mod->report_stack->misses_per_thread_int[thread_id]++;
 				ctx->report_stack->misses_per_level_int[mod->level]++;
 				X86_THREAD.report_stack->misses_per_level_int[mod->level]++;
+
+				/* Also a miss in ATD */
+				if (!stack->atd_hit)
+				{
+					mod->atd_intramisses_per_thread[thread_id]++;
+					mod->report_stack->atd_intramisses_per_thread_int[thread_id]++;
+				}
+
+				/* Hit in ATD */
+				else if (stack->atd_hit > 0)
+				{
+					struct x86_uinst_t *uinst = stack->event_queue_item;
+					if (uinst)
+						uinst->interthread_miss = 1; /* Mark this memory instruction as an interthread miss */
+					mod->atd_intermisses_per_thread[thread_id]++;
+					mod->report_stack->atd_intermisses_per_thread_int[thread_id]++;
+				}
 			}
 
+			/* Prefetch usefulness */
 			if (mod_get_prefetched_bit(mod, stack->tag) || stack->stream_hit)
 			{
 				mod->useful_prefetches++;
@@ -2450,9 +2478,6 @@ void mod_handler_nmoesi_find_and_lock(int event, void *data)
 						/* Demand */
 						if (hash_table_gen_get(mod->report_stack->dem_pollution_filter_per_thread[pos], (void*) &stack->tag, sizeof(stack->tag)))
 						{
-							struct x86_uinst_t *uinst = stack->event_queue_item;
-							if (uinst)
-								uinst->interthread_miss = 1; /* Mark this memory instruction as an interthread miss */
 							mod->report_stack->dem_pollution_per_thread_int[thread_id]++;
 							goto out; /* Exiting two nested loops */
 						}

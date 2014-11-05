@@ -101,6 +101,11 @@ struct mod_t *mod_create(char *name, enum mod_kind_t kind, int num_ports,
 	mod->reachable_threads = xcalloc(x86_cpu_num_cores * x86_cpu_num_threads, sizeof(char));
 	mod->reachable_mm_modules = list_create();
 
+	mod->atd_hits_per_thread = xcalloc(x86_cpu_num_cores * x86_cpu_num_threads, sizeof(long long));
+	mod->atd_misses_per_thread = xcalloc(x86_cpu_num_cores * x86_cpu_num_threads, sizeof(long long));
+	mod->atd_intramisses_per_thread = xcalloc(x86_cpu_num_cores * x86_cpu_num_threads, sizeof(long long));
+	mod->atd_intermisses_per_thread = xcalloc(x86_cpu_num_cores * x86_cpu_num_threads, sizeof(long long));
+
 	mod->mc_id = -1; /* By default */
 
 	return mod;
@@ -151,6 +156,10 @@ void mod_free(struct mod_t *mod)
 		free(stack->retries_per_thread_int);
 		free(stack->dem_pollution_per_thread_int);
 		free(stack->pref_pollution_per_thread_int);
+		free(stack->atd_hits_per_thread_int);
+		free(stack->atd_misses_per_thread_int);
+		free(stack->atd_intramisses_per_thread_int);
+		free(stack->atd_intermisses_per_thread_int);
 		file_close(stack->report_file);
 	}
 	free(mod->report_stack);
@@ -163,6 +172,11 @@ void mod_free(struct mod_t *mod)
 		int thread_id = core * x86_cpu_num_threads + thread;
 		atd_free(mod->atd_per_thread[thread_id]);
 	}
+	free(mod->atd_per_thread);
+	free(mod->atd_hits_per_thread);
+	free(mod->atd_misses_per_thread);
+	free(mod->atd_intramisses_per_thread);
+	free(mod->atd_intermisses_per_thread);
 
 	free(mod);
 }
@@ -930,6 +944,10 @@ void mod_interval_report_init(struct mod_t *mod)
 	stack->stream_hits_per_thread_int = xcalloc(x86_cpu_num_cores * x86_cpu_num_threads, sizeof(long long));
 	stack->misses_per_thread_int      = xcalloc(x86_cpu_num_cores * x86_cpu_num_threads, sizeof(long long));
 	stack->retries_per_thread_int     = xcalloc(x86_cpu_num_cores * x86_cpu_num_threads, sizeof(long long));
+	stack->atd_hits_per_thread_int    = xcalloc(x86_cpu_num_cores * x86_cpu_num_threads, sizeof(long long));
+	stack->atd_misses_per_thread_int    = xcalloc(x86_cpu_num_cores * x86_cpu_num_threads, sizeof(long long));
+	stack->atd_intramisses_per_thread_int  = xcalloc(x86_cpu_num_cores * x86_cpu_num_threads, sizeof(long long));
+	stack->atd_intermisses_per_thread_int  = xcalloc(x86_cpu_num_cores * x86_cpu_num_threads, sizeof(long long));
 
 	/* To measure pollution */
 
@@ -987,6 +1005,11 @@ void mod_interval_report_init(struct mod_t *mod)
 			fprintf(stack->report_file, ",%s-c%dt%d-%s", mod->name, core, thread, "stream-hits-int");
 			fprintf(stack->report_file, ",%s-c%dt%d-%s", mod->name, core, thread, "misses-int");
 			fprintf(stack->report_file, ",%s-c%dt%d-%s", mod->name, core, thread, "retries-int");
+			/* Alternate Tag Directory */
+			fprintf(stack->report_file, ",%s-c%dt%d-%s", mod->name, core, thread, "atd-hits-int");
+			fprintf(stack->report_file, ",%s-c%dt%d-%s", mod->name, core, thread, "atd-misses-int");
+			fprintf(stack->report_file, ",%s-c%dt%d-%s", mod->name, core, thread, "atd-intramisses-int");
+			fprintf(stack->report_file, ",%s-c%dt%d-%s", mod->name, core, thread, "atd-intermisses-int");
 			/* Demand pollution suffered by thread */
 			fprintf(stack->report_file, ",%s-c%dt%d-%s", mod->name, core, thread, "dem-pollution-int");
 			/* Prefetch pollution suffered by thread */
@@ -1057,6 +1080,11 @@ void mod_interval_report(struct mod_t *mod)
 			fprintf(stack->report_file, ",%lld", stack->stream_hits_per_thread_int[pos]);
 			fprintf(stack->report_file, ",%lld", stack->misses_per_thread_int[pos]);
 			fprintf(stack->report_file, ",%lld", stack->retries_per_thread_int[pos]);
+			/* ATD */
+			fprintf(stack->report_file, ",%lld", stack->atd_hits_per_thread_int[pos]);
+			fprintf(stack->report_file, ",%lld", stack->atd_misses_per_thread_int[pos]);
+			fprintf(stack->report_file, ",%lld", stack->atd_intramisses_per_thread_int[pos]);
+			fprintf(stack->report_file, ",%lld", stack->atd_intermisses_per_thread_int[pos]);
 			/* Percentage of misses for this thread that have been caused by evictions caused by DEMAND requests of other threads */
 			fprintf(stack->report_file, ",%.3f", stack->misses_per_thread_int[pos] ? (double) stack->dem_pollution_per_thread_int[pos] / stack->misses_per_thread_int[pos] : NAN);
 			/* Percentage of misses for this thread that have been caused by evictions caused by PREFETCH requests of other threads */
@@ -1092,6 +1120,10 @@ void mod_interval_report(struct mod_t *mod)
 			stack->pref_pollution_per_thread_int[pos] = 0;
 			hash_table_gen_clear(stack->dem_pollution_filter_per_thread[pos]);
 			hash_table_gen_clear(stack->pref_pollution_filter_per_thread[pos]);
+			stack->atd_hits_per_thread_int[pos] = 0;
+			stack->atd_misses_per_thread_int[pos] = 0;
+			stack->atd_intramisses_per_thread_int[pos] = 0;
+			stack->atd_intermisses_per_thread_int[pos] = 0;
 		}
 	}
 }

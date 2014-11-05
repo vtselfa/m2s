@@ -57,6 +57,11 @@ struct mod_report_stack_t
 	long long *retries_per_thread_int;
 	long long *stream_hits_per_thread_int;
 
+	long long *atd_hits_per_thread_int;
+	long long *atd_misses_per_thread_int;
+	long long *atd_intramisses_per_thread_int;
+	long long *atd_intermisses_per_thread_int;
+
 	FILE *report_file;
 };
 
@@ -300,6 +305,11 @@ struct mod_t
 	long long late_prefetches;
 	long long completed_prefetches;
 	long long useful_prefetches;
+
+	long long *atd_hits_per_thread;
+	long long *atd_misses_per_thread;
+	long long *atd_intramisses_per_thread;
+	long long *atd_intermisses_per_thread;
 
 	/* Stats not approved */
 	long long accesses;
