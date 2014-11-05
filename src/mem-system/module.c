@@ -99,7 +99,7 @@ struct mod_t *mod_create(char *name, enum mod_kind_t kind, int num_ports,
 
 	/* Alternate Tag Directory per thread */
 	mod->atd_per_thread = xcalloc(x86_cpu_num_cores * x86_cpu_num_threads, sizeof(struct adt_t *));
-	
+
 	mod->reachable_threads = xcalloc(x86_cpu_num_cores * x86_cpu_num_threads, sizeof(char));
 	mod->reachable_mm_modules = list_create();
 

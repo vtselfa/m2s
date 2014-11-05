@@ -82,6 +82,9 @@ struct dir_t *dir_create(char *name, int xsize, int ysize, int zsize, int num_no
 
 void dir_free(struct dir_t *dir)
 {
+	if (!dir)
+		return;
+
 	#ifndef NDEBUG
 	int i;
 	for (i = 0; i < dir->ssize * dir->asize; i++)

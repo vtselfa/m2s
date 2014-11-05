@@ -241,6 +241,9 @@ void cache_free(struct cache_t *cache)
 	struct stride_detector_camp_t *camp;
 	int set;
 
+	if (!cache)
+		return;
+
 	for (set = 0; set < cache->num_sets; set++)
 		free(cache->sets[set].blocks);
 	free(cache->sets);
