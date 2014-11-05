@@ -819,6 +819,13 @@ void x86_cpu_read_config(void)
 	/* Trace Cache */
 	x86_trace_cache_read_config(config);
 
+	/* Check parameters */
+	if (x86_cpu_num_cores < 1 && x86_cpu_num_cores > 128)
+		fatal("%s: Number of cores must be > 1 and <= 128.\n", __FUNCTION__);
+
+	if (x86_cpu_num_threads < 1 && x86_cpu_num_threads > 128)
+		fatal("%s: Number of threads per core must be > 1 and <= 128.\n", __FUNCTION__);
+
 	/* Close file */
 	config_check(config);
 	config_free(config);
