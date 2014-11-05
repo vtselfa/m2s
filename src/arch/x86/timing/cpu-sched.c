@@ -159,7 +159,7 @@ static void x86_cpu_map_context(struct x86_ctx_t *ctx)
 	min_core = -1;
 	min_thread = -1;
 	node = 0;
-	X86_CORE_FOR_EACH X86_THREAD_FOR_EACH
+	X86_THREAD_FOR_EACH X86_CORE_FOR_EACH
 	{
 		/* Context does not have affinity with this node */
 		node = core * x86_cpu_num_threads + thread;
