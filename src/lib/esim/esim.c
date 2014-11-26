@@ -237,7 +237,7 @@ int esim_domain_frequency(int domain_index)
 		panic("%s: invalid domain index (%d)",
 				__FUNCTION__, domain_index);
 
-	/* Return cycle time */
+	/* Return frequency */
 	return domain->frequency;
 }
 
@@ -386,7 +386,7 @@ void esim_init()
 	esim_event_info_list = list_create();
 	esim_event_heap = heap_create(20);
 	esim_end_event_list = linked_list_create();
-	
+
 	/* List of frequency domains */
 	esim_domain_list = list_create();
 	list_add(esim_domain_list, NULL);
@@ -555,7 +555,7 @@ void esim_schedule_event(int event_index, void *data, int cycles)
 	 * time after which the event should be scheduled. */
 	when = esim_time / domain->cycle_time * domain->cycle_time;
 	when += domain->cycle_time * cycles;
-	
+
 	/* Create event and insert in heap */
 	event = esim_event_create(event_index, data);
 	heap_insert(esim_event_heap, when, event);
@@ -623,7 +623,7 @@ void esim_process_events(int forward)
 
 	struct esim_event_t *event;
 	struct esim_event_info_t *event_info;
-	
+
 	/* Check if any action is actually needed. Events will be checked and
 	 * global time will be advanced only if argument 'forward' is set or
 	 * there are any pending events to process. */

@@ -72,12 +72,6 @@ void mod_stack_return(struct mod_stack_t *stack)
 	/* Wake up dependent accesses */
 	mod_stack_wakeup_stack(stack);
 
-	/* Free */
-	if(stack->coalesced_stacks != NULL)
-	{
-		linked_list_free(stack->coalesced_stacks);
-		stack->coalesced_stacks = NULL;
-	}
 	free(stack);
 	esim_schedule_event(ret_event, ret_stack, 0);
 }

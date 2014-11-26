@@ -1222,114 +1222,11 @@ void x86_thread_report_stack_reset_stats(struct x86_thread_report_stack_t *stack
 
 void x86_thread_reset_stats(int core, int thread)
 {
-	int i;
-
-	X86_THREAD.num_fetched_uinst = 0;
-	for (i = 0; i < x86_uinst_opcode_count; i++)
-	{
-		X86_THREAD.num_dispatched_uinst_array[i] = 0;
-		X86_THREAD.num_issued_uinst_array[i] = 0;
-		X86_THREAD.num_committed_uinst_array[i] = 0;
-	}
-	X86_THREAD.num_committed_uinst = 0;
-	X86_THREAD.num_squashed_uinst = 0;
-	X86_THREAD.num_branch_uinst = 0;
-	X86_THREAD.num_mispred_branch_uinst = 0;
-
-	X86_THREAD.rob_occupancy = 0;
-	X86_THREAD.rob_full = 0;
-	X86_THREAD.rob_reads = 0;
-	X86_THREAD.rob_writes = 0;
-
-	X86_THREAD.iq_occupancy = 0;
-	X86_THREAD.iq_full = 0;
-	X86_THREAD.iq_reads = 0;
-	X86_THREAD.iq_writes = 0;
-	X86_THREAD.iq_wakeup_accesses = 0;
-
-	X86_THREAD.reg_file_int_occupancy = 0;
-	X86_THREAD.reg_file_int_full = 0;
-	X86_THREAD.reg_file_int_reads = 0;
-	X86_THREAD.reg_file_int_writes = 0;
-
-	X86_THREAD.reg_file_fp_occupancy = 0;
-	X86_THREAD.reg_file_fp_full = 0;
-	X86_THREAD.reg_file_fp_reads = 0;
-	X86_THREAD.reg_file_fp_writes = 0;
-
-	X86_THREAD.reg_file_xmm_occupancy = 0;
-	X86_THREAD.reg_file_xmm_full = 0;
-	X86_THREAD.reg_file_xmm_reads = 0;
-	X86_THREAD.reg_file_xmm_writes = 0;
-
-	X86_THREAD.rat_int_reads = 0;
-	X86_THREAD.rat_int_writes = 0;
-	X86_THREAD.rat_fp_reads = 0;
-	X86_THREAD.rat_fp_writes = 0;
-	X86_THREAD.rat_xmm_reads = 0;
-	X86_THREAD.rat_xmm_writes = 0;
-
-	X86_THREAD.btb_reads = 0;
-	X86_THREAD.btb_writes = 0;
-
-	/* Up down recursive reset of memory module stats */
-	mod_recursive_reset_stats(X86_THREAD.inst_mod);
-	mod_recursive_reset_stats(X86_THREAD.data_mod);
-
-	/* Reset stack */
-	x86_thread_report_stack_reset_stats(X86_THREAD.report_stack);
 }
 
 
 void x86_core_reset_stats(int core)
 {
-	int i;
-
-	for (i = 0; i < x86_dispatch_stall_max; i++)
-		X86_CORE.dispatch_stall[i] = 0;
-	X86_CORE.dispatch_stall_cycles_rob = 0;
-	X86_CORE.dispatch_stall_cycles_rob_mem = 0;
-	X86_CORE.dispatch_stall_cycles_rob_load = 0;
-	X86_CORE.dispatch_stall_cycles_iq = 0;
-	X86_CORE.dispatch_stall_cycles_lsq = 0;
-	X86_CORE.dispatch_stall_cycles_uop_queue = 0;
-	X86_CORE.dispatch_stall_cycles_rename = 0;
-	for (i = 0; i < x86_uinst_opcode_count; i++)
-	{
-		X86_CORE.num_dispatched_uinst_array[i] = 0;
-		X86_CORE.num_issued_uinst_array[i] = 0;
-		X86_CORE.num_committed_uinst_array[i] = 0;
-	}
-	X86_CORE.num_committed_uinst = 0;
-	X86_CORE.num_squashed_uinst = 0;
-	X86_CORE.num_branch_uinst = 0;
-	X86_CORE.num_mispred_branch_uinst = 0;
-
-	X86_CORE.rob_occupancy = 0;
-	X86_CORE.rob_full = 0;
-	X86_CORE.rob_reads = 0;
-	X86_CORE.rob_writes = 0;
-
-	X86_CORE.iq_occupancy = 0;
-	X86_CORE.iq_full = 0;
-	X86_CORE.iq_reads = 0;
-	X86_CORE.iq_writes = 0;
-	X86_CORE.iq_wakeup_accesses = 0;
-
-	X86_CORE.reg_file_int_occupancy = 0;
-	X86_CORE.reg_file_int_full = 0;
-	X86_CORE.reg_file_int_reads = 0;
-	X86_CORE.reg_file_int_writes = 0;
-
-	X86_CORE.reg_file_fp_occupancy = 0;
-	X86_CORE.reg_file_fp_full = 0;
-	X86_CORE.reg_file_fp_reads = 0;
-	X86_CORE.reg_file_fp_writes = 0;
-
-	X86_CORE.reg_file_xmm_occupancy = 0;
-	X86_CORE.reg_file_xmm_full = 0;
-	X86_CORE.reg_file_xmm_reads = 0;
-	X86_CORE.reg_file_xmm_writes = 0;
 }
 
 

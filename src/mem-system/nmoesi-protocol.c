@@ -577,25 +577,6 @@ void mod_handler_nmoesi_load(int event, void *data)
 			return;
 		}
 
-		/* Enqueue prefetches */
-		/* if (can_enqueue_prefetch(stack)) */
-		/* { */
-		/* 	#<{(| Enqueue STREAM prefetch |)}># */
-		/* 	if (prefetcher_uses_stream_buffers(mod->cache->prefetch.type)) */
-		/* 	{ */
-		/* 		if (stack->stream_hit) */
-		/* 		{ */
-		/* 			if (stack->stream_head_hit) */
-		/* 				stream_buffer_prefetch_in_stream(mod, stack->client_info, stack->pref_stream, stack->pref_slot); */
-		/* 		} */
-		/* 		else */
-		/* 		{ */
-		/* 			if (stack->stride) */
-		/* 				stream_buffer_allocate_stream(mod, stack->client_info, stack->addr, stack->stride); */
-		/* 		} */
-		/* 	} */
-		/* } */
-
 		/* Fast resumed or hit in write buffer */
 		if (stack->wb_hit || stack->fast_resume)
 		{
@@ -906,27 +887,6 @@ void mod_handler_nmoesi_store(int event, void *data)
 			esim_schedule_event(EV_MOD_NMOESI_STORE_LOCK, stack, retry_lat);
 			return;
 		}
-
-		/* Enqueue prefetches */
-		/* if (can_enqueue_prefetch(stack)) */
-		/* { */
-		/* 	#<{(| Enqueue STREAM prefetch |)}># */
-		/* 	if (prefetcher_uses_stream_buffers(mod->cache->prefetch.type)) */
-		/* 	{ */
-		/* 		if (stack->stream_hit) */
-		/* 		{ */
-		/* 			#<{(| Prefetch only one block |)}># */
-		/* 			if (stack->stream_head_hit) */
-		/* 				stream_buffer_prefetch_in_stream(mod, stack->client_info, stack->pref_stream, stack->pref_slot); */
-		/* 		} */
-		/* 		#<{(| Fill all the stream buffer if a stride is detected |)}># */
-		/* 		else */
-		/* 		{ */
-		/* 			if (stack->stride) */
-		/* 				stream_buffer_allocate_stream(mod, stack->client_info, stack->addr, stack->stride); */
-		/* 		} */
-		/* 	} */
-		/* } */
 
 		/* Fast resumed stack */
 		if (stack->fast_resume)

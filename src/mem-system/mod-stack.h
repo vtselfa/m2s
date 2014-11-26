@@ -82,22 +82,9 @@ struct mod_stack_t
 	int src_pref_slot;
 
 	/* Used for Auxiliary Tag Directory */
-	int atd_hit; /* Auxiliary Tags Directory */
+	int atd_hit;
 	int atd_way;
 	int src_atd_way;
-
-	/* Mem controller/main mem */
-	int state_main_memory; // when the request is thrown by MC, the state of this request in main memory
-	int priority; // dynamic priority MC
-	unsigned int channel;
-	unsigned int bank;
-	unsigned int rank;
-	unsigned int row;
-	long long threshold; //cycles that a request can be waiting in the MC queue befaore to be throw to the bank
-	struct linked_list_t * coalesced_stacks; //stacks which caolesce with this in memory controller
-	unsigned int coal_table_block_max; // coalesce in row buffer table
-	unsigned int coal_table_block_min;
-	long long t_access_net;
 
 	enum mod_request_dir_t request_dir;
 	enum mod_message_type_t message;
