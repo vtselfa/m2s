@@ -84,11 +84,11 @@ static int x86_cpu_issue_sq(int core, int thread, int quant)
 
 		/* Statistics */
 		X86_CORE.num_issued_uinst_array[store->uinst->opcode]++;
-		X86_CORE.lsq_reads++;
+		X86_CORE.sq_reads++;
 		X86_CORE.reg_file_int_reads += store->ph_int_idep_count;
 		X86_CORE.reg_file_fp_reads += store->ph_fp_idep_count;
 		X86_THREAD.num_issued_uinst_array[store->uinst->opcode]++;
-		X86_THREAD.lsq_reads++;
+		X86_THREAD.sq_reads++;
 		X86_THREAD.reg_file_int_reads += store->ph_int_idep_count;
 		X86_THREAD.reg_file_fp_reads += store->ph_fp_idep_count;
 		x86_cpu->num_issued_uinst_array[store->uinst->opcode]++;
@@ -156,11 +156,11 @@ static int x86_cpu_issue_lq(int core, int thread, int quant)
 
 		/* Statistics */
 		X86_CORE.num_issued_uinst_array[load->uinst->opcode]++;
-		X86_CORE.lsq_reads++;
+		X86_CORE.lq_reads++;
 		X86_CORE.reg_file_int_reads += load->ph_int_idep_count;
 		X86_CORE.reg_file_fp_reads += load->ph_fp_idep_count;
 		X86_THREAD.num_issued_uinst_array[load->uinst->opcode]++;
-		X86_THREAD.lsq_reads++;
+		X86_THREAD.lq_reads++;
 		X86_THREAD.reg_file_int_reads += load->ph_int_idep_count;
 		X86_THREAD.reg_file_fp_reads += load->ph_fp_idep_count;
 		x86_cpu->num_issued_uinst_array[load->uinst->opcode]++;
@@ -245,11 +245,11 @@ static int x86_cpu_issue_preq(int core, int thread, int quant)
 
 		/* Statistics */
 		X86_CORE.num_issued_uinst_array[prefetch->uinst->opcode]++;
-		X86_CORE.lsq_reads++;
+		X86_CORE.pq_reads++;
 		X86_CORE.reg_file_int_reads += prefetch->ph_int_idep_count;
 		X86_CORE.reg_file_fp_reads += prefetch->ph_fp_idep_count;
 		X86_THREAD.num_issued_uinst_array[prefetch->uinst->opcode]++;
-		X86_THREAD.lsq_reads++;
+		X86_THREAD.pq_reads++;
 		X86_THREAD.reg_file_int_reads += prefetch->ph_int_idep_count;
 		X86_THREAD.reg_file_fp_reads += prefetch->ph_fp_idep_count;
 		x86_cpu->num_issued_uinst_array[prefetch->uinst->opcode]++;

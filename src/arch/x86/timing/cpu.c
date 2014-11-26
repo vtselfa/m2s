@@ -354,7 +354,9 @@ static void x86_cpu_config_dump(FILE *f)
 	fprintf(f, "IqKind = %s\n", x86_iq_kind_map[x86_iq_kind]);
 	fprintf(f, "IqSize = %d\n", x86_iq_size);
 	fprintf(f, "LsqKind = %s\n", x86_lsq_kind_map[x86_lsq_kind]);
-	fprintf(f, "LsqSize = %d\n", x86_lsq_size);
+	fprintf(f, "LqSize = %d\n", x86_lq_size);
+	fprintf(f, "SqSize = %d\n", x86_sq_size);
+	fprintf(f, "PqSize = %d\n", x86_pq_size);
 	fprintf(f, "RfKind = %s\n", x86_reg_file_kind_map[x86_reg_file_kind]);
 	fprintf(f, "RfIntSize = %d\n", x86_reg_file_int_size);
 	fprintf(f, "RfFpSize = %d\n", x86_reg_file_fp_size);
@@ -538,7 +540,9 @@ static void x86_cpu_dump_report(void)
 			DUMP_DISPATCH_STAT(uop_queue);
 			DUMP_DISPATCH_STAT(rob);
 			DUMP_DISPATCH_STAT(iq);
-			DUMP_DISPATCH_STAT(lsq);
+			DUMP_DISPATCH_STAT(lq);
+			DUMP_DISPATCH_STAT(sq);
+			DUMP_DISPATCH_STAT(pq);
 			DUMP_DISPATCH_STAT(rename);
 			DUMP_DISPATCH_STAT(ctx);
 
@@ -590,7 +594,11 @@ static void x86_cpu_dump_report(void)
 			fprintf(f, "IQ.WakeupAccesses = %lld\n", X86_CORE.iq_wakeup_accesses);
 		}
 		if (x86_lsq_kind == x86_lsq_kind_shared)
-			DUMP_CORE_STRUCT_STATS(LSQ, lsq);
+		{
+			DUMP_CORE_STRUCT_STATS(LSQ, lq);
+			DUMP_CORE_STRUCT_STATS(LSQ, sq);
+			DUMP_CORE_STRUCT_STATS(LSQ, pq);
+		}
 		if (x86_reg_file_kind == x86_reg_file_kind_shared)
 		{
 			DUMP_CORE_STRUCT_STATS(RF_Int, reg_file_int);
@@ -636,7 +644,11 @@ static void x86_cpu_dump_report(void)
 				fprintf(f, "IQ.WakeupAccesses = %lld\n", X86_THREAD.iq_wakeup_accesses);
 			}
 			if (x86_lsq_kind == x86_lsq_kind_private)
-				DUMP_THREAD_STRUCT_STATS(LSQ, lsq);
+			{
+				DUMP_THREAD_STRUCT_STATS(LSQ, lq);
+				DUMP_THREAD_STRUCT_STATS(LSQ, sq);
+				DUMP_THREAD_STRUCT_STATS(LSQ, pq);
+			}
 			if (x86_reg_file_kind == x86_reg_file_kind_private)
 			{
 				DUMP_THREAD_STRUCT_STATS(RF_Int, reg_file_int);
@@ -790,7 +802,9 @@ void x86_cpu_read_config(void)
 	x86_iq_size = config_read_int(config, section, "IqSize", 40);
 
 	x86_lsq_kind = config_read_enum(config, section, "LsqKind", x86_lsq_kind_private, x86_lsq_kind_map, 2);
-	x86_lsq_size = config_read_int(config, section, "LsqSize", 20);
+	x86_lq_size = config_read_int(config, section, "LqSize", 32);
+	x86_sq_size = config_read_int(config, section, "SqSize", 32);
+	x86_pq_size = config_read_int(config, section, "PqSize", 32);
 
 	x86_reg_file_kind = config_read_enum(config, section, "RfKind", x86_reg_file_kind_private, x86_reg_file_kind_map, 2);
 	x86_reg_file_int_size = config_read_int(config, section, "RfIntSize", 80);
@@ -1010,7 +1024,11 @@ void x86_cpu_update_occupancy_stats(void)
 		if (x86_iq_kind == x86_iq_kind_shared)
 			UPDATE_CORE_OCCUPANCY_STATS(iq);
 		if (x86_lsq_kind == x86_lsq_kind_shared)
-			UPDATE_CORE_OCCUPANCY_STATS(lsq);
+		{
+			UPDATE_CORE_OCCUPANCY_STATS(lq);
+			UPDATE_CORE_OCCUPANCY_STATS(sq);
+			UPDATE_CORE_OCCUPANCY_STATS(pq);
+		}
 		if (x86_reg_file_kind == x86_reg_file_kind_shared)
 		{
 			UPDATE_CORE_OCCUPANCY_STATS(reg_file_int);
@@ -1025,7 +1043,11 @@ void x86_cpu_update_occupancy_stats(void)
 			if (x86_iq_kind == x86_iq_kind_private)
 				UPDATE_THREAD_OCCUPANCY_STATS(iq);
 			if (x86_lsq_kind == x86_lsq_kind_private)
-				UPDATE_THREAD_OCCUPANCY_STATS(lsq);
+			{
+				UPDATE_THREAD_OCCUPANCY_STATS(lq);
+				UPDATE_THREAD_OCCUPANCY_STATS(sq);
+				UPDATE_THREAD_OCCUPANCY_STATS(pq);
+			}
 			if (x86_reg_file_kind == x86_reg_file_kind_private)
 			{
 				UPDATE_THREAD_OCCUPANCY_STATS(reg_file_int);
@@ -1225,12 +1247,6 @@ void x86_thread_reset_stats(int core, int thread)
 	X86_THREAD.iq_writes = 0;
 	X86_THREAD.iq_wakeup_accesses = 0;
 
-	X86_THREAD.lsq_occupancy = 0;
-	X86_THREAD.lsq_full = 0;
-	X86_THREAD.lsq_reads = 0;
-	X86_THREAD.lsq_writes = 0;
-	X86_THREAD.lsq_wakeup_accesses = 0;
-
 	X86_THREAD.reg_file_int_occupancy = 0;
 	X86_THREAD.reg_file_int_full = 0;
 	X86_THREAD.reg_file_int_reads = 0;
@@ -1299,12 +1315,6 @@ void x86_core_reset_stats(int core)
 	X86_CORE.iq_reads = 0;
 	X86_CORE.iq_writes = 0;
 	X86_CORE.iq_wakeup_accesses = 0;
-
-	X86_CORE.lsq_occupancy = 0;
-	X86_CORE.lsq_full = 0;
-	X86_CORE.lsq_reads = 0;
-	X86_CORE.lsq_writes = 0;
-	X86_CORE.lsq_wakeup_accesses = 0;
 
 	X86_CORE.reg_file_int_occupancy = 0;
 	X86_CORE.reg_file_int_full = 0;

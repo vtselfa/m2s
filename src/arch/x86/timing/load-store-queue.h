@@ -27,7 +27,10 @@ extern enum x86_lsq_kind_t
 	x86_lsq_kind_shared = 0,
 	x86_lsq_kind_private
 } x86_lsq_kind;
-extern int x86_lsq_size;
+
+extern int x86_lq_size;
+extern int x86_sq_size;
+extern int x86_pq_size;
 
 void x86_lsq_init(void);
 void x86_lsq_done(void);

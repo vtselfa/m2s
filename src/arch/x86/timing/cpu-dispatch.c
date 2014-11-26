@@ -21,6 +21,7 @@
 
 #include <arch/x86/emu/context.h>
 #include <lib/esim/trace.h>
+#include <lib/util/linked-list.h>
 #include <lib/util/list.h>
 
 #include "cpu.h"
@@ -78,8 +79,10 @@ static enum x86_dispatch_stall_t x86_cpu_can_dispatch_thread(int core, int threa
 		X86_CORE.dispatch_stall_cycles_rob++;
 		X86_THREAD.dispatch_stall_cycles_rob++;
 		X86_THREAD.ctx->dispatch_stall_cycles_rob++;
-		return x86_dispatch_stall_rob;
+
+		return (head->flags & X86_UINST_MEM) ? x86_dispatch_stall_rob_mem : x86_dispatch_stall_rob;
 	}
+
 	if (!(uop->flags & X86_UINST_MEM) && !x86_iq_can_insert(uop))
 	{
 		X86_CORE.dispatch_stall_cycles_iq++;
@@ -87,12 +90,19 @@ static enum x86_dispatch_stall_t x86_cpu_can_dispatch_thread(int core, int threa
 		X86_THREAD.ctx->dispatch_stall_cycles_iq++;
 		return x86_dispatch_stall_iq;
 	}
+
 	if ((uop->flags & X86_UINST_MEM) && !x86_lsq_can_insert(uop))
 	{
 		X86_CORE.dispatch_stall_cycles_lsq++;
 		X86_THREAD.dispatch_stall_cycles_lsq++;
 		X86_THREAD.ctx->dispatch_stall_cycles_lsq++;
-		return x86_dispatch_stall_lsq;
+
+		if (uop->uinst->opcode == x86_uinst_load)
+			return x86_dispatch_stall_lq;
+		else if (uop->uinst->opcode == x86_uinst_store)
+			return x86_dispatch_stall_sq;
+		else
+			return x86_dispatch_stall_pq;
 	}
 	if (!x86_reg_file_can_rename(uop))
 	{
@@ -118,11 +128,7 @@ static int x86_cpu_dispatch_thread(int core, int thread, int quant)
 		if (stall != x86_dispatch_stall_used)
 		{
 			X86_CORE.dispatch_stall[stall] += quant;
-			if (stall == x86_dispatch_stall_rob)
 			{
-				struct x86_uop_t *head = x86_rob_head(core, thread);
-				if(head->flags & X86_UINST_MEM)
-					X86_CORE.dispatch_stall[x86_dispatch_stall_rob_mem] += quant;
 			}
 			break;
 		}
@@ -150,11 +156,7 @@ static int x86_cpu_dispatch_thread(int core, int thread, int quant)
 
 		/* Memory instructions into the LSQ */
 		if (uop->flags & X86_UINST_MEM)
-		{
 			x86_lsq_insert(uop);
-			X86_CORE.lsq_writes++;
-			X86_THREAD.lsq_writes++;
-		}
 
 		/* Statistics */
 		X86_CORE.dispatch_stall[uop->specmode ? x86_dispatch_stall_spec : x86_dispatch_stall_used]++;

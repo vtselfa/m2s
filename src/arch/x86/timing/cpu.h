@@ -128,15 +128,17 @@ extern int x86_trace_category;
 /* Dispatch stall reasons */
 enum x86_dispatch_stall_t
 {
-	x86_dispatch_stall_used = 0,  /* Dispatch slot was used with a finally committed inst. */
-	x86_dispatch_stall_spec,  /* Used with a speculative inst. */
+	x86_dispatch_stall_used = 0,   /* Dispatch slot was used with a finally committed inst. */
+	x86_dispatch_stall_spec,       /* Used with a speculative inst. */
 	x86_dispatch_stall_uop_queue,  /* No instruction in the uop queue */
-	x86_dispatch_stall_rob,  /* No space in the rob */
-	x86_dispatch_stall_rob_mem,  /* No space in the rob because a memory instruction */
-	x86_dispatch_stall_iq,  /* No space in the iq */
-	x86_dispatch_stall_lsq,  /* No space in the lsq */
-	x86_dispatch_stall_rename,  /* No free physical register */
-	x86_dispatch_stall_ctx,  /* No running ctx */
+	x86_dispatch_stall_rob,        /* No space in the rob */
+	x86_dispatch_stall_rob_mem,    /* No space in the rob because a memory instruction */
+	x86_dispatch_stall_iq,         /* No space in the iq */
+	x86_dispatch_stall_lq,         /* No space in the lq */
+	x86_dispatch_stall_sq,         /* No space in the sq */
+	x86_dispatch_stall_pq,         /* No space in the pq */
+	x86_dispatch_stall_rename,     /* No free physical register */
+	x86_dispatch_stall_ctx,        /* No running ctx */
 	x86_dispatch_stall_max
 };
 
@@ -185,6 +187,9 @@ struct x86_thread_t
 	/* Number of uops in private structures */
 	int iq_count;
 	int lsq_count;
+	int lq_count;
+	int sq_count;
+	int pq_count;
 	int reg_file_int_count;
 	int reg_file_fp_count;
 	int reg_file_xmm_count;
@@ -248,11 +253,23 @@ struct x86_thread_t
 	long long iq_writes;
 	long long iq_wakeup_accesses;
 
-	long long lsq_occupancy;
-	long long lsq_full;
-	long long lsq_reads;
-	long long lsq_writes;
-	long long lsq_wakeup_accesses;
+	long long lq_occupancy;
+	long long lq_full;
+	long long lq_reads;
+	long long lq_writes;
+	long long lq_wakeup_accesses;
+
+	long long sq_occupancy;
+	long long sq_full;
+	long long sq_reads;
+	long long sq_writes;
+	long long sq_wakeup_accesses;
+
+	long long pq_occupancy;
+	long long pq_full;
+	long long pq_reads;
+	long long pq_writes;
+	long long pq_wakeup_accesses;
 
 	long long reg_file_int_occupancy;
 	long long reg_file_int_full;
@@ -303,7 +320,9 @@ struct x86_core_t
 	long long uop_id_counter;  /* Counter for uop ID assignment */
 	long long dispatch_seq;  /* Counter for uop ID assignment */
 	int iq_count;
-	int lsq_count;
+	int lq_count;
+	int sq_count;
+	int pq_count;
 	int reg_file_int_count;
 	int reg_file_fp_count;
 	int reg_file_xmm_count;
@@ -356,11 +375,23 @@ struct x86_core_t
 	long long iq_writes;
 	long long iq_wakeup_accesses;
 
-	long long lsq_occupancy;
-	long long lsq_full;
-	long long lsq_reads;
-	long long lsq_writes;
-	long long lsq_wakeup_accesses;
+	long long lq_occupancy;
+	long long lq_full;
+	long long lq_reads;
+	long long lq_writes;
+	long long lq_wakeup_accesses;
+
+	long long sq_occupancy;
+	long long sq_full;
+	long long sq_reads;
+	long long sq_writes;
+	long long sq_wakeup_accesses;
+
+	long long pq_occupancy;
+	long long pq_full;
+	long long pq_reads;
+	long long pq_writes;
+	long long pq_wakeup_accesses;
 
 	long long reg_file_int_occupancy;
 	long long reg_file_int_full;

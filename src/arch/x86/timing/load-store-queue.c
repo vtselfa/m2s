@@ -28,7 +28,9 @@
 
 char *x86_lsq_kind_map[] = { "Shared", "Private" };
 enum x86_lsq_kind_t x86_lsq_kind;
-int x86_lsq_size;
+int x86_lq_size;
+int x86_sq_size;
+int x86_pq_size;
 
 
 void x86_lsq_init()
@@ -105,9 +107,26 @@ int x86_lsq_can_insert(struct x86_uop_t *uop)
 	int core = uop->core;
 	int thread = uop->thread;
 	int count, size;
+	struct linked_list_t *lq = X86_THREAD.lq;
+	struct linked_list_t *sq = X86_THREAD.sq;
+	struct linked_list_t *pq = X86_THREAD.preq;
 
-	size = x86_lsq_kind == x86_lsq_kind_private ? x86_lsq_size : x86_lsq_size * x86_cpu_num_threads;
-	count = x86_lsq_kind == x86_lsq_kind_private ? X86_THREAD.lsq_count : X86_CORE.lsq_count;
+	if (uop->uinst->opcode == x86_uinst_load)
+	{
+		size = x86_lsq_kind == x86_lsq_kind_private ? x86_lq_size : x86_lq_size * x86_cpu_num_threads;
+		count = x86_lsq_kind == linked_list_count(lq);
+	}
+	else if (uop->uinst->opcode == x86_uinst_store)
+	{
+		size = x86_lsq_kind == x86_lsq_kind_private ? x86_sq_size : x86_sq_size * x86_cpu_num_threads;
+		count = linked_list_count(sq);
+	}
+	else
+	{
+		size = x86_lsq_kind == x86_lsq_kind_private ? x86_pq_size : x86_pq_size * x86_cpu_num_threads;
+		count = linked_list_count(pq);
+	}
+
 	return count < size;
 }
 
@@ -130,21 +149,31 @@ void x86_lsq_insert(struct x86_uop_t *uop)
 		linked_list_out(lq);
 		linked_list_insert(lq, uop);
 		uop->in_lq = 1;
+		X86_CORE.lq_writes++;
+		X86_THREAD.lq_writes++;
+		X86_CORE.lq_count++;
+		X86_THREAD.lq_count++;
 	}
 	else if (uop->uinst->opcode == x86_uinst_store)
 	{
 		linked_list_out(sq);
 		linked_list_insert(sq, uop);
 		uop->in_sq = 1;
+		X86_CORE.sq_writes++;
+		X86_THREAD.sq_writes++;
+		X86_CORE.sq_count++;
+		X86_THREAD.sq_count++;
 	}
 	else
 	{
 		linked_list_out(preq);
 		linked_list_insert(preq, uop);
 		uop->in_preq = 1;
+		X86_CORE.pq_writes++;
+		X86_THREAD.pq_writes++;
+		X86_CORE.pq_count++;
+		X86_THREAD.pq_count++;
 	}
-	X86_CORE.lsq_count++;
-	X86_THREAD.lsq_count++;
 }
 
 
@@ -198,9 +227,9 @@ void x86_lq_remove(int core, int thread)
 	linked_list_remove(lq);
 	uop->in_lq = 0;
 
-	assert(X86_CORE.lsq_count && X86_THREAD.lsq_count);
-	X86_CORE.lsq_count--;
-	X86_THREAD.lsq_count--;
+	assert(X86_CORE.lq_count && X86_THREAD.lq_count);
+	X86_CORE.lq_count--;
+	X86_THREAD.lq_count--;
 }
 
 
@@ -216,8 +245,8 @@ void x86_sq_remove(int core, int thread)
 	linked_list_remove(sq);
 	uop->in_sq = 0;
 
-	assert(X86_CORE.lsq_count && X86_THREAD.lsq_count);
-	X86_CORE.lsq_count--;
+	assert(X86_CORE.sq_count && X86_THREAD.sq_count);
+	X86_CORE.sq_count--;
 	X86_THREAD.lsq_count--;
 }
 
@@ -227,14 +256,14 @@ void x86_preq_remove(int core, int thread)
 {
 	struct linked_list_t *preq = X86_THREAD.preq;
 	struct x86_uop_t *uop;
- 
+
 	uop = linked_list_get(preq);
 	assert(x86_uop_exists(uop));
 	assert(uop->in_preq);
 	linked_list_remove(preq);
 	uop->in_preq = 0;
- 
-	assert(X86_CORE.lsq_count && X86_THREAD.lsq_count);
-	X86_CORE.lsq_count--;
+
+	assert(X86_CORE.pq_count && X86_THREAD.pq_count);
+	X86_CORE.pq_count--;
 	X86_THREAD.lsq_count--;
 }
