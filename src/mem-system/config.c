@@ -735,7 +735,7 @@ static struct mod_t *mem_config_read_cache(struct config_t *config,
 	if (latency < 1)
 		fatal("%s: cache %s: invalid value for variable 'Latency'.\n%s",
 			mem_config_file_name, mod_name, mem_err_config_note);
-	if (mshr_size < 1)
+	if (mshr_size < 0)
 		fatal("%s: cache %s: invalid value for variable 'MSHR'.\n%s",
 			mem_config_file_name, mod_name, mem_err_config_note);
 	if (num_ports < 1)
@@ -1738,7 +1738,6 @@ static void mem_config_main_memory_reachability()
 	LIST_FOR_EACH(mem_system->mm_mod_list, i)
 	{
 		struct mod_t *mod = list_get(mem_system->mm_mod_list, i);
-		assert(mod->dram_system);
 		assert(mod->kind == mod_kind_main_memory);
 		assert(!list_count(mod->reachable_mm_modules));
 		list_add(mod->reachable_mm_modules, mod);
@@ -1831,8 +1830,6 @@ void mem_config_create_atds()
 
 void mem_config_read(void)
 {
-	char *key;
-	struct dram_system_t *ds;
 	struct config_t *config;
 
 	/* Load memory system configuration file. If no file name has been given
@@ -1900,9 +1897,5 @@ void mem_config_read(void)
 
 	/* Dump configuration to trace file */
 	mem_config_trace();
-
-	/* Assertions */
-	HASH_TABLE_FOR_EACH(mem_system->dram_systems, key, ds)
-		assert(dram_system_get_num_mcs(ds->handler) == ds->num_mcs);
 }
 
