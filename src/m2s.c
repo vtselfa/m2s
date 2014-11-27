@@ -138,9 +138,15 @@ static char *mips_call_debug_file_name = "";
 static enum arch_sim_kind_t mips_sim_kind = arch_sim_kind_functional;
 
 static char *mem_debug_file_name = "";
-
 static char *net_debug_file_name = "";
 
+static char x86_cpu_report_default_file_name[MAX_PATH_SIZE];
+static char evg_gpu_report_default_file_name[MAX_PATH_SIZE];
+static char evg_emu_report_default_file_name[MAX_PATH_SIZE];
+static char si_gpu_report_default_file_name[MAX_PATH_SIZE];
+static char frm_gpu_report_default_file_name[MAX_PATH_SIZE];
+static char mem_report_default_file_name[MAX_PATH_SIZE];
+static char net_report_default_file_name[MAX_PATH_SIZE];
 
 static long long m2s_max_time;  /* Max. simulation time in seconds (0 = no limit) */
 static long long m2s_loop_iter;  /* Number of iterations in main simulation loop */
@@ -1920,6 +1926,35 @@ void m2s_create_report_dirs(void)
 }
 
 
+void m2s_default_report_paths()
+{
+	/* Construct default filenames */
+	snprintf(x86_cpu_report_default_file_name, MAX_PATH_SIZE, "%s/%s", global_reports_dir, "x86_cpu_report.out");
+	snprintf(evg_gpu_report_default_file_name, MAX_PATH_SIZE, "%s/%s", global_reports_dir, "evg_gpu_report.out");
+	snprintf(evg_emu_report_default_file_name, MAX_PATH_SIZE, "%s/%s", global_reports_dir, "evg_emu_report.out");
+	snprintf(si_gpu_report_default_file_name, MAX_PATH_SIZE, "%s/%s", global_reports_dir, "si_gpu_report.out");
+	snprintf(frm_gpu_report_default_file_name, MAX_PATH_SIZE, "%s/%s", global_reports_dir, "frm_gpu_report.out");
+	snprintf(mem_report_default_file_name, MAX_PATH_SIZE, "%s/%s", global_reports_dir, "mem_report.out");
+	snprintf(net_report_default_file_name, MAX_PATH_SIZE, "%s/%s", global_reports_dir, "net_report.out");
+
+	/* Assign default filenames if the user has not provided others */
+	if (!*x86_cpu_report_file_name)
+		x86_cpu_report_file_name = x86_cpu_report_default_file_name;
+	if (!*evg_gpu_report_file_name)
+		evg_gpu_report_file_name = evg_gpu_report_default_file_name;
+	if (!*evg_emu_report_file_name)
+		evg_emu_report_file_name = evg_emu_report_default_file_name;
+	if (!*si_gpu_report_file_name)
+		si_gpu_report_file_name = si_gpu_report_default_file_name;
+	if (!*frm_gpu_report_file_name)
+		frm_gpu_report_file_name = frm_gpu_report_default_file_name;
+	if (!*mem_report_file_name)
+		mem_report_file_name = mem_report_default_file_name;
+	if (!*net_report_file_name)
+		net_report_file_name = net_report_default_file_name;
+}
+
+
 int main(int argc, char **argv)
 {
 	/* Global initialization and welcome message */
@@ -1930,6 +1965,9 @@ int main(int argc, char **argv)
 
 	/* Create directories for results */
 	m2s_create_report_dirs();
+
+	/* Set default report paths for global reports */
+	m2s_default_report_paths();
 
 	/* x86 disassembler tool */
 	if (*x86_disasm_file_name)
