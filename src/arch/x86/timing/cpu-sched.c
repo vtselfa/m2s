@@ -454,7 +454,7 @@ void x86_cpu_schedule(void)
 	/* Check if there is any running context that is currently not mapped
 	 * to any node (core/thread); for example, a new context, or a
 	 * context that has changed its affinity. */
-	DOUBLE_LINKED_LIST_FOR_EACH(x86_emu, running, ctx)
+	DOUBLE_LINKED_LIST_REVERSE_FOR_EACH(x86_emu, running, ctx)
 		if (!x86_ctx_get_state(ctx, x86_ctx_mapped))
 			x86_cpu_map_context(ctx);
 
