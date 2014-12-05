@@ -97,8 +97,8 @@ struct mod_t *mem_system_get_mod(char *mod_name);
 struct net_t *mem_system_get_net(char *net_name);
 
 void main_memory_power_callback(double a, double b, double c, double d);
-void main_memory_read_callback(void *payload, unsigned int id, uint64_t address, uint64_t clock_cycle);
-void main_memory_write_callback(void *payload, unsigned int id, uint64_t address, uint64_t clock_cycle);
+void main_memory_read_callback(void *payload, unsigned int id, uint64_t address, uint64_t interthread_penalty);
+void main_memory_write_callback(void *payload, unsigned int id, uint64_t address, uint64_t interthread_penalty);
 
 struct main_mem_system_t *mms;
 void main_memory_tic_scheduler(struct dram_system_t *ds);

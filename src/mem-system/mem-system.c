@@ -19,6 +19,8 @@
 #include <assert.h>
 
 #include <arch/common/arch.h>
+#include <arch/x86/timing/cpu.h>
+#include <arch/x86/timing/uop.h>
 #include <dramsim/bindings-c.h>
 #include <lib/esim/esim.h>
 #include <lib/esim/trace.h>
@@ -627,9 +629,12 @@ void main_memory_power_callback(double a, double b, double c, double d)
 }
 
 
-void main_memory_read_callback(void *payload, unsigned int id, uint64_t address, uint64_t clock_cycle)
+void main_memory_read_callback(void *payload, unsigned int id, uint64_t address, uint64_t interthread_penalty)
 {
 	int found = 0;
+	int cpu_freq; /* In MHz */
+	int dram_freq; /* In MHz */
+	struct x86_uop_t *uop;
 	struct mod_stack_t *stack;
 	struct dram_system_t *dram_system = (struct dram_system_t *) payload;
 
@@ -649,6 +654,14 @@ void main_memory_read_callback(void *payload, unsigned int id, uint64_t address,
 		else
 			linked_list_next(dram_system->pending_reads);
 	}
+
+	cpu_freq = arch_x86->frequency;
+	dram_freq = esim_domain_frequency(dram_system->dram_domain_index);
+
+	uop = stack->event_queue_item;
+	if (uop)
+		uop->uinst->dram_interthread_penalty_cycles += interthread_penalty * cpu_freq / dram_freq;
+	assert(uop || stack->client_info->instr_fetch); /* If there isn't a uop, then it must be a instruction fetch access */
 
 	assert(found == 1);
 }

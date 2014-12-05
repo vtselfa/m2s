@@ -125,6 +125,7 @@ struct mod_client_info_t
 	unsigned int prefetcher_eip;
 
 	unsigned int late_prefetch : 1; /* Flag that marks this access as a late prefetch */
+	unsigned int instr_fetch : 1;   /* Flag, access requesting a block of intructions */
 };
 
 /* Type of address range */

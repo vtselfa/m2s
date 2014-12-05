@@ -279,6 +279,9 @@ struct x86_uinst_t
 
 	/* This memory access is a miss caused by thread pollution */
 	int interthread_miss : 1;
+
+	/* Cycles lost due interthread interference in dram modules */
+	long long dram_interthread_penalty_cycles;
 };
 
 

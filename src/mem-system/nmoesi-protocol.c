@@ -619,6 +619,7 @@ void mod_handler_nmoesi_load(int event, void *data)
 		new_stack->stream_retried = stack->stream_retried;
 		new_stack->stream_retried_cycle = stack->stream_retried_cycle;
 		new_stack->request_dir = mod_request_up_down;
+		new_stack->event_queue_item = stack->event_queue_item;
 		esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST, new_stack, 0);
 
 		/* The prefetcher may be interested in this miss */
@@ -948,6 +949,7 @@ void mod_handler_nmoesi_store(int event, void *data)
 		new_stack->stream_retried = stack->stream_retried;
 		new_stack->stream_retried_cycle = stack->stream_retried_cycle;
 		new_stack->request_dir = mod_request_up_down;
+		new_stack->event_queue_item = stack->event_queue_item;
 		esim_schedule_event(EV_MOD_NMOESI_WRITE_REQUEST, new_stack, 0);
 
 		/* The prefetcher may be interested in this miss */
@@ -3315,6 +3317,7 @@ void mod_handler_nmoesi_read_request(int event, void *data)
 			new_stack->stream_retried = stack->stream_retried;
 			new_stack->stream_retried_cycle = stack->stream_retried_cycle;
 			new_stack->request_dir = mod_request_up_down;
+			new_stack->event_queue_item = stack->event_queue_item;
 			esim_schedule_event(EV_MOD_NMOESI_READ_REQUEST, new_stack, 0);
 		}
 
@@ -4222,6 +4225,7 @@ void mod_handler_nmoesi_write_request(int event, void *data)
 			new_stack->stream_retried = stack->stream_retried;
 			new_stack->stream_retried_cycle = stack->stream_retried_cycle;
 			new_stack->request_dir = mod_request_up_down;
+			new_stack->event_queue_item = stack->event_queue_item;
 			esim_schedule_event(EV_MOD_NMOESI_WRITE_REQUEST, new_stack, 0);
 		}
 		else

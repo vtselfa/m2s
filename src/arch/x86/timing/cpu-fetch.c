@@ -299,6 +299,7 @@ static void x86_cpu_fetch_thread(int core, int thread)
 		client_info->core = core;
 		client_info->thread = thread;
 		client_info->ctx_pid = X86_THREAD.ctx->pid;
+		client_info->instr_fetch = 1; /* Mark this access as an instruction fetch access */
 
 		phy_addr = mmu_translate(X86_THREAD.ctx->address_space_index, X86_THREAD.fetch_neip);
 		X86_THREAD.fetch_block = block;
