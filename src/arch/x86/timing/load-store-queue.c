@@ -247,7 +247,7 @@ void x86_sq_remove(int core, int thread)
 
 	assert(X86_CORE.sq_count && X86_THREAD.sq_count);
 	X86_CORE.sq_count--;
-	X86_THREAD.lsq_count--;
+	X86_THREAD.sq_count--;
 }
 
 
@@ -265,5 +265,5 @@ void x86_preq_remove(int core, int thread)
 
 	assert(X86_CORE.pq_count && X86_THREAD.pq_count);
 	X86_CORE.pq_count--;
-	X86_THREAD.lsq_count--;
+	X86_THREAD.pq_count--;
 }

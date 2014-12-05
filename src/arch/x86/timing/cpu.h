@@ -186,7 +186,6 @@ struct x86_thread_t
 
 	/* Number of uops in private structures */
 	int iq_count;
-	int lsq_count;
 	int lq_count;
 	int sq_count;
 	int pq_count;
