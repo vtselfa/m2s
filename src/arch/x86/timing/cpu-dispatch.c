@@ -45,58 +45,31 @@ static enum x86_dispatch_stall_t x86_cpu_can_dispatch_thread(int core, int threa
 		return !X86_THREAD.ctx || !x86_ctx_get_state(X86_THREAD.ctx, x86_ctx_running) ?
 			x86_dispatch_stall_ctx : x86_dispatch_stall_uop_queue;
 
-	/* If iq/lq/sq/rob full, done */
+	/* ROB full */
 	if (!x86_rob_can_enqueue(uop))
 	{
-		struct x86_uop_t *head = x86_rob_head(core, thread);
-		struct x86_uop_t *oldest = x86_rob_kind == x86_rob_kind_shared ? x86_rob_shared_head(core) : head;
+		struct x86_uop_t *head = x86_rob_head(core, thread); /* Oldest uop from this thread */
+		struct x86_uop_t *oldest = x86_rob_kind == x86_rob_kind_shared ? x86_rob_shared_head(core) : head; /* Oldest uop in general */
 
-		/* The oldest uop in the shared ROB is from another thread, which is partially guilty of this stall */
+		/* The oldest uop in the shared ROB is from another thread */
 		if (oldest->thread != thread)
 		{
-			oldest = x86_rob_shared_head(core);
 			assert(oldest->core == core);
-			X86_CORE.dispatch_stall_cycles_rob_smt++;
-			X86_THREAD.dispatch_stall_cycles_rob_smt++;
-			X86_THREAD.ctx->dispatch_stall_cycles_rob_smt++;
+			assert(x86_rob_kind == x86_rob_kind_shared);
+			return x86_dispatch_stall_rob_smt;
 		}
 
-		/* Account for stalls caused by memory uops */
-		if (head && (head->flags & X86_UINST_MEM)) /* Head can be null if the ROB is shared and full of other thread's uops */
-		{
-			X86_CORE.dispatch_stall_cycles_rob_mem++;
-			X86_THREAD.dispatch_stall_cycles_rob_mem++;
-			X86_THREAD.ctx->dispatch_stall_cycles_rob_mem++;
-
-			/* This miss is due an eviction in a shared cache caused by another thread */
-			if (head->uinst->interthread_miss)
-			{
-				X86_THREAD.interthread_penalty_cycles++;
-				X86_CORE.interthread_penalty_cycles++;
-			}
-		}
-
-		X86_CORE.dispatch_stall_cycles_rob++;
-		X86_THREAD.dispatch_stall_cycles_rob++;
-		X86_THREAD.ctx->dispatch_stall_cycles_rob++;
-
+		/* ROB stalled by a memory or other kind of uop of this thread */
 		return (head->flags & X86_UINST_MEM) ? x86_dispatch_stall_rob_mem : x86_dispatch_stall_rob;
 	}
 
+	/* IQ full */
 	if (!(uop->flags & X86_UINST_MEM) && !x86_iq_can_insert(uop))
-	{
-		X86_CORE.dispatch_stall_cycles_iq++;
-		X86_THREAD.dispatch_stall_cycles_iq++;
-		X86_THREAD.ctx->dispatch_stall_cycles_iq++;
 		return x86_dispatch_stall_iq;
-	}
 
+	/* Load, store or prefetch queue full */
 	if ((uop->flags & X86_UINST_MEM) && !x86_lsq_can_insert(uop))
 	{
-		X86_CORE.dispatch_stall_cycles_lsq++;
-		X86_THREAD.dispatch_stall_cycles_lsq++;
-		X86_THREAD.ctx->dispatch_stall_cycles_lsq++;
-
 		if (uop->uinst->opcode == x86_uinst_load)
 			return x86_dispatch_stall_lq;
 		else if (uop->uinst->opcode == x86_uinst_store)
@@ -104,14 +77,12 @@ static enum x86_dispatch_stall_t x86_cpu_can_dispatch_thread(int core, int threa
 		else
 			return x86_dispatch_stall_pq;
 	}
-	if (!x86_reg_file_can_rename(uop))
-	{
-		X86_CORE.dispatch_stall_cycles_rename++;
-		X86_THREAD.dispatch_stall_cycles_rename++;
-		X86_THREAD.ctx->dispatch_stall_cycles_rename++;
-		return x86_dispatch_stall_rename;
-	}
 
+	/* No free registers */
+	if (!x86_reg_file_can_rename(uop))
+		return x86_dispatch_stall_rename;
+
+	/* Can dispatch */
 	return x86_dispatch_stall_used;
 }
 
@@ -128,6 +99,7 @@ static int x86_cpu_dispatch_thread(int core, int thread, int quant)
 		if (stall != x86_dispatch_stall_used)
 		{
 			X86_CORE.dispatch_stall[stall] += quant;
+			X86_THREAD.dispatch_stall[stall] += quant;
 			{
 			}
 			break;
@@ -160,6 +132,7 @@ static int x86_cpu_dispatch_thread(int core, int thread, int quant)
 
 		/* Statistics */
 		X86_CORE.dispatch_stall[uop->specmode ? x86_dispatch_stall_spec : x86_dispatch_stall_used]++;
+		X86_THREAD.dispatch_stall[uop->specmode ? x86_dispatch_stall_spec : x86_dispatch_stall_used]++;
 		X86_THREAD.num_dispatched_uinst_array[uop->uinst->opcode]++;
 		X86_CORE.num_dispatched_uinst_array[uop->uinst->opcode]++;
 		x86_cpu->num_dispatched_uinst_array[uop->uinst->opcode]++;

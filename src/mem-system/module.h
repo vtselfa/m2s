@@ -146,7 +146,7 @@ struct mod_adapt_pref_stack_t
 	long long last_evictions;
 	long long last_useful_prefetches;
 	long long last_completed_prefetches;
-	long long last_cycles_stalled;
+	long long last_dispatch_slots_lost;
 	long long last_misses;
 	long long last_late_prefetches;
 

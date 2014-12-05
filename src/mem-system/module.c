@@ -1180,8 +1180,8 @@ void mod_adapt_pref_adp(struct mod_t *mod)
 
 	long long misses_int;
 
-	long long cycles_stalled;
-	long long cycles_stalled_int;
+	long long dispatch_slots_lost;
+	long long dispatch_slots_lost_int;
 
 	long long uinsts;
 	long long uinsts_int;
@@ -1214,14 +1214,14 @@ void mod_adapt_pref_adp(struct mod_t *mod)
 	/* Data involving all accessing cores */
 	reachable_cores = 0;
 	bwno_int = 0;
-	cycles_stalled = 0;
+	dispatch_slots_lost = 0;
 	uinsts = 0;
 	for (int core = 0; core < x86_cpu_num_cores; core++)
 	{
 		/* Reachable cores */
 		if (mod->reachable_threads[core * x86_cpu_num_threads])
 		{
-			cycles_stalled += x86_cpu->core[core].dispatch_stall_cycles_rob_mem;
+			dispatch_slots_lost += x86_cpu->core[core].dispatch_stall[x86_dispatch_stall_rob_mem];
 			uinsts += X86_CORE.num_committed_uinst;
 			reachable_cores++;
 		}
@@ -1237,7 +1237,7 @@ void mod_adapt_pref_adp(struct mod_t *mod)
 			}
 		}
 	}
-	cycles_stalled /= reachable_cores;
+	dispatch_slots_lost /= reachable_cores;
 	uinsts /= reachable_cores;
 
 	/* Average IPC for the accessing cores */
@@ -1245,8 +1245,8 @@ void mod_adapt_pref_adp(struct mod_t *mod)
 	ipc_int = cycles_int ? (double) uinsts_int / cycles_int : 0.0;
 
 	/* Average pct. of ROB stall cicles due memory instructions for the accessig cores */
-	cycles_stalled_int = cycles_stalled - stack->last_cycles_stalled;
-	rob_stall_int = cycles_int > 0 ? (double) cycles_stalled_int / cycles_int : 0.0;
+	dispatch_slots_lost_int = dispatch_slots_lost - stack->last_dispatch_slots_lost;
+	rob_stall_int = cycles_int > 0 ? (double) dispatch_slots_lost_int / (cycles_int * x86_cpu_dispatch_width): 0.0;
 
 	/* Pref enabled */
 	if (pref->enabled)

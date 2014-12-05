@@ -131,8 +131,9 @@ enum x86_dispatch_stall_t
 	x86_dispatch_stall_used = 0,   /* Dispatch slot was used with a finally committed inst. */
 	x86_dispatch_stall_spec,       /* Used with a speculative inst. */
 	x86_dispatch_stall_uop_queue,  /* No instruction in the uop queue */
+	x86_dispatch_stall_rob_smt,    /* No space in the rob and the oldest uop is from another thread */
+	x86_dispatch_stall_rob_mem,    /* No space in the rob and a memory instruction is the oldest uop */
 	x86_dispatch_stall_rob,        /* No space in the rob */
-	x86_dispatch_stall_rob_mem,    /* No space in the rob because a memory instruction */
 	x86_dispatch_stall_iq,         /* No space in the iq */
 	x86_dispatch_stall_lq,         /* No space in the lq */
 	x86_dispatch_stall_sq,         /* No space in the sq */
@@ -148,13 +149,8 @@ struct x86_thread_report_stack_t
 	int core;
 	int thread;
 	long long last_cycle;
-	long long dispatch_stall_cycles_rob;
-	long long dispatch_stall_cycles_rob_mem;
-	long long dispatch_stall_cycles_rob_smt;
-	long long dispatch_stall_cycles_iq;
-	long long dispatch_stall_cycles_lsq;
-	long long dispatch_stall_cycles_rename;
 	long long num_committed_uinst;
+	long long dispatch_stall[x86_dispatch_stall_max];
 	long long *hits_per_level_int;
 	long long *stream_hits_per_level_int;
 	long long *misses_per_level_int;
@@ -221,6 +217,7 @@ struct x86_thread_t
 	long long last_commit_cycle;
 
 	/* Statistics */
+	long long dispatch_stall[x86_dispatch_stall_max];
 	long long num_fetched_uinst;
 	long long num_dispatched_uinst_array[x86_uinst_opcode_count];
 	long long num_issued_uinst_array[x86_uinst_opcode_count];
@@ -236,15 +233,6 @@ struct x86_thread_t
 	long long rob_full;
 	long long rob_reads;
 	long long rob_writes;
-
-	long long dispatch_stall_cycles_rob; /* Cicles with the ROB stalled */
-	long long dispatch_stall_cycles_rob_mem; /* Cicles with the ROB stalled due to a memory instruction */
-	long long dispatch_stall_cycles_rob_smt; /* Cicles with the rob full of other thread's instructions */
-	long long dispatch_stall_cycles_iq;
-	long long dispatch_stall_cycles_lsq;
-	long long dispatch_stall_cycles_rename;
-
-	long long interthread_penalty_cycles; /* Cicles with the ROB stalled due to a memory instruction that has missed due to interthread pollution */
 
 	long long iq_occupancy;
 	long long iq_full;
@@ -342,15 +330,6 @@ struct x86_core_t
 
 	/* Stats */
 	long long dispatch_stall[x86_dispatch_stall_max];
-	long long dispatch_stall_cycles_rob;
-	long long dispatch_stall_cycles_rob_mem;
-	long long dispatch_stall_cycles_rob_smt;
-	long long dispatch_stall_cycles_rob_load;
-	long long dispatch_stall_cycles_iq;
-	long long dispatch_stall_cycles_lsq;
-	long long dispatch_stall_cycles_uop_queue;
-	long long dispatch_stall_cycles_rename;
-
 	long long interthread_penalty_cycles; /* Cicles with the ROB stalled due to a memory instruction that has missed due to interthread pollution */
 
 	long long num_dispatched_uinst_array[x86_uinst_opcode_count];

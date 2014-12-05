@@ -297,12 +297,29 @@ int x86_cpu_commit_width;
 
 int x86_cpu_occupancy_stats;
 
-
+struct str_map_t x86_dispatch_stall_map =
+{
+	x86_dispatch_stall_max, {
+		{ "disp-used", x86_dispatch_stall_used },
+		{ "disp-used-spec", x86_dispatch_stall_spec },
+		{ "disp-stall-uopq", x86_dispatch_stall_uop_queue },
+		{ "disp-stall-rob-smt", x86_dispatch_stall_rob_smt },
+		{ "disp-stall-rob-mem", x86_dispatch_stall_rob_mem },
+		{ "disp-stall-rob", x86_dispatch_stall_rob },
+		{ "disp-stall-iq", x86_dispatch_stall_iq },
+		{ "disp-stall-lq", x86_dispatch_stall_lq },
+		{ "disp-stall-sq", x86_dispatch_stall_sq },
+		{ "disp-stall-pq", x86_dispatch_stall_pq },
+		{ "disp-stall-rename", x86_dispatch_stall_rename },
+		{ "disp-stall-ctx", x86_dispatch_stall_ctx }
+	}
+};
 
 
 /*
  * Private Functions
  */
+
 
 static char *x86_cpu_err_fast_forward =
 	"\tThe number of instructions specified in the x86 CPU configuration file\n"
@@ -545,16 +562,6 @@ static void x86_cpu_dump_report(void)
 			DUMP_DISPATCH_STAT(pq);
 			DUMP_DISPATCH_STAT(rename);
 			DUMP_DISPATCH_STAT(ctx);
-
-			fprintf(f, "Dispatch.Stall.Cycles.Rob = %lld\n", X86_CORE.dispatch_stall_cycles_rob);
-			fprintf(f, "Dispatch.Stall.Cycles.Rob.Mem = %lld\n", X86_CORE.dispatch_stall_cycles_rob_mem);
-			fprintf(f, "Dispatch.Stall.Cycles.Rob.Load = %lld\n", X86_CORE.dispatch_stall_cycles_rob_load);
-			fprintf(f, "Dispatch.Stall.Cycles.IQ = %lld\n", X86_CORE.dispatch_stall_cycles_iq);
-			fprintf(f, "Dispatch.Stall.Cycles.Rob.LSQ = %lld\n", X86_CORE.dispatch_stall_cycles_lsq);
-			fprintf(f, "Dispatch.Stall.Cycles.Rob.UOPQ = %lld\n", X86_CORE.dispatch_stall_cycles_uop_queue);
-			fprintf(f, "Dispatch.Stall.Cycles.Rob.Rename = %lld\n", X86_CORE.dispatch_stall_cycles_rename);
-			fprintf(f, "Dispatch.Stall.Cycles.Rob.Mem = %lld\n", X86_CORE.dispatch_stall_cycles_rob_mem);
-
 			fprintf(f, "\n");
 		}
 
@@ -1296,17 +1303,13 @@ static void x86_cpu_thread_interval_report_init(int core, int thread)
 
 	X86_THREAD.report_stack = stack;
 
-	fprintf(stack->report_file, "%s", "esim-time");                                  /* Global simulation time */
-	fprintf(stack->report_file, ",c%dt%d-%s", core, thread, "inst");                 /* Instructions */
-	fprintf(stack->report_file, ",c%dt%d-%s", core, thread, "uinst");                /* Microinstructions */
-	fprintf(stack->report_file, ",c%dt%d-%s", core, thread, "ipc-int");              /* Microinstructions per cycle in the interval */
-	fprintf(stack->report_file, ",c%dt%d-%s", core, thread, "ipc-glob");             /* Global microinstructions per cycle */
-	fprintf(stack->report_file, ",c%dt%d-%s", core, thread, "rob-stall-int");        /* Ratio of cycles with the ROB stalled */
-	fprintf(stack->report_file, ",c%dt%d-%s", core, thread, "rob-stall-mem-int");    /* Ratio of cycles with the ROB stalled with a memory instruction in the head */
-	fprintf(stack->report_file, ",c%dt%d-%s", core, thread, "rob-stall-smt-int");    /* Ratio of cycles with the ROB stalled and filled with instructions of other threads */
-	fprintf(stack->report_file, ",c%dt%d-%s", core, thread, "iq-stall-int");         /* Ratio of cycles with the IQ stalled */
-	fprintf(stack->report_file, ",c%dt%d-%s", core, thread, "lsq-stall-int");        /* Ratio of cycles with the LSQ stalled */
-	fprintf(stack->report_file, ",c%dt%d-%s", core, thread, "rename-stall-int");     /* Ratio of cycles with the dispatch stalled due running out of rename registers */
+	fprintf(stack->report_file, "%s", "esim-time");                                        /* Global simulation time */
+	fprintf(stack->report_file, ",c%dt%d-%s", core, thread, "inst");                       /* Instructions */
+	fprintf(stack->report_file, ",c%dt%d-%s", core, thread, "uinst");                      /* Microinstructions */
+	fprintf(stack->report_file, ",c%dt%d-%s", core, thread, "ipc-int");                    /* Microinstructions per cycle in the interval */
+	fprintf(stack->report_file, ",c%dt%d-%s", core, thread, "ipc-glob");                   /* Global microinstructions per cycle */
+	for (int i = 0; i < x86_dispatch_stall_max; i++)                                       /* Where the dispatch slots are going */
+		fprintf(stack->report_file, ",c%dt%d-%s", core, thread, str_map_value(&x86_dispatch_stall_map, i));
 	for (int level = 1; level <= max_mod_level - 1; level++)
 	{
 		fprintf(stack->report_file, ",c%dt%d-l%d-%s", core, thread, level, "hits-int");
@@ -1324,54 +1327,39 @@ static void x86_cpu_thread_interval_report(int core, int thread)
 	struct x86_thread_report_stack_t *stack = X86_THREAD.report_stack;
 	long long cycles_int = arch_x86->cycle - stack->last_cycle;
 	long long num_committed_uinst_int;
-	double rob_stall;
-	double rob_stall_mem;
-	double rob_stall_smt;
-	double iq_stall;
-	double lsq_stall;
-	double rename_stall;
 	double ipc_int;
 	double ipc_glob;
+	double dispatch_total_slots = 0;
+	double dispatch_stall_int[x86_dispatch_stall_max];
 
-	rob_stall = cycles_int > 0 ?
-			(double) (X86_THREAD.dispatch_stall_cycles_rob - stack->dispatch_stall_cycles_rob) / cycles_int :
-			NAN;
+	/* Ratio of usage and stall of dispatch slots */
+	for (int i = 0; i < x86_dispatch_stall_max; i++)
+	{
+		dispatch_stall_int[i] = X86_THREAD.dispatch_stall[i] - stack->dispatch_stall[i];
+		dispatch_total_slots += dispatch_stall_int[i];
+	}
+	for (int i = 0; i < x86_dispatch_stall_max; i++)
+	{
+		dispatch_stall_int[i] = dispatch_total_slots > 0 ?
+				dispatch_stall_int[i] / dispatch_total_slots :
+				NAN;
+	}
 
-	rob_stall_mem = cycles_int > 0 ?
-			(double) (X86_THREAD.dispatch_stall_cycles_rob_mem - stack->dispatch_stall_cycles_rob_mem) / cycles_int :
-			NAN;
-
-	rob_stall_smt = cycles_int > 0 ?
-			(double) (X86_THREAD.dispatch_stall_cycles_rob_smt - stack->dispatch_stall_cycles_rob_smt) / cycles_int :
-			NAN;
-
-	iq_stall = cycles_int > 0 ?
-			(double) (X86_THREAD.dispatch_stall_cycles_iq - stack->dispatch_stall_cycles_iq) / cycles_int :
-			NAN;
-
-	lsq_stall = cycles_int > 0 ?
-			(double) (X86_THREAD.dispatch_stall_cycles_lsq - stack->dispatch_stall_cycles_lsq) / cycles_int :
-			NAN;
-
-	rename_stall = cycles_int > 0 ?
-			(double) (X86_THREAD.dispatch_stall_cycles_rename - stack->dispatch_stall_cycles_rename) / cycles_int :
-			NAN;
 
 	num_committed_uinst_int = X86_THREAD.num_committed_uinst - stack->num_committed_uinst;
-	ipc_glob = arch_x86->cycle - arch_x86->last_reset_cycle ? (double) X86_THREAD.num_committed_uinst / (arch_x86->cycle - arch_x86->last_reset_cycle) : 0.0;
+	ipc_glob = arch_x86->cycle - arch_x86->last_reset_cycle ?
+			(double) X86_THREAD.num_committed_uinst / (arch_x86->cycle - arch_x86->last_reset_cycle) : 0.0;
 	ipc_int = (double) num_committed_uinst_int / cycles_int;
+
+	assert(ipc_glob == 0 || ipc_int > 0);
 
 	fprintf(stack->report_file, "%lld", esim_time);
 	fprintf(stack->report_file, ",%lld", X86_THREAD.num_committed_inst);
 	fprintf(stack->report_file, ",%lld", X86_THREAD.num_committed_uinst);
 	fprintf(stack->report_file, ",%.3f", ipc_int);
 	fprintf(stack->report_file, ",%.3f", ipc_glob);
-	fprintf(stack->report_file, ",%.3f", rob_stall);
-	fprintf(stack->report_file, ",%.3f", rob_stall_mem);
-	fprintf(stack->report_file, ",%.3f", rob_stall_smt);
-	fprintf(stack->report_file, ",%.3f", iq_stall);
-	fprintf(stack->report_file, ",%.3f", lsq_stall);
-	fprintf(stack->report_file, ",%.3f", rename_stall);
+	for (int i = 0; i < x86_dispatch_stall_max; i++)
+		fprintf(stack->report_file, ",%.3f", dispatch_stall_int[i]);
 	for (int level = 1; level <= max_mod_level - 1; level++)
 	{
 		fprintf(stack->report_file, ",%lld", stack->hits_per_level_int[level]);
@@ -1384,12 +1372,8 @@ static void x86_cpu_thread_interval_report(int core, int thread)
 
 	/* Update intermediate results */
 	stack->last_cycle = arch_x86->cycle;
-	stack->dispatch_stall_cycles_rob = X86_THREAD.dispatch_stall_cycles_rob;
-	stack->dispatch_stall_cycles_rob_mem = X86_THREAD.dispatch_stall_cycles_rob_mem;
-	stack->dispatch_stall_cycles_rob_smt = X86_THREAD.dispatch_stall_cycles_rob_smt;
-	stack->dispatch_stall_cycles_iq = X86_THREAD.dispatch_stall_cycles_iq;
-	stack->dispatch_stall_cycles_lsq = X86_THREAD.dispatch_stall_cycles_lsq;
-	stack->dispatch_stall_cycles_rename = X86_THREAD.dispatch_stall_cycles_rename;
+	for (int i = 0; i < x86_dispatch_stall_max; i++)
+		stack->dispatch_stall[i] = X86_THREAD.dispatch_stall[i];
 	stack->num_committed_uinst = X86_THREAD.num_committed_uinst;
 	for (int level = 1; level <= max_mod_level - 1; level++) /* Deepest mod level is main memory, not cache */
 	{
