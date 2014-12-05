@@ -49,19 +49,19 @@ static void x86_cpu_writeback_core(int core)
 			uop->when = arch_x86->cycle;
 		if (uop->when > arch_x86->cycle)
 			break;
-		
+
 		/* Check element integrity */
 		assert(x86_uop_exists(uop));
 		assert(uop->when == arch_x86->cycle);
 		assert(uop->core == core);
 		assert(uop->ready);
 		assert(!uop->completed);
-		
+
 		/* Extract element from event queue. */
 		linked_list_remove(X86_CORE.event_queue);
 		uop->in_event_queue = 0;
 		thread = uop->thread;
-		
+
 		/* If a mispredicted branch is solved and recovery is configured to be
 		 * performed at writeback, schedule it for the end of the iteration. */
 		if (x86_cpu_recover_kind == x86_cpu_recover_kind_writeback &&

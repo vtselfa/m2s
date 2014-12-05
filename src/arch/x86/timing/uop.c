@@ -86,7 +86,7 @@ void x86_uop_list_dump(struct list_t *list, FILE *f)
 {
 	struct x86_uop_t *uop;
 	int i;
-	
+
 	for (i = 0; i < list_count(list); i++)
 	{
 		fprintf(f, "%3d. ", i);
@@ -100,7 +100,7 @@ void x86_uop_list_dump(struct list_t *list, FILE *f)
 void x86_uop_linked_list_dump(struct linked_list_t *uop_list, FILE *f)
 {
 	struct x86_uop_t *uop;
-	
+
 	linked_list_head(uop_list);
 	while (!linked_list_is_end(uop_list))
 	{

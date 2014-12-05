@@ -64,14 +64,14 @@ void x86_cpu_recover(int core, int thread)
 		assert(uop->thread == thread);
 		if (!uop->specmode)
 			break;
-		
+
 		/* Statistics */
 		if (uop->trace_cache)
 			X86_THREAD.trace_cache->num_squashed_uinst++;
 		X86_THREAD.num_squashed_uinst++;
 		X86_CORE.num_squashed_uinst++;
 		x86_cpu->num_squashed_uinst++;
-		
+
 		/* Undo map */
 		if (!uop->completed)
 			x86_reg_file_write(uop);
@@ -92,7 +92,7 @@ void x86_cpu_recover(int core, int thread)
 	/* If we actually fetched wrong instructions, recover emulator */
 	if (x86_ctx_get_state(X86_THREAD.ctx, x86_ctx_spec_mode))
 		x86_ctx_recover(X86_THREAD.ctx);
-	
+
 	/* Stall fetch and set eip to fetch. */
 	X86_THREAD.fetch_stall_until = MAX(X86_THREAD.fetch_stall_until, arch_x86->cycle + x86_cpu_recover_penalty - 1);
 	X86_THREAD.fetch_neip = X86_THREAD.ctx->regs->eip;
