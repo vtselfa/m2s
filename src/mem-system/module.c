@@ -1321,6 +1321,14 @@ void mod_adapt_pref_adp(struct mod_t *mod)
 			pref->enabled = 1;
 		}
 	}
+
+	stack->last_cycle = esim_cycle();
+	stack->last_completed_prefetches = mod->completed_prefetches;
+	stack->last_useful_prefetches = mod->useful_prefetches;
+	stack->last_misses = mod->misses;
+	stack->last_uinsts = uinsts;
+	stack->last_dispatch_slots_lost = dispatch_slots_lost;
+	stack->last_misses_int = misses_int;
 }
 
 
