@@ -95,6 +95,9 @@ struct thresholds_t
 {
 	struct
 	{
+		int a1; /* Aggr level */
+		int a2;
+		int a3;
 		double acc_high;
 		double acc_low;
 		double acc_very_low;

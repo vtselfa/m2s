@@ -898,6 +898,9 @@ void prefetcher_set_default_adaptive_thresholds(struct prefetcher_t *pref)
 	{
 		case adapt_pref_policy_adp:
 			#define POLICY adp
+			pref->th.POLICY.a1 = 0;
+			pref->th.POLICY.a2 = 2;
+			pref->th.POLICY.a3 = 4;
 			pref->th.POLICY.bwno = 2.75;
 			pref->th.POLICY.cov = 0.3;
 			pref->th.POLICY.acc_very_low = 0.2;

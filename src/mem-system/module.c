@@ -1268,9 +1268,17 @@ void mod_adapt_pref_adp(struct mod_t *mod)
 		/* Very low accuracy */
 		if (acc_int < acc_very_low_th)
 		{
-			/* Reduce aggr. and disable */
-			pref->aggr = 2;
-			pref->enabled = 0;
+			/* We can disable */
+			if (a1 == 0)
+			{
+				/* Reduce aggr. and disable */
+				pref->aggr = a2;
+				pref->enabled = 0;
+			}
+
+			/* Disabling is forbidden */
+			else
+				pref->aggr = a1; /* Only reduce aggr */
 
 			/* Good coverage and others don't require lots of BW */
 			if (cov_int > cov_th && bwno_int < bwno_th)
@@ -1281,11 +1289,19 @@ void mod_adapt_pref_adp(struct mod_t *mod)
 		if (acc_int < acc_low_th)
 		{
 			/* Reduce aggr. */
-			pref->aggr = 2;
+			pref->aggr = a2;
 
 			/* Bad coverage and others need bw */
 			if (cov_int < cov_th && bwno_int > bwno_th)
-				pref->enabled = 0;
+			{
+				/* We can disable */
+				if (a1 == 0)
+					pref->enabled = 0;
+
+				/* Cannot disable */
+				else
+					pref->aggr = a2; /* Further reduce aggr */
+			}
 		}
 
 		/* Medium accuracy */
@@ -1293,7 +1309,7 @@ void mod_adapt_pref_adp(struct mod_t *mod)
 		{
 			/* Others need bandwidth */
 			if (bwno_int > bwno_th)
-				pref->aggr = 2; /* Reduce aggr. */
+				pref->aggr = a2; /* Reduce aggr. */
 		}
 
 		/* High accuracy */
@@ -1301,14 +1317,14 @@ void mod_adapt_pref_adp(struct mod_t *mod)
 		{
 			/* Others need bandwidth */
 			if (bwno_int > bwno_th)
-				pref->aggr = 2;
+				pref->aggr = a2;
 
 			/* Others don't need a lot of bw */
 			else
 			{
 				/* Bad coverage */
 				if (cov_int < cov_th)
-					pref->aggr = 4;
+					pref->aggr = a3;
 			}
 		}
 	}

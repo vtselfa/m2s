@@ -582,6 +582,9 @@ static struct prefetcher_t* mem_config_read_prefetcher(struct config_t *config, 
 		case adapt_pref_policy_adp:
 			#define POLICY adp
 			#define POLICY_UP "ADP"
+			pref->th.POLICY.a1 = config_read_double(config, section, POLICY_UP ".A1", pref->th.POLICY.a1);
+			pref->th.POLICY.a2 = config_read_double(config, section, POLICY_UP ".A2", pref->th.POLICY.a2);
+			pref->th.POLICY.a3 = config_read_double(config, section, POLICY_UP ".A3", pref->th.POLICY.a3);
 			pref->th.POLICY.acc_high = config_read_double(config, section, POLICY_UP ".AccHigh", pref->th.POLICY.acc_high);
 			pref->th.POLICY.acc_low = config_read_double(config, section, POLICY_UP ".AccLow", pref->th.POLICY.acc_low);
 			pref->th.POLICY.acc_very_low = config_read_double(config, section, POLICY_UP ".AccVeryLow", pref->th.POLICY.acc_very_low);
