@@ -1235,11 +1235,13 @@ void mod_adapt_pref_adp(struct mod_t *mod)
 			{
 				struct mod_t *mm_mod = list_get(mod->reachable_mm_modules, i);
 				bwno_int += dram_system_get_bwn(mm_mod->dram_system->handler, mm_mod->mc_id, core);
+				dram_system_reset_bwn(mm_mod->dram_system->handler, mm_mod->mc_id, core);
 			}
 		}
 	}
 	dispatch_slots_lost /= reachable_cores;
 	uinsts /= reachable_cores;
+	bwno_int /= cycles_int;
 
 	/* Average IPC for the accessing cores */
 	uinsts_int = uinsts - stack->last_uinsts;
@@ -1534,6 +1536,7 @@ void mod_adapt_pref_hpac(struct mod_t *mod)
 			{
 				struct mod_t *mm_mod = list_get(mod->reachable_mm_modules, i);
 				bwc_int += dram_system_get_bwc(mm_mod->dram_system->handler, mm_mod->mc_id, core);
+				dram_system_reset_bwc(mm_mod->dram_system->handler, mm_mod->mc_id, core);
 				reachable_cores++;
 			}
 		}
@@ -1545,6 +1548,8 @@ void mod_adapt_pref_hpac(struct mod_t *mod)
 			{
 				struct mod_t *mm_mod = list_get(mod->reachable_mm_modules, i);
 				bwno_int += dram_system_get_bwn(mm_mod->dram_system->handler, mm_mod->mc_id, core);
+				dram_system_get_bwn(mm_mod->dram_system->handler, mm_mod->mc_id, core);
+				dram_system_reset_bwn(mm_mod->dram_system->handler, mm_mod->mc_id, core);
 			}
 		}
 	}
