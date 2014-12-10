@@ -1187,6 +1187,11 @@ void mod_adapt_pref_adp(struct mod_t *mod)
 	long long uinsts;
 	long long uinsts_int;
 
+	/* Aggr. levels */
+	int a1 = pref->th.mbp.a1;
+	int a2 = pref->th.mbp.a2;
+	int a3 = pref->th.mbp.a3;
+
 	/* Counters */
 	int reachable_cores;
 
