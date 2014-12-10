@@ -18,6 +18,7 @@
 
 #include <assert.h>
 #include <math.h>
+#include <stdlib.h>
 
 #include <arch/x86/timing/cpu.h>
 #include <arch/x86/emu/context.h>
@@ -1636,6 +1637,83 @@ done:
 }
 
 
+void mod_adapt_pref_mbp(struct mod_t *mod)
+{
+	struct prefetcher_t *pref = mod->cache->prefetcher;
+	struct mod_adapt_pref_stack_t *stack = mod->adapt_pref_stack;
+
+	double random = (double) rand() / RAND_MAX;
+	double max_avg_reward;
+	double acc_int;
+	double prefs_int;
+	double useful_prefs_int;
+
+	/* Aggr. levels */
+	int a1 = pref->th.mbp.a1;
+	int a2 = pref->th.mbp.a2;
+	int a3 = pref->th.mbp.a3;
+
+	int choice = -1;
+
+	/* Completed prefetches */
+	prefs_int = mod->completed_prefetches - stack->last_completed_prefetches;
+
+	/* Useful prefetches */
+	useful_prefs_int = mod->useful_prefetches - stack->last_useful_prefetches;
+
+	/* Accuracy */
+	acc_int = prefs_int ? (double) useful_prefs_int / prefs_int : 0.0;
+	acc_int = acc_int > 1 ? 1 : acc_int; /* May be slightly greather than 1 due bad timing with cycles */
+
+	/* Add reward from last choice and count it */
+	stack->reward[stack->last_choice] += useful_prefs_int * acc_int;
+	stack->times_used[stack->last_choice]++;
+
+	/* Exploration */
+	if (random < pref->th.mbp.ratio)
+		choice = rand() % 3;
+
+	/* Exploitation */
+	else
+	{
+		max_avg_reward = 0;
+		for (int i=0; i<3; i++)
+		{
+			double avg_reward = stack->times_used[i] ? stack->reward[i] / stack->times_used[i] : 0.0;
+			if (avg_reward >= max_avg_reward)
+			{
+				max_avg_reward = avg_reward;
+				choice = i;
+			}
+		}
+		assert(choice != -1);
+	}
+
+	/* Make changes */
+	switch(choice)
+	{
+		case 0:
+			pref->aggr = a1;
+			break;
+		case 1:
+			pref->aggr = a2;
+			break;
+		case 2:
+			pref->aggr = a3;
+			break;
+		default:
+			fatal("Invalid level choice");
+			break;
+	}
+
+	printf("%s %d\n", mod->name, choice);
+
+	stack->last_choice = choice;
+	stack->last_completed_prefetches = mod->completed_prefetches;
+	stack->last_useful_prefetches = mod->useful_prefetches;
+}
+
+
 void mod_adapt_pref_schedule(struct mod_t *mod)
 {
 	struct mod_adapt_pref_stack_t *stack;
@@ -1751,6 +1829,10 @@ void mod_adapt_pref_handler(int event, void *data)
 
 		case adapt_pref_policy_hpac:
 			mod_adapt_pref_hpac(mod);
+			break;
+
+		case adapt_pref_policy_mbp:
+			mod_adapt_pref_mbp(mod);
 			break;
 
 		default:

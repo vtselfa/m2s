@@ -616,6 +616,17 @@ static struct prefetcher_t* mem_config_read_prefetcher(struct config_t *config, 
 			#undef POLICY_UP
 			break;
 
+		case adapt_pref_policy_mbp:
+			#define POLICY mbp
+			#define POLICY_UP "MBP"
+			pref->th.POLICY.ratio = config_read_double(config, section, POLICY_UP ".Ratio", pref->th.POLICY.ratio);
+			pref->th.POLICY.a1 = config_read_double(config, section, POLICY_UP ".A1", pref->th.POLICY.a1);
+			pref->th.POLICY.a2 = config_read_double(config, section, POLICY_UP ".A2", pref->th.POLICY.a2);
+			pref->th.POLICY.a3 = config_read_double(config, section, POLICY_UP ".A3", pref->th.POLICY.a3);
+			#undef POLICY
+			#undef POLICY_UP
+			break;
+
 		default:
 			break;
 	}

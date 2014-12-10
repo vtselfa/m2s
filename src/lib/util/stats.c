@@ -17,7 +17,7 @@
 int EV_INTERVAL_REPORT;
 int interval_report_domain_index;
 
-long long epoch_length; /* Number of cycles in esim_frequency for the stats reporting interval */
+long long epoch_length = 50000; /* Number of cycles in esim_frequency for the stats reporting interval */
 
 char *reports_dir = "./";
 

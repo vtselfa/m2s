@@ -927,6 +927,15 @@ void prefetcher_set_default_adaptive_thresholds(struct prefetcher_t *pref)
 			#undef POLICY
 			break;
 
+		case adapt_pref_policy_mbp:
+			#define POLICY mbp
+			pref->th.POLICY.ratio = 0.15;
+			pref->th.POLICY.a1 = 1;
+			pref->th.POLICY.a2 = 2;
+			pref->th.POLICY.a3 = 4;
+			#undef POLICY
+			break;
+
 		default:
 			break;
 	}

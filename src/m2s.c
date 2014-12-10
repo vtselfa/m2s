@@ -18,6 +18,7 @@
  */
 
 #include <signal.h>
+#include <stdlib.h>
 
 #include <arch/arm/emu/context.h>
 #include <arch/arm/emu/isa.h>
@@ -1957,6 +1958,9 @@ void m2s_default_report_paths()
 
 int main(int argc, char **argv)
 {
+	/* Set rand seed */
+	srand(42);
+
 	/* Global initialization and welcome message */
 	m2s_init();
 

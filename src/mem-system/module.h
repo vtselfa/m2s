@@ -41,6 +41,7 @@ struct mod_report_stack_t
 	long long stream_hits;
 	long long misses;
 	long long retries;
+
 	long long delayed_hits;
 	long long delayed_hit_cycles;
 
@@ -159,6 +160,10 @@ struct mod_adapt_pref_stack_t
 	double last_ipc_int;
 
 	int last_action;
+	double reward[3];
+	long long times_used[3];
+	int last_choice;
+	long long *uinsts_per_core;
 };
 
 #define MOD_ACCESS_HASH_TABLE_SIZE  17

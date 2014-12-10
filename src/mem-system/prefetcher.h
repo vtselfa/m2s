@@ -120,7 +120,10 @@ struct thresholds_t
 	} hpac;
 	struct
 	{
-		double ratio;
+		int a1; /* Aggr level */
+		int a2;
+		int a3;
+		double ratio; /* Ratio exploration / exploitation */
 	} mbp;
 };
 
