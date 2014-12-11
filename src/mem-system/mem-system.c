@@ -661,7 +661,7 @@ void main_memory_read_callback(void *payload, unsigned int id, uint64_t address,
 	uop = stack->event_queue_item;
 	if (uop)
 		uop->uinst->dram_interthread_penalty_cycles += interthread_penalty * cpu_freq / dram_freq;
-	assert(uop || stack->client_info->instr_fetch); /* If there isn't a uop, then it must be a instruction fetch access */
+	assert(uop || stack->client_info->instr_fetch || stack->prefetch); /* If there isn't a uop, then it must be a instruction fetch access or a prefetch */
 
 	assert(found == 1);
 }

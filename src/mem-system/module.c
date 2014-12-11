@@ -1187,6 +1187,8 @@ void mod_adapt_pref_adp(struct mod_t *mod)
 	long long uinsts;
 	long long uinsts_int;
 
+	long long bwno;
+
 	/* Aggr. levels */
 	int a1 = pref->th.mbp.a1;
 	int a2 = pref->th.mbp.a2;
@@ -1219,7 +1221,7 @@ void mod_adapt_pref_adp(struct mod_t *mod)
 
 	/* Data involving all accessing cores */
 	reachable_cores = 0;
-	bwno_int = 0;
+	bwno = 0;
 	dispatch_slots_lost = 0;
 	uinsts = 0;
 	for (int core = 0; core < x86_cpu_num_cores; core++)
@@ -1239,13 +1241,13 @@ void mod_adapt_pref_adp(struct mod_t *mod)
 			LIST_FOR_EACH(mod->reachable_mm_modules, i)
 			{
 				struct mod_t *mm_mod = list_get(mod->reachable_mm_modules, i);
-				bwno_int += dram_system_get_bwn(mm_mod->dram_system->handler, mm_mod->mc_id, core);
-				dram_system_reset_bwn(mm_mod->dram_system->handler, mm_mod->mc_id, core);
+				bwno += dram_system_get_bwn(mm_mod->dram_system->handler, mm_mod->mc_id, core);
 			}
 		}
 	}
 	dispatch_slots_lost /= reachable_cores;
 	uinsts /= reachable_cores;
+	bwno_int = bwno - stack->last_bwno;
 	bwno_int /= cycles_int;
 
 	/* Average IPC for the accessing cores */
@@ -1286,7 +1288,7 @@ void mod_adapt_pref_adp(struct mod_t *mod)
 		}
 
 		/* Low accuracy */
-		if (acc_int < acc_low_th)
+		else if (acc_int < acc_low_th)
 		{
 			/* Reduce aggr. */
 			pref->aggr = a2;
@@ -1300,7 +1302,7 @@ void mod_adapt_pref_adp(struct mod_t *mod)
 
 				/* Cannot disable */
 				else
-					pref->aggr = a2; /* Further reduce aggr */
+					pref->aggr = a1; /* Further reduce aggr */
 			}
 		}
 
@@ -1347,12 +1349,14 @@ void mod_adapt_pref_adp(struct mod_t *mod)
 	}
 
 	stack->last_cycle = esim_cycle();
+	stack->last_ipc_int = ipc_int;
 	stack->last_completed_prefetches = mod->completed_prefetches;
 	stack->last_useful_prefetches = mod->useful_prefetches;
 	stack->last_misses = mod->misses;
 	stack->last_uinsts = uinsts;
 	stack->last_dispatch_slots_lost = dispatch_slots_lost;
 	stack->last_misses_int = misses_int;
+	stack->last_bwno = bwno;
 }
 
 
@@ -1508,6 +1512,8 @@ void mod_adapt_pref_hpac(struct mod_t *mod)
 	/* Auxiliar stats */
 	long long prefs_int;
 	long long useful_prefs_int;
+	long long bwno_glob;
+	long long bwc_glob;
 	int reachable_cores;
 
 	/* Thresholds */
@@ -1545,8 +1551,8 @@ void mod_adapt_pref_hpac(struct mod_t *mod)
 
 	/* BWC and BWNO */
 	reachable_cores = 0;
-	bwc_int = 0;
-	bwno_int = 0;
+	bwc_glob = 0;
+	bwno_glob = 0;
 	for (int core = 0; core < x86_cpu_num_cores; core++)
 	{
 		int i;
@@ -1556,8 +1562,7 @@ void mod_adapt_pref_hpac(struct mod_t *mod)
 			LIST_FOR_EACH(mod->reachable_mm_modules, i)
 			{
 				struct mod_t *mm_mod = list_get(mod->reachable_mm_modules, i);
-				bwc_int += dram_system_get_bwc(mm_mod->dram_system->handler, mm_mod->mc_id, core);
-				dram_system_reset_bwc(mm_mod->dram_system->handler, mm_mod->mc_id, core);
+				bwc_glob += dram_system_get_bwc(mm_mod->dram_system->handler, mm_mod->mc_id, core);
 				reachable_cores++;
 			}
 		}
@@ -1568,12 +1573,12 @@ void mod_adapt_pref_hpac(struct mod_t *mod)
 			LIST_FOR_EACH(mod->reachable_mm_modules, i)
 			{
 				struct mod_t *mm_mod = list_get(mod->reachable_mm_modules, i);
-				bwno_int += dram_system_get_bwn(mm_mod->dram_system->handler, mm_mod->mc_id, core);
-				dram_system_get_bwn(mm_mod->dram_system->handler, mm_mod->mc_id, core);
-				dram_system_reset_bwn(mm_mod->dram_system->handler, mm_mod->mc_id, core);
+				bwno_glob += dram_system_get_bwn(mm_mod->dram_system->handler, mm_mod->mc_id, core);
 			}
 		}
 	}
+	bwc_int = bwc_glob - stack->last_bwc;
+	bwno_int = bwno_glob - stack->last_bwno;
 	bwc_int /= (reachable_cores * list_count(mod->reachable_mm_modules));
 	bwno_int /= list_count(mod->reachable_mm_modules);
 
@@ -1842,7 +1847,6 @@ void mod_adapt_pref_handler(int event, void *data)
 			break;
 	}
 
-
 	switch(mod->cache->prefetcher->adapt_policy)
 	{
 		case adapt_pref_policy_adp:
@@ -1866,9 +1870,24 @@ void mod_adapt_pref_handler(int event, void *data)
 			break;
 	}
 
-	stack->last_cycle = esim_cycle();
-	stack->last_uinsts = uinsts;
-	stack->last_evictions = mod->evictions;
+	switch(cache->prefetcher->adapt_interval_kind)
+	{
+		case interval_kind_cycles:
+			stack->last_cycle = esim_cycle();
+			break;
+
+		case interval_kind_instructions:
+			stack->last_uinsts = uinsts;
+			break;
+
+		case interval_kind_evictions:
+			stack->last_evictions = mod->evictions;
+			break;
+
+		case interval_kind_invalid:
+			fatal("%s: Invalid interval kind", __FUNCTION__);
+			break;
+	}
 
 schedule_next_event:
 	assert(pref->adapt_interval);

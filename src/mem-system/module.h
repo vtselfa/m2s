@@ -150,6 +150,8 @@ struct mod_adapt_pref_stack_t
 	long long last_dispatch_slots_lost;
 	long long last_misses;
 	long long last_late_prefetches;
+	long long last_bwno;
+	long long last_bwc;
 
 	long long last_misses_int;
 
