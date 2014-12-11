@@ -19,6 +19,7 @@
 #include <assert.h>
 #include <math.h>
 #include <stdlib.h>
+#include <limits.h>
 
 #include <arch/x86/timing/cpu.h>
 #include <arch/x86/emu/context.h>
@@ -1190,15 +1191,18 @@ void mod_adapt_pref_adp(struct mod_t *mod)
 	long long bwno;
 
 	/* Aggr. levels */
-	int a1 = pref->th.mbp.a1;
-	int a2 = pref->th.mbp.a2;
-	int a3 = pref->th.mbp.a3;
+	int a1 = pref->th.adp.a1;
+	int a2 = pref->th.adp.a2;
+	int a3 = pref->th.adp.a3;
 
 	/* Counters */
 	int reachable_cores;
 
+	int min_dram_freq = INT_MAX;
+
 	assert(pref);
 	assert(pref->adapt_policy == adapt_pref_policy_adp);
+	assert(a1 < a2 && a2 < a3);
 
 	/* Cycles */
 	cycles_int = esim_cycle() - stack->last_cycle;
@@ -1241,6 +1245,7 @@ void mod_adapt_pref_adp(struct mod_t *mod)
 			LIST_FOR_EACH(mod->reachable_mm_modules, i)
 			{
 				struct mod_t *mm_mod = list_get(mod->reachable_mm_modules, i);
+				min_dram_freq = MIN(min_dram_freq, esim_domain_frequency(mm_mod->dram_system->dram_domain_index));
 				bwno += dram_system_get_bwn(mm_mod->dram_system->handler, mm_mod->mc_id, core);
 			}
 		}
@@ -1248,7 +1253,7 @@ void mod_adapt_pref_adp(struct mod_t *mod)
 	dispatch_slots_lost /= reachable_cores;
 	uinsts /= reachable_cores;
 	bwno_int = bwno - stack->last_bwno;
-	bwno_int /= cycles_int;
+	bwno_int /= (cycles_int * min_dram_freq / esim_frequency);
 
 	/* Average IPC for the accessing cores */
 	uinsts_int = uinsts - stack->last_uinsts;
@@ -1397,6 +1402,7 @@ void mod_adapt_pref_fdp(struct mod_t *mod)
 
 	assert(pref);
 	assert(pref->adapt_policy == adapt_pref_policy_fdp || pref->adapt_policy == adapt_pref_policy_hpac); /* HPAC uses FDP */
+	assert(a1 < a2 && a2 < a3);
 
 	/* Completed prefetches */
 	prefs_int = mod->completed_prefetches - stack->last_completed_prefetches;
@@ -1535,6 +1541,7 @@ void mod_adapt_pref_hpac(struct mod_t *mod)
 
 	assert(pref);
 	assert(pref->adapt_policy == adapt_pref_policy_hpac);
+	assert(a1 < a2 && a2 < a3);
 
 	/* Completed prefetches */
 	prefs_int = mod->completed_prefetches - stack->last_completed_prefetches;
@@ -1686,6 +1693,10 @@ void mod_adapt_pref_mbp(struct mod_t *mod)
 
 	int choice = -1;
 
+	assert(pref);
+	assert(pref->adapt_policy == adapt_pref_policy_mbp);
+	assert(a1 < a2 && a2 < a3);
+
 	/* Completed prefetches */
 	prefs_int = mod->completed_prefetches - stack->last_completed_prefetches;
 
@@ -1697,7 +1708,7 @@ void mod_adapt_pref_mbp(struct mod_t *mod)
 	acc_int = acc_int > 1 ? 1 : acc_int; /* May be slightly greather than 1 due bad timing with cycles */
 
 	/* Add reward from last choice and count it */
-	stack->reward[stack->last_choice] += useful_prefs_int * acc_int;
+	stack->reward[stack->last_choice] += acc_int;
 	stack->times_used[stack->last_choice]++;
 
 	/* Exploration */
