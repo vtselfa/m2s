@@ -2882,8 +2882,9 @@ void mod_handler_nmoesi_evict(int event, void *data)
 				/* Prefetch pollution for adaptive prefetch */
 				if (prefetcher_uses_pollution_filters(mod->cache->prefetcher))
 				{
-					double false_pos_prob = BLOOM_ADD(mod->adapt_pref_stack->pref_pollution_filter, stack->src_tag);
-					if (false_pos_prob)
+					struct bloom_t *bloom = mod->adapt_pref_stack->pref_pollution_filter;
+					double false_pos_prob = BLOOM_ADD(bloom, stack->src_tag);
+					if (false_pos_prob > bloom->max_false_pos_prob * 2)
 						warning("%lld Module %s pollution filter full, false positive probability is %f", esim_time, mod->name, false_pos_prob);
 				}
 

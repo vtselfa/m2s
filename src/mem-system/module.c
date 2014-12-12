@@ -1705,7 +1705,7 @@ void mod_adapt_pref_mbp(struct mod_t *mod)
 
 	/* Accuracy */
 	acc_int = prefs_int ? (double) useful_prefs_int / prefs_int : 0.0;
-	acc_int = acc_int > 1 ? 1 : acc_int; /* May be slightly greather than 1 due bad timing with cycles */
+	acc_int = acc_int > 1 ? 1 : acc_int * useful_prefs_int; /* May be slightly greather than 1 due bad timing with cycles */
 
 	/* Add reward from last choice and count it */
 	stack->reward[stack->last_choice] += acc_int;
@@ -1768,6 +1768,7 @@ void mod_adapt_pref_schedule(struct mod_t *mod)
 	stack = xcalloc(1, sizeof(struct mod_adapt_pref_stack_t));
 	stack->mod = mod;
 	stack->backoff = 50000;
+	stack->last_choice = 2;
 	mod->adapt_pref_stack = stack;
 
 	if (prefetcher_uses_pollution_filters(pref))
