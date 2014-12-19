@@ -600,6 +600,9 @@ static struct prefetcher_t* mem_config_read_prefetcher(struct config_t *config, 
 		case adapt_pref_policy_hpac:
 			#define POLICY hpac
 			#define POLICY_UP "HPAC"
+			pref->th.POLICY.a1 = config_read_double(config, section, POLICY_UP ".A1", pref->th.POLICY.a1);
+			pref->th.POLICY.a2 = config_read_double(config, section, POLICY_UP ".A2", pref->th.POLICY.a2);
+			pref->th.POLICY.a3 = config_read_double(config, section, POLICY_UP ".A3", pref->th.POLICY.a3);
 			pref->th.POLICY.acc = config_read_double(config, section, POLICY_UP ".Acc", pref->th.POLICY.acc);
 			pref->th.POLICY.bwno = config_read_double(config, section, POLICY_UP ".BWNO", pref->th.POLICY.bwno);
 			pref->th.POLICY.bwc = config_read_double(config, section, POLICY_UP ".BWC", pref->th.POLICY.bwc);
@@ -611,6 +614,9 @@ static struct prefetcher_t* mem_config_read_prefetcher(struct config_t *config, 
 		case adapt_pref_policy_fdp:
 			#define POLICY fdp
 			#define POLICY_UP "FDP"
+			pref->th.POLICY.a1 = config_read_double(config, section, POLICY_UP ".A1", pref->th.POLICY.a1);
+			pref->th.POLICY.a2 = config_read_double(config, section, POLICY_UP ".A2", pref->th.POLICY.a2);
+			pref->th.POLICY.a3 = config_read_double(config, section, POLICY_UP ".A3", pref->th.POLICY.a3);
 			pref->th.POLICY.acc_high = config_read_double(config, section, POLICY_UP ".AccHigh", pref->th.POLICY.acc_high);
 			pref->th.POLICY.acc_low = config_read_double(config, section, POLICY_UP ".AccLow", pref->th.POLICY.acc_low);
 			pref->th.POLICY.lateness = config_read_double(config, section, POLICY_UP ".Lateness", pref->th.POLICY.lateness);
@@ -622,10 +628,10 @@ static struct prefetcher_t* mem_config_read_prefetcher(struct config_t *config, 
 		case adapt_pref_policy_mbp:
 			#define POLICY mbp
 			#define POLICY_UP "MBP"
-			pref->th.POLICY.ratio = config_read_double(config, section, POLICY_UP ".Ratio", pref->th.POLICY.ratio);
 			pref->th.POLICY.a1 = config_read_double(config, section, POLICY_UP ".A1", pref->th.POLICY.a1);
 			pref->th.POLICY.a2 = config_read_double(config, section, POLICY_UP ".A2", pref->th.POLICY.a2);
 			pref->th.POLICY.a3 = config_read_double(config, section, POLICY_UP ".A3", pref->th.POLICY.a3);
+			pref->th.POLICY.ratio = config_read_double(config, section, POLICY_UP ".Ratio", pref->th.POLICY.ratio);
 			#undef POLICY
 			#undef POLICY_UP
 			break;

@@ -109,6 +109,9 @@ struct thresholds_t
 	} adp;
 	struct
 	{
+		int a1; /* Aggr level */
+		int a2;
+		int a3;
 		double acc_high;
 		double acc_low;
 		double lateness;
@@ -116,6 +119,9 @@ struct thresholds_t
 	} fdp;
 	struct
 	{
+		int a1; /* Aggr level */
+		int a2;
+		int a3;
 		double acc;
 		double bwno;
 		double bwc;

@@ -1396,9 +1396,9 @@ void mod_adapt_pref_fdp(struct mod_t *mod)
 	bool polluting;
 
 	/* Aggr. levels */
-	int a1 = 1;
-	int a2 = 2;
-	int a3 = 4;
+	int a1 = pref->th.fdp.a1;
+	int a2 = pref->th.fdp.a2;
+	int a3 = pref->th.fdp.a3;
 
 	assert(pref);
 	assert(pref->adapt_policy == adapt_pref_policy_fdp || pref->adapt_policy == adapt_pref_policy_hpac); /* HPAC uses FDP */
@@ -1535,9 +1535,9 @@ void mod_adapt_pref_hpac(struct mod_t *mod)
 	bool bwno;
 
 	/* Aggr. levels */
-	int a1 = 1;
-	int a2 = 2;
-	int a3 = 4;
+	int a1 = pref->th.hpac.a1;
+	int a2 = pref->th.hpac.a2;
+	int a3 = pref->th.hpac.a3;
 
 	assert(pref);
 	assert(pref->adapt_policy == adapt_pref_policy_hpac);

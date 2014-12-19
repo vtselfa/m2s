@@ -914,6 +914,9 @@ void prefetcher_set_default_adaptive_thresholds(struct prefetcher_t *pref)
 
 		case adapt_pref_policy_hpac:
 			#define POLICY hpac
+			pref->th.POLICY.a1 = 1;
+			pref->th.POLICY.a2 = 2;
+			pref->th.POLICY.a3 = 4;
 			pref->th.POLICY.acc = 0.60;
 			pref->th.POLICY.bwc = 50000;
 			pref->th.POLICY.bwno = 75000;
@@ -923,6 +926,9 @@ void prefetcher_set_default_adaptive_thresholds(struct prefetcher_t *pref)
 
 		case adapt_pref_policy_fdp:
 			#define POLICY fdp
+			pref->th.POLICY.a1 = 1;
+			pref->th.POLICY.a2 = 2;
+			pref->th.POLICY.a3 = 4;
 			pref->th.POLICY.acc_low = 0.40;
 			pref->th.POLICY.acc_high = 0.75;
 			pref->th.POLICY.lateness = 0.01;
