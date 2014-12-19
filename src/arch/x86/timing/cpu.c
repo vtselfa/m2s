@@ -1345,7 +1345,6 @@ static void x86_cpu_thread_interval_report(int core, int thread)
 				NAN;
 	}
 
-
 	num_committed_uinst_int = X86_THREAD.num_committed_uinst - stack->num_committed_uinst;
 	ipc_glob = arch_x86->cycle - arch_x86->last_reset_cycle ?
 			(double) X86_THREAD.num_committed_uinst / (arch_x86->cycle - arch_x86->last_reset_cycle) : 0.0;

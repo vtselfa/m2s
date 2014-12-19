@@ -100,8 +100,8 @@ static int x86_cpu_dispatch_thread(int core, int thread, int quant)
 		{
 			X86_CORE.dispatch_stall[stall] += quant;
 			X86_THREAD.dispatch_stall[stall] += quant;
-			{
-			}
+			if (X86_THREAD.ctx)
+				X86_THREAD.ctx->dispatch_stall[stall] += quant;
 			break;
 		}
 
@@ -133,6 +133,8 @@ static int x86_cpu_dispatch_thread(int core, int thread, int quant)
 		/* Statistics */
 		X86_CORE.dispatch_stall[uop->specmode ? x86_dispatch_stall_spec : x86_dispatch_stall_used]++;
 		X86_THREAD.dispatch_stall[uop->specmode ? x86_dispatch_stall_spec : x86_dispatch_stall_used]++;
+		if (X86_THREAD.ctx)
+			X86_THREAD.ctx->dispatch_stall[uop->specmode ? x86_dispatch_stall_spec : x86_dispatch_stall_used]++;
 		X86_THREAD.num_dispatched_uinst_array[uop->uinst->opcode]++;
 		X86_CORE.num_dispatched_uinst_array[uop->uinst->opcode]++;
 		x86_cpu->num_dispatched_uinst_array[uop->uinst->opcode]++;

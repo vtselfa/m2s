@@ -953,12 +953,8 @@ void x86_ctx_interval_report_init(struct x86_ctx_t *ctx)
 	fprintf(stack->report_file, ",pid%d-%s", ctx->pid, "mm-reads-int");
 	fprintf(stack->report_file, ",pid%d-%s", ctx->pid, "mm-prefs-int");
 	fprintf(stack->report_file, ",pid%d-%s", ctx->pid, "mm-writes-int");
-	fprintf(stack->report_file, ",pid%d-%s", ctx->pid, "rob-stall-int");
-	fprintf(stack->report_file, ",pid%d-%s", ctx->pid, "rob-stall-mem-int");
-	fprintf(stack->report_file, ",pid%d-%s", ctx->pid, "rob-stall-smt-int");
-	fprintf(stack->report_file, ",pid%d-%s", ctx->pid, "iq-stall-int");
-	fprintf(stack->report_file, ",pid%d-%s", ctx->pid, "lsq-stall-int");
-	fprintf(stack->report_file, ",pid%d-%s", ctx->pid, "rename-stall-int");
+	for (int i = 0; i < x86_dispatch_stall_max; i++)                                       /* Where the dispatch slots are going */
+		fprintf(stack->report_file, ",pid%d-%s", ctx->pid, str_map_value(&x86_dispatch_stall_map, i));
 	for (int level = 1; level <= max_mod_level - 1; level++)
 	{
 		fprintf(stack->report_file, ",pid%d-l%d-%s", ctx->pid, level, "hits-int");
@@ -981,12 +977,8 @@ void x86_ctx_interval_report(struct x86_ctx_t *ctx)
 	long long uinst_count_int;
 	double ipc_int;
 	double ipc_glob;
-	double rob_stall;
-	double rob_stall_mem;
-	double rob_stall_smt;
-	double iq_stall;
-	double lsq_stall;
-	double rename_stall;
+	double dispatch_total_slots = 0;
+	double dispatch_stall_int[x86_dispatch_stall_max];
 	long long mm_read_accesses;
 	long long mm_write_accesses;
 	long long mm_pref_accesses;
@@ -998,29 +990,18 @@ void x86_ctx_interval_report(struct x86_ctx_t *ctx)
 	mm_write_accesses = ctx->mm_write_accesses - stack->mm_write_accesses;
 	mm_pref_accesses = ctx->mm_pref_accesses - stack->mm_pref_accesses;
 
-	rob_stall = cycles_int > 0 ?
-			(double) (ctx->dispatch_stall_cycles_rob - stack->dispatch_stall_cycles_rob) / cycles_int :
-			NAN;
-
-	rob_stall_mem = cycles_int > 0 ?
-			(double) (ctx->dispatch_stall_cycles_rob_mem - stack->dispatch_stall_cycles_rob_mem) / cycles_int :
-			NAN;
-
-	rob_stall_smt = cycles_int > 0 ?
-			(double) (ctx->dispatch_stall_cycles_rob_smt - stack->dispatch_stall_cycles_rob_smt) / cycles_int :
-			NAN;
-
-	iq_stall = cycles_int > 0 ?
-			(double) (ctx->dispatch_stall_cycles_iq - stack->dispatch_stall_cycles_iq) / cycles_int :
-			NAN;
-
-	lsq_stall = cycles_int > 0 ?
-			(double) (ctx->dispatch_stall_cycles_lsq - stack->dispatch_stall_cycles_lsq) / cycles_int :
-			NAN;
-
-	rename_stall = cycles_int > 0 ?
-			(double) (ctx->dispatch_stall_cycles_rename - stack->dispatch_stall_cycles_rename) / cycles_int :
-			NAN;
+	/* Ratio of usage and stall of dispatch slots */
+	for (int i = 0; i < x86_dispatch_stall_max; i++)
+	{
+		dispatch_stall_int[i] = ctx->dispatch_stall[i] - stack->dispatch_stall[i];
+		dispatch_total_slots += dispatch_stall_int[i];
+	}
+	for (int i = 0; i < x86_dispatch_stall_max; i++)
+	{
+		dispatch_stall_int[i] = dispatch_total_slots > 0 ?
+				dispatch_stall_int[i] / dispatch_total_slots :
+				NAN;
+	}
 
 	/*
 	 * Dump stats
@@ -1050,12 +1031,10 @@ void x86_ctx_interval_report(struct x86_ctx_t *ctx)
 	fprintf(stack->report_file, ",%lld", mm_read_accesses);
 	fprintf(stack->report_file, ",%lld", mm_pref_accesses);
 	fprintf(stack->report_file, ",%lld", mm_write_accesses);
-	fprintf(stack->report_file, ",%.3f", rob_stall);
-	fprintf(stack->report_file, ",%.3f", rob_stall_mem);
-	fprintf(stack->report_file, ",%.3f", rob_stall_smt);
-	fprintf(stack->report_file, ",%.3f", iq_stall);
-	fprintf(stack->report_file, ",%.3f", lsq_stall);
-	fprintf(stack->report_file, ",%.3f", rename_stall);
+
+	/* Dispatch slots */
+	for (int i = 0; i < x86_dispatch_stall_max; i++)
+		fprintf(stack->report_file, ",%.3f", dispatch_stall_int[i]);
 
 	/* More stats per cache level */
 	for (int level = 1; level <= max_mod_level - 1; level++)
@@ -1079,12 +1058,8 @@ void x86_ctx_interval_report(struct x86_ctx_t *ctx)
 	stack->mm_read_accesses = ctx->mm_read_accesses;
 	stack->mm_write_accesses = ctx->mm_write_accesses;
 	stack->mm_pref_accesses = ctx->mm_pref_accesses;
-	stack->dispatch_stall_cycles_rob = ctx->dispatch_stall_cycles_rob;
-	stack->dispatch_stall_cycles_rob_mem = ctx->dispatch_stall_cycles_rob_mem;
-	stack->dispatch_stall_cycles_rob_smt = ctx->dispatch_stall_cycles_rob_smt;
-	stack->dispatch_stall_cycles_iq = ctx->dispatch_stall_cycles_iq;
-	stack->dispatch_stall_cycles_lsq = ctx->dispatch_stall_cycles_lsq;
-	stack->dispatch_stall_cycles_rename = ctx->dispatch_stall_cycles_rename;
+	for (int i = 0; i < x86_dispatch_stall_max; i++)
+		stack->dispatch_stall[i] = ctx->dispatch_stall[i];
 	for (int level = 1; level <= max_mod_level - 1; level++) /* Deepest mod level is main memory, not cache */
 	{
 		stack->hits_per_level_int[level] = 0;

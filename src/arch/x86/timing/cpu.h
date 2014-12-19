@@ -108,6 +108,8 @@ extern long long x86_cpu_fast_forward_count;
 extern long long x86_cpu_warm_up_count;
 extern char *x86_save_checkpoint_after_warm_up_file_name;
 
+extern struct str_map_t x86_dispatch_stall_map;
+
 /* Trace */
 #define x86_tracing() trace_status(x86_trace_category)
 #define x86_trace(...) trace(x86_trace_category, __VA_ARGS__)
